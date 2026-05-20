@@ -1,0 +1,169 @@
+import { z } from "zod";
+import {
+  HarnessRunIdSchema,
+  ProjectIdSchema,
+  ProviderIdSchema,
+  SessionIdSchema,
+  TerminalTargetIdSchema,
+  TimestampSchema,
+  WorktreeIdSchema,
+} from "./ids";
+import { nonEmptyStringSchema, optionalProviderDataSchema } from "./shared";
+
+export const ConfidenceSchema = z.enum(["high", "medium", "low"]);
+export const WorktreeStateSchema = z.enum(["exists", "missing", "orphaned"]);
+export const TerminalStateSchema = z.enum(["none", "open", "detached", "stale", "unknown"]);
+export const AgentStateSchema = z.enum([
+  "none",
+  "starting",
+  "idle",
+  "working",
+  "needs_attention",
+  "stuck",
+  "exited",
+  "unknown",
+]);
+export const ObservedStatusSourceSchema = z.enum([
+  "harness_hook",
+  "harness_process",
+  "terminal_capture",
+  "worktree_provider",
+  "observer_command",
+  "reconcile",
+  "unknown",
+]);
+
+export type Confidence = z.infer<typeof ConfidenceSchema>;
+export type WorktreeState = z.infer<typeof WorktreeStateSchema>;
+export type TerminalState = z.infer<typeof TerminalStateSchema>;
+export type AgentState = z.infer<typeof AgentStateSchema>;
+export type ObservedStatusSource = z.infer<typeof ObservedStatusSourceSchema>;
+
+export const WorktreeSourceSchema = z.enum(["worktrunk", "wosm", "manual", "unknown"]);
+
+export const WorktreePullRequestSchema = z
+  .object({
+    number: z.number().int().positive(),
+    url: z.string().url().optional(),
+  })
+  .strict();
+
+export const ObservedStatusSchema = z
+  .object({
+    value: AgentStateSchema,
+    confidence: ConfidenceSchema,
+    reason: nonEmptyStringSchema,
+    source: ObservedStatusSourceSchema,
+    updatedAt: TimestampSchema,
+  })
+  .strict();
+
+export type ObservedStatus = z.infer<typeof ObservedStatusSchema>;
+
+export const WorktreeObservationSchema = z
+  .object({
+    id: WorktreeIdSchema,
+    provider: ProviderIdSchema,
+    projectId: ProjectIdSchema,
+    branch: nonEmptyStringSchema,
+    path: nonEmptyStringSchema,
+    state: WorktreeStateSchema,
+    source: WorktreeSourceSchema,
+    dirty: z.boolean().optional(),
+    ahead: z.number().int().nonnegative().optional(),
+    behind: z.number().int().nonnegative().optional(),
+    pr: WorktreePullRequestSchema.optional(),
+    confidence: ConfidenceSchema.optional(),
+    reason: nonEmptyStringSchema.optional(),
+    observedAt: TimestampSchema,
+    providerData: optionalProviderDataSchema,
+  })
+  .strict();
+
+export type WorktreeObservation = z.infer<typeof WorktreeObservationSchema>;
+
+export const TerminalTargetObservationSchema = z
+  .object({
+    id: TerminalTargetIdSchema,
+    provider: ProviderIdSchema,
+    projectId: ProjectIdSchema.optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    sessionId: SessionIdSchema.optional(),
+    harnessRunId: HarnessRunIdSchema.optional(),
+    state: TerminalStateSchema,
+    cwd: nonEmptyStringSchema.optional(),
+    pid: z.number().int().positive().optional(),
+    title: nonEmptyStringSchema.optional(),
+    confidence: ConfidenceSchema,
+    reason: nonEmptyStringSchema,
+    observedAt: TimestampSchema,
+    providerData: optionalProviderDataSchema,
+  })
+  .strict();
+
+export type TerminalTargetObservation = z.infer<typeof TerminalTargetObservationSchema>;
+
+export const HarnessRunObservationSchema = z
+  .object({
+    id: HarnessRunIdSchema,
+    provider: ProviderIdSchema,
+    projectId: ProjectIdSchema.optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    sessionId: SessionIdSchema.optional(),
+    pid: z.number().int().positive().optional(),
+    cwd: nonEmptyStringSchema.optional(),
+    state: AgentStateSchema,
+    confidence: ConfidenceSchema,
+    reason: nonEmptyStringSchema,
+    observedAt: TimestampSchema,
+    providerData: optionalProviderDataSchema,
+  })
+  .strict();
+
+export type HarnessRunObservation = z.infer<typeof HarnessRunObservationSchema>;
+
+export const HarnessStatusObservationSchema = z
+  .object({
+    provider: ProviderIdSchema,
+    runId: HarnessRunIdSchema.optional(),
+    projectId: ProjectIdSchema.optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    sessionId: SessionIdSchema.optional(),
+    status: ObservedStatusSchema,
+    observedAt: TimestampSchema,
+    providerData: optionalProviderDataSchema,
+  })
+  .strict();
+
+export type HarnessStatusObservation = z.infer<typeof HarnessStatusObservationSchema>;
+
+export const HarnessEventObservationSchema = z
+  .object({
+    provider: ProviderIdSchema,
+    sessionId: SessionIdSchema.optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    harnessRunId: HarnessRunIdSchema.optional(),
+    status: ObservedStatusSchema.optional(),
+    rawEventType: nonEmptyStringSchema.optional(),
+    providerData: optionalProviderDataSchema,
+    observedAt: TimestampSchema,
+  })
+  .strict();
+
+export type HarnessEventObservation = z.infer<typeof HarnessEventObservationSchema>;
+
+export const TerminalIdentityBindingSchema = z
+  .object({
+    provider: ProviderIdSchema,
+    targetId: TerminalTargetIdSchema,
+    projectId: ProjectIdSchema.optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    sessionId: SessionIdSchema.optional(),
+    harnessRunId: HarnessRunIdSchema.optional(),
+    providerData: optionalProviderDataSchema,
+    confidence: ConfidenceSchema,
+    reason: nonEmptyStringSchema,
+  })
+  .strict();
+
+export type TerminalIdentityBinding = z.infer<typeof TerminalIdentityBindingSchema>;
