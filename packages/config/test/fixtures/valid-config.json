@@ -83,6 +83,9 @@
         "enabled": true,
         "path": ".wosm/config.toml",
         "trust": "explicit"
+      },
+      "recoveryBreadcrumbs": {
+        "location": "external"
       }
     },
     {

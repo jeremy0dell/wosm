@@ -702,6 +702,7 @@ function normalizeProjectConfig(value: unknown): unknown {
       env: preserveRecordKeys,
       display: normalizeDisplayConfig,
       localConfig: normalizeProjectLocalConfigRef,
+      recoveryBreadcrumbs: normalizeProjectRecoveryBreadcrumbsConfig,
     },
   );
 }
@@ -721,6 +722,10 @@ function normalizeDisplayConfig(value: unknown): unknown {
 }
 
 function normalizeProjectLocalConfigRef(value: unknown): unknown {
+  return normalizeObject(value);
+}
+
+function normalizeProjectRecoveryBreadcrumbsConfig(value: unknown): unknown {
   return normalizeObject(value);
 }
 

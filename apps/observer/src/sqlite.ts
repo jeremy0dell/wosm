@@ -1,15 +1,29 @@
 import { DatabaseSync } from "node:sqlite";
 import type { SafeError } from "@wosm/contracts";
-import type { RuntimeClock } from "@wosm/runtime";
-import { systemClock, toIsoTimestamp } from "@wosm/runtime";
+import {
+  Effect,
+  type RuntimeClock,
+  type RuntimeSafeError,
+  safeErrorFromUnknown,
+  systemClock,
+  toIsoTimestamp,
+} from "@wosm/runtime";
+import { latestSchemaVersion, migrations } from "./migrations";
 
 export type ObserverSqliteHealthStatus = "healthy" | "unavailable" | "closed";
+
+export type AppliedObserverSqliteMigration = {
+  version: number;
+  name: string;
+  appliedAt: string;
+};
 
 export type ObserverSqliteHealth = {
   path: string;
   open: boolean;
   status: ObserverSqliteHealthStatus;
   schemaVersion: number;
+  migrations: AppliedObserverSqliteMigration[];
   lastCheckedAt: string;
   lastError?: SafeError;
 };
@@ -25,31 +39,36 @@ export type OpenObserverSqliteOptions = {
   clock?: RuntimeClock;
 };
 
-const schemaVersion = 1;
-
 export function openObserverSqlite(options: OpenObserverSqliteOptions = {}): ObserverSqliteHandle {
   const path = options.path ?? ":memory:";
   const clock = options.clock ?? systemClock;
   const database = new DatabaseSync(path);
   let open = true;
+  let lastError: SafeError | undefined;
+  let appliedMigrations: AppliedObserverSqliteMigration[] = [];
 
-  database.exec(`
-    CREATE TABLE IF NOT EXISTS observer_meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-    INSERT OR REPLACE INTO observer_meta (key, value)
-    VALUES ('schema_version', '${schemaVersion}');
-  `);
+  try {
+    applyMigrations(database, clock);
+    appliedMigrations = readAppliedMigrations(database);
+  } catch (error) {
+    lastError = safeErrorFromUnknown(error, {
+      tag: "PersistenceError",
+      code: "PERSISTENCE_MIGRATION_FAILED",
+      message: "Observer SQLite migrations failed.",
+    });
+    throw error;
+  }
 
   return {
     database,
     health: () => ({
       path,
       open,
-      status: open ? "healthy" : "closed",
-      schemaVersion,
+      status: open ? (lastError === undefined ? "healthy" : "unavailable") : "closed",
+      schemaVersion: readSchemaVersion(database, open),
+      migrations: open ? readAppliedMigrations(database) : appliedMigrations,
       lastCheckedAt: toIsoTimestamp(clock.now()),
+      ...(lastError === undefined ? {} : { lastError }),
     }),
     close: () => {
       if (open) {
@@ -58,4 +77,109 @@ export function openObserverSqlite(options: OpenObserverSqliteOptions = {}): Obs
       }
     },
   };
+}
+
+export function runSqliteTransactionEffect<T>(
+  sqlite: ObserverSqliteHandle,
+  task: (database: DatabaseSync) => T,
+): Effect.Effect<T, RuntimeSafeError> {
+  return Effect.try({
+    try: () => {
+      sqlite.database.exec("BEGIN IMMEDIATE");
+      try {
+        const value = task(sqlite.database);
+        sqlite.database.exec("COMMIT");
+        return value;
+      } catch (error) {
+        sqlite.database.exec("ROLLBACK");
+        throw error;
+      }
+    },
+    catch: (error) =>
+      safeErrorFromUnknown(error, {
+        tag: "PersistenceError",
+        code: "PERSISTENCE_TRANSACTION_FAILED",
+        message: "Observer SQLite transaction failed.",
+      }),
+  });
+}
+
+type MigrationRow = {
+  version: number;
+  name: string;
+  applied_at: string;
+};
+
+type SchemaVersionRow = {
+  value: string;
+};
+
+function applyMigrations(database: DatabaseSync, clock: RuntimeClock): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS observer_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS observer_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
+  `);
+
+  const appliedVersions = new Set(
+    readAppliedMigrations(database).map((migration) => migration.version),
+  );
+
+  for (const migration of migrations) {
+    if (appliedVersions.has(migration.version)) {
+      continue;
+    }
+
+    database.exec("BEGIN IMMEDIATE");
+    try {
+      database.exec(migration.sql);
+      database
+        .prepare(
+          "INSERT OR REPLACE INTO observer_migrations (version, name, applied_at) VALUES (?, ?, ?)",
+        )
+        .run(migration.version, migration.name, toIsoTimestamp(clock.now()));
+      database
+        .prepare("INSERT OR REPLACE INTO observer_meta (key, value) VALUES ('schema_version', ?)")
+        .run(String(migration.version));
+      database.exec("COMMIT");
+    } catch (error) {
+      database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  database
+    .prepare("INSERT OR REPLACE INTO observer_meta (key, value) VALUES ('schema_version', ?)")
+    .run(String(latestSchemaVersion));
+}
+
+function readSchemaVersion(database: DatabaseSync, open: boolean): number {
+  if (!open) {
+    return latestSchemaVersion;
+  }
+
+  const row = database
+    .prepare("SELECT value FROM observer_meta WHERE key = 'schema_version'")
+    .get() as SchemaVersionRow | undefined;
+  const version = Number(row?.value);
+  return Number.isFinite(version) ? version : 0;
+}
+
+function readAppliedMigrations(database: DatabaseSync): AppliedObserverSqliteMigration[] {
+  return (
+    database
+      .prepare("SELECT version, name, applied_at FROM observer_migrations ORDER BY version")
+      .all() as MigrationRow[]
+  ).map((row) => ({
+    version: row.version,
+    name: row.name,
+    appliedAt: row.applied_at,
+  }));
 }

@@ -43,6 +43,7 @@ function projectToml(
     defaults?: string;
     localConfig?: string;
     commands?: string;
+    recoveryBreadcrumbs?: string;
     label?: string;
   } = {},
 ): string {
@@ -66,6 +67,7 @@ base = "main"
 ${options.defaults ?? ""}
 ${options.commands ?? ""}
 ${options.localConfig ?? ""}
+${options.recoveryBreadcrumbs ?? ""}
 `;
 }
 
@@ -411,5 +413,64 @@ trust = "explicit"
     });
     expect(JSON.stringify(safeError)).not.toContain("stack");
     expect(JSON.stringify(safeError)).not.toContain("secret");
+  });
+
+  it("normalizes explicit global project recovery breadcrumb config", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      baseToml(
+        projectToml("web", root, {
+          recoveryBreadcrumbs: `
+[projects.recovery_breadcrumbs]
+location = "worktree"
+path = ".wosm/recovery.json"
+`,
+        }),
+      ),
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.projects[0]?.recoveryBreadcrumbs).toEqual({
+      location: "worktree",
+      path: ".wosm/recovery.json",
+    });
+  });
+
+  it("rejects project-local recovery breadcrumb authority", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+    await writeProjectLocalConfig(
+      root,
+      `
+schema_version = 1
+
+[recovery_breadcrumbs]
+location = "worktree"
+`,
+    );
+
+    const loaded = await loadConfigFromToml(
+      baseToml(
+        projectToml("web", root, {
+          localConfig: `
+[projects.local_config]
+enabled = true
+path = ".wosm/config.toml"
+trust = "explicit"
+`,
+        }),
+      ),
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.projects[0]?.recoveryBreadcrumbs).toBeUndefined();
+    expect(loaded.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "CONFIG_LOCAL_CONFIG_INVALID",
+        projectId: "web",
+      }),
+    ]);
   });
 });

@@ -16,9 +16,10 @@ describe("observer SQLite health", () => {
       path: ":memory:",
       open: true,
       status: "healthy",
-      schemaVersion: 1,
+      schemaVersion: 2,
       lastCheckedAt: now,
     });
+    expect(sqlite.health().migrations.map((migration) => migration.version)).toEqual([1, 2]);
 
     sqlite.close();
 
@@ -26,7 +27,7 @@ describe("observer SQLite health", () => {
       path: ":memory:",
       open: false,
       status: "closed",
-      schemaVersion: 1,
+      schemaVersion: 2,
       lastCheckedAt: now,
     });
   });

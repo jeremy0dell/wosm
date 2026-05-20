@@ -19,6 +19,7 @@ import {
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { buildWosmSnapshot, safeErrorToProviderHealth } from "./graph";
+import type { ObserverPersistence } from "./persistence";
 import type { ProviderRegistry } from "./providerRegistry";
 import type { ObserverSqliteHandle, ObserverSqliteHealth } from "./sqlite";
 
@@ -54,6 +55,7 @@ export type CreateObserverCoreInput = {
   providers: ProviderRegistry;
   clock?: RuntimeClock;
   sqlite?: ObserverSqliteHandle;
+  persistence?: ObserverPersistence;
   pid?: number;
   version?: string;
 };
@@ -242,6 +244,26 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
         terminalTargets,
         harnessRuns,
       });
+
+      if (input.persistence !== undefined) {
+        await input.persistence.persistReconcileResult({
+          projects,
+          worktrees,
+          terminalTargets,
+          harnessRuns,
+          providerHealth,
+          observedAt: finishedAt,
+        });
+        await input.persistence.recordEvent(
+          {
+            type: "observer.reconciled",
+            at: finishedAt,
+            changed: 0,
+          },
+          { createdAt: finishedAt },
+        );
+        lastReconcile.eventsEmitted = 1;
+      }
 
       return snapshot;
     },

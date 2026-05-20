@@ -26,6 +26,9 @@ describe("Phase 1 config schemas", () => {
       path: ".wosm/config.toml",
       trust: "explicit",
     });
+    expect(parsed.projects[0]?.recoveryBreadcrumbs).toEqual({
+      location: "external",
+    });
   });
 
   it("exports ProjectConfig as a focused project-level schema", async () => {
@@ -54,6 +57,48 @@ describe("Phase 1 config schemas", () => {
       ProjectLocalConfigSchema.safeParse({
         schemaVersion: 1,
         projects: [{ id: "web" }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates explicit project recovery breadcrumb opt-in", () => {
+    const project = ProjectConfigSchema.parse({
+      id: "web",
+      label: "web",
+      root: "/tmp/web",
+      defaults: {
+        harness: "codex",
+        terminal: "tmux",
+        layout: "agent-shell",
+      },
+      worktrunk: {
+        enabled: true,
+      },
+      recoveryBreadcrumbs: {
+        location: "worktree",
+        path: ".wosm/recovery.json",
+      },
+    });
+
+    expect(project.recoveryBreadcrumbs).toEqual({
+      location: "worktree",
+      path: ".wosm/recovery.json",
+    });
+    expect(
+      ProjectConfigSchema.safeParse({
+        ...project,
+        recoveryBreadcrumbs: {
+          location: "shell",
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      ProjectConfigSchema.safeParse({
+        ...project,
+        recoveryBreadcrumbs: {
+          location: "worktree",
+          path: "",
+        },
       }).success,
     ).toBe(false);
   });

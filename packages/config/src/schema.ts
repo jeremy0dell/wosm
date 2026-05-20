@@ -51,6 +51,15 @@ export const ProjectDisplayConfigSchema = z
 
 export type ProjectDisplayConfig = z.infer<typeof ProjectDisplayConfigSchema>;
 
+export const ProjectRecoveryBreadcrumbsSchema = z
+  .object({
+    location: z.enum(["external", "worktree", "provider-native", "disabled"]),
+    path: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
+export type ProjectRecoveryBreadcrumbs = z.infer<typeof ProjectRecoveryBreadcrumbsSchema>;
+
 export const ProjectConfigSchema = z
   .object({
     id: projectIdSchema,
@@ -65,6 +74,7 @@ export const ProjectConfigSchema = z
     env: z.record(nonEmptyStringSchema, z.string()).optional(),
     display: ProjectDisplayConfigSchema.optional(),
     localConfig: ProjectLocalConfigRefSchema.optional(),
+    recoveryBreadcrumbs: ProjectRecoveryBreadcrumbsSchema.optional(),
   })
   .strict();
 
