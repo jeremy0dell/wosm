@@ -161,6 +161,159 @@ export const HarnessCapabilitiesSchema = z
 
 export type HarnessCapabilities = z.infer<typeof HarnessCapabilitiesSchema>;
 
+export type ProviderProjectConfig = {
+  id: ProjectId;
+  label: string;
+  root: string;
+  defaults: {
+    harness: ProviderId;
+    terminal: ProviderId;
+    layout: string;
+  };
+  worktrunk: {
+    enabled: boolean;
+    base?: string;
+  };
+};
+
+export type CreateWorktreeRequest = {
+  project: ProviderProjectConfig;
+  branch: string;
+  base?: string;
+  path?: string;
+};
+
+export type RemoveWorktreeRequest = {
+  worktreeId: WorktreeId;
+  projectId?: ProjectId;
+  force?: boolean;
+};
+
+export type RemoveWorktreeResult = {
+  worktreeId: WorktreeId;
+  removed: boolean;
+  reason?: string;
+};
+
+export type GetWorktreeRequest = {
+  worktreeId?: WorktreeId;
+  projectId?: ProjectId;
+  path?: string;
+};
+
+export type OpenWorkspaceRequest = {
+  project: ProviderProjectConfig;
+  worktree: WorktreeObservation;
+  harness: ProviderId;
+  layout: string;
+  sessionId?: SessionId;
+};
+
+export type OpenWorkspaceResult = {
+  target: TerminalIdentityBinding;
+  agentEndpointId: string;
+  providerData?: unknown;
+};
+
+export type TerminalCapture = {
+  targetId: TerminalTargetId;
+  capturedAt: string;
+  text: string;
+  providerData?: unknown;
+};
+
+export type BuildHarnessLaunchRequest = {
+  project: ProviderProjectConfig;
+  worktree: WorktreeObservation;
+  terminalTarget?: TerminalTargetObservation;
+  mode?: "interactive" | "exec";
+};
+
+export type HarnessLaunchPlan = {
+  provider: ProviderId;
+  command: string;
+  args: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  mode: "interactive" | "exec";
+  providerData?: unknown;
+};
+
+export type HarnessDiscoveryContext = {
+  projects: ProviderProjectConfig[];
+  worktrees: WorktreeObservation[];
+  terminalTargets: TerminalTargetObservation[];
+};
+
+export type HarnessClassificationContext = {
+  projects: ProviderProjectConfig[];
+  worktrees: WorktreeObservation[];
+  terminalTargets: TerminalTargetObservation[];
+};
+
+export type RawHarnessEvent = {
+  provider: ProviderId;
+  event: unknown;
+  observedAt?: string;
+};
+
+export type HarnessEventContext = {
+  projects: ProviderProjectConfig[];
+  worktrees: WorktreeObservation[];
+  terminalTargets: TerminalTargetObservation[];
+};
+
+export type HarnessStopRequest = {
+  runId: HarnessRunId;
+  sessionId?: SessionId;
+  force?: boolean;
+};
+
+export type HarnessStopResult = {
+  runId: HarnessRunId;
+  stopped: boolean;
+  reason?: string;
+};
+
+export interface WorktreeProvider {
+  id: ProviderId;
+  capabilities(): WorktreeCapabilities;
+  health(): Promise<ProviderHealth>;
+  listWorktrees(project: ProviderProjectConfig): Promise<WorktreeObservation[]>;
+  createWorktree(request: CreateWorktreeRequest): Promise<WorktreeObservation>;
+  removeWorktree(request: RemoveWorktreeRequest): Promise<RemoveWorktreeResult>;
+  getWorktree?(request: GetWorktreeRequest): Promise<WorktreeObservation | null>;
+}
+
+export interface TerminalProvider {
+  id: ProviderId;
+  capabilities(): TerminalCapabilities;
+  health(): Promise<ProviderHealth>;
+  listTargets(): Promise<TerminalTargetObservation[]>;
+  openWorkspace(request: OpenWorkspaceRequest): Promise<OpenWorkspaceResult>;
+  focusTarget(targetId: TerminalTargetId): Promise<void>;
+  closeTarget(targetId: TerminalTargetId): Promise<void>;
+  captureTarget?(targetId: TerminalTargetId): Promise<TerminalCapture>;
+  sendInput?(targetId: TerminalTargetId, input: string): Promise<void>;
+}
+
+export interface HarnessProvider {
+  id: ProviderId;
+  capabilities(): HarnessCapabilities;
+  health(): Promise<ProviderHealth>;
+  buildLaunch(request: BuildHarnessLaunchRequest): Promise<HarnessLaunchPlan>;
+  discoverRuns(context: HarnessDiscoveryContext): Promise<HarnessRunObservation[]>;
+  classifyRun(
+    run: HarnessRunObservation,
+    context: HarnessClassificationContext,
+  ): Promise<HarnessStatusObservation>;
+  ingestEvent?(
+    event: RawHarnessEvent,
+    context: HarnessEventContext,
+  ): Promise<HarnessEventObservation[]>;
+  stop?(request: HarnessStopRequest): Promise<HarnessStopResult>;
+}
+
 export const ProjectDefaultsSchema = z
   .object({
     harness: ProviderIdSchema,

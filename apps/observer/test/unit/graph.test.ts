@@ -1,0 +1,279 @@
+import type {
+  HarnessRunObservation,
+  ProviderHealth,
+  TerminalTargetObservation,
+  WorktreeObservation,
+} from "@wosm/contracts";
+import { WosmSnapshotSchema } from "@wosm/contracts";
+import { describe, expect, it } from "vitest";
+import { buildWosmSnapshot, type ObserverGraphProject } from "../../src/graph";
+
+const generatedAt = "2026-05-20T12:00:00.000Z";
+const observerStartedAt = "2026-05-20T11:55:00.000Z";
+
+const observer = {
+  pid: 4242,
+  startedAt: observerStartedAt,
+  version: "0.0.0",
+};
+
+const worktreeProviderHealth: ProviderHealth = {
+  providerId: "fake-worktree",
+  providerType: "worktree",
+  status: "healthy",
+  lastCheckedAt: generatedAt,
+  capabilities: {
+    canList: true,
+    canCreate: true,
+    canRemove: true,
+  },
+};
+
+const projects: ObserverGraphProject[] = [
+  {
+    id: "web",
+    label: "web",
+    root: "/tmp/wosm/web",
+    defaults: {
+      harness: "fake-harness",
+      terminal: "fake-terminal",
+      layout: "agent-shell",
+    },
+    worktrunk: {
+      enabled: true,
+    },
+  },
+  {
+    id: "api",
+    label: "api",
+    root: "/tmp/wosm/api",
+    defaults: {
+      harness: "fake-harness",
+      terminal: "fake-terminal",
+      layout: "agent-shell",
+    },
+    worktrunk: {
+      enabled: true,
+    },
+  },
+];
+
+function worktree(
+  id: string,
+  projectId: string,
+  branch: string,
+  providerData?: unknown,
+): WorktreeObservation {
+  return {
+    id,
+    provider: "fake-worktree",
+    projectId,
+    branch,
+    path: `/tmp/wosm/${projectId}/${branch.replaceAll("/", "-")}`,
+    state: "exists",
+    source: "worktrunk",
+    dirty: false,
+    confidence: "high",
+    reason: "Fixture worktree.",
+    observedAt: generatedAt,
+    ...(providerData === undefined ? {} : { providerData }),
+  };
+}
+
+function terminal(
+  id: string,
+  worktreeId: string,
+  harnessRunId: string,
+  state: TerminalTargetObservation["state"] = "open",
+): TerminalTargetObservation {
+  return {
+    id,
+    provider: "fake-terminal",
+    projectId: worktreeId.startsWith("wt_api") ? "api" : "web",
+    worktreeId,
+    sessionId: `ses_${worktreeId}`,
+    harnessRunId,
+    state,
+    confidence: state === "unknown" ? "low" : "high",
+    reason: state === "unknown" ? "Terminal identity was uncertain." : "Fixture terminal.",
+    observedAt: generatedAt,
+    providerData: {
+      paneId: `%${id}`,
+    },
+  };
+}
+
+function harness(
+  id: string,
+  worktreeId: string,
+  state: HarnessRunObservation["state"],
+  reason = `Harness is ${state}.`,
+): HarnessRunObservation {
+  return {
+    id,
+    provider: "fake-harness",
+    projectId: worktreeId.startsWith("wt_api") ? "api" : "web",
+    worktreeId,
+    sessionId: `ses_${worktreeId}`,
+    pid: state === "exited" ? undefined : 5000,
+    state,
+    confidence: state === "unknown" ? "low" : "high",
+    reason,
+    observedAt: generatedAt,
+    providerData: {
+      rawStatus: state,
+    },
+  };
+}
+
+function build(overrides: {
+  projects?: ObserverGraphProject[];
+  worktrees?: WorktreeObservation[];
+  terminals?: TerminalTargetObservation[];
+  harnessRuns?: HarnessRunObservation[];
+  providerHealth?: Record<string, ProviderHealth>;
+}) {
+  return buildWosmSnapshot({
+    generatedAt,
+    observer,
+    projects: overrides.projects ?? projects,
+    worktreeProviderId: "fake-worktree",
+    providerHealth: overrides.providerHealth ?? {
+      "fake-worktree": worktreeProviderHealth,
+    },
+    worktrees: overrides.worktrees ?? [],
+    terminalTargets: overrides.terminals ?? [],
+    harnessRuns: overrides.harnessRuns ?? [],
+  });
+}
+
+describe("observer graph derivation", () => {
+  it("keeps configured projects visible even when a project has zero worktrees", () => {
+    const snapshot = build({
+      projects,
+      worktrees: [worktree("wt_web_main", "web", "main")],
+    });
+
+    expect(snapshot.projects.map((project) => project.id)).toEqual(["web", "api"]);
+    expect(snapshot.projects.find((project) => project.id === "api")?.counts.worktrees).toBe(0);
+    expect(snapshot.counts).toMatchObject({
+      projects: 2,
+      worktrees: 1,
+      agents: 0,
+    });
+    expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
+
+  it("derives row status, project counts, and sort order for all Phase 3 visible states", () => {
+    const rows = [
+      worktree("wt_web_none", "web", "no-agent", { raw: "worktree-only" }),
+      worktree("wt_web_idle", "web", "idle"),
+      worktree("wt_web_working", "web", "working"),
+      worktree("wt_web_attention", "web", "attention"),
+      worktree("wt_api_stuck", "api", "stuck"),
+      worktree("wt_api_exited", "api", "exited"),
+      worktree("wt_api_unknown", "api", "unknown"),
+    ];
+    const runs = [
+      harness("run_idle", "wt_web_idle", "idle"),
+      harness("run_working", "wt_web_working", "working"),
+      harness("run_attention", "wt_web_attention", "needs_attention", "Approval requested."),
+      harness("run_stuck", "wt_api_stuck", "stuck", "No activity has been observed recently."),
+      harness("run_exited", "wt_api_exited", "exited"),
+      harness("run_unknown", "wt_api_unknown", "unknown", "Conflicting provider observations."),
+    ];
+    const terminals = [
+      terminal("term_idle", "wt_web_idle", "run_idle"),
+      terminal("term_working", "wt_web_working", "run_working"),
+      terminal("term_attention", "wt_web_attention", "run_attention"),
+      terminal("term_stuck", "wt_api_stuck", "run_stuck"),
+      terminal("term_exited", "wt_api_exited", "run_exited", "stale"),
+      terminal("term_unknown", "wt_api_unknown", "run_unknown", "unknown"),
+    ];
+
+    const snapshot = build({
+      worktrees: rows,
+      terminals,
+      harnessRuns: runs,
+    });
+
+    expect(snapshot.rows.map((row) => row.display.statusLabel)).toEqual([
+      "needs attention",
+      "working",
+      "idle",
+      "no agent",
+      "stuck",
+      "unknown",
+      "exited",
+    ]);
+    expect(
+      snapshot.rows.filter((row) => row.projectId === "api").map((row) => row.display.statusLabel),
+    ).toEqual(["stuck", "unknown", "exited"]);
+    expect(snapshot.projects.find((project) => project.id === "web")?.counts).toMatchObject({
+      worktrees: 4,
+      agents: 3,
+      working: 1,
+      idle: 1,
+      attention: 1,
+      unknown: 0,
+    });
+    expect(snapshot.projects.find((project) => project.id === "api")?.counts).toMatchObject({
+      worktrees: 3,
+      agents: 3,
+      working: 0,
+      idle: 0,
+      attention: 0,
+      unknown: 1,
+    });
+    expect(snapshot.counts).toMatchObject({
+      projects: 2,
+      worktrees: 7,
+      agents: 6,
+      working: 1,
+      idle: 1,
+      attention: 1,
+      unknown: 1,
+    });
+    expect(snapshot.rows.find((row) => row.id === "wt_api_unknown")?.display).toMatchObject({
+      statusLabel: "unknown",
+      sortPriority: 50,
+      alert: false,
+      warning: true,
+      reason: "Conflicting provider observations.",
+    });
+    expect(snapshot.rows.find((row) => row.id === "wt_web_attention")?.display.alert).toBe(true);
+    expect(JSON.stringify(snapshot.rows)).not.toContain("rawStatus");
+    expect(JSON.stringify(snapshot.rows)).not.toContain("paneId");
+    expect(JSON.stringify(snapshot.rows)).not.toContain("worktree-only");
+    expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
+
+  it("reports orphaned terminal targets without forcing them into worktree rows", () => {
+    const snapshot = build({
+      worktrees: [],
+      terminals: [
+        {
+          id: "term_orphan",
+          provider: "fake-terminal",
+          state: "open",
+          confidence: "low",
+          reason: "No matching configured project.",
+          observedAt: generatedAt,
+          providerData: {
+            rawTarget: "orphan",
+          },
+        },
+      ],
+    });
+
+    expect(snapshot.rows).toEqual([]);
+    expect(snapshot.orphans).toHaveLength(1);
+    expect(snapshot.orphans?.[0]).toMatchObject({
+      kind: "terminal_target",
+      provider: "fake-terminal",
+      terminalTargetId: "term_orphan",
+      reason: "Terminal target has no matching configured project or worktree.",
+    });
+    expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
+});
