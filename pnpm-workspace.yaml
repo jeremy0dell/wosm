@@ -1,0 +1,12 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "integrations/*/*"
+allowBuilds:
+  esbuild: true
+  lefthook: true
+
+gitBranchLockfile: true
+mergeGitBranchLockfilesBranchPattern:
+  - main
+  - release*
