@@ -1,0 +1,415 @@
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ConfigError, loadConfig, loadConfigFromToml } from "@wosm/config";
+import { SafeErrorSchema } from "@wosm/contracts";
+import { describe, expect, it } from "vitest";
+
+const quoteTomlString = (value: string) => JSON.stringify(value);
+
+async function makeTempDir(): Promise<string> {
+  return mkdtemp(join(tmpdir(), "wosm-config-"));
+}
+
+async function makeProjectRoot(parent: string, name: string): Promise<string> {
+  const root = join(parent, name);
+  await mkdir(root, { recursive: true });
+  return root;
+}
+
+function baseToml(projectsToml: string): string {
+  return `
+schema_version = 1
+
+[observer]
+socket_path = "~/.local/state/wosm/observer.sock"
+state_dir = "~/.local/state/wosm"
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+${projectsToml}
+`;
+}
+
+function projectToml(
+  id: string,
+  root: string,
+  options: {
+    aliases?: string[];
+    defaults?: string;
+    localConfig?: string;
+    commands?: string;
+    label?: string;
+  } = {},
+): string {
+  const aliases =
+    options.aliases === undefined
+      ? ""
+      : `aliases = [${options.aliases.map(quoteTomlString).join(", ")}]\n`;
+
+  return `
+[[projects]]
+id = ${quoteTomlString(id)}
+label = ${quoteTomlString(options.label ?? id)}
+${aliases}root = ${quoteTomlString(root)}
+repo = "github.com/example/${id}"
+default_branch = "main"
+
+[projects.worktrunk]
+enabled = true
+base = "main"
+
+${options.defaults ?? ""}
+${options.commands ?? ""}
+${options.localConfig ?? ""}
+`;
+}
+
+async function writeProjectLocalConfig(root: string, contents: string): Promise<void> {
+  const localDir = join(root, ".wosm");
+  await mkdir(localDir, { recursive: true });
+  await writeFile(join(localDir, "config.toml"), contents, "utf8");
+}
+
+describe("Phase 2 config loading", () => {
+  it("loads TOML, applies defaults, expands paths, and keeps every configured project", async () => {
+    const tempDir = await makeTempDir();
+    const roots = {
+      web: await makeProjectRoot(tempDir, "web"),
+      api: await makeProjectRoot(tempDir, "api"),
+      mobile: await makeProjectRoot(tempDir, "mobile"),
+      wosm: await makeProjectRoot(tempDir, "wosm"),
+    };
+    const configPath = join(tempDir, "config.toml");
+    const toml = baseToml(`
+${projectToml("web", roots.web, { aliases: ["frontend", "site"] })}
+${projectToml("api", roots.api, {
+  aliases: ["backend"],
+  defaults: `
+[projects.defaults]
+harness = "opencode"
+layout = "agent-shell"
+`,
+})}
+${projectToml("mobile", roots.mobile)}
+${projectToml("wosm", roots.wosm)}
+`);
+    await writeFile(configPath, toml, "utf8");
+
+    const loaded = await loadConfig({ configPath, homeDir: tempDir });
+
+    expect(loaded.configPath).toBe(configPath);
+    expect(loaded.projects.map((project) => project.id)).toEqual(["web", "api", "mobile", "wosm"]);
+    expect(loaded.config.projects).toHaveLength(4);
+    expect(loaded.config.projects[0]?.root).toBe(roots.web);
+    expect(loaded.config.observer?.socketPath).toBe(
+      join(tempDir, ".local/state/wosm/observer.sock"),
+    );
+    expect(loaded.config.observer?.stateDir).toBe(join(tempDir, ".local/state/wosm"));
+    expect(loaded.config.projects.find((project) => project.id === "web")?.defaults).toEqual({
+      harness: "codex",
+      terminal: "tmux",
+      layout: "agent-build-shell",
+    });
+    expect(loaded.config.projects.find((project) => project.id === "api")?.defaults).toEqual({
+      harness: "opencode",
+      terminal: "tmux",
+      layout: "agent-shell",
+    });
+    expect(loaded.diagnostics).toEqual([]);
+  });
+
+  it("rejects duplicate project IDs", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    await expect(
+      loadConfigFromToml(baseToml(`${projectToml("web", root)}${projectToml("web", root)}`), {
+        configPath: join(tempDir, "config.toml"),
+        homeDir: tempDir,
+      }),
+    ).rejects.toMatchObject({
+      tag: "ConfigError",
+      code: "CONFIG_DUPLICATE_PROJECT_ID",
+      configPath: join(tempDir, "config.toml"),
+      projectId: "web",
+    });
+  });
+
+  it("rejects duplicate aliases", async () => {
+    const tempDir = await makeTempDir();
+    const webRoot = await makeProjectRoot(tempDir, "web");
+    const apiRoot = await makeProjectRoot(tempDir, "api");
+
+    await expect(
+      loadConfigFromToml(
+        baseToml(
+          `${projectToml("web", webRoot, { aliases: ["site"] })}${projectToml("api", apiRoot, {
+            aliases: ["site"],
+          })}`,
+        ),
+        {
+          configPath: join(tempDir, "config.toml"),
+          homeDir: tempDir,
+        },
+      ),
+    ).rejects.toMatchObject({
+      tag: "ConfigError",
+      code: "CONFIG_DUPLICATE_ALIAS",
+      projectId: "api",
+    });
+  });
+
+  it("rejects aliases that collide with project IDs", async () => {
+    const tempDir = await makeTempDir();
+    const webRoot = await makeProjectRoot(tempDir, "web");
+    const apiRoot = await makeProjectRoot(tempDir, "api");
+
+    await expect(
+      loadConfigFromToml(
+        baseToml(
+          `${projectToml("web", webRoot)}${projectToml("api", apiRoot, { aliases: ["web"] })}`,
+        ),
+        {
+          configPath: join(tempDir, "config.toml"),
+          homeDir: tempDir,
+        },
+      ),
+    ).rejects.toMatchObject({
+      tag: "ConfigError",
+      code: "CONFIG_ALIAS_PROJECT_ID_COLLISION",
+      projectId: "api",
+    });
+  });
+
+  it("rejects project roots that do not exist", async () => {
+    const tempDir = await makeTempDir();
+    const missingRoot = join(tempDir, "missing");
+
+    await expect(
+      loadConfigFromToml(baseToml(projectToml("web", missingRoot)), {
+        configPath: join(tempDir, "config.toml"),
+        homeDir: tempDir,
+      }),
+    ).rejects.toBeInstanceOf(ConfigError);
+    await expect(
+      loadConfigFromToml(baseToml(projectToml("web", missingRoot)), {
+        configPath: join(tempDir, "config.toml"),
+        homeDir: tempDir,
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFIG_INVALID_PROJECT_ROOT",
+      projectId: "web",
+    });
+  });
+
+  it("rejects missing required fields", async () => {
+    const tempDir = await makeTempDir();
+
+    await expect(
+      loadConfigFromToml(
+        baseToml(`
+[[projects]]
+id = "web"
+label = "web"
+
+[projects.worktrunk]
+enabled = true
+`),
+        {
+          configPath: join(tempDir, "config.toml"),
+          homeDir: tempDir,
+        },
+      ),
+    ).rejects.toMatchObject({
+      tag: "ConfigError",
+      code: "CONFIG_VALIDATION_FAILED",
+    });
+  });
+
+  it("ignores project-local config unless explicitly enabled", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+    await writeProjectLocalConfig(
+      root,
+      `
+schema_version = 1
+
+[defaults]
+harness = "opencode"
+layout = "agent-shell"
+
+[commands]
+typecheck = "pnpm typecheck"
+`,
+    );
+
+    const loaded = await loadConfigFromToml(
+      baseToml(
+        projectToml("web", root, {
+          localConfig: `
+[projects.local_config]
+enabled = false
+path = ".wosm/config.toml"
+`,
+        }),
+      ),
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.projects[0]?.defaults.harness).toBe("codex");
+    expect(loaded.projects[0]?.commands).toBeUndefined();
+    expect(loaded.diagnostics).toEqual([]);
+  });
+
+  it("merges safe project-local defaults and additive commands when enabled", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+    await writeProjectLocalConfig(
+      root,
+      `
+schema_version = 1
+
+[defaults]
+harness = "opencode"
+layout = "agent-shell"
+
+[commands]
+test = "pnpm test"
+typecheck = "pnpm typecheck"
+
+[display]
+group = "work"
+sort_order = 10
+`,
+    );
+
+    const loaded = await loadConfigFromToml(
+      baseToml(
+        projectToml("web", root, {
+          commands: `
+[projects.commands]
+dev = "pnpm dev"
+`,
+          localConfig: `
+[projects.local_config]
+enabled = true
+path = ".wosm/config.toml"
+trust = "explicit"
+`,
+        }),
+      ),
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.projects[0]?.defaults).toEqual({
+      harness: "opencode",
+      terminal: "tmux",
+      layout: "agent-shell",
+    });
+    expect(loaded.projects[0]?.commands).toEqual({
+      dev: "pnpm dev",
+      test: "pnpm test",
+      typecheck: "pnpm typecheck",
+    });
+    expect(loaded.projects[0]?.display).toEqual({
+      group: "work",
+      sortOrder: 10,
+    });
+    expect(loaded.diagnostics).toEqual([]);
+  });
+
+  it("rejects disallowed project-local authority without dropping the global project", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+    await writeProjectLocalConfig(
+      root,
+      `
+schema_version = 1
+
+[[projects]]
+id = "shadow"
+label = "shadow"
+root = "/tmp/shadow"
+
+[harness.codex]
+approval_policy = "never"
+`,
+    );
+
+    const loaded = await loadConfigFromToml(
+      baseToml(
+        projectToml("web", root, {
+          localConfig: `
+[projects.local_config]
+enabled = true
+path = ".wosm/config.toml"
+trust = "explicit"
+`,
+        }),
+      ),
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.projects.map((project) => project.id)).toEqual(["web"]);
+    expect(loaded.projects[0]?.defaults.harness).toBe("codex");
+    expect(loaded.diagnostics).toHaveLength(1);
+    expect(loaded.diagnostics[0]).toMatchObject({
+      code: "CONFIG_LOCAL_CONFIG_INVALID",
+      projectId: "web",
+    });
+  });
+
+  it("records invalid project-local config as a diagnostic instead of crashing the load", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+    await writeProjectLocalConfig(root, "schema_version = 1\n[commands\nbroken = true\n");
+
+    const loaded = await loadConfigFromToml(
+      baseToml(
+        projectToml("web", root, {
+          localConfig: `
+[projects.local_config]
+enabled = true
+path = ".wosm/config.toml"
+trust = "explicit"
+`,
+        }),
+      ),
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.projects.map((project) => project.id)).toEqual(["web"]);
+    expect(loaded.diagnostics).toHaveLength(1);
+    expect(loaded.diagnostics[0]).toMatchObject({
+      code: "CONFIG_LOCAL_CONFIG_PARSE_FAILED",
+      projectId: "web",
+    });
+  });
+
+  it("converts ConfigError to SafeError without stack traces or raw internals", () => {
+    const error = new ConfigError({
+      code: "CONFIG_VALIDATION_FAILED",
+      message: "Config validation failed.",
+      configPath: "/tmp/wosm/config.toml",
+      projectId: "web",
+      cause: new Error("secret stack detail"),
+    });
+
+    const safeError = error.toSafeError();
+
+    expect(SafeErrorSchema.parse(safeError)).toEqual(safeError);
+    expect(safeError).toEqual({
+      tag: "ConfigError",
+      code: "CONFIG_VALIDATION_FAILED",
+      message: "Config validation failed.",
+      projectId: "web",
+    });
+    expect(JSON.stringify(safeError)).not.toContain("stack");
+    expect(JSON.stringify(safeError)).not.toContain("secret");
+  });
+});
