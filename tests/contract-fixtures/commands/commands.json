@@ -1,0 +1,106 @@
+{
+  "worktreeCreate": {
+    "type": "worktree.create",
+    "payload": {
+      "projectId": "web",
+      "branch": "feature/auth",
+      "base": "main",
+      "source": {
+        "kind": "branch",
+        "value": "feature/auth"
+      }
+    }
+  },
+  "worktreeRemove": {
+    "type": "worktree.remove",
+    "payload": {
+      "projectId": "web",
+      "worktreeId": "wt_web_feature_auth",
+      "force": false
+    }
+  },
+  "sessionCreate": {
+    "type": "session.create",
+    "payload": {
+      "projectId": "api",
+      "branch": "feature/cache",
+      "base": "main",
+      "source": {
+        "kind": "manual",
+        "value": "feature/cache"
+      },
+      "harness": {
+        "provider": "codex",
+        "mode": "interactive",
+        "profile": "default",
+        "approvalPolicy": "on-request",
+        "sandboxMode": "workspace-write"
+      },
+      "terminal": {
+        "provider": "tmux",
+        "layout": "agent-build-shell",
+        "focus": true
+      },
+      "initialPrompt": "Implement the cache contract tests."
+    }
+  },
+  "sessionStartAgent": {
+    "type": "session.startAgent",
+    "payload": {
+      "projectId": "api",
+      "worktreeId": "wt_api_cache",
+      "harness": {
+        "provider": "codex",
+        "mode": "interactive",
+        "profile": "default"
+      },
+      "terminal": {
+        "provider": "tmux",
+        "layout": "default",
+        "focus": false
+      },
+      "initialPrompt": "Continue the current task."
+    }
+  },
+  "terminalFocus": {
+    "type": "terminal.focus",
+    "payload": {
+      "targetId": "term_api_cache_agent"
+    }
+  },
+  "sessionClose": {
+    "type": "session.close",
+    "payload": {
+      "sessionId": "ses_api_cache",
+      "mode": "all"
+    }
+  },
+  "sessionRemove": {
+    "type": "session.remove",
+    "payload": {
+      "sessionId": "ses_api_cache",
+      "removeWorktree": false,
+      "force": false
+    }
+  },
+  "sessionSendPrompt": {
+    "type": "session.sendPrompt",
+    "payload": {
+      "sessionId": "ses_api_cache",
+      "prompt": "Summarize current status.",
+      "delivery": "harness-native"
+    }
+  },
+  "observerReconcile": {
+    "type": "observer.reconcile",
+    "payload": {
+      "reason": "contract-fixture"
+    }
+  },
+  "hooksInstall": {
+    "type": "hooks.install",
+    "payload": {
+      "provider": "worktrunk"
+    }
+  }
+}
