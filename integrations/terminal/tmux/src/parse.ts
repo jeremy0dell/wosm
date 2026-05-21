@@ -51,6 +51,7 @@ function parseTmuxTargetLine(
     harness = "",
   ] = line.split("\t");
   const hasBinding = projectId.length > 0 && worktreeId.length > 0 && role === "main-agent";
+  const parsedPid = parsePositiveInteger(pid);
 
   return {
     id: buildTmuxTargetId({ sessionId, windowId, paneId }),
@@ -60,7 +61,7 @@ function parseTmuxTargetLine(
     ...(wosmSessionId.length === 0 ? {} : { sessionId: wosmSessionId }),
     state: attached === "1" ? "open" : "detached",
     ...(cwd.length === 0 ? {} : { cwd }),
-    ...(parsePositiveInteger(pid) === undefined ? {} : { pid: parsePositiveInteger(pid) }),
+    ...(parsedPid === undefined ? {} : { pid: parsedPid }),
     ...(title.length === 0 ? {} : { title }),
     confidence: hasBinding ? "high" : "low",
     reason: hasBinding

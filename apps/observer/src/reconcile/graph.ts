@@ -54,6 +54,7 @@ const confidenceRank = {
   low: 1,
 };
 
+// Lower priority values sort first; this is the user-facing urgency order for rows.
 const statusPolicy: Record<
   AgentState | "no_agent",
   {
@@ -137,20 +138,22 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
       .map((worktree) => {
         const terminal = chooseTerminal(worktree, input.terminalTargets);
         const harnessRun = chooseHarnessRun(worktree, terminal, input.harnessRuns);
-        const row = buildWorktreeRow({
+        const rowInput: BuildWorktreeRowInput = {
           project,
           worktree,
-          ...(terminal === undefined ? {} : { terminal }),
-          ...(harnessRun === undefined ? {} : { harnessRun }),
-        });
+        };
+        if (terminal !== undefined) rowInput.terminal = terminal;
+        if (harnessRun !== undefined) rowInput.harnessRun = harnessRun;
+        const row = buildWorktreeRow(rowInput);
 
-        const session = buildSession({
+        const sessionInput: BuildSessionInput = {
           project,
           worktree,
           harnessCapabilities: input.harnessCapabilities ?? {},
-          ...(terminal === undefined ? {} : { terminal }),
-          ...(harnessRun === undefined ? {} : { harnessRun }),
-        });
+        };
+        if (terminal !== undefined) sessionInput.terminal = terminal;
+        if (harnessRun !== undefined) sessionInput.harnessRun = harnessRun;
+        const session = buildSession(sessionInput);
         if (session !== undefined) {
           sessions.push(session);
         }
@@ -203,41 +206,47 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
   };
 }
 
-function buildWorktreeRow(input: {
+type BuildWorktreeRowInput = {
   project: ObserverGraphProject;
   worktree: WorktreeObservation;
   terminal?: TerminalTargetObservation;
   harnessRun?: HarnessRunObservation;
-}): WorktreeRow {
+};
+
+function buildWorktreeRow(input: BuildWorktreeRowInput): WorktreeRow {
   const state = input.harnessRun?.state ?? "no_agent";
   const policy = statusPolicy[state];
   const warning = warningFor(input.harnessRun, input.terminal, policy.warning);
   const reason = displayReason(input.harnessRun, warning);
+  const worktree: WorktreeRow["worktree"] = {
+    state: input.worktree.state,
+    source: input.worktree.source,
+  };
+  if (input.worktree.dirty !== undefined) worktree.dirty = input.worktree.dirty;
+  if (input.worktree.ahead !== undefined) worktree.ahead = input.worktree.ahead;
+  if (input.worktree.behind !== undefined) worktree.behind = input.worktree.behind;
+  if (input.worktree.pr !== undefined) worktree.pr = input.worktree.pr;
 
-  return {
+  const display: WorktreeRow["display"] = {
+    statusLabel: policy.label,
+    sortPriority: policy.priority,
+    alert: policy.alert,
+  };
+  if (warning) display.warning = true;
+  if (reason !== undefined) display.reason = reason;
+
+  const row: WorktreeRow = {
     id: input.worktree.id,
     projectId: input.project.id,
     projectLabel: input.project.label,
     branch: input.worktree.branch,
     path: input.worktree.path,
-    worktree: {
-      state: input.worktree.state,
-      source: input.worktree.source,
-      ...(input.worktree.dirty === undefined ? {} : { dirty: input.worktree.dirty }),
-      ...(input.worktree.ahead === undefined ? {} : { ahead: input.worktree.ahead }),
-      ...(input.worktree.behind === undefined ? {} : { behind: input.worktree.behind }),
-      ...(input.worktree.pr === undefined ? {} : { pr: input.worktree.pr }),
-    },
-    ...(input.terminal === undefined ? {} : { terminal: rowTerminal(input.terminal) }),
-    ...(input.harnessRun === undefined ? {} : { agent: rowAgent(input.harnessRun) }),
-    display: {
-      statusLabel: policy.label,
-      sortPriority: policy.priority,
-      alert: policy.alert,
-      ...(warning ? { warning: true } : {}),
-      ...(reason === undefined ? {} : { reason }),
-    },
+    worktree,
+    display,
   };
+  if (input.terminal !== undefined) row.terminal = rowTerminal(input.terminal);
+  if (input.harnessRun !== undefined) row.agent = rowAgent(input.harnessRun);
+  return row;
 }
 
 function rowTerminal(terminal: TerminalTargetObservation): WorktreeRow["terminal"] {
@@ -250,25 +259,28 @@ function rowTerminal(terminal: TerminalTargetObservation): WorktreeRow["terminal
 }
 
 function rowAgent(harnessRun: HarnessRunObservation): WorktreeRow["agent"] {
-  return {
+  const agent: NonNullable<WorktreeRow["agent"]> = {
     harness: harnessRun.provider,
     state: harnessRun.state,
-    ...(harnessRun.pid === undefined ? {} : { pid: harnessRun.pid }),
     runId: harnessRun.id,
-    ...(harnessRun.sessionId === undefined ? {} : { sessionId: harnessRun.sessionId }),
     confidence: harnessRun.confidence,
     reason: harnessRun.reason,
     updatedAt: harnessRun.observedAt,
   };
+  if (harnessRun.pid !== undefined) agent.pid = harnessRun.pid;
+  if (harnessRun.sessionId !== undefined) agent.sessionId = harnessRun.sessionId;
+  return agent;
 }
 
-function buildSession(input: {
+type BuildSessionInput = {
   project: ObserverGraphProject;
   worktree: WorktreeObservation;
   terminal?: TerminalTargetObservation;
   harnessRun?: HarnessRunObservation;
   harnessCapabilities: Record<string, HarnessCapabilities>;
-}): SessionView | undefined {
+};
+
+function buildSession(input: BuildSessionInput): SessionView | undefined {
   if (input.terminal === undefined || input.harnessRun === undefined) {
     return undefined;
   }
@@ -278,27 +290,30 @@ function buildSession(input: {
     return undefined;
   }
 
+  const harness: SessionView["harness"] = {
+    provider: input.harnessRun.provider,
+    mode: "unknown",
+    runId: input.harnessRun.id,
+    capabilities: input.harnessCapabilities[input.harnessRun.provider] ?? emptyHarnessCapabilities,
+  };
+  if (input.harnessRun.pid !== undefined) harness.pid = input.harnessRun.pid;
+
+  const terminal: SessionView["terminal"] = {
+    provider: input.terminal.provider,
+    exists: input.terminal.state !== "stale",
+    workspaceTargetId: input.terminal.id,
+    primaryAgentTargetId: input.terminal.id,
+  };
+  if (input.terminal.sessionId !== undefined) terminal.sessionId = input.terminal.sessionId;
+
   return {
     id: sessionId,
     projectId: input.project.id,
     worktreeId: input.worktree.id,
     createdAt: input.harnessRun.observedAt,
     updatedAt: input.harnessRun.observedAt,
-    harness: {
-      provider: input.harnessRun.provider,
-      mode: "unknown",
-      ...(input.harnessRun.pid === undefined ? {} : { pid: input.harnessRun.pid }),
-      runId: input.harnessRun.id,
-      capabilities:
-        input.harnessCapabilities[input.harnessRun.provider] ?? emptyHarnessCapabilities,
-    },
-    terminal: {
-      provider: input.terminal.provider,
-      exists: input.terminal.state !== "stale",
-      workspaceTargetId: input.terminal.id,
-      primaryAgentTargetId: input.terminal.id,
-      ...(input.terminal.sessionId === undefined ? {} : { sessionId: input.terminal.sessionId }),
-    },
+    harness,
+    terminal,
     status: {
       value: input.harnessRun.state,
       confidence: input.harnessRun.confidence,
@@ -325,6 +340,7 @@ function chooseHarnessRun(
   terminal: TerminalTargetObservation | undefined,
   runs: HarnessRunObservation[],
 ): HarnessRunObservation | undefined {
+  // Prefer an explicit terminal-to-run binding, then fall back to the best run for the worktree.
   if (terminal?.harnessRunId !== undefined) {
     const boundRun = runs.find((run) => run.id === terminal.harnessRunId);
     if (boundRun !== undefined) {
@@ -467,6 +483,7 @@ function orphans(
   projectsById: Map<string, ObserverGraphProject>,
   harnessRunsById: Map<string, HarnessRunObservation>,
 ): { orphans?: OrphanedRuntimeState[] } {
+  // Runtime state without a configured worktree remains visible as an orphan instead of disappearing.
   const orphans: OrphanedRuntimeState[] = [];
 
   for (const terminal of input.terminalTargets) {
@@ -476,18 +493,19 @@ function orphans(
       terminal.harnessRunId === undefined || harnessRunsById.has(terminal.harnessRunId);
 
     if (!hasProject || !hasWorktree || !hasHarness) {
-      orphans.push({
+      const orphan: OrphanedRuntimeState = {
         id: `orphan_${terminal.id}`,
         kind: "terminal_target",
         provider: terminal.provider,
-        ...(terminal.projectId === undefined ? {} : { projectId: terminal.projectId }),
-        ...(terminal.worktreeId === undefined ? {} : { worktreeId: terminal.worktreeId }),
-        ...(terminal.sessionId === undefined ? {} : { sessionId: terminal.sessionId }),
         terminalTargetId: terminal.id,
         reason: "Terminal target has no matching configured project or worktree.",
         observedAt: terminal.observedAt,
-        ...(terminal.providerData === undefined ? {} : { providerData: terminal.providerData }),
-      });
+      };
+      if (terminal.projectId !== undefined) orphan.projectId = terminal.projectId;
+      if (terminal.worktreeId !== undefined) orphan.worktreeId = terminal.worktreeId;
+      if (terminal.sessionId !== undefined) orphan.sessionId = terminal.sessionId;
+      if (terminal.providerData !== undefined) orphan.providerData = terminal.providerData;
+      orphans.push(orphan);
     }
   }
 
@@ -496,22 +514,26 @@ function orphans(
     const hasWorktree = run.worktreeId !== undefined && worktreesById.has(run.worktreeId);
 
     if (!hasProject || !hasWorktree) {
-      orphans.push({
+      const orphan: OrphanedRuntimeState = {
         id: `orphan_${run.id}`,
         kind: "harness_run",
         provider: run.provider,
-        ...(run.projectId === undefined ? {} : { projectId: run.projectId }),
-        ...(run.worktreeId === undefined ? {} : { worktreeId: run.worktreeId }),
-        ...(run.sessionId === undefined ? {} : { sessionId: run.sessionId }),
         harnessRunId: run.id,
         reason: "Harness run has no matching configured project or worktree.",
         observedAt: run.observedAt,
-        ...(run.providerData === undefined ? {} : { providerData: run.providerData }),
-      });
+      };
+      if (run.projectId !== undefined) orphan.projectId = run.projectId;
+      if (run.worktreeId !== undefined) orphan.worktreeId = run.worktreeId;
+      if (run.sessionId !== undefined) orphan.sessionId = run.sessionId;
+      if (run.providerData !== undefined) orphan.providerData = run.providerData;
+      orphans.push(orphan);
     }
   }
 
-  return orphans.length === 0 ? {} : { orphans };
+  if (orphans.length === 0) {
+    return {};
+  }
+  return { orphans };
 }
 
 export function safeErrorToProviderHealth(input: {
@@ -522,13 +544,14 @@ export function safeErrorToProviderHealth(input: {
   capabilities?: Record<string, boolean>;
   latencyMs?: number;
 }): ProviderHealth {
-  return {
+  const health: ProviderHealth = {
     providerId: input.providerId,
     providerType: input.providerType,
     status: "unavailable",
     lastCheckedAt: input.lastCheckedAt,
     lastError: input.lastError,
-    ...(input.latencyMs === undefined ? {} : { latencyMs: input.latencyMs }),
-    ...(input.capabilities === undefined ? {} : { capabilities: input.capabilities }),
   };
+  if (input.latencyMs !== undefined) health.latencyMs = input.latencyMs;
+  if (input.capabilities !== undefined) health.capabilities = input.capabilities;
+  return health;
 }

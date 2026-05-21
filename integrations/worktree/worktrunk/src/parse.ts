@@ -58,7 +58,10 @@ export function parseWorktrunkListItem(
   const metadata = providerNativeMetadataFromWorktrunkItem(item);
   const branch = branchFromItem(item);
   const main = recordField(item, "main");
-  const observation = WorktreeObservationSchema.parse({
+  const ahead = numberField(main, "ahead");
+  const behind = numberField(main, "behind");
+  const dirty = dirtyFromItem(item);
+  const observationInput: WorktreeObservation = {
     id: metadata?.worktreeId ?? worktreeId(options.project.id, branch, path),
     provider: options.providerId ?? "worktrunk",
     projectId: options.project.id,
@@ -66,9 +69,6 @@ export function parseWorktrunkListItem(
     path,
     state: stateFromItem(item),
     source: "worktrunk",
-    dirty: dirtyFromItem(item),
-    ...(numberField(main, "ahead") === undefined ? {} : { ahead: numberField(main, "ahead") }),
-    ...(numberField(main, "behind") === undefined ? {} : { behind: numberField(main, "behind") }),
     confidence: "high",
     reason: "Worktrunk listed this worktree.",
     observedAt: options.observedAt,
@@ -76,12 +76,17 @@ export function parseWorktrunkListItem(
       worktrunk: safeProviderData(item),
       ...(metadata === undefined ? {} : { metadata }),
     },
-  });
+  };
+  if (dirty !== undefined) observationInput.dirty = dirty;
+  if (ahead !== undefined) observationInput.ahead = ahead;
+  if (behind !== undefined) observationInput.behind = behind;
+  const observation = WorktreeObservationSchema.parse(observationInput);
 
   return applyMetadataToObservation(observation, metadata);
 }
 
 function normalizePayload(payload: unknown): WorktrunkListItem[] {
+  // Accept known Worktrunk shapes across versions: a raw array, a wrapper object, or a single item.
   if (Array.isArray(payload)) {
     return payload.map(assertItem);
   }
@@ -120,6 +125,7 @@ function branchFromItem(item: WorktrunkListItem): string {
     return explicit;
   }
 
+  // Detached worktrees may not expose a branch; prefer a short SHA, then path basename.
   const git = recordField(item, "git");
   const detached =
     stringField(git, "short_sha") ??
@@ -170,27 +176,25 @@ function dirtyFromItem(item: WorktrunkListItem): boolean | undefined {
 }
 
 function safeProviderData(item: WorktrunkListItem): Record<string, unknown> {
+  // Keep providerData small and schema-neutral instead of storing the full Worktrunk payload.
   const metadata = providerNativeMetadataFromWorktrunkItem(item);
-  return {
-    ...(stringField(item, "kind") === undefined ? {} : { kind: stringField(item, "kind") }),
-    ...(stringField(item, "state") === undefined ? {} : { state: stringField(item, "state") }),
-    ...(booleanField(item, "is_current") === undefined
-      ? {}
-      : { isCurrent: booleanField(item, "is_current") }),
-    ...(booleanField(item, "isCurrent") === undefined
-      ? {}
-      : { isCurrent: booleanField(item, "isCurrent") }),
-    ...(booleanField(item, "is_main") === undefined
-      ? {}
-      : { isMain: booleanField(item, "is_main") }),
-    ...(booleanField(item, "is_previous") === undefined
-      ? {}
-      : { isPrevious: booleanField(item, "is_previous") }),
-    ...(stringField(item, "symbols") === undefined
-      ? {}
-      : { symbols: stringField(item, "symbols") }),
-    ...(metadata === undefined ? {} : { metadata: safeMetadata(metadata) }),
-  };
+  const kind = stringField(item, "kind");
+  const state = stringField(item, "state");
+  const isCurrentSnake = booleanField(item, "is_current");
+  const isCurrentCamel = booleanField(item, "isCurrent");
+  const isMain = booleanField(item, "is_main");
+  const isPrevious = booleanField(item, "is_previous");
+  const symbols = stringField(item, "symbols");
+  const providerData: Record<string, unknown> = {};
+  if (kind !== undefined) providerData.kind = kind;
+  if (state !== undefined) providerData.state = state;
+  if (isCurrentSnake !== undefined) providerData.isCurrent = isCurrentSnake;
+  if (isCurrentCamel !== undefined) providerData.isCurrent = isCurrentCamel;
+  if (isMain !== undefined) providerData.isMain = isMain;
+  if (isPrevious !== undefined) providerData.isPrevious = isPrevious;
+  if (symbols !== undefined) providerData.symbols = symbols;
+  if (metadata !== undefined) providerData.metadata = safeMetadata(metadata);
+  return providerData;
 }
 
 function safeMetadata(metadata: WorktrunkMetadata): WorktrunkMetadata {

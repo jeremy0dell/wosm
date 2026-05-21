@@ -60,7 +60,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
       );
 
       if (!persistResult.ok) {
-        return HookReceiptSchema.parse({
+        const receipt: HookReceipt = {
           schemaVersion: WOSM_SCHEMA_VERSION,
           hookId: id,
           provider: event.provider,
@@ -69,7 +69,8 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
           status: "rejected",
           receivedAt: event.receivedAt,
           error: persistResult.error,
-        });
+        };
+        return HookReceiptSchema.parse(receipt);
       }
 
       const shouldReconcile = ingestOptions.triggerReconcile ?? true;
@@ -89,7 +90,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
         );
 
         if (!reconcileResult.ok) {
-          return HookReceiptSchema.parse({
+          const receipt: HookReceipt = {
             schemaVersion: WOSM_SCHEMA_VERSION,
             hookId: id,
             provider: event.provider,
@@ -99,11 +100,12 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
             receivedAt: event.receivedAt,
             reconciled: false,
             error: reconcileResult.error,
-          });
+          };
+          return HookReceiptSchema.parse(receipt);
         }
       }
 
-      return HookReceiptSchema.parse({
+      const receipt: HookReceipt = {
         schemaVersion: WOSM_SCHEMA_VERSION,
         hookId: id,
         provider: event.provider,
@@ -112,7 +114,8 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
         status: "ingested",
         receivedAt: event.receivedAt,
         reconciled: shouldReconcile && options.reconcile !== undefined,
-      });
+      };
+      return HookReceiptSchema.parse(receipt);
     },
   };
 }
@@ -128,15 +131,16 @@ export function providerHookEvent(input: {
   payload?: unknown;
 }): ProviderHookEvent {
   const clock = input.clock ?? systemClock;
-  return ProviderHookEventSchema.parse({
+  const event: ProviderHookEvent = {
     schemaVersion: WOSM_SCHEMA_VERSION,
     provider: input.provider,
     kind: input.kind,
     event: input.event,
     receivedAt: toIsoTimestamp(clock.now()),
-    ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
-    ...(input.worktreeId === undefined ? {} : { worktreeId: input.worktreeId }),
-    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-    ...(input.payload === undefined ? {} : { payload: input.payload }),
-  });
+  };
+  if (input.projectId !== undefined) event.projectId = input.projectId;
+  if (input.worktreeId !== undefined) event.worktreeId = input.worktreeId;
+  if (input.sessionId !== undefined) event.sessionId = input.sessionId;
+  if (input.payload !== undefined) event.payload = input.payload;
+  return ProviderHookEventSchema.parse(event);
 }

@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { ProviderProjectConfig, WorktreeObservation } from "@wosm/contracts";
+import {
+  type ProviderProjectConfig,
+  RecoveryBreadcrumbSchema,
+  type WorktreeObservation,
+} from "@wosm/contracts";
 
 export type WorktrunkMetadata = {
   source: "provider-native" | "worktree-breadcrumb";
@@ -109,24 +113,18 @@ function parseBreadcrumbMetadata(source: string): WorktrunkMetadata | undefined 
     return undefined;
   }
 
-  const record = asRecord(value);
-  if (record?.createdBy !== "wosm" || record.schemaVersion !== 1) {
+  const parsed = RecoveryBreadcrumbSchema.safeParse(value);
+  if (!parsed.success) {
     return undefined;
   }
 
-  const projectId = stringValue(record.projectId);
-  if (projectId === undefined) {
-    return undefined;
-  }
-
-  const worktreeId = stringValue(record.worktreeId);
-  const sessionId = stringValue(record.sessionId);
+  const breadcrumb = parsed.data;
 
   return {
     source: "worktree-breadcrumb",
-    projectId,
-    ...(worktreeId === undefined ? {} : { worktreeId }),
-    ...(sessionId === undefined ? {} : { sessionId }),
+    projectId: breadcrumb.projectId,
+    ...(breadcrumb.worktreeId === undefined ? {} : { worktreeId: breadcrumb.worktreeId }),
+    ...(breadcrumb.sessionId === undefined ? {} : { sessionId: breadcrumb.sessionId }),
   };
 }
 

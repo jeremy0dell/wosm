@@ -82,6 +82,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
   };
   const api = createObserverApi({
     core,
+    providers,
     persistence,
     commandQueue,
     eventBus,

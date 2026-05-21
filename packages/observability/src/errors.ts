@@ -43,30 +43,37 @@ export function toSafeError(
   const knownSafeError = isSafeErrorLike(error) ? error : undefined;
   const known = knownSafeError ?? fallback;
   const safeMessage = redact(known.message).value;
-  return SafeErrorSchema.parse({
+  const safeError: SafeError = {
     tag: known.tag,
     code: known.code,
     message: safeMessage,
-    ...(known.hint === undefined ? {} : { hint: redact(known.hint).value }),
-    ...(known.provider === undefined ? {} : { provider: known.provider }),
-    ...(knownSafeError?.projectId === undefined ? {} : { projectId: knownSafeError.projectId }),
-    ...(knownSafeError?.worktreeId === undefined ? {} : { worktreeId: knownSafeError.worktreeId }),
-    ...(knownSafeError?.sessionId === undefined ? {} : { sessionId: knownSafeError.sessionId }),
-    ...(knownSafeError?.diagnosticId === undefined
-      ? {}
-      : { diagnosticId: knownSafeError.diagnosticId }),
-    ...context,
-  });
+  };
+  if (known.hint !== undefined) safeError.hint = redact(known.hint).value;
+  if (known.provider !== undefined) safeError.provider = known.provider;
+  if (knownSafeError?.projectId !== undefined) safeError.projectId = knownSafeError.projectId;
+  if (knownSafeError?.worktreeId !== undefined) safeError.worktreeId = knownSafeError.worktreeId;
+  if (knownSafeError?.sessionId !== undefined) safeError.sessionId = knownSafeError.sessionId;
+  if (knownSafeError?.diagnosticId !== undefined) {
+    safeError.diagnosticId = knownSafeError.diagnosticId;
+  }
+  applySafeErrorContext(safeError, context);
+  return SafeErrorSchema.parse(safeError);
 }
 
 export function createErrorEnvelope(input: ErrorEnvelopeInput): ErrorEnvelope {
-  const safeError = toSafeError(input.error, input.fallback, {
-    ...(input.commandId === undefined ? {} : { commandId: input.commandId }),
-    ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
-    ...(input.worktreeId === undefined ? {} : { worktreeId: input.worktreeId }),
-    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-    ...(input.traceId === undefined ? {} : { traceId: input.traceId }),
-  });
+  const context: Partial<
+    Pick<
+      SafeError,
+      "commandId" | "projectId" | "worktreeId" | "sessionId" | "traceId" | "diagnosticId"
+    >
+  > = {};
+  if (input.commandId !== undefined) context.commandId = input.commandId;
+  if (input.projectId !== undefined) context.projectId = input.projectId;
+  if (input.worktreeId !== undefined) context.worktreeId = input.worktreeId;
+  if (input.sessionId !== undefined) context.sessionId = input.sessionId;
+  if (input.traceId !== undefined) context.traceId = input.traceId;
+
+  const safeError = toSafeError(input.error, input.fallback, context);
   const errorObject = input.error instanceof Error ? input.error : undefined;
   const provider = input.provider ?? safeError.provider;
   const redactedCause = redact(errorObject?.message ?? input.error).value;
@@ -74,25 +81,27 @@ export function createErrorEnvelope(input: ErrorEnvelopeInput): ErrorEnvelope {
     errorObject?.stack === undefined ? undefined : redact(errorObject.stack).value;
   const redactedRaw = input.raw === undefined ? undefined : redact(input.raw).value;
 
-  return ErrorEnvelopeSchema.parse({
+  const envelope: ErrorEnvelope = {
     id: input.id,
     tag: safeError.tag,
     code: safeError.code,
     message: typeof redactedCause === "string" ? redactedCause : safeError.message,
     severity: input.severity ?? "error",
-    ...(input.commandId === undefined ? {} : { commandId: input.commandId }),
-    ...(input.traceId === undefined ? {} : { traceId: input.traceId }),
-    ...(input.spanId === undefined ? {} : { spanId: input.spanId }),
-    ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
-    ...(input.worktreeId === undefined ? {} : { worktreeId: input.worktreeId }),
-    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-    ...(provider === undefined ? {} : { provider }),
-    ...(redactedCause === undefined ? {} : { cause: redactedCause }),
-    ...(redactedStack === undefined ? {} : { stack: redactedStack }),
-    ...(redactedRaw === undefined ? {} : { raw: redactedRaw }),
     redacted: true,
     createdAt: input.createdAt,
-  });
+  };
+  if (input.commandId !== undefined) envelope.commandId = input.commandId;
+  if (input.traceId !== undefined) envelope.traceId = input.traceId;
+  if (input.spanId !== undefined) envelope.spanId = input.spanId;
+  if (input.projectId !== undefined) envelope.projectId = input.projectId;
+  if (input.worktreeId !== undefined) envelope.worktreeId = input.worktreeId;
+  if (input.sessionId !== undefined) envelope.sessionId = input.sessionId;
+  if (provider !== undefined) envelope.provider = provider;
+  if (redactedCause !== undefined) envelope.cause = redactedCause;
+  if (redactedStack !== undefined) envelope.stack = redactedStack;
+  if (redactedRaw !== undefined) envelope.raw = redactedRaw;
+
+  return ErrorEnvelopeSchema.parse(envelope);
 }
 
 function isSafeErrorLike(value: unknown): value is SafeError {
@@ -105,4 +114,21 @@ function isSafeErrorLike(value: unknown): value is SafeError {
     typeof candidate.code === "string" &&
     typeof candidate.message === "string"
   );
+}
+
+function applySafeErrorContext(
+  target: SafeError,
+  context: Partial<
+    Pick<
+      SafeError,
+      "commandId" | "projectId" | "worktreeId" | "sessionId" | "traceId" | "diagnosticId"
+    >
+  >,
+): void {
+  if (context.commandId !== undefined) target.commandId = context.commandId;
+  if (context.projectId !== undefined) target.projectId = context.projectId;
+  if (context.worktreeId !== undefined) target.worktreeId = context.worktreeId;
+  if (context.sessionId !== undefined) target.sessionId = context.sessionId;
+  if (context.traceId !== undefined) target.traceId = context.traceId;
+  if (context.diagnosticId !== undefined) target.diagnosticId = context.diagnosticId;
 }

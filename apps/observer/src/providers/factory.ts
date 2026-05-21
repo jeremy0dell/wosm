@@ -37,6 +37,9 @@ function createWorktreeProvider(config: WosmConfig): WorktreeProvider {
       ...(config.worktree?.worktrunk?.configPath === undefined
         ? {}
         : { configPath: config.worktree.worktrunk.configPath }),
+      ...(config.worktree?.worktrunk?.useLifecycleHooks === undefined
+        ? {}
+        : { useLifecycleHooks: config.worktree.worktrunk.useLifecycleHooks }),
     });
   }
 

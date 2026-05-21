@@ -253,6 +253,8 @@ function uninstallCommands(
   return next;
 }
 
+// Worktrunk hook values may be strings, arrays, or tables. Preserve user hooks
+// and add/remove only our generated command under the stable "wosm" key.
 function withGeneratedCommand(value: unknown, command: string): unknown {
   if (value === undefined) {
     return { [generatedCommandKey]: command };

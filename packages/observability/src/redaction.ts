@@ -99,6 +99,7 @@ function redactValue(
   const result: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
     const childPath = [...path, key];
+    // Key-based matches redact the whole field; value patterns preserve surrounding text.
     if (SECRET_KEY_PATTERN.test(key)) {
       report.redactedFields.add(childPath.join("."));
       report.replacements += 1;
@@ -115,6 +116,7 @@ function redactValue(
 function redactStringInternal(value: string, report: MutableRedactionReport): string {
   let redacted = value;
   for (const [name, pattern] of SECRET_VALUE_PATTERNS) {
+    // Each regex has global state; replace() advances it while recording every match.
     redacted = redacted.replace(pattern, (match) => {
       report.redactedPatterns.add(name);
       report.replacements += 1;

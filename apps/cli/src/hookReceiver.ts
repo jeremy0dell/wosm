@@ -33,6 +33,7 @@ export type HookReceiverDeps = ObserverProcessDeps & {
   writeSpool?: typeof writeHookSpoolRecord;
 };
 
+// Rate-limit auto-starts per state dir so concurrent hooks from one install do not fork storms.
 const lastStartByStateDir = new Map<string, number>();
 
 export async function receiveHookEvent(
@@ -55,6 +56,8 @@ export async function receiveHookEvent(
   const rateLimitMs = input.rateLimitMs ?? 2000;
   const autoStart = input.autoStart ?? input.config?.observer?.autoStartFromHooks !== false;
 
+  // Delivery is best-effort and local-first: try the running observer, optionally
+  // start it once, then spool the event for later replay.
   const onlineDelivery = await deliverHook(paths, event, deliveryTimeoutMs, deps);
   if (onlineDelivery.ok && onlineDelivery.value.status === "ingested") {
     return onlineDelivery.value;

@@ -66,6 +66,7 @@ export function openObserverSqlite(options: OpenObserverSqliteOptions = {}): Obs
       open,
       status: open ? (lastError === undefined ? "healthy" : "unavailable") : "closed",
       schemaVersion: readSchemaVersion(database, open),
+      // Keep the last migration list available after close(), when SQLite can no longer be queried.
       migrations: open ? readAppliedMigrations(database) : appliedMigrations,
       lastCheckedAt: toIsoTimestamp(clock.now()),
       ...(lastError === undefined ? {} : { lastError }),
@@ -140,6 +141,7 @@ function applyMigrations(database: DatabaseSync, clock: RuntimeClock): void {
     database.exec("BEGIN IMMEDIATE");
     try {
       database.exec(migration.sql);
+      // Store both an audit trail and a fast schema_version lookup for health reporting.
       database
         .prepare(
           "INSERT OR REPLACE INTO observer_migrations (version, name, applied_at) VALUES (?, ?, ?)",

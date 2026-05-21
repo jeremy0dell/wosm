@@ -21,19 +21,20 @@ describe("Worktrunk diagnostics", () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ path: join(stateDir, "observer.sqlite"), clock });
     const persistence = createObserverPersistence({ sqlite, clock, idFactory: ids() });
+    const providers = new ProviderRegistry({
+      worktree: new WorktrunkProvider({
+        command: "missing-wt",
+        clock,
+        runner: async () => {
+          throw Object.assign(new Error("missing"), { code: "ENOENT" });
+        },
+      }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
     const core = createObserverCore({
       config: config(stateDir),
-      providers: new ProviderRegistry({
-        worktree: new WorktrunkProvider({
-          command: "missing-wt",
-          clock,
-          runner: async () => {
-            throw Object.assign(new Error("missing"), { code: "ENOENT" });
-          },
-        }),
-        terminal: new FakeTerminalProvider({ now }),
-        harnesses: [new FakeHarnessProvider({ now })],
-      }),
+      providers,
       persistence,
       sqlite,
       clock,
@@ -44,6 +45,7 @@ describe("Worktrunk diagnostics", () => {
       config: config(stateDir),
       core,
       persistence,
+      providers,
       paths: { stateDir },
       clock,
     });

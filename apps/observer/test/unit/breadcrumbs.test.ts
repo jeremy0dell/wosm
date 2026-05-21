@@ -110,4 +110,69 @@ describe("recovery breadcrumbs", () => {
       ),
     ).toThrow(RecoveryBreadcrumbError);
   });
+
+  it("rejects unsupported fields, invalid timestamps, and empty optional fields", () => {
+    expect(() =>
+      parseRecoveryBreadcrumbJson(
+        JSON.stringify({
+          ...breadcrumb,
+          extra: true,
+        }),
+      ),
+    ).toThrow(RecoveryBreadcrumbError);
+
+    expect(() =>
+      parseRecoveryBreadcrumbJson(
+        JSON.stringify({
+          ...breadcrumb,
+          createdAt: "2026-05-20",
+        }),
+      ),
+    ).toThrow(RecoveryBreadcrumbError);
+
+    expect(() =>
+      parseRecoveryBreadcrumbJson(
+        JSON.stringify({
+          ...breadcrumb,
+          worktreeId: "",
+        }),
+      ),
+    ).toThrow(RecoveryBreadcrumbError);
+  });
+
+  it("accepts minimal and full valid breadcrumb payloads", () => {
+    expect(
+      parseRecoveryBreadcrumbJson(
+        JSON.stringify({
+          schemaVersion: 1,
+          projectId: "web",
+          createdBy: "wosm",
+          createdAt: now,
+        }),
+      ),
+    ).toEqual({
+      breadcrumb: {
+        schemaVersion: 1,
+        projectId: "web",
+        createdBy: "wosm",
+        createdAt: now,
+      },
+      authoritative: false,
+    });
+
+    expect(
+      parseRecoveryBreadcrumbJson(
+        JSON.stringify({
+          ...breadcrumb,
+          provider: "worktrunk",
+          note: "created by lifecycle hook",
+        }),
+      ).breadcrumb,
+    ).toMatchObject({
+      worktreeId: "wt_web_main",
+      sessionId: "ses_web_main",
+      provider: "worktrunk",
+      note: "created by lifecycle hook",
+    });
+  });
 });

@@ -21,13 +21,14 @@ describe("observer diagnostics collector", () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ path: join(stateDir, "observer.sqlite"), clock });
     const persistence = createObserverPersistence({ sqlite, clock, idFactory: ids() });
+    const providers = new ProviderRegistry({
+      worktree: new ProviderDiagnosticWorktreeProvider({ now }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
     const core = createObserverCore({
       config,
-      providers: new ProviderRegistry({
-        worktree: new FakeWorktreeProvider({ now }),
-        terminal: new FakeTerminalProvider({ now }),
-        harnesses: [new FakeHarnessProvider({ now })],
-      }),
+      providers,
       persistence,
       sqlite,
       clock,
@@ -38,6 +39,7 @@ describe("observer diagnostics collector", () => {
       config,
       core,
       persistence,
+      providers,
       paths: { stateDir },
       clock,
     };
@@ -53,6 +55,12 @@ describe("observer diagnostics collector", () => {
     });
     await expect(runDoctor(deps)).resolves.toMatchObject({
       status: "healthy",
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          name: "fake-provider-check",
+          status: "ok",
+        }),
+      ]),
       debugBundle: {
         available: true,
       },
@@ -60,6 +68,18 @@ describe("observer diagnostics collector", () => {
     sqlite.close();
   });
 });
+
+class ProviderDiagnosticWorktreeProvider extends FakeWorktreeProvider {
+  async doctorChecks() {
+    return [
+      {
+        name: "fake-provider-check",
+        status: "ok" as const,
+        message: "Fake provider diagnostics are healthy.",
+      },
+    ];
+  }
+}
 
 const config: WosmConfig = {
   schemaVersion: 1,

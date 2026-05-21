@@ -334,19 +334,18 @@ async function readHarnessObservations(input: {
     );
 
     if (result.ok) {
-      harnessRuns.push(
-        ...(await classifyHarnessRuns({
-          provider,
-          capabilities,
-          runs: result.value,
-          projects: input.projects,
-          worktrees: input.worktrees,
-          terminalTargets: input.terminalTargets,
-          read: input.read,
-          providerHealth: input.providerHealth,
-          errors: input.errors,
-        })),
-      );
+      const classifiedRuns = await classifyHarnessRuns({
+        provider,
+        capabilities,
+        runs: result.value,
+        projects: input.projects,
+        worktrees: input.worktrees,
+        terminalTargets: input.terminalTargets,
+        read: input.read,
+        providerHealth: input.providerHealth,
+        errors: input.errors,
+      });
+      harnessRuns.push(...classifiedRuns);
       continue;
     }
 

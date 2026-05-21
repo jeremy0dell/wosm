@@ -33,6 +33,20 @@ export type SessionCommandRuntime = {
   commandTimeoutMs?: number | undefined;
 };
 
+type ProviderMutationTrace = {
+  traceId?: string | undefined;
+  spanId?: string | undefined;
+  operation?: string | undefined;
+};
+
+type RunProviderMutationInput = {
+  operation: string;
+  fallback: RuntimeSafeErrorFallback;
+  timeoutFallback?: RuntimeSafeErrorFallback | undefined;
+  trace?: ProviderMutationTrace | undefined;
+  signal?: AbortSignal | undefined;
+} & SessionCommandRuntime;
+
 export const defaultSessionCommandIdFactory: SessionCommandIdFactory = {
   sessionId: () => `ses_${randomUUID()}`,
 };
@@ -89,14 +103,15 @@ export function assertNoCurrentAgent(row: WorktreeRow | undefined): void {
   if (row?.agent === undefined) {
     return;
   }
-  throw safeError({
+  const error: SafeError = {
     tag: "CommandValidationError",
     code: "SESSION_ALREADY_HAS_AGENT",
     message: "This worktree already has a primary agent session.",
     hint: "Focus the existing agent or close it before starting a new one.",
     worktreeId: row.id,
-    ...(row.agent.sessionId === undefined ? {} : { sessionId: row.agent.sessionId }),
-  });
+  };
+  if (row.agent.sessionId !== undefined) error.sessionId = row.agent.sessionId;
+  throw safeError(error);
 }
 
 export function worktreeObservationFromRow(
@@ -104,7 +119,7 @@ export function worktreeObservationFromRow(
   provider: string,
   observedAt: string,
 ): WorktreeObservation {
-  return {
+  const observation: WorktreeObservation = {
     id: row.id,
     provider,
     projectId: row.projectId,
@@ -112,54 +127,45 @@ export function worktreeObservationFromRow(
     path: row.path,
     state: row.worktree.state,
     source: row.worktree.source,
-    ...(row.worktree.dirty === undefined ? {} : { dirty: row.worktree.dirty }),
-    ...(row.worktree.ahead === undefined ? {} : { ahead: row.worktree.ahead }),
-    ...(row.worktree.behind === undefined ? {} : { behind: row.worktree.behind }),
-    ...(row.worktree.pr === undefined ? {} : { pr: row.worktree.pr }),
     confidence: "high",
     reason: "Resolved from the current observer snapshot.",
     observedAt,
   };
+  if (row.worktree.dirty !== undefined) observation.dirty = row.worktree.dirty;
+  if (row.worktree.ahead !== undefined) observation.ahead = row.worktree.ahead;
+  if (row.worktree.behind !== undefined) observation.behind = row.worktree.behind;
+  if (row.worktree.pr !== undefined) observation.pr = row.worktree.pr;
+  return observation;
 }
 
 export async function runProviderMutation<T>(
-  input: {
-    operation: string;
-    fallback: RuntimeSafeErrorFallback;
-    timeoutFallback?: RuntimeSafeErrorFallback | undefined;
-    trace?:
-      | {
-          traceId?: string | undefined;
-          spanId?: string | undefined;
-          operation?: string | undefined;
-        }
-      | undefined;
-    signal?: AbortSignal | undefined;
-  } & SessionCommandRuntime,
+  input: RunProviderMutationInput,
   task: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   const clock = input.clock ?? systemClock;
-  const result = await runRuntimeBoundaryWithTimeout(
-    {
-      operation: input.operation,
-      clock,
-      timeoutMs: input.commandTimeoutMs ?? 30_000,
-      error: input.fallback,
-      ...(input.timeoutFallback === undefined ? {} : { timeoutError: input.timeoutFallback }),
-      ...(input.trace === undefined ? {} : { trace: input.trace }),
-    },
-    async ({ signal }) => {
-      const linked = linkAbortSignals(signal, input.signal);
-      try {
-        throwIfAborted(linked.signal);
-        const value = await task(linked.signal);
-        throwIfAborted(linked.signal);
-        return value;
-      } finally {
-        linked.cleanup();
-      }
-    },
-  );
+  const boundaryInput: Parameters<typeof runRuntimeBoundaryWithTimeout<T>>[0] = {
+    operation: input.operation,
+    clock,
+    timeoutMs: input.commandTimeoutMs ?? 30_000,
+    error: input.fallback,
+  };
+  if (input.timeoutFallback !== undefined) {
+    boundaryInput.timeoutError = input.timeoutFallback;
+  }
+  if (input.trace !== undefined) {
+    boundaryInput.trace = input.trace;
+  }
+  const result = await runRuntimeBoundaryWithTimeout(boundaryInput, async ({ signal }) => {
+    const linked = linkAbortSignals(signal, input.signal);
+    try {
+      throwIfAborted(linked.signal);
+      const value = await task(linked.signal);
+      throwIfAborted(linked.signal);
+      return value;
+    } finally {
+      linked.cleanup();
+    }
+  });
 
   if (result.ok) {
     return result.value;
@@ -171,49 +177,46 @@ export async function launchHarnessInTerminal(
   input: {
     terminal: TerminalProvider;
     request: TerminalLaunchProcessRequest;
-    trace?:
-      | {
-          traceId?: string | undefined;
-          spanId?: string | undefined;
-          operation?: string | undefined;
-        }
-      | undefined;
+    trace?: ProviderMutationTrace | undefined;
     signal?: AbortSignal | undefined;
   } & SessionCommandRuntime,
 ): Promise<TerminalLaunchProcessResult> {
   if (input.terminal.launchProcess === undefined) {
-    throw safeError({
+    const error: SafeError = {
       tag: "TerminalProviderError",
       code: "TERMINAL_LAUNCH_UNSUPPORTED",
       message: "The configured terminal provider cannot launch harness processes.",
       provider: input.terminal.id,
       worktreeId: input.request.worktree.id,
-      ...(input.request.terminalTarget.sessionId === undefined
-        ? {}
-        : { sessionId: input.request.terminalTarget.sessionId }),
-    });
+    };
+    if (input.request.terminalTarget.sessionId !== undefined) {
+      error.sessionId = input.request.terminalTarget.sessionId;
+    }
+    throw safeError(error);
   }
 
-  return runProviderMutation(
-    {
-      operation: `provider.${input.terminal.id}.launchProcess`,
-      ...(input.clock === undefined ? {} : { clock: input.clock }),
-      ...(input.commandTimeoutMs === undefined ? {} : { commandTimeoutMs: input.commandTimeoutMs }),
-      ...(input.signal === undefined ? {} : { signal: input.signal }),
-      ...(input.trace === undefined ? {} : { trace: input.trace }),
-      fallback: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_LAUNCH_FAILED",
-        message: "The terminal provider failed to launch the harness process.",
-        provider: input.terminal.id,
-      },
-      timeoutFallback: {
-        tag: "TimeoutError",
-        code: "TERMINAL_LAUNCH_TIMEOUT",
-        message: "The terminal provider timed out while launching the harness process.",
-        provider: input.terminal.id,
-      },
+  const mutationInput: RunProviderMutationInput = {
+    operation: `provider.${input.terminal.id}.launchProcess`,
+    fallback: {
+      tag: "TerminalProviderError",
+      code: "TERMINAL_LAUNCH_FAILED",
+      message: "The terminal provider failed to launch the harness process.",
+      provider: input.terminal.id,
     },
+    timeoutFallback: {
+      tag: "TimeoutError",
+      code: "TERMINAL_LAUNCH_TIMEOUT",
+      message: "The terminal provider timed out while launching the harness process.",
+      provider: input.terminal.id,
+    },
+  };
+  if (input.clock !== undefined) mutationInput.clock = input.clock;
+  if (input.commandTimeoutMs !== undefined) mutationInput.commandTimeoutMs = input.commandTimeoutMs;
+  if (input.signal !== undefined) mutationInput.signal = input.signal;
+  if (input.trace !== undefined) mutationInput.trace = input.trace;
+
+  return runProviderMutation(
+    mutationInput,
     (signal) =>
       input.terminal.launchProcess?.({
         ...input.request,

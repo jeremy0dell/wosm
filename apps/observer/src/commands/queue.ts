@@ -60,6 +60,7 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
   const handlers = new Map<WosmCommand["type"], CommandHandler>(
     Object.entries(options.handlers ?? {}) as [WosmCommand["type"], CommandHandler][],
   );
+  // Commands serialize by the narrowest stable identity we can infer; unrelated scopes run in parallel.
   const scopeChains = new Map<string, Promise<void>>();
   const pending = new Set<Promise<void>>();
   const controllers = new Set<AbortController>();
@@ -70,7 +71,7 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
     dispatch: async (inputCommand) => {
       const command = WosmCommandSchema.parse(inputCommand);
       if (shuttingDown) {
-        return CommandReceiptSchema.parse({
+        const receipt: CommandReceipt = {
           commandId: idFactory.commandId(),
           accepted: false,
           status: "rejected",
@@ -79,7 +80,8 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
             code: "COMMAND_QUEUE_SHUTTING_DOWN",
             message: "Observer command queue is shutting down.",
           },
-        });
+        };
+        return CommandReceiptSchema.parse(receipt);
       }
       const commandId = idFactory.commandId();
       const trace = createTraceContext({ operation: `command.${command.type}` });
@@ -133,6 +135,7 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
           },
         ),
       );
+      // Keep the per-scope chain non-throwing; failures are persisted and later commands still run.
       const settled = execution.catch(() => undefined);
       scopeChains.set(scope, settled);
       controllers.add(controller);
@@ -145,13 +148,14 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
         }
       });
 
-      return CommandReceiptSchema.parse({
+      const receipt: CommandReceipt = {
         commandId,
         traceId: trace.traceId,
         spanId: trace.spanId,
         accepted: true,
         status: "accepted",
-      });
+      };
+      return CommandReceiptSchema.parse(receipt);
     },
 
     drain: async () => {
@@ -234,8 +238,10 @@ async function executeCommand(
       trace: context.trace,
     },
     async ({ signal }) => {
+      // Combine runtime timeout and queue shutdown into the signal handlers receive.
       const linked = linkAbortSignals(signal, runtime?.signal);
       try {
+        // Check before and after handler work because provider calls may notice abort cooperatively.
         throwIfCommandCancelled(linked.signal);
         await handler({ ...context, signal: linked.signal });
         throwIfCommandCancelled(linked.signal);
@@ -373,6 +379,7 @@ function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
   };
 }
 
+// Prefer the narrowest scope so commands touching the same session, worktree, or project serialize.
 function commandScope(command: WosmCommand): string {
   if ("sessionId" in command.payload && typeof command.payload.sessionId === "string") {
     return `session:${command.payload.sessionId}`;

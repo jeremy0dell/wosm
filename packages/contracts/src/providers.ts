@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { SafeError } from "./errors.js";
 import { SafeErrorSchema } from "./errors.js";
 import type {
   HarnessRunId,
@@ -122,6 +123,17 @@ export type GetWorktreeRequest = {
   path?: string;
 };
 
+export type ProviderDoctorCheck = {
+  name: string;
+  status: "ok" | "warn" | "error";
+  message: string;
+  error?: SafeError;
+};
+
+export type ProviderDoctorContext = {
+  wosmConfigPath?: string;
+};
+
 export type OpenWorkspaceRequest = {
   project: ProviderProjectConfig;
   worktree: WorktreeObservation;
@@ -226,6 +238,7 @@ export interface WorktreeProvider {
   id: ProviderId;
   capabilities(): WorktreeCapabilities;
   health(): Promise<ProviderHealth>;
+  doctorChecks?(context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]>;
   listWorktrees(project: ProviderProjectConfig): Promise<WorktreeObservation[]>;
   createWorktree(request: CreateWorktreeRequest): Promise<WorktreeObservation>;
   removeWorktree(request: RemoveWorktreeRequest): Promise<RemoveWorktreeResult>;
@@ -236,6 +249,7 @@ export interface TerminalProvider {
   id: ProviderId;
   capabilities(): TerminalCapabilities;
   health(): Promise<ProviderHealth>;
+  doctorChecks?(context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]>;
   listTargets(): Promise<TerminalTargetObservation[]>;
   openWorkspace(request: OpenWorkspaceRequest): Promise<OpenWorkspaceResult>;
   launchProcess?(request: TerminalLaunchProcessRequest): Promise<TerminalLaunchProcessResult>;
@@ -249,6 +263,7 @@ export interface HarnessProvider {
   id: ProviderId;
   capabilities(): HarnessCapabilities;
   health(): Promise<ProviderHealth>;
+  doctorChecks?(context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]>;
   buildLaunch(request: BuildHarnessLaunchRequest): Promise<HarnessLaunchPlan>;
   discoverRuns(context: HarnessDiscoveryContext): Promise<HarnessRunObservation[]>;
   classifyRun(

@@ -218,6 +218,7 @@ function normalizeObject(
 
   for (const [key, childValue] of Object.entries(value)) {
     const normalizedKey = keyMap[key] ?? snakeToCamel(key);
+    // Child normalizers are keyed by the normalized name, so explicit maps and snake_case compose.
     const childNormalizer = childNormalizers[normalizedKey];
     normalized[normalizedKey] =
       childNormalizer === undefined ? childValue : childNormalizer(childValue);

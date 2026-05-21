@@ -90,6 +90,7 @@ export async function startObserver(
     await removeStaleSocket(paths.socketPath);
   }
 
+  // Spawning only starts the daemon; report running only after the socket health check succeeds.
   const result = await runRuntimeBoundaryWithTimeout(
     {
       operation: "cli.observer.start",

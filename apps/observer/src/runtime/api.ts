@@ -8,6 +8,7 @@ import type {
   DoctorReport,
   EventFilter,
   HookReceipt,
+  ObserverHealth,
   ObserverStopReceipt,
   ProviderHookEvent,
   ReconcileReceipt,
@@ -23,16 +24,19 @@ import type { CommandQueue } from "../commands/queue.js";
 import {
   collectDiagnosticSnapshot,
   type DiagnosticRuntimePaths,
+  type ObserverDiagnosticsDeps,
   runDoctor,
 } from "../diagnostics/collector.js";
 import { createHookIngestion, type HookIngestion } from "../hooks/ingestion.js";
 import { drainHookSpool, hookSpoolDepth } from "../hooks/spool.js";
 import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
+import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverCore } from "../reconcile/core.js";
 import type { ObserverEventBus } from "./eventBus.js";
 
 export type CreateObserverApiOptions = {
   core: ObserverCore;
+  providers?: ProviderRegistry;
   persistence: ObserverPersistence;
   commandQueue: CommandQueue;
   eventBus: ObserverEventBus;
@@ -72,25 +76,24 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       const spoolDepth =
         options.hookSpoolDir === undefined ? undefined : await hookSpoolDepth(options.hookSpoolDir);
 
-      return {
+      const health: ObserverHealth = {
         schemaVersion: WOSM_SCHEMA_VERSION,
         status: coreHealth.status,
         pid: snapshot.observer.pid,
         startedAt: coreHealth.startedAt,
         version: snapshot.observer.version,
-        ...(options.socketPath === undefined ? {} : { socketPath: options.socketPath }),
-        ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
         uptimeMs: Math.max(
           0,
           Date.parse(toIsoTimestamp(clock.now())) - Date.parse(coreHealth.startedAt),
         ),
-        ...(spoolDepth === undefined ? {} : { hookSpoolDepth: spoolDepth }),
         providerHealth: coreHealth.providerHealth,
-        ...(coreHealth.sqlite === undefined ? {} : { sqlite: coreHealth.sqlite }),
-        ...(coreHealth.lastReconcile === undefined
-          ? {}
-          : { lastReconcile: coreHealth.lastReconcile }),
       };
+      if (options.socketPath !== undefined) health.socketPath = options.socketPath;
+      if (options.stateDir !== undefined) health.stateDir = options.stateDir;
+      if (spoolDepth !== undefined) health.hookSpoolDepth = spoolDepth;
+      if (coreHealth.sqlite !== undefined) health.sqlite = coreHealth.sqlite;
+      if (coreHealth.lastReconcile !== undefined) health.lastReconcile = coreHealth.lastReconcile;
+      return health;
     },
     stop: async (): Promise<ObserverStopReceipt> => {
       await options.onStop?.();
@@ -195,38 +198,42 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     const stateDir = options.stateDir ?? process.cwd();
     const paths: DiagnosticRuntimePaths = {
       stateDir,
-      ...(options.socketPath === undefined ? {} : { socketPath: options.socketPath }),
-      ...(options.hookSpoolDir === undefined ? {} : { hookSpoolDir: options.hookSpoolDir }),
       diagnosticsDir: options.diagnosticsDir ?? `${stateDir}/diagnostics`,
-      ...(options.logPaths === undefined ? {} : { logPaths: options.logPaths }),
     };
-    return {
+    if (options.socketPath !== undefined) paths.socketPath = options.socketPath;
+    if (options.hookSpoolDir !== undefined) paths.hookSpoolDir = options.hookSpoolDir;
+    if (options.logPaths !== undefined) paths.logPaths = options.logPaths;
+
+    const deps: ObserverDiagnosticsDeps = {
       config: options.config ?? emptyConfig(),
-      ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
-      ...(options.configDiagnostics === undefined
-        ? {}
-        : { configDiagnostics: options.configDiagnostics }),
       core: options.core,
       persistence: options.persistence,
       paths,
       clock,
     };
+    if (options.configPath !== undefined) deps.configPath = options.configPath;
+    if (options.configDiagnostics !== undefined) {
+      deps.configDiagnostics = options.configDiagnostics;
+    }
+    if (options.providers !== undefined) deps.providers = options.providers;
+    return deps;
   }
 }
 
 function toCommandRecord(command: PersistedCommand): CommandRecord {
-  return {
+  const record: CommandRecord = {
     id: command.id,
     type: command.type,
     command: command.command,
     status: command.status,
     createdAt: command.createdAt,
-    ...(command.startedAt === undefined ? {} : { startedAt: command.startedAt }),
-    ...(command.finishedAt === undefined ? {} : { finishedAt: command.finishedAt }),
-    ...(command.traceId === undefined ? {} : { traceId: command.traceId }),
-    ...(command.spanId === undefined ? {} : { spanId: command.spanId }),
-    ...(command.error === undefined ? {} : { error: command.error }),
   };
+  if (command.startedAt !== undefined) record.startedAt = command.startedAt;
+  if (command.finishedAt !== undefined) record.finishedAt = command.finishedAt;
+  if (command.traceId !== undefined) record.traceId = command.traceId;
+  if (command.spanId !== undefined) record.spanId = command.spanId;
+  if (command.error !== undefined) record.error = command.error;
+  return record;
 }
 
 function emptyConfig(): WosmConfig {

@@ -139,18 +139,21 @@ export type RecoveryBreadcrumbRow = {
 
 export function commandFromRow(row: CommandRow): PersistedCommand {
   const command = WosmCommandSchema.parse(parseJson(row.payload_json));
-  return {
+  const persistedCommand: PersistedCommand = {
     id: row.id,
     type: command.type,
     command,
     status: row.status,
     createdAt: row.created_at,
-    ...(row.started_at === null ? {} : { startedAt: row.started_at }),
-    ...(row.finished_at === null ? {} : { finishedAt: row.finished_at }),
-    ...(row.trace_id === null ? {} : { traceId: row.trace_id }),
-    ...(row.span_id === null ? {} : { spanId: row.span_id }),
-    ...(row.error_json === null ? {} : { error: SafeErrorSchema.parse(parseJson(row.error_json)) }),
   };
+  if (row.started_at !== null) persistedCommand.startedAt = row.started_at;
+  if (row.finished_at !== null) persistedCommand.finishedAt = row.finished_at;
+  if (row.trace_id !== null) persistedCommand.traceId = row.trace_id;
+  if (row.span_id !== null) persistedCommand.spanId = row.span_id;
+  if (row.error_json !== null) {
+    persistedCommand.error = SafeErrorSchema.parse(parseJson(row.error_json));
+  }
+  return persistedCommand;
 }
 
 export function commandErrorFromRow(row: CommandErrorRow): PersistedCommandError {
@@ -164,16 +167,17 @@ export function commandErrorFromRow(row: CommandErrorRow): PersistedCommandError
 
 export function eventFromRow(row: EventRow): PersistedEvent {
   const event = WosmEventSchema.parse(parseJson(row.payload_json));
-  return {
+  const persistedEvent: PersistedEvent = {
     id: row.id,
     type: event.type,
     source: row.source,
     event,
     createdAt: row.created_at,
-    ...(row.command_id === null ? {} : { commandId: row.command_id }),
-    ...(row.trace_id === null ? {} : { traceId: row.trace_id }),
-    ...(row.span_id === null ? {} : { spanId: row.span_id }),
   };
+  if (row.command_id !== null) persistedEvent.commandId = row.command_id;
+  if (row.trace_id !== null) persistedEvent.traceId = row.trace_id;
+  if (row.span_id !== null) persistedEvent.spanId = row.span_id;
+  return persistedEvent;
 }
 
 export function providerObservationFromRow(
@@ -181,7 +185,7 @@ export function providerObservationFromRow(
   referenceTime: string,
 ): PersistedProviderObservation {
   const expiresAt = row.expires_at ?? undefined;
-  return {
+  const observation: PersistedProviderObservation = {
     id: row.id,
     provider: row.provider,
     providerType: row.provider_type,
@@ -189,92 +193,101 @@ export function providerObservationFromRow(
     entityKey: row.entity_key,
     payload: parseJson(row.payload_json),
     observedAt: row.observed_at,
-    ...(expiresAt === undefined ? {} : { expiresAt }),
     expired: expiresAt === undefined ? false : Date.parse(expiresAt) <= Date.parse(referenceTime),
   };
+  if (expiresAt !== undefined) observation.expiresAt = expiresAt;
+  return observation;
 }
 
 export function projectFromRow(row: ProjectRow): PersistedProject {
-  return {
+  const project: PersistedProject = {
     id: row.id,
     label: row.label,
     root: row.root,
-    ...(row.repo === null ? {} : { repo: row.repo }),
     lastSeenAt: row.last_seen_at,
   };
+  if (row.repo !== null) project.repo = row.repo;
+  return project;
 }
 
 export function worktreeFromRow(row: WorktreeRow): PersistedWorktree {
-  return {
+  const worktree: PersistedWorktree = {
     id: row.id,
     projectId: row.project_id,
     path: row.path,
-    ...(row.branch === null ? {} : { branch: row.branch }),
-    ...(row.source === null ? {} : { source: row.source }),
-    ...(row.state === null ? {} : { state: row.state }),
-    ...(row.dirty === null ? {} : { dirty: Boolean(row.dirty) }),
-    ...(row.provider === null ? {} : { provider: row.provider }),
-    ...(row.provider_data_json === null ? {} : { providerData: parseJson(row.provider_data_json) }),
     lastSeenAt: row.last_seen_at,
   };
+  if (row.branch !== null) worktree.branch = row.branch;
+  if (row.source !== null) worktree.source = row.source;
+  if (row.state !== null) worktree.state = row.state;
+  if (row.dirty !== null) worktree.dirty = Boolean(row.dirty);
+  if (row.provider !== null) worktree.provider = row.provider;
+  if (row.provider_data_json !== null) worktree.providerData = parseJson(row.provider_data_json);
+  return worktree;
 }
 
 export function terminalTargetFromRow(row: TerminalTargetRow): PersistedTerminalTarget {
-  return {
+  const target: PersistedTerminalTarget = {
     id: row.id,
-    ...(row.session_id === null ? {} : { sessionId: row.session_id }),
-    ...(row.project_id === null ? {} : { projectId: row.project_id }),
-    ...(row.worktree_id === null ? {} : { worktreeId: row.worktree_id }),
     provider: row.provider,
-    ...(row.state === null ? {} : { state: row.state }),
-    ...(row.provider_key === null ? {} : { providerKey: row.provider_key }),
-    ...(row.provider_data_json === null ? {} : { providerData: parseJson(row.provider_data_json) }),
     lastSeenAt: row.last_seen_at,
   };
+  if (row.session_id !== null) target.sessionId = row.session_id;
+  if (row.project_id !== null) target.projectId = row.project_id;
+  if (row.worktree_id !== null) target.worktreeId = row.worktree_id;
+  if (row.state !== null) target.state = row.state;
+  if (row.provider_key !== null) target.providerKey = row.provider_key;
+  if (row.provider_data_json !== null) target.providerData = parseJson(row.provider_data_json);
+  return target;
 }
 
 export function harnessRunFromRow(row: HarnessRunRow): PersistedHarnessRun {
-  return {
+  const harnessRun: PersistedHarnessRun = {
     id: row.id,
-    ...(row.session_id === null ? {} : { sessionId: row.session_id }),
-    ...(row.project_id === null ? {} : { projectId: row.project_id }),
-    ...(row.worktree_id === null ? {} : { worktreeId: row.worktree_id }),
     harness: row.harness,
-    ...(row.pid === null ? {} : { pid: row.pid }),
-    ...(row.external_run_id === null ? {} : { externalRunId: row.external_run_id }),
-    ...(row.state === null ? {} : { state: row.state }),
-    ...(row.confidence === null ? {} : { confidence: row.confidence }),
-    ...(row.reason === null ? {} : { reason: row.reason }),
-    ...(row.provider_data_json === null ? {} : { providerData: parseJson(row.provider_data_json) }),
-    ...(row.last_event_at === null ? {} : { lastEventAt: row.last_event_at }),
     lastSeenAt: row.last_seen_at,
   };
+  if (row.session_id !== null) harnessRun.sessionId = row.session_id;
+  if (row.project_id !== null) harnessRun.projectId = row.project_id;
+  if (row.worktree_id !== null) harnessRun.worktreeId = row.worktree_id;
+  if (row.pid !== null) harnessRun.pid = row.pid;
+  if (row.external_run_id !== null) harnessRun.externalRunId = row.external_run_id;
+  if (row.state !== null) harnessRun.state = row.state;
+  if (row.confidence !== null) harnessRun.confidence = row.confidence;
+  if (row.reason !== null) harnessRun.reason = row.reason;
+  if (row.provider_data_json !== null) {
+    harnessRun.providerData = parseJson(row.provider_data_json);
+  }
+  if (row.last_event_at !== null) harnessRun.lastEventAt = row.last_event_at;
+  return harnessRun;
 }
 
 export function sessionFromRow(row: SessionRow): PersistedSession {
-  return {
+  const session: PersistedSession = {
     id: row.id,
     projectId: row.project_id,
     worktreeId: row.worktree_id,
-    ...(row.harness === null ? {} : { harness: row.harness }),
-    ...(row.terminal_provider === null ? {} : { terminalProvider: row.terminal_provider }),
-    ...(row.state === null ? {} : { state: row.state }),
     createdAt: row.created_at,
-    ...(row.ended_at === null ? {} : { endedAt: row.ended_at }),
     lastSeenAt: row.last_seen_at,
   };
+  if (row.harness !== null) session.harness = row.harness;
+  if (row.terminal_provider !== null) session.terminalProvider = row.terminal_provider;
+  if (row.state !== null) session.state = row.state;
+  if (row.ended_at !== null) session.endedAt = row.ended_at;
+  return session;
 }
 
 export function recoveryBreadcrumbFromRow(row: RecoveryBreadcrumbRow): PersistedRecoveryBreadcrumb {
-  return {
+  const breadcrumb: PersistedRecoveryBreadcrumb = {
     id: row.id,
     projectId: row.project_id,
-    ...(row.worktree_id === null ? {} : { worktreeId: row.worktree_id }),
-    ...(row.session_id === null ? {} : { sessionId: row.session_id }),
     location: row.location,
     path: row.path,
     payload: parseJson(row.payload_json),
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
   };
+  if (row.worktree_id !== null) breadcrumb.worktreeId = row.worktree_id;
+  if (row.session_id !== null) breadcrumb.sessionId = row.session_id;
+  return breadcrumb;
 }

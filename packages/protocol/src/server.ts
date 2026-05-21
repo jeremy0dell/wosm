@@ -208,6 +208,7 @@ async function streamEvents(
   connection: NdjsonConnection,
   events: AsyncIterable<WosmEvent>,
 ): Promise<void> {
+  // Subscription streams end on iterator completion or socket close; return() releases the bus queue.
   const iterator = events[Symbol.asyncIterator]();
   try {
     for (;;) {
@@ -231,6 +232,8 @@ async function nextEventOrClosed(
   connection: NdjsonConnection,
   iterator: AsyncIterator<WosmEvent>,
 ): Promise<IteratorResult<WosmEvent>> {
+  // Race the next event against socket close so a disconnected client cannot
+  // leave a subscriber alive.
   return Effect.runPromise(
     Effect.raceFirst(
       Effect.tryPromise({

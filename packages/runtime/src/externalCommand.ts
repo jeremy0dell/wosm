@@ -35,6 +35,7 @@ export async function runExternalCommand(
   runner: ExternalCommandRunner = nodeExternalCommandRunner,
 ): Promise<ExternalCommandResult> {
   const task = async ({ signal }: { signal: AbortSignal }) => {
+    // Merge caller cancellation with the runtime timeout signal so execFile aborts on either.
     const linked = linkAbortSignals(input.signal, signal);
     try {
       try {
@@ -148,6 +149,7 @@ function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
   signal: AbortSignal | undefined;
   cleanup(): void;
 } {
+  // Reuse a single source signal when possible; allocate a controller only to merge sources.
   const activeSignals = signals.filter((signal): signal is AbortSignal => signal !== undefined);
   if (activeSignals.length === 0) {
     return { signal: undefined, cleanup: () => undefined };

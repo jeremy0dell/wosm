@@ -159,6 +159,7 @@ export class TmuxProvider implements TerminalProvider {
       );
     }
 
+    // Write identity into tmux options so listTargets can correlate panes back to wosm state.
     await this.#setWindowOption(windowTarget, "@wosm.session_id", request.sessionId ?? "");
     await this.#setWindowOption(windowTarget, "@wosm.project_id", request.project.id);
     await this.#setWindowOption(windowTarget, "@wosm.worktree_id", request.worktree.id);

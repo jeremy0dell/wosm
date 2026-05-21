@@ -1,17 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { ProjectConfig } from "@wosm/config";
+import { type RecoveryBreadcrumb, RecoveryBreadcrumbSchema } from "@wosm/contracts";
 
-export type RecoveryBreadcrumb = {
-  schemaVersion: 1;
-  projectId: string;
-  worktreeId?: string;
-  sessionId?: string;
-  createdBy: "wosm";
-  createdAt: string;
-  provider?: string;
-  note?: string;
-};
+export type { RecoveryBreadcrumb };
 
 export type ParsedRecoveryBreadcrumb = {
   breadcrumb: RecoveryBreadcrumb;
@@ -161,64 +153,16 @@ function parseSafeId(value: string): string {
 }
 
 function validateRecoveryBreadcrumb(value: unknown): RecoveryBreadcrumb {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new RecoveryBreadcrumbError(
-      "RECOVERY_BREADCRUMB_INVALID",
-      "Recovery breadcrumb must be a JSON object.",
-    );
-  }
-
-  const record = value as Record<string, unknown>;
-  const allowedKeys = new Set([
-    "schemaVersion",
-    "projectId",
-    "worktreeId",
-    "sessionId",
-    "createdBy",
-    "createdAt",
-    "provider",
-    "note",
-  ]);
-
-  if (Object.keys(record).some((key) => !allowedKeys.has(key))) {
-    throw new RecoveryBreadcrumbError(
-      "RECOVERY_BREADCRUMB_INVALID",
-      "Recovery breadcrumb contains unsupported fields.",
-    );
-  }
-
-  if (
-    record.schemaVersion !== 1 ||
-    record.createdBy !== "wosm" ||
-    typeof record.projectId !== "string" ||
-    record.projectId.length === 0 ||
-    typeof record.createdAt !== "string" ||
-    Number.isNaN(Date.parse(record.createdAt)) ||
-    (record.worktreeId !== undefined &&
-      (typeof record.worktreeId !== "string" || record.worktreeId.length === 0)) ||
-    (record.sessionId !== undefined &&
-      (typeof record.sessionId !== "string" || record.sessionId.length === 0)) ||
-    (record.provider !== undefined &&
-      (typeof record.provider !== "string" || record.provider.length === 0)) ||
-    (record.note !== undefined &&
-      (typeof record.note !== "string" || record.note.length === 0 || record.note.length > 240))
-  ) {
+  const parsed = RecoveryBreadcrumbSchema.safeParse(value);
+  if (!parsed.success) {
     throw new RecoveryBreadcrumbError(
       "RECOVERY_BREADCRUMB_INVALID",
       "Recovery breadcrumb has invalid fields.",
+      { cause: parsed.error },
     );
   }
 
-  return {
-    schemaVersion: 1,
-    projectId: record.projectId,
-    ...(record.worktreeId === undefined ? {} : { worktreeId: record.worktreeId }),
-    ...(record.sessionId === undefined ? {} : { sessionId: record.sessionId }),
-    createdBy: "wosm",
-    createdAt: record.createdAt,
-    ...(record.provider === undefined ? {} : { provider: record.provider }),
-    ...(record.note === undefined ? {} : { note: record.note }),
-  };
+  return parsed.data;
 }
 
 function looksLikeShellState(source: string): boolean {

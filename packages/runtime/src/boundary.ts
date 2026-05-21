@@ -154,6 +154,7 @@ export async function runRuntimeBoundaryWithRetryAndTimeout<T>(
 ): Promise<RuntimeBoundaryResult<T>> {
   const clock = input.clock ?? systemClock;
   const startedAt = toIsoTimestamp(clock.now());
+  // attempt is an Effect description, so each retry re-runs the task with its own timeout.
   const attempt = runtimeBoundaryWithTimeoutEffect(input, task);
   return finishRuntimeBoundary(input, startedAt, retryEffect(attempt, input.retry));
 }
@@ -234,6 +235,7 @@ function retryEffect<T>(
   effect: Effect.Effect<T, RuntimeSafeError>,
   retry: RuntimeRetryOptions,
 ): Effect.Effect<T, RuntimeSafeError> {
+  // attempt starts at 0; retries is the number of tries after the initial run.
   const runAttempt = (attempt: number): Effect.Effect<T, RuntimeSafeError> =>
     Effect.catchAll(effect, (error) => {
       const shouldRetry = retry.shouldRetry?.(error, attempt) ?? attempt < retry.retries;

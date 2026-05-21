@@ -2,11 +2,15 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ConfigDiagnostic, WosmConfig } from "@wosm/config";
 import type {
+  CommandRecord,
   DiagnosticCollectionOptions,
   DiagnosticSnapshot,
+  DoctorCheck,
   DoctorOptions,
   DoctorReport,
   LogRecord,
+  ProviderDoctorCheck,
+  ProviderDoctorContext,
   SafeError,
 } from "@wosm/contracts";
 import { DiagnosticSnapshotSchema, DoctorReportSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
@@ -17,9 +21,9 @@ import {
   scanLocalStateUsage,
 } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
-import { systemClock, toIsoTimestamp } from "@wosm/runtime";
-import { doctorWorktrunkHooks } from "@wosm/worktrunk";
-import type { ObserverPersistence } from "../persistence/index.js";
+import { safeErrorFromUnknown, systemClock, toIsoTimestamp } from "@wosm/runtime";
+import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
+import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverCore } from "../reconcile/core.js";
 
 export type DiagnosticRuntimePaths = {
@@ -36,6 +40,7 @@ export type ObserverDiagnosticsDeps = {
   configDiagnostics?: ConfigDiagnostic[];
   core: ObserverCore;
   persistence: ObserverPersistence;
+  providers?: ProviderRegistry;
   paths: DiagnosticRuntimePaths;
   clock?: RuntimeClock;
 };
@@ -46,23 +51,27 @@ export async function collectDiagnosticSnapshot(
 ): Promise<DiagnosticSnapshot> {
   const clock = deps.clock ?? systemClock;
   const collectedAt = toIsoTimestamp(clock.now());
-  const observerHealth = {
+  const observerHealth: DiagnosticSnapshot["observerHealth"] = {
     schemaVersion: WOSM_SCHEMA_VERSION,
     ...deps.core.getHealth(),
     pid: deps.core.getSnapshot().observer.pid,
     version: deps.core.getSnapshot().observer.version,
-    ...(deps.paths.socketPath === undefined ? {} : { socketPath: deps.paths.socketPath }),
     stateDir: deps.paths.stateDir,
   };
+  if (deps.paths.socketPath !== undefined) {
+    observerHealth.socketPath = deps.paths.socketPath;
+  }
   const snapshot = deps.core.getSnapshot();
   const commands = await deps.persistence.listCommands();
   const filteredCommands =
     options?.commandId === undefined
       ? commands
       : commands.filter((command) => command.id === options.commandId);
-  const events = await deps.persistence.listEvents(
-    options?.commandId === undefined ? {} : { commandId: options.commandId },
-  );
+  const eventFilter: { commandId?: string } = {};
+  if (options?.commandId !== undefined) {
+    eventFilter.commandId = options.commandId;
+  }
+  const events = await deps.persistence.listEvents(eventFilter);
   const commandErrors = await deps.persistence.listCommandErrors(options?.commandId);
   const policy = mergeRetentionPolicy(deps.config.observability?.retention);
   const localState = await scanLocalStateUsage(deps.paths.stateDir, policy);
@@ -78,32 +87,25 @@ export async function collectDiagnosticSnapshot(
       ? undefined
       : await summarizeHookSpool(deps.paths.hookSpoolDir);
 
-  return DiagnosticSnapshotSchema.parse({
+  const diagnosticSnapshot: DiagnosticSnapshot = {
     schemaVersion: WOSM_SCHEMA_VERSION,
     collectedAt,
     observerHealth,
     snapshot,
     providerHealth: snapshot.providerHealth,
-    commands: filteredCommands.map((command) => ({
-      id: command.id,
-      type: command.type,
-      command: command.command,
-      status: command.status,
-      createdAt: command.createdAt,
-      ...(command.startedAt === undefined ? {} : { startedAt: command.startedAt }),
-      ...(command.finishedAt === undefined ? {} : { finishedAt: command.finishedAt }),
-      ...(command.traceId === undefined ? {} : { traceId: command.traceId }),
-      ...(command.spanId === undefined ? {} : { spanId: command.spanId }),
-      ...(command.error === undefined ? {} : { error: command.error }),
-    })),
+    commands: filteredCommands.map(commandRecord),
     events: events.map((event) => event.event),
     errors: commandErrors.map((error) => error.envelope),
     logs,
     configSummary: configSummary(deps),
     localState,
     retention: policy,
-    ...(hookSpool === undefined ? {} : { hookSpool }),
-  });
+  };
+  if (hookSpool !== undefined) {
+    diagnosticSnapshot.hookSpool = hookSpool;
+  }
+
+  return DiagnosticSnapshotSchema.parse(diagnosticSnapshot);
 }
 
 export async function runDoctor(
@@ -115,113 +117,77 @@ export async function runDoctor(
     includeLogs: true,
     maxLogRecords: 50,
   });
-  const checks: Array<{
-    name: string;
-    status: "ok" | "warn" | "error";
-    message: string;
-    error?: SafeError;
-  }> = [
+  const doctorSnapshot = requireDoctorSnapshotState(snapshot);
+  const providerChecks = await collectProviderDoctorChecks(deps);
+  const sqliteCheck: DoctorCheck = {
+    name: "sqlite",
+    status: doctorSnapshot.observerHealth.sqlite?.status === "healthy" ? "ok" : "warn",
+    message: `SQLite is ${doctorSnapshot.observerHealth.sqlite?.status ?? "unavailable"}.`,
+  };
+  if (doctorSnapshot.observerHealth.sqlite?.lastError !== undefined) {
+    sqliteCheck.error = doctorSnapshot.observerHealth.sqlite.lastError;
+  }
+
+  const checks: DoctorCheck[] = [
     {
       name: "observer",
-      status: snapshot.observerHealth.status === "healthy" ? "ok" : "warn",
-      message: `Observer is ${snapshot.observerHealth.status}.`,
+      status: doctorSnapshot.observerHealth.status === "healthy" ? "ok" : "warn",
+      message: `Observer is ${doctorSnapshot.observerHealth.status}.`,
     },
     {
       name: "config",
-      status: snapshot.configSummary?.diagnostics.length === 0 ? "ok" : "warn",
-      message: `${snapshot.configSummary?.projectCount ?? 0} project(s) configured.`,
+      status: doctorSnapshot.configSummary.diagnostics.length === 0 ? "ok" : "warn",
+      message: `${doctorSnapshot.configSummary.projectCount} project(s) configured.`,
     },
-    {
-      name: "sqlite",
-      status: snapshot.observerHealth.sqlite?.status === "healthy" ? "ok" : "warn",
-      message: `SQLite is ${snapshot.observerHealth.sqlite?.status ?? "unavailable"}.`,
-      ...(snapshot.observerHealth.sqlite?.lastError === undefined
-        ? {}
-        : { error: snapshot.observerHealth.sqlite.lastError }),
-    },
+    sqliteCheck,
     {
       name: "providers",
-      status: providerStatus(snapshot) === "healthy" ? "ok" : "warn",
-      message: `${Object.keys(snapshot.providerHealth).length} provider(s) reported health.`,
+      status: providerStatus(doctorSnapshot) === "healthy" ? "ok" : "warn",
+      message: `${Object.keys(doctorSnapshot.providerHealth).length} provider(s) reported health.`,
     },
-    ...(await worktrunkHookChecks(deps)),
+    ...providerChecks,
     {
       name: "retention",
-      status: snapshot.localState?.overLimit === true ? "warn" : "ok",
-      message: `Local state uses ${snapshot.localState?.totalBytes ?? 0} bytes.`,
+      status: doctorSnapshot.localState.overLimit ? "warn" : "ok",
+      message: `Local state uses ${doctorSnapshot.localState.totalBytes} bytes.`,
     },
   ];
-  const recentErrors = snapshot.errors.map((error) => errorToSafeError(error));
+  const recentErrors = doctorSnapshot.errors.map((error) => errorToSafeError(error));
   const status = checks.some((check) => check.status === "error")
     ? "unavailable"
     : checks.some((check) => check.status === "warn") || recentErrors.length > 0
       ? "degraded"
       : "healthy";
 
-  return DoctorReportSchema.parse({
+  const report: DoctorReport = {
     schemaVersion: WOSM_SCHEMA_VERSION,
     generatedAt: toIsoTimestamp(clock.now()),
     status,
     checks,
-    observer: snapshot.observerHealth,
-    config: snapshot.configSummary,
-    ...(snapshot.observerHealth.sqlite === undefined
-      ? {}
-      : { sqlite: snapshot.observerHealth.sqlite }),
-    providers: snapshot.providerHealth,
-    ...(snapshot.hookSpool === undefined ? {} : { hooks: snapshot.hookSpool }),
-    snapshot: snapshot.snapshot,
+    observer: doctorSnapshot.observerHealth,
+    config: doctorSnapshot.configSummary,
+    providers: doctorSnapshot.providerHealth,
+    snapshot: doctorSnapshot.snapshot,
     logs: {
       paths: deps.paths.logPaths ?? [componentLogPath(deps.paths.stateDir, "observer")],
-      recent: snapshot.logs,
+      recent: doctorSnapshot.logs,
     },
-    localState: snapshot.localState,
-    retention: snapshot.retention,
+    localState: doctorSnapshot.localState,
+    retention: doctorSnapshot.retention,
     recentErrors,
     debugBundle: {
       available: true,
       diagnosticsDir: deps.paths.diagnosticsDir ?? join(deps.paths.stateDir, "diagnostics"),
     },
-  });
-}
-
-async function worktrunkHookChecks(deps: ObserverDiagnosticsDeps): Promise<
-  Array<{
-    name: string;
-    status: "ok" | "warn" | "error";
-    message: string;
-    error?: SafeError;
-  }>
-> {
-  if (deps.config.defaults.worktreeProvider !== "worktrunk") {
-    return [];
+  };
+  if (doctorSnapshot.observerHealth.sqlite !== undefined) {
+    report.sqlite = doctorSnapshot.observerHealth.sqlite;
+  }
+  if (doctorSnapshot.hookSpool !== undefined) {
+    report.hooks = doctorSnapshot.hookSpool;
   }
 
-  const result = await doctorWorktrunkHooks({
-    ...(deps.config.worktree?.worktrunk?.configPath === undefined
-      ? {}
-      : { worktrunkConfigPath: deps.config.worktree.worktrunk.configPath }),
-    ...(deps.configPath === undefined ? {} : { wosmConfigPath: deps.configPath }),
-    enabled: deps.config.worktree?.worktrunk?.useLifecycleHooks !== false,
-  });
-
-  return [
-    {
-      name: "worktrunk-hooks",
-      status: result.status,
-      message: `${result.message} Config: ${result.configPath}.`,
-      ...(result.status === "ok"
-        ? {}
-        : {
-            error: {
-              tag: "WorktrunkHookSetupError",
-              code: "WORKTRUNK_HOOKS_MISSING",
-              message: result.message,
-              provider: "worktrunk",
-            },
-          }),
-    },
-  ];
+  return DoctorReportSchema.parse(report);
 }
 
 async function readLogs(paths: readonly string[], maxRecords: number): Promise<LogRecord[]> {
@@ -229,28 +195,63 @@ async function readLogs(paths: readonly string[], maxRecords: number): Promise<L
   return logs.flat().slice(-maxRecords);
 }
 
-function configSummary(deps: ObserverDiagnosticsDeps): DiagnosticSnapshot["configSummary"] {
-  return {
-    ...(deps.configPath === undefined ? {} : { configPath: deps.configPath }),
-    projectCount: deps.config.projects.length,
-    diagnostics: (deps.configDiagnostics ?? []).map((diagnostic) => ({
-      tag: "ConfigError",
-      code: diagnostic.code,
-      message: diagnostic.message,
-      ...(diagnostic.projectId === undefined ? {} : { projectId: diagnostic.projectId }),
-    })),
+function commandRecord(command: PersistedCommand): CommandRecord {
+  const record: CommandRecord = {
+    id: command.id,
+    type: command.type,
+    command: command.command,
+    status: command.status,
+    createdAt: command.createdAt,
   };
+  if (command.startedAt !== undefined) record.startedAt = command.startedAt;
+  if (command.finishedAt !== undefined) record.finishedAt = command.finishedAt;
+  if (command.traceId !== undefined) record.traceId = command.traceId;
+  if (command.spanId !== undefined) record.spanId = command.spanId;
+  if (command.error !== undefined) record.error = command.error;
+  return record;
 }
 
-async function summarizeHookSpool(path: string): Promise<DiagnosticSnapshot["hookSpool"]> {
+function configSummary(
+  deps: ObserverDiagnosticsDeps,
+): NonNullable<DiagnosticSnapshot["configSummary"]> {
+  const summary: NonNullable<DiagnosticSnapshot["configSummary"]> = {
+    projectCount: deps.config.projects.length,
+    diagnostics: (deps.configDiagnostics ?? []).map((diagnostic) => {
+      const error: SafeError = {
+        tag: "ConfigError",
+        code: diagnostic.code,
+        message: diagnostic.message,
+      };
+      if (diagnostic.projectId !== undefined) {
+        error.projectId = diagnostic.projectId;
+      }
+      return error;
+    }),
+  };
+  if (deps.configPath !== undefined) {
+    summary.configPath = deps.configPath;
+  }
+  return summary;
+}
+
+async function summarizeHookSpool(
+  path: string,
+): Promise<NonNullable<DiagnosticSnapshot["hookSpool"]>> {
   const entries = await listFileStats(path);
   const created = entries.map((entry) => entry.mtime.toISOString()).sort();
-  return {
+  const summary: NonNullable<DiagnosticSnapshot["hookSpool"]> = {
     path,
     pending: entries.length,
-    ...(created[0] === undefined ? {} : { oldestCreatedAt: created[0] }),
-    ...(created.at(-1) === undefined ? {} : { newestCreatedAt: created.at(-1) }),
   };
+  const oldestCreatedAt = created[0];
+  const newestCreatedAt = created.at(-1);
+  if (oldestCreatedAt !== undefined) {
+    summary.oldestCreatedAt = oldestCreatedAt;
+  }
+  if (newestCreatedAt !== undefined) {
+    summary.newestCreatedAt = newestCreatedAt;
+  }
+  return summary;
 }
 
 async function listFileStats(path: string): Promise<Array<{ mtime: Date }>> {
@@ -278,16 +279,88 @@ function providerStatus(snapshot: DiagnosticSnapshot): "healthy" | "degraded" {
 }
 
 function errorToSafeError(error: DiagnosticSnapshot["errors"][number]): SafeError {
-  return {
+  const safeError: SafeError = {
     tag: error.tag,
     code: error.code,
     message: error.message,
-    ...(error.commandId === undefined ? {} : { commandId: error.commandId }),
-    ...(error.projectId === undefined ? {} : { projectId: error.projectId }),
-    ...(error.worktreeId === undefined ? {} : { worktreeId: error.worktreeId }),
-    ...(error.sessionId === undefined ? {} : { sessionId: error.sessionId }),
-    ...(error.provider === undefined ? {} : { provider: error.provider }),
-    ...(error.traceId === undefined ? {} : { traceId: error.traceId }),
     diagnosticId: error.id,
   };
+  if (error.commandId !== undefined) safeError.commandId = error.commandId;
+  if (error.projectId !== undefined) safeError.projectId = error.projectId;
+  if (error.worktreeId !== undefined) safeError.worktreeId = error.worktreeId;
+  if (error.sessionId !== undefined) safeError.sessionId = error.sessionId;
+  if (error.provider !== undefined) safeError.provider = error.provider;
+  if (error.traceId !== undefined) safeError.traceId = error.traceId;
+  return safeError;
+}
+
+type DoctorDiagnosticSnapshot = DiagnosticSnapshot & {
+  configSummary: NonNullable<DiagnosticSnapshot["configSummary"]>;
+  localState: NonNullable<DiagnosticSnapshot["localState"]>;
+  retention: NonNullable<DiagnosticSnapshot["retention"]>;
+};
+
+function requireDoctorSnapshotState(snapshot: DiagnosticSnapshot): DoctorDiagnosticSnapshot {
+  if (snapshot.configSummary === undefined) {
+    throw missingDoctorStateError("configSummary");
+  }
+  if (snapshot.localState === undefined) {
+    throw missingDoctorStateError("localState");
+  }
+  if (snapshot.retention === undefined) {
+    throw missingDoctorStateError("retention");
+  }
+  return snapshot as DoctorDiagnosticSnapshot;
+}
+
+function missingDoctorStateError(field: string): SafeError {
+  return {
+    tag: "DiagnosticCollectionError",
+    code: "DIAGNOSTIC_REQUIRED_STATE_MISSING",
+    message: `Diagnostic snapshot is missing required ${field}.`,
+  };
+}
+
+async function collectProviderDoctorChecks(
+  deps: ObserverDiagnosticsDeps,
+): Promise<ProviderDoctorCheck[]> {
+  if (deps.providers === undefined) {
+    return [];
+  }
+
+  const checks: ProviderDoctorCheck[] = [];
+  const context: ProviderDoctorContext = {};
+  if (deps.configPath !== undefined) {
+    context.wosmConfigPath = deps.configPath;
+  }
+  const providers = [
+    deps.providers.worktree,
+    deps.providers.terminal,
+    ...deps.providers.harnesses.values(),
+  ];
+
+  for (const provider of providers) {
+    if (provider.doctorChecks === undefined) {
+      continue;
+    }
+    try {
+      const providerChecks = await provider.doctorChecks(context);
+      checks.push(...providerChecks);
+    } catch (cause) {
+      const error = safeErrorFromUnknown(cause, {
+        tag: "ProviderDiagnosticError",
+        code: "PROVIDER_DOCTOR_CHECK_FAILED",
+        message: "Provider doctor checks failed.",
+        provider: provider.id,
+      });
+      checks.push({
+        name: `${provider.id}-diagnostics`,
+        status: "error",
+        message: error.message,
+        error,
+      });
+    }
+  }
+
+  return checks;
 }

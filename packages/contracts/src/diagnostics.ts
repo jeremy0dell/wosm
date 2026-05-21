@@ -208,6 +208,8 @@ export const DoctorCheckSchema = z
   })
   .strict();
 
+export type DoctorCheck = z.infer<typeof DoctorCheckSchema>;
+
 export const DoctorReportSchema = z
   .object({
     schemaVersion: SchemaVersionSchema,

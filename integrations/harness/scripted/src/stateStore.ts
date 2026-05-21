@@ -98,6 +98,7 @@ function runFromEvents(events: ScriptedAgentEvent[], clock: RuntimeClock): Harne
   };
 }
 
+// Identity is sticky for a run: use the first non-empty value so later activity cannot drift it.
 function firstIdentity(events: ScriptedAgentEvent[]): {
   projectId?: string;
   worktreeId?: string;

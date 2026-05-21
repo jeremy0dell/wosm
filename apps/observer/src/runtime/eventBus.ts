@@ -53,6 +53,7 @@ function effectQueueSubscription(
       }
     },
     return: async () => {
+      // Remove the subscriber and shut down its queue so pending takes unblock.
       subscriber.active = false;
       subscribers.delete(subscriber);
       await Effect.runPromise(Queue.shutdown(subscriber.queue));

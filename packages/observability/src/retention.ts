@@ -132,6 +132,7 @@ export async function enforceFileRetention(input: {
     })),
   );
   const cutoff = now.getTime() - input.maxDays * 24 * 60 * 60 * 1000;
+  // Sort newest first, then delete anything beyond maxFiles or older than the age cutoff.
   const sorted = stats.sort((left, right) => right.stat.mtimeMs - left.stat.mtimeMs);
   const stale = sorted
     .filter((entry, index) => index >= input.maxFiles || entry.stat.mtimeMs < cutoff)

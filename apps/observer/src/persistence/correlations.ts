@@ -264,6 +264,8 @@ function upsertSessions(
   terminalTargets: TerminalTargetObservation[],
   harnessRuns: HarnessRunObservation[],
 ): void {
+  // Sessions are reconstructed from two partial truths: terminal bindings identify
+  // the workspace, while harness runs supply agent state.
   const sessions = new Map<string, PersistedSession>();
 
   for (const target of terminalTargets) {

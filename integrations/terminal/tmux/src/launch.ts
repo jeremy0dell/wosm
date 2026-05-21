@@ -22,6 +22,7 @@ function quoteEnv(key: string, value: string): string {
   return shellQuote(`${key}=${value}`);
 }
 
+// Commands and args have different safe character sets; keep command paths conservative.
 function quoteCommand(value: string): string {
   return /^[A-Za-z0-9_.:-]+$/.test(value) ? value : shellQuote(value);
 }

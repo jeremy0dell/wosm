@@ -1,6 +1,8 @@
 import type {
   CreateWorktreeRequest,
   GetWorktreeRequest,
+  ProviderDoctorCheck,
+  ProviderDoctorContext,
   ProviderHealth,
   ProviderId,
   ProviderProjectConfig,
@@ -15,6 +17,7 @@ import {
   type RuntimeClock,
   runExternalCommand,
   runRuntimeBoundaryWithRetryAndTimeout,
+  safeErrorFromUnknown,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
@@ -23,12 +26,14 @@ import {
   providerErrorFromUnknown,
   WorktrunkProviderError,
 } from "./errors.js";
+import { doctorWorktrunkHooks } from "./hooks.js";
 import { applyRecoveryBreadcrumbMetadata } from "./metadata.js";
 import { parseWorktrunkListJson, parseWorktrunkListPayload } from "./parse.js";
 
 export type WorktrunkProviderOptions = {
   command?: string;
   configPath?: string;
+  useLifecycleHooks?: boolean;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
   clock?: RuntimeClock;
@@ -47,6 +52,7 @@ export class WorktrunkProvider implements WorktreeProvider {
 
   readonly #command: string;
   readonly #configPath: string | undefined;
+  readonly #useLifecycleHooks: boolean | undefined;
   readonly #timeoutMs: number;
   readonly #runner: ExternalCommandRunner | undefined;
   readonly #clock: RuntimeClock;
@@ -55,6 +61,7 @@ export class WorktrunkProvider implements WorktreeProvider {
   constructor(options: WorktrunkProviderOptions = {}) {
     this.#command = options.command ?? process.env.WOSM_WORKTRUNK_BIN ?? "wt";
     this.#configPath = options.configPath;
+    this.#useLifecycleHooks = options.useLifecycleHooks;
     this.#timeoutMs = options.timeoutMs ?? 5000;
     this.#runner = options.runner;
     this.#clock = options.clock ?? systemClock;
@@ -89,6 +96,45 @@ export class WorktrunkProvider implements WorktreeProvider {
         lastError: error,
         capabilities: this.capabilities(),
       };
+    }
+  }
+
+  async doctorChecks(context: ProviderDoctorContext = {}): Promise<ProviderDoctorCheck[]> {
+    try {
+      const result = await doctorWorktrunkHooks({
+        ...(this.#configPath === undefined ? {} : { worktrunkConfigPath: this.#configPath }),
+        ...(context.wosmConfigPath === undefined ? {} : { wosmConfigPath: context.wosmConfigPath }),
+        enabled: this.#useLifecycleHooks !== false,
+      });
+      const check: ProviderDoctorCheck = {
+        name: "worktrunk-hooks",
+        status: result.status,
+        message: `${result.message} Config: ${result.configPath}.`,
+      };
+      if (result.status !== "ok") {
+        check.error = {
+          tag: "WorktrunkHookSetupError",
+          code: "WORKTRUNK_HOOKS_MISSING",
+          message: result.message,
+          provider: this.id,
+        };
+      }
+      return [check];
+    } catch (cause) {
+      const error = safeErrorFromUnknown(cause, {
+        tag: "WorktrunkHookSetupError",
+        code: "WORKTRUNK_HOOK_DIAGNOSTIC_FAILED",
+        message: "Worktrunk hook diagnostics failed.",
+        provider: this.id,
+      });
+      return [
+        {
+          name: "worktrunk-hooks",
+          status: "error",
+          message: error.message,
+          error,
+        },
+      ];
     }
   }
 

@@ -198,6 +198,8 @@ function ndjsonConnection(socket: Socket): NdjsonConnection {
   let done = false;
   let streamError: Error | undefined;
 
+  // Socket data is push-based, while callers consume a pull-based AsyncIterable.
+  // Parsed frames queue in messages; waiters wake consumers blocked on next().
   const wake = () => {
     while (waiters.length > 0) {
       waiters.shift()?.();
@@ -219,6 +221,7 @@ function ndjsonConnection(socket: Socket): NdjsonConnection {
       try {
         messages.push(JSON.parse(line));
       } catch (error) {
+        // A malformed frame poisons the stream so the generator surfaces the parse error.
         streamError = error instanceof Error ? error : new Error("Invalid NDJSON frame.");
         socket.destroy(streamError);
       }
