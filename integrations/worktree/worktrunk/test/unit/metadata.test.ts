@@ -1,5 +1,9 @@
 import type { ProviderProjectConfig, WorktreeObservation } from "@wosm/contracts";
-import { applyRecoveryBreadcrumbMetadata } from "@wosm/worktrunk";
+import {
+  applyRecoveryBreadcrumbMetadata,
+  metadataFromObservation,
+  providerNativeMetadataFromWorktrunkItem,
+} from "@wosm/worktrunk";
 import { describe, expect, it } from "vitest";
 
 const observedAt = "2026-05-21T12:00:00.000Z";
@@ -37,6 +41,56 @@ describe("Worktrunk recovery breadcrumb metadata", () => {
           sessionId: "ses_web_feature",
         },
       },
+    });
+  });
+
+  it("parses providerData metadata through the worktrunk-local schema", () => {
+    expect(
+      metadataFromObservation({
+        ...observation,
+        providerData: {
+          metadata: {
+            source: "provider-native",
+            projectId: "web",
+            worktreeId: "wt_web_feature",
+          },
+        },
+      }),
+    ).toEqual({
+      source: "provider-native",
+      projectId: "web",
+      worktreeId: "wt_web_feature",
+    });
+
+    expect(
+      metadataFromObservation({
+        ...observation,
+        providerData: {
+          metadata: {
+            source: "provider-native",
+            projectId: "",
+          },
+        },
+      }),
+    ).toBeUndefined();
+  });
+
+  it("normalizes provider-native metadata from worktrunk vars", () => {
+    expect(
+      providerNativeMetadataFromWorktrunkItem({
+        vars: {
+          wosm: {
+            project_id: "web",
+            worktree_id: "wt_web_feature",
+            session_id: "ses_web_feature",
+          },
+        },
+      }),
+    ).toEqual({
+      source: "provider-native",
+      projectId: "web",
+      worktreeId: "wt_web_feature",
+      sessionId: "ses_web_feature",
     });
   });
 });

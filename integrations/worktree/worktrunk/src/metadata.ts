@@ -1,17 +1,25 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
+  ProjectIdSchema,
   type ProviderProjectConfig,
   RecoveryBreadcrumbSchema,
+  SessionIdSchema,
+  WorktreeIdSchema,
   type WorktreeObservation,
 } from "@wosm/contracts";
+import { z } from "zod";
 
-export type WorktrunkMetadata = {
-  source: "provider-native" | "worktree-breadcrumb";
-  projectId?: string;
-  worktreeId?: string;
-  sessionId?: string;
-};
+export const WorktrunkMetadataSchema = z
+  .object({
+    source: z.enum(["provider-native", "worktree-breadcrumb"]),
+    projectId: ProjectIdSchema.optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    sessionId: SessionIdSchema.optional(),
+  })
+  .strict();
+
+export type WorktrunkMetadata = z.infer<typeof WorktrunkMetadataSchema>;
 
 type ReadTextFile = (path: string) => Promise<string>;
 
@@ -45,12 +53,14 @@ export function providerNativeMetadataFromWorktrunkItem(
     return undefined;
   }
 
-  return {
+  const metadata: WorktrunkMetadata = {
     source: "provider-native",
-    ...(candidate.projectId === undefined ? {} : { projectId: candidate.projectId }),
-    ...(candidate.worktreeId === undefined ? {} : { worktreeId: candidate.worktreeId }),
-    ...(candidate.sessionId === undefined ? {} : { sessionId: candidate.sessionId }),
   };
+  if (candidate.projectId !== undefined) metadata.projectId = candidate.projectId;
+  if (candidate.worktreeId !== undefined) metadata.worktreeId = candidate.worktreeId;
+  if (candidate.sessionId !== undefined) metadata.sessionId = candidate.sessionId;
+
+  return WorktrunkMetadataSchema.parse(metadata);
 }
 
 export async function applyRecoveryBreadcrumbMetadata(
@@ -88,21 +98,22 @@ export function applyMetadataToObservation(
     return observation;
   }
 
-  const providerData = asRecord(observation.providerData) ?? {};
+  const providerData: Record<string, unknown> = {
+    ...(asRecord(observation.providerData) ?? {}),
+  };
+  providerData.metadata = metadata;
+
   return {
     ...observation,
     id: metadata.worktreeId ?? observation.id,
-    providerData: {
-      ...providerData,
-      metadata,
-    },
+    providerData,
   };
 }
 
 export function metadataFromObservation(
   observation: WorktreeObservation,
 ): WorktrunkMetadata | undefined {
-  return asRecord(observation.providerData)?.metadata as WorktrunkMetadata | undefined;
+  return parseWorktrunkMetadata(asRecord(observation.providerData)?.metadata);
 }
 
 function parseBreadcrumbMetadata(source: string): WorktrunkMetadata | undefined {
@@ -120,12 +131,14 @@ function parseBreadcrumbMetadata(source: string): WorktrunkMetadata | undefined 
 
   const breadcrumb = parsed.data;
 
-  return {
+  const metadata: WorktrunkMetadata = {
     source: "worktree-breadcrumb",
     projectId: breadcrumb.projectId,
-    ...(breadcrumb.worktreeId === undefined ? {} : { worktreeId: breadcrumb.worktreeId }),
-    ...(breadcrumb.sessionId === undefined ? {} : { sessionId: breadcrumb.sessionId }),
   };
+  if (breadcrumb.worktreeId !== undefined) metadata.worktreeId = breadcrumb.worktreeId;
+  if (breadcrumb.sessionId !== undefined) metadata.sessionId = breadcrumb.sessionId;
+
+  return WorktrunkMetadataSchema.parse(metadata);
 }
 
 async function readOptionalText(
@@ -145,6 +158,11 @@ async function readFileUtf8(path: string): Promise<string> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function parseWorktrunkMetadata(input: unknown): WorktrunkMetadata | undefined {
+  const parsed = WorktrunkMetadataSchema.safeParse(input);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

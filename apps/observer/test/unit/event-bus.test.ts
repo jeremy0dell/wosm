@@ -1,6 +1,6 @@
 import type { WosmEvent } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { createObserverEventBus } from "../../src";
+import { createObserverEventBus } from "../../src/internal";
 
 describe("observer event bus", () => {
   it("streams matching events and cleans up subscribers", async () => {

@@ -11,7 +11,7 @@ import {
   FakeWorktreeProvider,
 } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
-import { createObserverCore, ProviderRegistry } from "../../src";
+import { createObserverCore, ProviderRegistry } from "../../src/internal";
 import { createObserverPersistence } from "../../src/persistence";
 import { openObserverSqlite } from "../../src/sqlite";
 

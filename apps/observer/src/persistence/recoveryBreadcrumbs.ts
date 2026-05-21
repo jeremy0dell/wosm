@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { stringifyJson } from "./json.js";
-import { type RecoveryBreadcrumbRow, recoveryBreadcrumbFromRow } from "./rows.js";
+import { recoveryBreadcrumbFromRow, type SqliteRecoveryBreadcrumbRow } from "./rows.js";
 import type { PersistedRecoveryBreadcrumb } from "./types.js";
 
 export function recordRecoveryBreadcrumb(
@@ -43,7 +43,7 @@ export function listRecoveryBreadcrumbs(database: DatabaseSync): PersistedRecove
   return (
     database
       .prepare("SELECT * FROM recovery_breadcrumbs ORDER BY last_seen_at, id")
-      .all() as RecoveryBreadcrumbRow[]
+      .all() as SqliteRecoveryBreadcrumbRow[]
   ).map(recoveryBreadcrumbFromRow);
 }
 
@@ -54,6 +54,6 @@ function readRecoveryBreadcrumb(
   return recoveryBreadcrumbFromRow(
     database
       .prepare("SELECT * FROM recovery_breadcrumbs WHERE id = ?")
-      .get(breadcrumbId) as RecoveryBreadcrumbRow,
+      .get(breadcrumbId) as SqliteRecoveryBreadcrumbRow,
   );
 }

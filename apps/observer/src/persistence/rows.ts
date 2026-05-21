@@ -1,7 +1,12 @@
 import type { WosmCommand, WosmEvent } from "@wosm/contracts";
 import {
+  AgentStateSchema,
+  ConfidenceSchema,
   ErrorEnvelopeSchema,
   SafeErrorSchema,
+  TerminalStateSchema,
+  WorktreeSourceSchema,
+  WorktreeStateSchema,
   WosmCommandSchema,
   WosmEventSchema,
 } from "@wosm/contracts";
@@ -22,7 +27,7 @@ import type {
   ProviderObservationType,
 } from "./types.js";
 
-export type CommandRow = {
+export type SqliteCommandRow = {
   id: string;
   type: WosmCommand["type"];
   payload_json: string;
@@ -35,14 +40,14 @@ export type CommandRow = {
   error_json: string | null;
 };
 
-export type CommandErrorRow = {
+export type SqliteCommandErrorRow = {
   id: string;
   command_id: string;
   envelope_json: string;
   created_at: string;
 };
 
-export type EventRow = {
+export type SqliteEventRow = {
   id: string;
   type: WosmEvent["type"];
   source: string;
@@ -53,7 +58,7 @@ export type EventRow = {
   created_at: string;
 };
 
-export type ProviderObservationRow = {
+export type SqliteProviderObservationRow = {
   id: string;
   provider: string;
   provider_type: ProviderObservationType;
@@ -64,7 +69,7 @@ export type ProviderObservationRow = {
   expires_at: string | null;
 };
 
-export type ProjectRow = {
+export type SqliteProjectRow = {
   id: string;
   label: string;
   root: string;
@@ -72,7 +77,7 @@ export type ProjectRow = {
   last_seen_at: string;
 };
 
-export type WorktreeRow = {
+export type SqliteWorktreeRow = {
   id: string;
   project_id: string;
   path: string;
@@ -85,7 +90,7 @@ export type WorktreeRow = {
   last_seen_at: string;
 };
 
-export type TerminalTargetRow = {
+export type SqliteTerminalTargetRow = {
   id: string;
   session_id: string | null;
   project_id: string | null;
@@ -97,7 +102,7 @@ export type TerminalTargetRow = {
   last_seen_at: string;
 };
 
-export type HarnessRunRow = {
+export type SqliteHarnessRunRow = {
   id: string;
   session_id: string | null;
   project_id: string | null;
@@ -113,7 +118,7 @@ export type HarnessRunRow = {
   last_seen_at: string;
 };
 
-export type SessionRow = {
+export type SqliteSessionRow = {
   id: string;
   project_id: string;
   worktree_id: string;
@@ -125,7 +130,7 @@ export type SessionRow = {
   last_seen_at: string;
 };
 
-export type RecoveryBreadcrumbRow = {
+export type SqliteRecoveryBreadcrumbRow = {
   id: string;
   project_id: string;
   worktree_id: string | null;
@@ -137,7 +142,7 @@ export type RecoveryBreadcrumbRow = {
   last_seen_at: string;
 };
 
-export function commandFromRow(row: CommandRow): PersistedCommand {
+export function commandFromRow(row: SqliteCommandRow): PersistedCommand {
   const command = WosmCommandSchema.parse(parseJson(row.payload_json));
   const persistedCommand: PersistedCommand = {
     id: row.id,
@@ -156,7 +161,7 @@ export function commandFromRow(row: CommandRow): PersistedCommand {
   return persistedCommand;
 }
 
-export function commandErrorFromRow(row: CommandErrorRow): PersistedCommandError {
+export function commandErrorFromRow(row: SqliteCommandErrorRow): PersistedCommandError {
   return {
     id: row.id,
     commandId: row.command_id,
@@ -165,7 +170,7 @@ export function commandErrorFromRow(row: CommandErrorRow): PersistedCommandError
   };
 }
 
-export function eventFromRow(row: EventRow): PersistedEvent {
+export function eventFromRow(row: SqliteEventRow): PersistedEvent {
   const event = WosmEventSchema.parse(parseJson(row.payload_json));
   const persistedEvent: PersistedEvent = {
     id: row.id,
@@ -181,7 +186,7 @@ export function eventFromRow(row: EventRow): PersistedEvent {
 }
 
 export function providerObservationFromRow(
-  row: ProviderObservationRow,
+  row: SqliteProviderObservationRow,
   referenceTime: string,
 ): PersistedProviderObservation {
   const expiresAt = row.expires_at ?? undefined;
@@ -199,7 +204,7 @@ export function providerObservationFromRow(
   return observation;
 }
 
-export function projectFromRow(row: ProjectRow): PersistedProject {
+export function projectFromRow(row: SqliteProjectRow): PersistedProject {
   const project: PersistedProject = {
     id: row.id,
     label: row.label,
@@ -210,7 +215,7 @@ export function projectFromRow(row: ProjectRow): PersistedProject {
   return project;
 }
 
-export function worktreeFromRow(row: WorktreeRow): PersistedWorktree {
+export function worktreeFromRow(row: SqliteWorktreeRow): PersistedWorktree {
   const worktree: PersistedWorktree = {
     id: row.id,
     projectId: row.project_id,
@@ -218,15 +223,15 @@ export function worktreeFromRow(row: WorktreeRow): PersistedWorktree {
     lastSeenAt: row.last_seen_at,
   };
   if (row.branch !== null) worktree.branch = row.branch;
-  if (row.source !== null) worktree.source = row.source;
-  if (row.state !== null) worktree.state = row.state;
+  if (row.source !== null) worktree.source = WorktreeSourceSchema.parse(row.source);
+  if (row.state !== null) worktree.state = WorktreeStateSchema.parse(row.state);
   if (row.dirty !== null) worktree.dirty = Boolean(row.dirty);
   if (row.provider !== null) worktree.provider = row.provider;
   if (row.provider_data_json !== null) worktree.providerData = parseJson(row.provider_data_json);
   return worktree;
 }
 
-export function terminalTargetFromRow(row: TerminalTargetRow): PersistedTerminalTarget {
+export function terminalTargetFromRow(row: SqliteTerminalTargetRow): PersistedTerminalTarget {
   const target: PersistedTerminalTarget = {
     id: row.id,
     provider: row.provider,
@@ -235,13 +240,13 @@ export function terminalTargetFromRow(row: TerminalTargetRow): PersistedTerminal
   if (row.session_id !== null) target.sessionId = row.session_id;
   if (row.project_id !== null) target.projectId = row.project_id;
   if (row.worktree_id !== null) target.worktreeId = row.worktree_id;
-  if (row.state !== null) target.state = row.state;
+  if (row.state !== null) target.state = TerminalStateSchema.parse(row.state);
   if (row.provider_key !== null) target.providerKey = row.provider_key;
   if (row.provider_data_json !== null) target.providerData = parseJson(row.provider_data_json);
   return target;
 }
 
-export function harnessRunFromRow(row: HarnessRunRow): PersistedHarnessRun {
+export function harnessRunFromRow(row: SqliteHarnessRunRow): PersistedHarnessRun {
   const harnessRun: PersistedHarnessRun = {
     id: row.id,
     harness: row.harness,
@@ -252,8 +257,8 @@ export function harnessRunFromRow(row: HarnessRunRow): PersistedHarnessRun {
   if (row.worktree_id !== null) harnessRun.worktreeId = row.worktree_id;
   if (row.pid !== null) harnessRun.pid = row.pid;
   if (row.external_run_id !== null) harnessRun.externalRunId = row.external_run_id;
-  if (row.state !== null) harnessRun.state = row.state;
-  if (row.confidence !== null) harnessRun.confidence = row.confidence;
+  if (row.state !== null) harnessRun.state = AgentStateSchema.parse(row.state);
+  if (row.confidence !== null) harnessRun.confidence = ConfidenceSchema.parse(row.confidence);
   if (row.reason !== null) harnessRun.reason = row.reason;
   if (row.provider_data_json !== null) {
     harnessRun.providerData = parseJson(row.provider_data_json);
@@ -262,7 +267,7 @@ export function harnessRunFromRow(row: HarnessRunRow): PersistedHarnessRun {
   return harnessRun;
 }
 
-export function sessionFromRow(row: SessionRow): PersistedSession {
+export function sessionFromRow(row: SqliteSessionRow): PersistedSession {
   const session: PersistedSession = {
     id: row.id,
     projectId: row.project_id,
@@ -277,7 +282,9 @@ export function sessionFromRow(row: SessionRow): PersistedSession {
   return session;
 }
 
-export function recoveryBreadcrumbFromRow(row: RecoveryBreadcrumbRow): PersistedRecoveryBreadcrumb {
+export function recoveryBreadcrumbFromRow(
+  row: SqliteRecoveryBreadcrumbRow,
+): PersistedRecoveryBreadcrumb {
   const breadcrumb: PersistedRecoveryBreadcrumb = {
     id: row.id,
     projectId: row.project_id,

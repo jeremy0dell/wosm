@@ -13,7 +13,7 @@ import {
   ProviderRegistry,
   registerObserverCommandHandlers,
   startObserverServer,
-} from "@wosm/observer";
+} from "@wosm/observer/internal";
 import { createObserverClient } from "@wosm/protocol";
 import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
 import { FakeTerminalProvider, FakeWorktreeProvider } from "@wosm/testing";

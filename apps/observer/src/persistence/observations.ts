@@ -6,7 +6,7 @@ import {
   WorktreeObservationSchema,
 } from "@wosm/contracts";
 import { stringifyJson } from "./json.js";
-import { type ProviderObservationRow, providerObservationFromRow } from "./rows.js";
+import { providerObservationFromRow, type SqliteProviderObservationRow } from "./rows.js";
 import type {
   PersistedProviderObservation,
   ProviderObservationKind,
@@ -49,7 +49,7 @@ export function insertProviderObservation(
   return providerObservationFromRow(
     database
       .prepare("SELECT * FROM provider_observations WHERE id = ?")
-      .get(input.id) as ProviderObservationRow,
+      .get(input.id) as SqliteProviderObservationRow,
     input.observedAt,
   );
 }
@@ -64,7 +64,7 @@ export function listProviderObservations(
   const observations = (
     database
       .prepare("SELECT * FROM provider_observations ORDER BY observed_at, id")
-      .all() as ProviderObservationRow[]
+      .all() as SqliteProviderObservationRow[]
   ).map((row) => providerObservationFromRow(row, options.referenceTime));
   return options.includeExpired === true
     ? observations

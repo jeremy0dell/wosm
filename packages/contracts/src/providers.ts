@@ -9,7 +9,7 @@ import type {
   TerminalTargetId,
   WorktreeId,
 } from "./ids.js";
-import { ProviderIdSchema, TimestampSchema } from "./ids.js";
+import { ProjectIdSchema, ProviderIdSchema, TimestampSchema } from "./ids.js";
 import type {
   HarnessEventObservation,
   HarnessRunObservation,
@@ -79,24 +79,40 @@ export const HarnessCapabilitiesSchema = z
 
 export type HarnessCapabilities = z.infer<typeof HarnessCapabilitiesSchema>;
 
-export type ProviderProjectConfig = {
-  id: ProjectId;
-  label: string;
-  root: string;
-  defaults: {
-    harness: ProviderId;
-    terminal: ProviderId;
-    layout: string;
-  };
-  worktrunk: {
-    enabled: boolean;
-    base?: string;
-  };
-  recoveryBreadcrumbs?: {
-    location: "external" | "worktree" | "provider-native" | "disabled";
-    path?: string;
-  };
-};
+export const ProviderProjectDefaultsSchema = z
+  .object({
+    harness: ProviderIdSchema,
+    terminal: ProviderIdSchema,
+    layout: nonEmptyStringSchema,
+  })
+  .strict();
+
+export const ProviderProjectWorktrunkConfigSchema = z
+  .object({
+    enabled: z.boolean(),
+    base: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
+export const ProviderProjectRecoveryBreadcrumbsSchema = z
+  .object({
+    location: z.enum(["external", "worktree", "provider-native", "disabled"]),
+    path: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
+export const ProviderProjectConfigSchema = z
+  .object({
+    id: ProjectIdSchema,
+    label: nonEmptyStringSchema,
+    root: nonEmptyStringSchema,
+    defaults: ProviderProjectDefaultsSchema,
+    worktrunk: ProviderProjectWorktrunkConfigSchema,
+    recoveryBreadcrumbs: ProviderProjectRecoveryBreadcrumbsSchema.optional(),
+  })
+  .strict();
+
+export type ProviderProjectConfig = z.infer<typeof ProviderProjectConfigSchema>;
 
 export type CreateWorktreeRequest = {
   project: ProviderProjectConfig;

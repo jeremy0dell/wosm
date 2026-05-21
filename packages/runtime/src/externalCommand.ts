@@ -4,11 +4,18 @@ import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "./boundary.js
 import {
   type ExternalCommandError,
   isSafeError,
+  type RuntimeSafeError,
   type RuntimeSafeErrorFallback,
   safeErrorFromUnknown,
 } from "./errors.js";
 
 const execFileAsync = promisify(execFile);
+const outputSnippetMaxChars = 2000;
+const redactedValue = "[REDACTED]";
+const redactedSecret = "[REDACTED_SECRET]";
+
+const secretAssignmentKeyPattern =
+  /(?:token|secret|password|passwd|api[-_]?key|access[-_]?key|auth|credential|private[-_]?key)/i;
 
 export type ExternalCommandResult = {
   command: string;
@@ -112,29 +119,36 @@ export function externalCommandErrorFromUnknown(
   const fallback = externalCommandFallback("EXTERNAL_COMMAND_FAILED", "External command failed.");
   const safeError = safeErrorFromUnknown(error, fallback);
   const cause = isRecord(error) ? error : {};
-  const abortLike = isAbortLikeError(error);
-  return {
+  const normalized: ExternalCommandError = {
     tag: "ExternalCommandError",
-    code: abortLike
-      ? "EXTERNAL_COMMAND_ABORTED"
-      : typeof cause.code === "string"
-        ? cause.code
-        : safeError.code,
-    message: abortLike ? "External command was aborted." : safeError.message,
-    command: [input.command, ...(input.args ?? [])].join(" "),
-    ...(typeof cause.code === "number" ? { exitCode: cause.code } : {}),
-    ...(typeof cause.signal === "string" ? { signal: cause.signal } : {}),
-    ...(typeof cause.stdout === "string"
-      ? { stdoutSnippet: redactCommandOutput(cause.stdout).slice(0, 2000) }
-      : typeof cause.stdoutSnippet === "string"
-        ? { stdoutSnippet: redactCommandOutput(cause.stdoutSnippet).slice(0, 2000) }
-        : {}),
-    ...(typeof cause.stderr === "string"
-      ? { stderrSnippet: redactCommandOutput(cause.stderr).slice(0, 2000) }
-      : typeof cause.stderrSnippet === "string"
-        ? { stderrSnippet: redactCommandOutput(cause.stderrSnippet).slice(0, 2000) }
-        : {}),
+    code: externalCommandCode(error, cause, safeError),
+    message: externalCommandMessage(error, safeError),
+    command: formatCommandForError(input),
   };
+
+  copySafeErrorContext(normalized, safeError);
+
+  const exitCode = numericField(cause, "exitCode") ?? numericField(cause, "code");
+  if (exitCode !== undefined) {
+    normalized.exitCode = exitCode;
+  }
+
+  const signal = stringField(cause, "signal");
+  if (signal !== undefined) {
+    normalized.signal = signal;
+  }
+
+  const stdoutSnippet = outputSnippet(cause, "stdout", "stdoutSnippet");
+  if (stdoutSnippet !== undefined) {
+    normalized.stdoutSnippet = stdoutSnippet;
+  }
+
+  const stderrSnippet = outputSnippet(cause, "stderr", "stderrSnippet");
+  if (stderrSnippet !== undefined) {
+    normalized.stderrSnippet = stderrSnippet;
+  }
+
+  return normalized;
 }
 
 function externalCommandFallback(code: string, message: string): RuntimeSafeErrorFallback {
@@ -143,6 +157,93 @@ function externalCommandFallback(code: string, message: string): RuntimeSafeErro
     code,
     message,
   };
+}
+
+function externalCommandCode(
+  error: unknown,
+  cause: Record<string, unknown>,
+  safeError: RuntimeSafeError,
+): string {
+  if (isAbortLikeError(error)) {
+    return "EXTERNAL_COMMAND_ABORTED";
+  }
+  return stringField(cause, "code") ?? safeError.code;
+}
+
+function externalCommandMessage(error: unknown, safeError: RuntimeSafeError): string {
+  return isAbortLikeError(error) ? "External command was aborted." : safeError.message;
+}
+
+function formatCommandForError(input: Pick<ExternalCommandInput, "command" | "args">): string {
+  const parts = [input.command, ...(input.args ?? [])];
+  const redacted: string[] = [];
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const previous = parts[index - 1];
+    const part = parts[index] ?? "";
+    if (previous !== undefined && !previous.includes("=") && isSecretFlag(previous)) {
+      redacted.push(redactedValue);
+      continue;
+    }
+    redacted.push(redactCommandPart(part));
+  }
+
+  return redacted.join(" ");
+}
+
+function numericField(
+  record: Record<string, unknown>,
+  key: "exitCode" | "code",
+): number | undefined {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringField(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function outputSnippet(
+  cause: Record<string, unknown>,
+  rawKey: "stdout" | "stderr",
+  snippetKey: "stdoutSnippet" | "stderrSnippet",
+): string | undefined {
+  const value = stringField(cause, rawKey) ?? stringField(cause, snippetKey);
+  return value === undefined
+    ? undefined
+    : redactCommandOutput(value).slice(0, outputSnippetMaxChars);
+}
+
+function copySafeErrorContext(target: ExternalCommandError, safeError: RuntimeSafeError): void {
+  if (safeError.hint !== undefined) target.hint = safeError.hint;
+  if (safeError.commandId !== undefined) target.commandId = safeError.commandId;
+  if (safeError.projectId !== undefined) target.projectId = safeError.projectId;
+  if (safeError.worktreeId !== undefined) target.worktreeId = safeError.worktreeId;
+  if (safeError.sessionId !== undefined) target.sessionId = safeError.sessionId;
+  if (safeError.provider !== undefined) target.provider = safeError.provider;
+  if (safeError.traceId !== undefined) target.traceId = safeError.traceId;
+  if (safeError.diagnosticId !== undefined) target.diagnosticId = safeError.diagnosticId;
+}
+
+function redactCommandPart(value: string): string {
+  const assignment = value.match(/^([^=]+)=(.*)$/);
+  if (assignment !== null) {
+    const key = assignment[1] ?? "";
+    if (isSecretAssignmentKey(key)) {
+      return `${key}=${redactedValue}`;
+    }
+  }
+  return redactCommandOutput(value);
+}
+
+function isSecretFlag(value: string): boolean {
+  const key = value.split("=")[0] ?? value;
+  return key.startsWith("-") && isSecretAssignmentKey(key);
+}
+
+function isSecretAssignmentKey(value: string): boolean {
+  return secretAssignmentKeyPattern.test(value);
 }
 
 function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
@@ -200,10 +301,13 @@ export function redactCommandOutput(value: string): string {
   return value
     .replace(
       /([A-Za-z_][A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|KEY)[A-Za-z0-9_]*)=([^\s]+)/gi,
-      "$1=[REDACTED]",
+      `$1=${redactedValue}`,
     )
-    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
-    .replace(/(?:sk|ghp|github_pat)_[A-Za-z0-9_]{8,}/g, "[REDACTED_SECRET]");
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${redactedValue}`)
+    .replace(
+      /\b(?:sk-[A-Za-z0-9_-]{8,}|sk_[A-Za-z0-9_]{8,}|ghp_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,})\b/g,
+      redactedSecret,
+    );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

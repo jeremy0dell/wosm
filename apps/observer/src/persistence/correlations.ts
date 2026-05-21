@@ -13,15 +13,15 @@ import {
 import { maxIso, optionalJson } from "./json.js";
 import { insertProviderObservation } from "./observations.js";
 import {
-  type HarnessRunRow,
   harnessRunFromRow,
-  type ProjectRow,
   projectFromRow,
-  type SessionRow,
+  type SqliteHarnessRunRow,
+  type SqliteProjectRow,
+  type SqliteSessionRow,
+  type SqliteTerminalTargetRow,
+  type SqliteWorktreeRow,
   sessionFromRow,
-  type TerminalTargetRow,
   terminalTargetFromRow,
-  type WorktreeRow,
   worktreeFromRow,
 } from "./rows.js";
 import type {
@@ -101,31 +101,33 @@ export function persistReconcileResult(
 }
 
 export function listProjects(database: DatabaseSync): PersistedProject[] {
-  return (database.prepare("SELECT * FROM projects ORDER BY id").all() as ProjectRow[]).map(
+  return (database.prepare("SELECT * FROM projects ORDER BY id").all() as SqliteProjectRow[]).map(
     projectFromRow,
   );
 }
 
 export function listWorktrees(database: DatabaseSync): PersistedWorktree[] {
-  return (database.prepare("SELECT * FROM worktrees ORDER BY id").all() as WorktreeRow[]).map(
+  return (database.prepare("SELECT * FROM worktrees ORDER BY id").all() as SqliteWorktreeRow[]).map(
     worktreeFromRow,
   );
 }
 
 export function listTerminalTargets(database: DatabaseSync): PersistedTerminalTarget[] {
   return (
-    database.prepare("SELECT * FROM terminal_targets ORDER BY id").all() as TerminalTargetRow[]
+    database
+      .prepare("SELECT * FROM terminal_targets ORDER BY id")
+      .all() as SqliteTerminalTargetRow[]
   ).map(terminalTargetFromRow);
 }
 
 export function listHarnessRuns(database: DatabaseSync): PersistedHarnessRun[] {
-  return (database.prepare("SELECT * FROM harness_runs ORDER BY id").all() as HarnessRunRow[]).map(
-    harnessRunFromRow,
-  );
+  return (
+    database.prepare("SELECT * FROM harness_runs ORDER BY id").all() as SqliteHarnessRunRow[]
+  ).map(harnessRunFromRow);
 }
 
 export function listSessions(database: DatabaseSync): PersistedSession[] {
-  return (database.prepare("SELECT * FROM sessions ORDER BY id").all() as SessionRow[]).map(
+  return (database.prepare("SELECT * FROM sessions ORDER BY id").all() as SqliteSessionRow[]).map(
     sessionFromRow,
   );
 }

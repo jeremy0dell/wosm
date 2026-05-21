@@ -40,6 +40,7 @@ export type AgentState = z.infer<typeof AgentStateSchema>;
 export type ObservedStatusSource = z.infer<typeof ObservedStatusSourceSchema>;
 
 export const WorktreeSourceSchema = z.enum(["worktrunk", "wosm", "manual", "unknown"]);
+export type WorktreeSource = z.infer<typeof WorktreeSourceSchema>;
 
 export const WorktreePullRequestSchema = z
   .object({

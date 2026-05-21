@@ -1,4 +1,5 @@
 import type { HarnessRunObservation, HarnessStatusObservation } from "@wosm/contracts";
+import { z } from "zod";
 import {
   parseScriptedAgentEvent,
   type ScriptedAgentEvent,
@@ -9,6 +10,12 @@ export type ScriptedStatusPolicyOptions = {
   now?: string;
   recentActivityMs?: number;
 };
+
+export const ScriptedRunProviderDataSchema = z
+  .object({
+    events: z.array(z.unknown()).optional(),
+  })
+  .passthrough();
 
 export function classifyScriptedRunStatus(
   run: HarnessRunObservation,
@@ -44,14 +51,11 @@ export function classifyScriptedRunStatus(
 }
 
 export function scriptedEventsFromRun(run: HarnessRunObservation): ScriptedAgentEvent[] {
-  if (!isRecord(run.providerData)) {
+  const providerData = ScriptedRunProviderDataSchema.safeParse(run.providerData);
+  if (!providerData.success || providerData.data.events === undefined) {
     return [];
   }
-  const events = run.providerData.events;
-  if (!Array.isArray(events)) {
-    return [];
-  }
-  return events.map((event) => parseScriptedAgentEvent(event));
+  return providerData.data.events.map((event) => parseScriptedAgentEvent(event));
 }
 
 function observation(
@@ -72,8 +76,4 @@ function observation(
 
 function isRecent(at: string, now: string, recentActivityMs: number): boolean {
   return Date.parse(now) - Date.parse(at) <= recentActivityMs;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

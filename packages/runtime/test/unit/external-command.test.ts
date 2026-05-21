@@ -48,6 +48,103 @@ describe("runtime external command boundary", () => {
     expect(JSON.stringify(error)).not.toContain("abcdefghijklmnop");
   });
 
+  it("preserves process exit codes through runtime boundary normalization", async () => {
+    await expect(
+      runExternalCommand(
+        { command: "fake", args: ["fail"] },
+        createFakeExternalCommandRunner(async () => {
+          throw Object.assign(new Error("failed"), {
+            code: 2,
+            signal: "SIGTERM",
+            stdout: "stdout",
+            stderr: "stderr",
+          });
+        }),
+      ),
+    ).rejects.toMatchObject({
+      tag: "ExternalCommandError",
+      code: "EXTERNAL_COMMAND_FAILED",
+      command: "fake fail",
+      exitCode: 2,
+      signal: "SIGTERM",
+      stdoutSnippet: "stdout",
+      stderrSnippet: "stderr",
+    });
+  });
+
+  it("keeps external command normalization idempotent", () => {
+    const first = externalCommandErrorFromUnknown(
+      {
+        tag: "ExternalCommandError",
+        code: "EXTERNAL_COMMAND_FAILED",
+        message: "External command failed.",
+        hint: "Check the configured binary.",
+        provider: "runtime-test",
+        traceId: "trace_1",
+        commandId: "cmd_1",
+        projectId: "proj_1",
+        worktreeId: "wt_1",
+        sessionId: "sess_1",
+        diagnosticId: "diag_1",
+        exitCode: 7,
+        signal: "SIGKILL",
+        stdout: "OPENAI_API_KEY=sk-secret000000000000",
+        stderr: "Bearer abcdefghijklmnop",
+      },
+      { command: "fake", args: ["--token", "secret-value"] },
+    );
+    const second = externalCommandErrorFromUnknown(first, {
+      command: "fake",
+      args: ["--token", "secret-value"],
+    });
+
+    expect(second).toMatchObject({
+      tag: "ExternalCommandError",
+      code: "EXTERNAL_COMMAND_FAILED",
+      message: "External command failed.",
+      hint: "Check the configured binary.",
+      provider: "runtime-test",
+      traceId: "trace_1",
+      commandId: "cmd_1",
+      projectId: "proj_1",
+      worktreeId: "wt_1",
+      sessionId: "sess_1",
+      diagnosticId: "diag_1",
+      command: "fake --token [REDACTED]",
+      exitCode: 7,
+      signal: "SIGKILL",
+      stdoutSnippet: "OPENAI_API_KEY=[REDACTED]",
+      stderrSnippet: "Bearer [REDACTED]",
+    });
+    expect(JSON.stringify(second)).not.toContain("sk-secret");
+    expect(JSON.stringify(second)).not.toContain("secret-value");
+    expect(JSON.stringify(second)).not.toContain("abcdefghijklmnop");
+  });
+
+  it("redacts secrets from rendered command strings", () => {
+    const error = externalCommandErrorFromUnknown(new Error("failed"), {
+      command: "fake",
+      args: [
+        "--api-key=value-secret",
+        "--token",
+        "followup-secret",
+        "OPENAI_API_KEY=sk-secret000000000000",
+        "sk-secret111111111111",
+        "safe-arg",
+      ],
+    });
+
+    expect(error.command).toContain("fake");
+    expect(error.command).toContain("--api-key=[REDACTED]");
+    expect(error.command).toContain("--token [REDACTED]");
+    expect(error.command).toContain("OPENAI_API_KEY=[REDACTED]");
+    expect(error.command).toContain("[REDACTED_SECRET]");
+    expect(error.command).toContain("safe-arg");
+    expect(error.command).not.toContain("value-secret");
+    expect(error.command).not.toContain("followup-secret");
+    expect(error.command).not.toContain("sk-secret");
+  });
+
   it("aborts fakeable command execution on timeout", async () => {
     let aborted = false;
     const runner = createFakeExternalCommandRunner(

@@ -4,17 +4,26 @@ import { nonEmptyStringSchema } from "./shared.js";
 export const WOSM_SCHEMA_VERSION = "0.3.0" as const;
 
 const timestampSchema = z.string().datetime({ offset: true });
+declare const wosmIdKind: unique symbol;
+
+export type WosmId<TKind extends string> = string & {
+  readonly [wosmIdKind]?: TKind;
+};
+
+function idSchema<TKind extends string>(): z.ZodType<WosmId<TKind>, string> {
+  return nonEmptyStringSchema as z.ZodType<WosmId<TKind>, string>;
+}
 
 export const SchemaVersionSchema = z.literal(WOSM_SCHEMA_VERSION);
 
-export const ProjectIdSchema = nonEmptyStringSchema;
-export const WorktreeIdSchema = nonEmptyStringSchema;
-export const SessionIdSchema = nonEmptyStringSchema;
-export const TerminalTargetIdSchema = nonEmptyStringSchema;
-export const HarnessRunIdSchema = nonEmptyStringSchema;
-export const CommandIdSchema = nonEmptyStringSchema;
-export const EventIdSchema = nonEmptyStringSchema;
-export const ProviderIdSchema = nonEmptyStringSchema;
+export const ProjectIdSchema = idSchema<"ProjectId">();
+export const WorktreeIdSchema = idSchema<"WorktreeId">();
+export const SessionIdSchema = idSchema<"SessionId">();
+export const TerminalTargetIdSchema = idSchema<"TerminalTargetId">();
+export const HarnessRunIdSchema = idSchema<"HarnessRunId">();
+export const CommandIdSchema = idSchema<"CommandId">();
+export const EventIdSchema = idSchema<"EventId">();
+export const ProviderIdSchema = idSchema<"ProviderId">();
 export const TimestampSchema = timestampSchema;
 
 export type ProjectId = z.infer<typeof ProjectIdSchema>;

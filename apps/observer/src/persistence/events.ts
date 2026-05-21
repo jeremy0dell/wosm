@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { CommandId, WosmEvent } from "@wosm/contracts";
 import { WosmEventSchema } from "@wosm/contracts";
 import { stringifyJson } from "./json.js";
-import { type EventRow, eventFromRow } from "./rows.js";
+import { eventFromRow, type SqliteEventRow } from "./rows.js";
 import type { PersistedEvent } from "./types.js";
 
 export function recordEvent(
@@ -45,7 +45,9 @@ export function listEvents(
     type?: WosmEvent["type"];
   } = {},
 ): PersistedEvent[] {
-  return (database.prepare("SELECT * FROM events ORDER BY created_at, id").all() as EventRow[])
+  return (
+    database.prepare("SELECT * FROM events ORDER BY created_at, id").all() as SqliteEventRow[]
+  )
     .map(eventFromRow)
     .filter((event) => filter.commandId === undefined || event.commandId === filter.commandId)
     .filter((event) => filter.type === undefined || event.type === filter.type);
@@ -60,6 +62,6 @@ export function eventTimestamp(event: WosmEvent): string | undefined {
 }
 
 function readEvent(database: DatabaseSync, eventId: string): PersistedEvent {
-  const row = database.prepare("SELECT * FROM events WHERE id = ?").get(eventId) as EventRow;
+  const row = database.prepare("SELECT * FROM events WHERE id = ?").get(eventId) as SqliteEventRow;
   return eventFromRow(row);
 }

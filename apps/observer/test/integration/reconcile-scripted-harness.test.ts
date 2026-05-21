@@ -12,7 +12,7 @@ import {
   FakeWorktreeProvider,
 } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
-import { createObserverCore, ProviderRegistry } from "../../src";
+import { createObserverCore, ProviderRegistry } from "../../src/internal";
 
 const now = "2026-05-20T12:00:00.000Z";
 

@@ -2,6 +2,9 @@ import { fileURLToPath } from "node:url";
 
 export const wosmAliases = {
   "@wosm/cli": fileURLToPath(new URL("./apps/cli/src/index.ts", import.meta.url)),
+  "@wosm/observer/internal": fileURLToPath(
+    new URL("./apps/observer/src/internal.ts", import.meta.url),
+  ),
   "@wosm/observer": fileURLToPath(new URL("./apps/observer/src/index.ts", import.meta.url)),
   "@wosm/tui": fileURLToPath(new URL("./apps/tui/src/index.ts", import.meta.url)),
   "@wosm/config": fileURLToPath(new URL("./packages/config/src/index.ts", import.meta.url)),

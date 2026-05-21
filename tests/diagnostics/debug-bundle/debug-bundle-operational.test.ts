@@ -11,7 +11,7 @@ import {
   createObserverPersistence,
   openObserverSqlite,
   ProviderRegistry,
-} from "@wosm/observer";
+} from "@wosm/observer/internal";
 import { FakeHarnessProvider, FakeTerminalProvider, FakeWorktreeProvider } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
 

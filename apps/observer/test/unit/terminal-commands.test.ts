@@ -7,7 +7,11 @@ import {
   FakeWorktreeProvider,
 } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
-import { createObserverCore, createTerminalFocusHandler, ProviderRegistry } from "../../src";
+import {
+  createObserverCore,
+  createTerminalFocusHandler,
+  ProviderRegistry,
+} from "../../src/internal";
 
 const now = "2026-05-21T12:00:00.000Z";
 

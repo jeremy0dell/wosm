@@ -34,6 +34,16 @@ describe("scripted status confidence policy", () => {
     });
   });
 
+  it("treats malformed providerData as missing lifecycle history", () => {
+    const status = classifyScriptedRunStatus(run({ events: "not-an-array" }), { now });
+
+    expect(status.status).toMatchObject({
+      value: "unknown",
+      confidence: "low",
+      reason: "Scripted run has no reliable lifecycle event.",
+    });
+  });
+
   it("classifies recent activity as working with medium confidence", () => {
     const status = classifyScriptedRunStatus(
       run({

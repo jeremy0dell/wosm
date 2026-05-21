@@ -3,7 +3,7 @@ import { FakeHarnessProvider, FakeTerminalProvider } from "@wosm/testing";
 import { WorktrunkProvider } from "@wosm/worktrunk";
 import { describe, expect, it } from "vitest";
 import { createFakeWorktrunkRunner } from "../../../../tests/support/fake-external-tools/worktrunk";
-import { createObserverCore, ProviderRegistry } from "../../src";
+import { createObserverCore, ProviderRegistry } from "../../src/internal";
 
 const now = "2026-05-21T12:00:00.000Z";
 

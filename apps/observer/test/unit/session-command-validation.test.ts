@@ -7,13 +7,13 @@ import {
   FakeWorktreeProvider,
 } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
-import { buildWosmSnapshot, ProviderRegistry } from "../../src";
 import {
   assertNoCurrentAgent,
   findProjectOrThrow,
   resolveHarnessProviderOrThrow,
   resolveTerminalProviderOrThrow,
 } from "../../src/commands/session/shared";
+import { buildWosmSnapshot, ProviderRegistry } from "../../src/internal";
 
 const now = "2026-05-21T12:00:00.000Z";
 

@@ -12,7 +12,7 @@ import {
   openObserverSqlite,
   ProviderRegistry,
   registerObserverCommandHandlers,
-} from "@wosm/observer";
+} from "@wosm/observer/internal";
 import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
 import {
   createFakeTerminalTarget,

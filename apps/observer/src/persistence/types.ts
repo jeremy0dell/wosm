@@ -1,13 +1,18 @@
 import type {
+  AgentState,
   CommandId,
+  Confidence,
   ErrorEnvelope,
   HarnessRunObservation,
   ProviderHealth,
   ProviderId,
   ProviderProjectConfig,
   SafeError,
+  TerminalState,
   TerminalTargetObservation,
   WorktreeObservation,
+  WorktreeSource,
+  WorktreeState,
   WosmCommand,
   WosmEvent,
 } from "@wosm/contracts";
@@ -88,8 +93,8 @@ export type PersistedWorktree = {
   projectId: string;
   path: string;
   branch?: string;
-  source?: string;
-  state?: string;
+  source?: WorktreeSource;
+  state?: WorktreeState;
   dirty?: boolean;
   provider?: string;
   providerData?: unknown;
@@ -102,7 +107,7 @@ export type PersistedTerminalTarget = {
   projectId?: string;
   worktreeId?: string;
   provider: string;
-  state?: string;
+  state?: TerminalState;
   providerKey?: string;
   providerData?: unknown;
   lastSeenAt: string;
@@ -116,8 +121,8 @@ export type PersistedHarnessRun = {
   harness: string;
   pid?: number;
   externalRunId?: string;
-  state?: string;
-  confidence?: string;
+  state?: AgentState;
+  confidence?: Confidence;
   reason?: string;
   providerData?: unknown;
   lastEventAt?: string;

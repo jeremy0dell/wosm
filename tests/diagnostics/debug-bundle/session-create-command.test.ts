@@ -13,7 +13,7 @@ import {
   openObserverSqlite,
   ProviderRegistry,
   registerObserverCommandHandlers,
-} from "@wosm/observer";
+} from "@wosm/observer/internal";
 import {
   createFakeHarnessRun,
   FakeHarnessProvider,

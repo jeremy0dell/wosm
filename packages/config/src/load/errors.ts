@@ -1,3 +1,4 @@
+import type { SafeError } from "@wosm/contracts";
 import type { z } from "zod";
 import type { ProjectConfig, WosmConfig } from "../schema.js";
 import { formatZodError } from "./common.js";
@@ -26,13 +27,6 @@ export interface ConfigErrorOptions {
   projectId?: string;
   cause?: unknown;
 }
-
-type SafeError = {
-  tag: string;
-  code: string;
-  message: string;
-  projectId?: string;
-};
 
 export class ConfigError extends Error {
   readonly tag = "ConfigError" as const;

@@ -12,8 +12,11 @@ import {
   HookSpoolRecordSchema,
   ObserverHealthSchema,
   ObserverStopReceiptSchema,
+  type ProjectId,
+  ProjectIdSchema,
   ProviderHealthSchema,
   ProviderHookEventSchema,
+  ProviderProjectConfigSchema,
   ReconcileReceiptSchema,
   SafeErrorSchema,
   TerminalCapabilitiesSchema,
@@ -21,12 +24,13 @@ import {
   TerminalTargetObservationSchema,
   WOSM_SCHEMA_VERSION,
   WorktreeCapabilitiesSchema,
+  type WorktreeId,
   WorktreeObservationSchema,
   WosmCommandSchema,
   WosmEventSchema,
   WosmSnapshotSchema,
 } from "@wosm/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import type { ZodType } from "zod";
 
 const fixtureUrl = (path: string) =>
@@ -47,6 +51,14 @@ function expectFails(schema: ZodType, value: unknown, label: string) {
 }
 
 describe("Phase 1 contract schemas", () => {
+  it("keeps id aliases distinct while preserving string wire values", () => {
+    const projectId: ProjectId = "project_api";
+
+    expect(ProjectIdSchema.parse("project_api")).toBe("project_api");
+    expectTypeOf<ProjectId>().not.toEqualTypeOf<WorktreeId>();
+    expectTypeOf(projectId).toEqualTypeOf<ProjectId>();
+  });
+
   it("exports the shared schema version used by snapshot fixtures", async () => {
     expect(WOSM_SCHEMA_VERSION).toBe("0.3.0");
 
@@ -314,6 +326,46 @@ describe("Phase 1 contract schemas", () => {
       "harness capabilities",
     );
     expectParses(ProviderHealthSchema, observations.providerHealth, "provider health");
+    expectParses(
+      ProviderProjectConfigSchema,
+      {
+        id: "api",
+        label: "API",
+        root: "/tmp/api",
+        defaults: {
+          harness: "scripted",
+          terminal: "tmux",
+          layout: "agent-shell",
+        },
+        worktrunk: {
+          enabled: true,
+          base: "main",
+        },
+        recoveryBreadcrumbs: {
+          location: "worktree",
+          path: ".wosm/recovery-breadcrumb.json",
+        },
+      },
+      "provider project config",
+    );
+    expectFails(
+      ProviderProjectConfigSchema,
+      {
+        id: "api",
+        label: "API",
+        root: "/tmp/api",
+        defaults: {
+          harness: "scripted",
+          terminal: "tmux",
+          layout: "agent-shell",
+        },
+        worktrunk: {
+          enabled: true,
+        },
+        providerSpecific: true,
+      },
+      "provider project config with provider-specific data",
+    );
     expectParses(HarnessLaunchPlanSchema, observations.harnessLaunchPlan, "harness launch plan");
 
     for (const [index, observation] of (observations.worktreeObservations as unknown[]).entries()) {

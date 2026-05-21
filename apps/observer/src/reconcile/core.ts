@@ -5,6 +5,7 @@ import type {
   SafeError,
   WosmSnapshot,
 } from "@wosm/contracts";
+import { ProviderProjectConfigSchema } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import type { ObserverPersistence } from "../persistence/index.js";
@@ -112,24 +113,27 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
 }
 
 export function providerProjectsFromConfig(config: WosmConfig): ProviderProjectConfig[] {
-  return config.projects.map((project) => ({
-    id: project.id,
-    label: project.label,
-    root: project.root,
-    defaults: project.defaults,
-    worktrunk: {
-      enabled: project.worktrunk.enabled,
-      ...(project.worktrunk.base === undefined ? {} : { base: project.worktrunk.base }),
-    },
-    ...(project.recoveryBreadcrumbs === undefined
-      ? {}
-      : {
-          recoveryBreadcrumbs: {
-            location: project.recoveryBreadcrumbs.location,
-            ...(project.recoveryBreadcrumbs.path === undefined
-              ? {}
-              : { path: project.recoveryBreadcrumbs.path }),
-          },
-        }),
-  }));
+  return config.projects.map((project) => {
+    const providerProject: ProviderProjectConfig = {
+      id: project.id,
+      label: project.label,
+      root: project.root,
+      defaults: project.defaults,
+      worktrunk: {
+        enabled: project.worktrunk.enabled,
+      },
+    };
+    if (project.worktrunk.base !== undefined) {
+      providerProject.worktrunk.base = project.worktrunk.base;
+    }
+    if (project.recoveryBreadcrumbs !== undefined) {
+      providerProject.recoveryBreadcrumbs = {
+        location: project.recoveryBreadcrumbs.location,
+      };
+      if (project.recoveryBreadcrumbs.path !== undefined) {
+        providerProject.recoveryBreadcrumbs.path = project.recoveryBreadcrumbs.path;
+      }
+    }
+    return ProviderProjectConfigSchema.parse(providerProject);
+  });
 }

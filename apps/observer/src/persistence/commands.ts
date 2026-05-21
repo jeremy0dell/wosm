@@ -3,10 +3,10 @@ import type { CommandId, ErrorEnvelope, SafeError, WosmCommand } from "@wosm/con
 import { ErrorEnvelopeSchema, SafeErrorSchema, WosmCommandSchema } from "@wosm/contracts";
 import { stringifyJson } from "./json.js";
 import {
-  type CommandErrorRow,
-  type CommandRow,
   commandErrorFromRow,
   commandFromRow,
+  type SqliteCommandErrorRow,
+  type SqliteCommandRow,
 } from "./rows.js";
 import type { PersistedCommand, PersistedCommandError } from "./types.js";
 
@@ -98,7 +98,7 @@ export function getCommand(
 
 export function listCommands(database: DatabaseSync): PersistedCommand[] {
   return (
-    database.prepare("SELECT * FROM commands ORDER BY created_at, id").all() as CommandRow[]
+    database.prepare("SELECT * FROM commands ORDER BY created_at, id").all() as SqliteCommandRow[]
   ).map(commandFromRow);
 }
 
@@ -110,10 +110,10 @@ export function listCommandErrors(
     commandId === undefined
       ? (database
           .prepare("SELECT * FROM command_errors ORDER BY created_at, id")
-          .all() as CommandErrorRow[])
+          .all() as SqliteCommandErrorRow[])
       : (database
           .prepare("SELECT * FROM command_errors WHERE command_id = ? ORDER BY created_at, id")
-          .all(commandId) as CommandErrorRow[]);
+          .all(commandId) as SqliteCommandErrorRow[]);
   return rows.map(commandErrorFromRow);
 }
 
@@ -125,8 +125,8 @@ function readCommand(database: DatabaseSync, commandId: string): PersistedComman
   return commandFromRow(row);
 }
 
-function getCommandRow(database: DatabaseSync, commandId: string): CommandRow | undefined {
+function getCommandRow(database: DatabaseSync, commandId: string): SqliteCommandRow | undefined {
   return database.prepare("SELECT * FROM commands WHERE id = ?").get(commandId) as
-    | CommandRow
+    | SqliteCommandRow
     | undefined;
 }

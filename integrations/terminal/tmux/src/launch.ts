@@ -1,4 +1,11 @@
 import type { HarnessLaunchPlan, TerminalLaunchProcessRequest } from "@wosm/contracts";
+import { z } from "zod";
+
+export const TmuxLaunchPaneProviderDataSchema = z
+  .object({
+    paneTarget: z.string().min(1),
+  })
+  .passthrough();
 
 export function renderHarnessLaunchCommand(plan: HarnessLaunchPlan): string {
   const cwd = plan.cwd === undefined ? "" : `cd ${quoteArg(plan.cwd)} && `;
@@ -10,12 +17,10 @@ export function renderHarnessLaunchCommand(plan: HarnessLaunchPlan): string {
 }
 
 export function resolveLaunchPaneTarget(request: TerminalLaunchProcessRequest): string {
-  const providerData = isRecord(request.terminalTarget.providerData)
-    ? request.terminalTarget.providerData
-    : {};
-  return typeof providerData.paneTarget === "string"
-    ? providerData.paneTarget
-    : request.agentEndpointId;
+  const providerData = TmuxLaunchPaneProviderDataSchema.safeParse(
+    request.terminalTarget.providerData,
+  );
+  return providerData.success ? providerData.data.paneTarget : request.agentEndpointId;
 }
 
 function quoteEnv(key: string, value: string): string {
@@ -33,8 +38,4 @@ function quoteArg(value: string): string {
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
