@@ -3,6 +3,7 @@ export * from "./commands/doctor.js";
 export * from "./commands/hook.js";
 export * from "./commands/observer.js";
 export * from "./commands/popup.js";
+export * from "./commands/tui.js";
 export * from "./hookReceiver.js";
 export * from "./hookSpool.js";
 export * from "./main.js";

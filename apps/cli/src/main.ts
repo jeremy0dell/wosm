@@ -5,6 +5,7 @@ import { runDoctorCommand } from "./commands/doctor.js";
 import { runHookCommand } from "./commands/hook.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
 import { type PopupCommandDeps, runPopupCommand } from "./commands/popup.js";
+import { runTuiCommand, type TuiCommandDeps } from "./commands/tui.js";
 import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
 import type { HookReceiverDeps } from "./hookReceiver.js";
 import type { ObserverProcessDeps } from "./observerProcess.js";
@@ -19,6 +20,7 @@ export type CliRunOptions = {
   hookDeps?: HookReceiverDeps | undefined;
   observerDeps?: ObserverProcessDeps | undefined;
   popupDeps?: PopupCommandDeps | undefined;
+  tuiDeps?: TuiCommandDeps | undefined;
 };
 
 export async function runCli(
@@ -67,8 +69,12 @@ export async function runCli(
     return { code: 0, output: result };
   }
 
-  if (command === "tui" && args[1] === "--popup") {
-    return { code: 0, output: { mode: "popup" } };
+  if (command === "tui") {
+    const tuiDeps: TuiCommandDeps = {};
+    if (options.observerDeps !== undefined) tuiDeps.observer = options.observerDeps;
+    if (options.tuiDeps?.runTui !== undefined) tuiDeps.runTui = options.tuiDeps.runTui;
+    const result = await runTuiCommand(args.slice(1), { config, configPath }, tuiDeps);
+    return { code: result.code, output: result };
   }
 
   if (command === "worktrunk" && args[1] === "hooks") {

@@ -26,7 +26,11 @@
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
     "@types/node": "^24.12.4",
+    "@types/react": "^19.2.15",
+    "@types/react-test-renderer": "^19.1.0",
+    "ink-testing-library": "^4.0.0",
     "lefthook": "^1.13.6",
+    "react-test-renderer": "^19.2.6",
     "turbo": "^2.5.8",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

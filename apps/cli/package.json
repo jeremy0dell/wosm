@@ -23,6 +23,7 @@
     "@wosm/observer": "workspace:*",
     "@wosm/protocol": "workspace:*",
     "@wosm/runtime": "workspace:*",
+    "@wosm/tui": "workspace:*",
     "@wosm/tmux": "workspace:*",
     "@wosm/worktrunk": "workspace:*"
   }
