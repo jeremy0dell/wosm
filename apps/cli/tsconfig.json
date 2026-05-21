@@ -9,7 +9,8 @@
       "@wosm/contracts": ["../../packages/contracts/dist/index.d.ts"],
       "@wosm/observer": ["../observer/dist/index.d.ts"],
       "@wosm/protocol": ["../../packages/protocol/dist/index.d.ts"],
-      "@wosm/runtime": ["../../packages/runtime/dist/index.d.ts"]
+      "@wosm/runtime": ["../../packages/runtime/dist/index.d.ts"],
+      "@wosm/worktrunk": ["../../integrations/worktree/worktrunk/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*.ts"]

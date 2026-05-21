@@ -47,6 +47,9 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@wosm/worktrunk':
+        specifier: workspace:*
+        version: link:../../integrations/worktree/worktrunk
 
   apps/observer:
     dependencies:
@@ -65,6 +68,9 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@wosm/worktrunk':
+        specifier: workspace:*
+        version: link:../../integrations/worktree/worktrunk
 
   apps/tui:
     dependencies:
@@ -122,6 +128,9 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../../packages/runtime
+      smol-toml:
+        specifier: ^1.6.1
+        version: 1.6.1
 
   packages/config:
     dependencies:

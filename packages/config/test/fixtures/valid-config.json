@@ -17,6 +17,7 @@
   "worktree": {
     "worktrunk": {
       "command": "wt",
+      "configPath": "~/.config/worktrunk/config.toml",
       "useLifecycleHooks": true,
       "hookMode": "required-for-mvp",
       "breadcrumbLocation": "external"

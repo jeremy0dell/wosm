@@ -1,0 +1,340 @@
+import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { parse, stringify } from "smol-toml";
+
+export const WORKTRUNK_HOOK_NAMES = [
+  "post-create",
+  "post-switch",
+  "pre-remove",
+  "post-remove",
+] as const;
+
+export type WorktrunkHookName = (typeof WORKTRUNK_HOOK_NAMES)[number];
+
+export type WorktrunkHookPlanOptions = {
+  worktrunkConfigPath?: string;
+  wosmConfigPath?: string;
+  wosmBin?: string;
+  env?: NodeJS.ProcessEnv;
+  homeDir?: string;
+};
+
+export type WorktrunkHookPlan = {
+  provider: "worktrunk";
+  configPath: string;
+  commands: Record<WorktrunkHookName, string>;
+  missing: WorktrunkHookName[];
+  changed: boolean;
+  before: string;
+  after: string;
+};
+
+export type WorktrunkHookInstallResult = WorktrunkHookPlan & {
+  installed: boolean;
+  backupPath?: string;
+};
+
+export type WorktrunkHookDoctorResult = {
+  provider: "worktrunk";
+  configPath: string;
+  status: "ok" | "warn";
+  installed: boolean;
+  missing: WorktrunkHookName[];
+  commands: Record<WorktrunkHookName, string>;
+  message: string;
+};
+
+const generatedCommandKey = "wosm";
+
+export async function planWorktrunkHooks(
+  options: WorktrunkHookPlanOptions = {},
+): Promise<WorktrunkHookPlan> {
+  const configPath = resolveWorktrunkConfigPath(options);
+  const before = await readOptionalFile(configPath);
+  const commands = expectedWorktrunkHookCommands(options);
+  const document = parseTomlDocument(before);
+  const missing = WORKTRUNK_HOOK_NAMES.filter(
+    (hookName) => !hookContainsCommand(document, hookName, commands[hookName]),
+  );
+  const afterDocument = installCommands(document, commands);
+  const after = stringifyTomlDocument(afterDocument);
+
+  return {
+    provider: "worktrunk",
+    configPath,
+    commands,
+    missing,
+    changed: before.trim() !== after.trim(),
+    before,
+    after,
+  };
+}
+
+export async function installWorktrunkHooks(
+  options: WorktrunkHookPlanOptions = {},
+): Promise<WorktrunkHookInstallResult> {
+  const plan = await planWorktrunkHooks(options);
+  if (!plan.changed) {
+    return {
+      ...plan,
+      installed: true,
+    };
+  }
+
+  const backupPath = await backupIfPresent(plan.configPath);
+  await mkdir(dirname(plan.configPath), { recursive: true, mode: 0o700 });
+  await writeFile(plan.configPath, plan.after, { mode: 0o600 });
+  return {
+    ...plan,
+    installed: true,
+    ...(backupPath === undefined ? {} : { backupPath }),
+  };
+}
+
+export async function uninstallWorktrunkHooks(
+  options: WorktrunkHookPlanOptions = {},
+): Promise<WorktrunkHookInstallResult> {
+  const configPath = resolveWorktrunkConfigPath(options);
+  const before = await readOptionalFile(configPath);
+  const commands = expectedWorktrunkHookCommands(options);
+  const document = parseTomlDocument(before);
+  const afterDocument = uninstallCommands(document, commands);
+  const after = stringifyTomlDocument(afterDocument);
+  const missing = WORKTRUNK_HOOK_NAMES.filter(
+    (hookName) => !hookContainsCommand(afterDocument, hookName, commands[hookName]),
+  );
+  const changed = before.trim() !== after.trim();
+
+  if (changed) {
+    const backupPath = await backupIfPresent(configPath);
+    await writeFile(configPath, after, { mode: 0o600 });
+    return {
+      provider: "worktrunk",
+      configPath,
+      commands,
+      missing,
+      changed,
+      before,
+      after,
+      installed: false,
+      ...(backupPath === undefined ? {} : { backupPath }),
+    };
+  }
+
+  return {
+    provider: "worktrunk",
+    configPath,
+    commands,
+    missing,
+    changed,
+    before,
+    after,
+    installed: false,
+  };
+}
+
+export async function doctorWorktrunkHooks(
+  options: WorktrunkHookPlanOptions & { enabled?: boolean } = {},
+): Promise<WorktrunkHookDoctorResult> {
+  const plan = await planWorktrunkHooks(options);
+  if (options.enabled === false) {
+    return {
+      provider: "worktrunk",
+      configPath: plan.configPath,
+      status: "warn",
+      installed: false,
+      missing: WORKTRUNK_HOOK_NAMES.slice(),
+      commands: plan.commands,
+      message: "Worktrunk lifecycle hooks are disabled in wosm config.",
+    };
+  }
+
+  const installed = plan.missing.length === 0;
+  return {
+    provider: "worktrunk",
+    configPath: plan.configPath,
+    status: installed ? "ok" : "warn",
+    installed,
+    missing: plan.missing,
+    commands: plan.commands,
+    message: installed
+      ? "Worktrunk lifecycle hooks are installed."
+      : `Worktrunk lifecycle hooks are missing: ${plan.missing.join(", ")}.`,
+  };
+}
+
+export function resolveWorktrunkConfigPath(options: WorktrunkHookPlanOptions = {}): string {
+  if (options.worktrunkConfigPath !== undefined) {
+    return resolvePath(options.worktrunkConfigPath, options.homeDir ?? homedir());
+  }
+
+  const env = options.env ?? process.env;
+  const base = env.XDG_CONFIG_HOME ?? join(options.homeDir ?? homedir(), ".config");
+  return resolve(base, "worktrunk", "config.toml");
+}
+
+export function expectedWorktrunkHookCommands(
+  options: Pick<WorktrunkHookPlanOptions, "wosmConfigPath" | "wosmBin"> = {},
+): Record<WorktrunkHookName, string> {
+  const wosmBin = options.wosmBin ?? "wosm";
+  return Object.fromEntries(
+    WORKTRUNK_HOOK_NAMES.map((hookName) => [
+      hookName,
+      commandLine([
+        wosmBin,
+        ...(options.wosmConfigPath === undefined ? [] : ["--config", options.wosmConfigPath]),
+        "hook",
+        "worktrunk",
+        hookName,
+      ]),
+    ]),
+  ) as Record<WorktrunkHookName, string>;
+}
+
+export function normalizeWorktrunkLifecycleEvent(event: string): string {
+  if (event === "post-start") {
+    return "post-create";
+  }
+  if (event === "pre-start") {
+    return "pre-create";
+  }
+  return event;
+}
+
+function installCommands(
+  document: Record<string, unknown>,
+  commands: Record<WorktrunkHookName, string>,
+): Record<string, unknown> {
+  const next = { ...document };
+  for (const hookName of WORKTRUNK_HOOK_NAMES) {
+    next[hookName] = withGeneratedCommand(next[hookName], commands[hookName]);
+  }
+  return next;
+}
+
+function uninstallCommands(
+  document: Record<string, unknown>,
+  commands: Record<WorktrunkHookName, string>,
+): Record<string, unknown> {
+  const next = { ...document };
+  for (const hookName of WORKTRUNK_HOOK_NAMES) {
+    const value = withoutGeneratedCommand(next[hookName], commands[hookName]);
+    if (value === undefined) {
+      delete next[hookName];
+    } else {
+      next[hookName] = value;
+    }
+  }
+  return next;
+}
+
+function withGeneratedCommand(value: unknown, command: string): unknown {
+  if (value === undefined) {
+    return { [generatedCommandKey]: command };
+  }
+  if (typeof value === "string") {
+    return value === command ? value : { existing: value, [generatedCommandKey]: command };
+  }
+  if (Array.isArray(value)) {
+    return [...value, { [generatedCommandKey]: command }];
+  }
+  if (isRecord(value)) {
+    return { ...value, [generatedCommandKey]: command };
+  }
+  return { existing: String(value), [generatedCommandKey]: command };
+}
+
+function withoutGeneratedCommand(value: unknown, command: string): unknown {
+  if (typeof value === "string") {
+    return value === command ? undefined : value;
+  }
+  if (Array.isArray(value)) {
+    const next = value
+      .map((entry) => withoutGeneratedCommand(entry, command))
+      .filter((entry) => entry !== undefined);
+    return next.length === 0 ? undefined : next;
+  }
+  if (isRecord(value)) {
+    const next = { ...value };
+    if (next[generatedCommandKey] === command) {
+      delete next[generatedCommandKey];
+    }
+    return Object.keys(next).length === 0 ? undefined : next;
+  }
+  return value;
+}
+
+function hookContainsCommand(
+  document: Record<string, unknown>,
+  hookName: WorktrunkHookName,
+  command: string,
+): boolean {
+  const value = document[hookName];
+  if (typeof value === "string") {
+    return value === command;
+  }
+  if (Array.isArray(value)) {
+    return value.some((entry) => commandInHookValue(entry, command));
+  }
+  return commandInHookValue(value, command);
+}
+
+function commandInHookValue(value: unknown, command: string): boolean {
+  if (typeof value === "string") {
+    return value === command;
+  }
+  if (!isRecord(value)) {
+    return false;
+  }
+  return Object.values(value).some((child) => child === command);
+}
+
+function parseTomlDocument(source: string): Record<string, unknown> {
+  if (source.trim().length === 0) {
+    return {};
+  }
+  return parse(source) as Record<string, unknown>;
+}
+
+function stringifyTomlDocument(document: Record<string, unknown>): string {
+  const result = stringify(document);
+  return result.endsWith("\n") ? result : `${result}\n`;
+}
+
+async function readOptionalFile(path: string): Promise<string> {
+  try {
+    return await readFile(path, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+async function backupIfPresent(path: string): Promise<string | undefined> {
+  try {
+    await stat(path);
+  } catch {
+    return undefined;
+  }
+  const backupPath = `${path}.bak.${new Date().toISOString().replaceAll(/[^0-9]/g, "")}`;
+  await copyFile(path, backupPath);
+  return backupPath;
+}
+
+function commandLine(args: string[]): string {
+  return args.map(shellQuote).join(" ");
+}
+
+function shellQuote(value: string): string {
+  return /^[A-Za-z0-9_./:=@+-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function resolvePath(input: string, homeDir: string): string {
+  const expanded =
+    input === "~" ? homeDir : input.startsWith("~/") ? join(homeDir, input.slice(2)) : input;
+  return isAbsolute(expanded) ? resolve(expanded) : resolve(process.cwd(), expanded);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

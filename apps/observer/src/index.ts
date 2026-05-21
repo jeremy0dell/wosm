@@ -11,6 +11,7 @@ export * from "./logging.js";
 export * from "./main.js";
 export * from "./migrations/index.js";
 export * from "./persistence/index.js";
+export * from "./providerFactory.js";
 export * from "./providerRegistry.js";
 export * from "./reconcile.js";
 export * from "./server.js";

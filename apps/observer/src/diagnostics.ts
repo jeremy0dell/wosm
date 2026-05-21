@@ -18,6 +18,7 @@ import {
 } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { doctorWorktrunkHooks } from "@wosm/worktrunk";
 import type { ObserverPersistence } from "./persistence/index.js";
 import type { ObserverCore } from "./reconcile.js";
 
@@ -143,6 +144,7 @@ export async function runDoctor(
       status: providerStatus(snapshot) === "healthy" ? "ok" : "warn",
       message: `${Object.keys(snapshot.providerHealth).length} provider(s) reported health.`,
     },
+    ...(await worktrunkHookChecks(deps)),
     {
       name: "retention",
       status: snapshot.localState?.overLimit === true ? "warn" : "ok",
@@ -181,6 +183,45 @@ export async function runDoctor(
       diagnosticsDir: deps.paths.diagnosticsDir ?? join(deps.paths.stateDir, "diagnostics"),
     },
   });
+}
+
+async function worktrunkHookChecks(deps: ObserverDiagnosticsDeps): Promise<
+  Array<{
+    name: string;
+    status: "ok" | "warn" | "error";
+    message: string;
+    error?: SafeError;
+  }>
+> {
+  if (deps.config.defaults.worktreeProvider !== "worktrunk") {
+    return [];
+  }
+
+  const result = await doctorWorktrunkHooks({
+    ...(deps.config.worktree?.worktrunk?.configPath === undefined
+      ? {}
+      : { worktrunkConfigPath: deps.config.worktree.worktrunk.configPath }),
+    ...(deps.configPath === undefined ? {} : { wosmConfigPath: deps.configPath }),
+    enabled: deps.config.worktree?.worktrunk?.useLifecycleHooks !== false,
+  });
+
+  return [
+    {
+      name: "worktrunk-hooks",
+      status: result.status,
+      message: `${result.message} Config: ${result.configPath}.`,
+      ...(result.status === "ok"
+        ? {}
+        : {
+            error: {
+              tag: "WorktrunkHookSetupError",
+              code: "WORKTRUNK_HOOKS_MISSING",
+              message: result.message,
+              provider: "worktrunk",
+            },
+          }),
+    },
+  ];
 }
 
 async function readLogs(paths: readonly string[], maxRecords: number): Promise<LogRecord[]> {

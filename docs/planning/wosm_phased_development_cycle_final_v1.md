@@ -793,6 +793,8 @@ No requirement that React components become Effect-heavy.
 ```text
 packages/runtime
 Effect runtime subset wrappers
+Effect boundary decision rubric and documented choices for runtime boundary modules
+Promise or AsyncIterable facades over Effect-native internals where that keeps consumers simple
 structured JSONL logs
 trace/span IDs
 stable operation names
@@ -822,6 +824,8 @@ wosm doctor reports observer/config/SQLite/provider/hook/snapshot/log health
 wosm doctor reports project-local config issues without crashing
 wosm doctor reports local state usage and retention status
 runtime wrappers enforce timeout/retry/cancellation behavior in tests
+Effect boundary choices are covered by tests for timeout, retry, cancellation, cleanup, typed errors, and trace/span propagation where relevant
+plain Promise boundary choices do not duplicate shared runtime retry/timeout/cancellation helpers
 ```
 
 ### Red-first expectations
@@ -836,6 +840,8 @@ Known failures produce useful SafeErrors and diagnostic records.
 Operational debug bundle can be generated from fake-provider runs before real providers exist.
 `wosm doctor` gives a useful runtime health report against fake providers.
 Retention defaults are visible and testable.
+Runtime boundary modules either use Effect-native helpers or document why plain TypeScript is simpler for that boundary.
+No provider, protocol, command, hook, or external-process boundary introduces one-off retry, timeout, cancellation, cleanup, or typed-error plumbing.
 ```
 
 ### Exit artifacts
@@ -859,6 +865,10 @@ Mitigation: Instrument shared boundaries, not random lines of code.
 Risk: Effect usage becomes too broad.
 
 Mitigation: Standardize a small runtime subset and keep React components, pure selectors, and contracts plain.
+
+Risk: Effect usage becomes too shallow or avoided at the exact boundaries where it would prevent ad hoc async plumbing.
+
+Mitigation: Require each phase plan to identify Effect-relevant boundaries and choose Effect-native internals, a Promise or AsyncIterable facade over Effect, or plain TypeScript with a concrete reason.
 
 Risk: Debug bundle leaks secrets.
 

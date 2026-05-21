@@ -9,6 +9,7 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
+import { normalizeWorktrunkLifecycleEvent } from "@wosm/worktrunk";
 import { writeHookSpoolRecord } from "./hookSpool.js";
 import { type ObserverProcessDeps, startObserver } from "./observerProcess.js";
 import { type ObserverPaths, resolveObserverPaths } from "./paths.js";
@@ -44,7 +45,8 @@ export async function receiveHookEvent(
     schemaVersion: WOSM_SCHEMA_VERSION,
     provider: input.provider,
     kind: input.kind ?? inferHookKind(input.provider),
-    event: input.event,
+    event:
+      input.provider === "worktrunk" ? normalizeWorktrunkLifecycleEvent(input.event) : input.event,
     receivedAt: toIsoTimestamp(clock.now()),
     ...(input.payload === undefined ? {} : { payload: input.payload }),
   });

@@ -22,6 +22,7 @@
     "@wosm/observability": "workspace:*",
     "@wosm/observer": "workspace:*",
     "@wosm/protocol": "workspace:*",
-    "@wosm/runtime": "workspace:*"
+    "@wosm/runtime": "workspace:*",
+    "@wosm/worktrunk": "workspace:*"
   }
 }

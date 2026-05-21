@@ -76,7 +76,7 @@ export function externalCommandErrorFromUnknown(
   const cause = isRecord(error) ? error : {};
   return {
     tag: "ExternalCommandError",
-    code: safeError.code,
+    code: typeof cause.code === "string" ? cause.code : safeError.code,
     message: safeError.message,
     command: [input.command, ...(input.args ?? [])].join(" "),
     ...(typeof cause.code === "number" ? { exitCode: cause.code } : {}),

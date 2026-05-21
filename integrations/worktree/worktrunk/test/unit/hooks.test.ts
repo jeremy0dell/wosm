@@ -1,0 +1,82 @@
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  doctorWorktrunkHooks,
+  installWorktrunkHooks,
+  planWorktrunkHooks,
+  uninstallWorktrunkHooks,
+} from "@wosm/worktrunk";
+import { describe, expect, it } from "vitest";
+
+describe("Worktrunk hook setup", () => {
+  it("plans tiny hook commands without writing config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-wt-hooks-"));
+    const configPath = join(root, "config.toml");
+
+    const plan = await planWorktrunkHooks({
+      worktrunkConfigPath: configPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+      wosmBin: "/usr/local/bin/wosm",
+    });
+
+    expect(plan.changed).toBe(true);
+    expect(plan.missing).toEqual(["post-create", "post-switch", "pre-remove", "post-remove"]);
+    expect(plan.commands["post-create"]).toBe(
+      "/usr/local/bin/wosm --config /tmp/wosm/config.toml hook worktrunk post-create",
+    );
+    await expect(readFile(configPath, "utf8")).rejects.toThrow();
+  });
+
+  it("installs idempotently, backs up existing config, and preserves unrelated hooks", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-wt-hooks-"));
+    const configPath = join(root, "config.toml");
+    await mkdir(root, { recursive: true });
+    await writeFile(
+      configPath,
+      await readFile(new URL("../fixtures/worktrunk-before.toml", import.meta.url), "utf8"),
+    );
+
+    const installed = await installWorktrunkHooks({
+      worktrunkConfigPath: configPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+    });
+    const second = await installWorktrunkHooks({
+      worktrunkConfigPath: configPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+    });
+    const contents = await readFile(configPath, "utf8");
+
+    expect(installed.backupPath).toBeDefined();
+    expect(second.changed).toBe(false);
+    expect(contents).toContain("echo existing");
+    expect(contents).toContain("hook worktrunk post-create");
+    await expect(
+      doctorWorktrunkHooks({
+        worktrunkConfigPath: configPath,
+        wosmConfigPath: "/tmp/wosm/config.toml",
+      }),
+    ).resolves.toMatchObject({
+      status: "ok",
+      installed: true,
+    });
+  });
+
+  it("uninstalls generated hooks without removing unrelated commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-wt-hooks-"));
+    const configPath = join(root, "config.toml");
+    await installWorktrunkHooks({
+      worktrunkConfigPath: configPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+    });
+
+    const removed = await uninstallWorktrunkHooks({
+      worktrunkConfigPath: configPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+    });
+    const contents = await readFile(configPath, "utf8");
+
+    expect(removed.installed).toBe(false);
+    expect(contents).not.toContain("hook worktrunk post-create");
+  });
+});

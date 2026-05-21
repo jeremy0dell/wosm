@@ -91,6 +91,10 @@ export type ProviderProjectConfig = {
     enabled: boolean;
     base?: string;
   };
+  recoveryBreadcrumbs?: {
+    location: "external" | "worktree" | "provider-native" | "disabled";
+    path?: string;
+  };
 };
 
 export type CreateWorktreeRequest = {

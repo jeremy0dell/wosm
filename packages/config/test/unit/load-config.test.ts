@@ -527,4 +527,37 @@ failed_max_items = 100
       },
     });
   });
+
+  it("normalizes and resolves Worktrunk user config path", async () => {
+    const tempDir = await makeTempDir();
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+projects = []
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[worktree.worktrunk]
+command = "wt"
+config_path = "~/isolated-worktrunk/config.toml"
+use_lifecycle_hooks = true
+hook_mode = "required-for-mvp"
+breadcrumb_location = "provider-native"
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.worktree?.worktrunk).toEqual({
+      command: "wt",
+      configPath: join(tempDir, "isolated-worktrunk/config.toml"),
+      useLifecycleHooks: true,
+      hookMode: "required-for-mvp",
+      breadcrumbLocation: "provider-native",
+    });
+  });
 });

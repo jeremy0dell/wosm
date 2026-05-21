@@ -18,6 +18,7 @@
     "@wosm/contracts": "workspace:*",
     "@wosm/observability": "workspace:*",
     "@wosm/protocol": "workspace:*",
-    "@wosm/runtime": "workspace:*"
+    "@wosm/runtime": "workspace:*",
+    "@wosm/worktrunk": "workspace:*"
   }
 }

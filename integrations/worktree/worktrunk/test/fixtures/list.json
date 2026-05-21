@@ -1,0 +1,30 @@
+[
+  {
+    "path": "/tmp/wosm/web/feature-auth",
+    "branch": "feature/auth",
+    "worktree": {
+      "modified": 1,
+      "untracked": 0
+    },
+    "main": {
+      "ahead": 2,
+      "behind": 1
+    },
+    "vars": {
+      "wosm": {
+        "project_id": "web",
+        "worktree_id": "wt_provider_feature_auth"
+      }
+    }
+  },
+  {
+    "path": "/tmp/wosm/web/detached",
+    "git": {
+      "short_sha": "abc1234"
+    },
+    "worktree": {
+      "modified": 0,
+      "untracked": 0
+    }
+  }
+]

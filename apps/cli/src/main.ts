@@ -4,6 +4,7 @@ import { runDebugBundleCommand } from "./commands/debugBundle.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runHookCommand } from "./commands/hook.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
+import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
 import type { HookReceiverDeps } from "./hookReceiver.js";
 import type { ObserverProcessDeps } from "./observerProcess.js";
 
@@ -57,6 +58,22 @@ export async function runCli(
     const stdin = options.stdin ?? (await readStdinIfAvailable());
     const result = await runHookCommand(args.slice(1), { config, stdin }, options.hookDeps);
     return { code: result.status === "rejected" ? 1 : 0, output: result };
+  }
+
+  if (command === "worktrunk" && args[1] === "hooks") {
+    const result = await runWorktrunkHooksCommand(args.slice(2), { config, configPath });
+    return { code: "status" in result && result.status === "warn" ? 1 : 0, output: result };
+  }
+
+  if (command === "hooks" && (args[1] === "install" || args[1] === "uninstall")) {
+    if (args[2] !== "worktrunk") {
+      throw new Error(`Unknown hook provider: ${args[2] ?? ""}`);
+    }
+    const result = await runWorktrunkHooksCommand([args[1], ...args.slice(3)], {
+      config,
+      configPath,
+    });
+    return { code: 0, output: result };
   }
 
   throw new Error(`Unknown command: ${command ?? ""}`);

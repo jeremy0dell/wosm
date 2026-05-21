@@ -316,6 +316,16 @@ export function providerProjectsFromConfig(config: WosmConfig): ProviderProjectC
       enabled: project.worktrunk.enabled,
       ...(project.worktrunk.base === undefined ? {} : { base: project.worktrunk.base }),
     },
+    ...(project.recoveryBreadcrumbs === undefined
+      ? {}
+      : {
+          recoveryBreadcrumbs: {
+            location: project.recoveryBreadcrumbs.location,
+            ...(project.recoveryBreadcrumbs.path === undefined
+              ? {}
+              : { path: project.recoveryBreadcrumbs.path }),
+          },
+        }),
   }));
 }
 

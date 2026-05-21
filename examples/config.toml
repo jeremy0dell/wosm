@@ -16,6 +16,7 @@ layout = "agent-build-shell"
 
 [worktree.worktrunk]
 command = "wt"
+config_path = "~/.config/worktrunk/config.toml"
 use_lifecycle_hooks = true
 hook_mode = "required-for-mvp"
 breadcrumb_location = "external"

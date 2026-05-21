@@ -397,7 +397,7 @@ OpenCode should validate that the harness contract is not Codex-specific.
 
 ### 3.7 Runtime orchestration: Effect, selectively
 
-wosm should use Effect where it clearly pays for itself.
+wosm should use Effect where it clearly pays for itself, and high-risk runtime boundary code should make an explicit choice instead of drifting into either blanket Effect usage or blanket avoidance.
 
 Effect is selected for high-traffic, high-failure runtime boundaries where wosm needs concurrency control, typed errors, retries, timeouts, cancellation, resource cleanup, and observable execution. It is not selected as a blanket coding style for the whole repo.
 
@@ -428,7 +428,7 @@ Effect Config
 Effect Schema, unless it clearly beats the chosen schema tool
 ```
 
-Use Effect in:
+Treat these as Effect-relevant boundaries. They should usually use the shared Effect subset or a Promise/AsyncIterable facade over it, unless the implementation is simpler, easier to test, and not duplicating runtime plumbing:
 
 - `apps/observer`
   - server lifecycle
@@ -481,6 +481,31 @@ Policy statement:
 ```text
 Effect is runtime orchestration infrastructure, not a whole-repo religion.
 ```
+
+### 3.7.1 Effect boundary decision rubric
+
+Effect usage is a boundary decision, not a package-wide identity. The implementing agent must not use Effect only because code lives in `apps/observer`, `apps/cli`, `apps/tui`, or `integrations/*`; it must also not avoid Effect only to keep code superficially familiar.
+
+For each runtime boundary, choose one of these shapes:
+
+- Effect-native internal implementation with a Promise or AsyncIterable facade.
+- Effect-native implementation and Effect-native public API for internal consumers.
+- Plain TypeScript or Promise implementation.
+
+The implementing agent must make the choice explicitly when the boundary involves observer orchestration, provider calls, protocol IO, command routing, hook ingestion, external processes, SQLite transactions, lifecycle management, retries, cancellation, timeout policy, resource cleanup, queues, long-lived subscriptions, or diagnostic context.
+
+Prefer Effect when two or more of these are true:
+
+- The operation has multiple async steps that must be sequenced or composed.
+- The operation needs timeout, retry, cancellation, interruption, or shutdown semantics.
+- The operation opens or owns resources that must be cleaned up on failure or shutdown.
+- The operation crosses a provider, protocol, persistence, CLI, hook, or process boundary.
+- The operation needs typed error conversion plus trace/span/log context.
+- The operation coordinates concurrency, fan-out, backpressure, queues, or long-lived subscriptions.
+
+Prefer plain TypeScript when the code is pure, synchronous, presentation-only, schema-only, fixture-only, a straightforward data transform, or easier to test and read as a direct function.
+
+Choosing plain Promise code is acceptable when it is intentionally simpler. It is not acceptable when it recreates one-off retry, timeout, cancellation, cleanup, queueing, or typed-error plumbing that should belong in the shared runtime boundary layer.
 
 The TUI is allowed to use Effect in service hooks and boundary modules when it needs orchestration. The TUI should not become provider-aware or backend-like, and React components should not need to understand provider mechanics to render the dashboard.
 

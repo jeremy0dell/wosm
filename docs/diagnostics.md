@@ -13,6 +13,8 @@ wosm debug bundle
 
 `wosm debug bundle` asks the observer for a diagnostic snapshot, then writes a redacted bundle under the configured state directory.
 
+When `defaults.worktree_provider = "worktrunk"`, doctor also validates Worktrunk lifecycle hook setup. Missing, disabled, or untrusted Worktrunk hooks degrade the report with a `worktrunk-hooks` check. Provider command failures from `wt` are recorded through provider health and appear in doctor output, logs, and debug bundle provider-health evidence.
+
 ## Manual Smoke
 
 After building, the diagnostic surface can be checked with a throwaway fake-provider config:
@@ -103,3 +105,24 @@ Phase 6 enforces file retention for logs and bundles created by this diagnostic 
 ## Redaction
 
 SafeError output excludes stacks and raw provider payloads. Error envelopes and debug bundles may include internal details only after redaction. Secret-like keys, authorization headers, token-looking values, and command output snippets are redacted before being written to logs or bundles.
+
+## Worktrunk Hook Setup
+
+Worktrunk hooks are explicit and reversible:
+
+```bash
+wosm --config /path/to/config.toml worktrunk hooks plan
+wosm --config /path/to/config.toml worktrunk hooks install --yes
+wosm --config /path/to/config.toml worktrunk hooks doctor
+wosm --config /path/to/config.toml worktrunk hooks uninstall --yes
+```
+
+The generated hook bodies only call `wosm hook worktrunk <event>` with the resolved wosm config path. They do not contain lifecycle logic. The installer backs up the Worktrunk config, preserves unrelated hook commands, and removes only generated wosm hook entries on uninstall.
+
+Real Worktrunk E2E coverage is opt-in:
+
+```bash
+WOSM_REAL_WORKTRUNK=1 WOSM_WORKTRUNK_BIN="$(command -v wt)" pnpm test:e2e:worktrunk:real
+```
+
+Default test commands skip this lane because it requires a local external `wt` binary and isolated Worktrunk state.

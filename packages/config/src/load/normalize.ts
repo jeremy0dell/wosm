@@ -56,6 +56,7 @@ function normalizeWorktreeProvidersConfig(value: unknown): unknown {
 
 function normalizeWorktreeWorktrunkConfig(value: unknown): unknown {
   return normalizeObject(value, {
+    config_path: "configPath",
     use_lifecycle_hooks: "useLifecycleHooks",
     hook_mode: "hookMode",
     breadcrumb_location: "breadcrumbLocation",

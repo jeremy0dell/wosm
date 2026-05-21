@@ -36,10 +36,14 @@ export function deriveProjectConfig(
   const observer = isRecord(normalizedConfig.observer)
     ? expandObserverPaths(normalizedConfig.observer, options)
     : normalizedConfig.observer;
+  const worktree = isRecord(normalizedConfig.worktree)
+    ? expandWorktreePaths(normalizedConfig.worktree, options)
+    : normalizedConfig.worktree;
 
   return {
     ...normalizedConfig,
     observer,
+    worktree,
     projects: rawProjects.map((project) =>
       deriveSingleProject(project, defaultsResult.data, options),
     ),
@@ -103,4 +107,32 @@ function expandObserverPaths(
   }
 
   return expandedObserver;
+}
+
+function expandWorktreePaths(
+  worktree: MutableRecord,
+  options: { configDir: string; homeDir: string },
+): MutableRecord {
+  const worktrunk = isRecord(worktree.worktrunk)
+    ? expandWorktrunkPaths(worktree.worktrunk, options)
+    : worktree.worktrunk;
+
+  return {
+    ...worktree,
+    ...(worktrunk === undefined ? {} : { worktrunk }),
+  };
+}
+
+function expandWorktrunkPaths(
+  worktrunk: MutableRecord,
+  options: { configDir: string; homeDir: string },
+): MutableRecord {
+  if (typeof worktrunk.configPath !== "string") {
+    return worktrunk;
+  }
+
+  return {
+    ...worktrunk,
+    configPath: resolveConfigPath(worktrunk.configPath, options.homeDir, options.configDir),
+  };
 }
