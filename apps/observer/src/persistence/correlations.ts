@@ -10,8 +10,8 @@ import {
   TerminalTargetObservationSchema,
   WorktreeObservationSchema,
 } from "@wosm/contracts";
-import { maxIso, optionalJson } from "./json";
-import { insertProviderObservation } from "./observations";
+import { maxIso, optionalJson } from "./json.js";
+import { insertProviderObservation } from "./observations.js";
 import {
   type HarnessRunRow,
   harnessRunFromRow,
@@ -23,7 +23,7 @@ import {
   terminalTargetFromRow,
   type WorktreeRow,
   worktreeFromRow,
-} from "./rows";
+} from "./rows.js";
 import type {
   ObserverIdFactory,
   PersistedHarnessRun,
@@ -32,7 +32,7 @@ import type {
   PersistedTerminalTarget,
   PersistedWorktree,
   PersistReconcileResultInput,
-} from "./types";
+} from "./types.js";
 
 export function persistReconcileResult(
   database: DatabaseSync,

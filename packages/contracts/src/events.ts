@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { WosmCommandSchema } from "./commands";
-import { SafeErrorSchema } from "./errors";
+import { WosmCommandSchema } from "./commands.js";
+import { SafeErrorSchema } from "./errors.js";
 import {
   CommandIdSchema,
   ProjectIdSchema,
@@ -8,9 +8,30 @@ import {
   SessionIdSchema,
   TimestampSchema,
   WorktreeIdSchema,
-} from "./ids";
-import { ProviderHealthSchema } from "./providers";
-import { SessionViewSchema, WorktreeAgentSchema, WorktreeRowSchema } from "./snapshot";
+} from "./ids.js";
+import { ProviderHealthSchema } from "./providers.js";
+import { nonEmptyStringSchema } from "./shared.js";
+import { SessionViewSchema, WorktreeAgentSchema, WorktreeRowSchema } from "./snapshot.js";
+
+export const WosmEventTypeSchema = z.enum([
+  "observer.started",
+  "observer.reconciled",
+  "project.updated",
+  "worktree.added",
+  "worktree.updated",
+  "worktree.removed",
+  "worktree.agentStateChanged",
+  "session.created",
+  "session.updated",
+  "session.removed",
+  "command.accepted",
+  "command.started",
+  "command.succeeded",
+  "command.failed",
+  "provider.healthChanged",
+  "hook.ingested",
+  "hook.spoolDrained",
+]);
 
 export const WosmEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("observer.started"), at: TimestampSchema }).strict(),
@@ -76,6 +97,33 @@ export const WosmEventSchema = z.discriminatedUnion("type", [
       health: ProviderHealthSchema,
     })
     .strict(),
+  z
+    .object({
+      type: z.literal("hook.ingested"),
+      at: TimestampSchema,
+      hookId: nonEmptyStringSchema,
+      provider: ProviderIdSchema,
+      event: nonEmptyStringSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("hook.spoolDrained"),
+      at: TimestampSchema,
+      drained: z.number().int().nonnegative(),
+      failed: z.number().int().nonnegative(),
+    })
+    .strict(),
 ]);
 
 export type WosmEvent = z.infer<typeof WosmEventSchema>;
+
+export const EventFilterSchema = z
+  .object({
+    type: z.union([WosmEventTypeSchema, z.array(WosmEventTypeSchema).min(1)]).optional(),
+    commandId: CommandIdSchema.optional(),
+    since: TimestampSchema.optional(),
+  })
+  .strict();
+
+export type EventFilter = z.infer<typeof EventFilterSchema>;

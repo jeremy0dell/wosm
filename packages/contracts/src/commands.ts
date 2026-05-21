@@ -1,14 +1,15 @@
 import { z } from "zod";
-import { SafeErrorSchema } from "./errors";
+import { SafeErrorSchema } from "./errors.js";
 import {
   CommandIdSchema,
   ProjectIdSchema,
   ProviderIdSchema,
   SessionIdSchema,
   TerminalTargetIdSchema,
+  TimestampSchema,
   WorktreeIdSchema,
-} from "./ids";
-import { nonEmptyStringSchema } from "./shared";
+} from "./ids.js";
+import { nonEmptyStringSchema } from "./shared.js";
 
 export const CommandSourceSchema = z
   .object({
@@ -82,6 +83,19 @@ export const StartAgentPayloadSchema = z
   .strict();
 
 export type StartAgentPayload = z.infer<typeof StartAgentPayloadSchema>;
+
+export const WosmCommandTypeSchema = z.enum([
+  "worktree.create",
+  "worktree.remove",
+  "session.create",
+  "session.startAgent",
+  "terminal.focus",
+  "session.close",
+  "session.remove",
+  "session.sendPrompt",
+  "observer.reconcile",
+  "hooks.install",
+]);
 
 export const WosmCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("worktree.create"), payload: CreateWorktreePayloadSchema }).strict(),
@@ -173,3 +187,18 @@ export const CommandReceiptSchema = z
   .strict();
 
 export type CommandReceipt = z.infer<typeof CommandReceiptSchema>;
+
+export const CommandRecordSchema = z
+  .object({
+    id: CommandIdSchema,
+    type: WosmCommandTypeSchema,
+    command: WosmCommandSchema,
+    status: z.enum(["accepted", "started", "succeeded", "failed"]),
+    createdAt: TimestampSchema,
+    startedAt: TimestampSchema.optional(),
+    finishedAt: TimestampSchema.optional(),
+    error: SafeErrorSchema.optional(),
+  })
+  .strict();
+
+export type CommandRecord = z.infer<typeof CommandRecordSchema>;

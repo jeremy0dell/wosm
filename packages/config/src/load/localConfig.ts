@@ -1,12 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "smol-toml";
-import type { ProjectConfig, ProjectLocalConfig, WosmConfig } from "../schema";
-import { ProjectLocalConfigSchema } from "../schema";
-import { isNodeError } from "./common";
-import type { ConfigDiagnostic } from "./errors";
-import { configDiagnostic } from "./errors";
-import { normalizeProjectLocalConfig } from "./normalize";
-import { resolveProjectLocalConfigPath } from "./paths";
+import type { ProjectConfig, ProjectLocalConfig, WosmConfig } from "../schema.js";
+import { ProjectLocalConfigSchema } from "../schema.js";
+import { isNodeError } from "./common.js";
+import type { ConfigDiagnostic } from "./errors.js";
+import { configDiagnostic } from "./errors.js";
+import { normalizeProjectLocalConfig } from "./normalize.js";
+import { resolveProjectLocalConfigPath } from "./paths.js";
 
 export async function applyProjectLocalConfigs(
   config: WosmConfig,

@@ -8,7 +8,7 @@ import {
   TerminalTargetIdSchema,
   TimestampSchema,
   WorktreeIdSchema,
-} from "./ids";
+} from "./ids.js";
 import {
   AgentStateSchema,
   ConfidenceSchema,
@@ -17,9 +17,9 @@ import {
   WorktreePullRequestSchema,
   WorktreeSourceSchema,
   WorktreeStateSchema,
-} from "./observations";
-import { HarnessCapabilitiesSchema, ProviderHealthSchema } from "./providers";
-import { nonEmptyStringSchema, optionalProviderDataSchema, safeTextSchema } from "./shared";
+} from "./observations.js";
+import { HarnessCapabilitiesSchema, ProviderHealthSchema } from "./providers.js";
+import { nonEmptyStringSchema, optionalProviderDataSchema, safeTextSchema } from "./shared.js";
 
 export const ProjectDefaultsSchema = z
   .object({

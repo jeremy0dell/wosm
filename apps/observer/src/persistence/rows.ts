@@ -5,7 +5,7 @@ import {
   WosmCommandSchema,
   WosmEventSchema,
 } from "@wosm/contracts";
-import { parseJson } from "./json";
+import { parseJson } from "./json.js";
 import type {
   PersistedCommand,
   PersistedCommandError,
@@ -20,7 +20,7 @@ import type {
   PersistedWorktree,
   ProviderObservationKind,
   ProviderObservationType,
-} from "./types";
+} from "./types.js";
 
 export type CommandRow = {
   id: string;

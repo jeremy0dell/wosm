@@ -1,9 +1,9 @@
 import type { z } from "zod";
-import { ConfigDefaultsSchema, ProjectDefaultsSchema } from "../schema";
-import type { MutableRecord } from "./common";
-import { isRecord } from "./common";
-import { ConfigError, validationError } from "./errors";
-import { resolveConfigPath } from "./paths";
+import { ConfigDefaultsSchema, ProjectDefaultsSchema } from "../schema.js";
+import type { MutableRecord } from "./common.js";
+import { isRecord } from "./common.js";
+import { ConfigError, validationError } from "./errors.js";
+import { resolveConfigPath } from "./paths.js";
 
 type DeriveProjectOptions = { configPath: string; configDir: string; homeDir: string };
 

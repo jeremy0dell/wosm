@@ -1,7 +1,7 @@
 import { parse } from "smol-toml";
-import type { WosmConfig } from "../schema";
-import { WosmConfigSchema } from "../schema";
-import { ConfigError, validationError } from "./errors";
+import type { WosmConfig } from "../schema.js";
+import { WosmConfigSchema } from "../schema.js";
+import { ConfigError, validationError } from "./errors.js";
 
 export function parseGlobalConfig(source: string, configPath: string): unknown {
   try {

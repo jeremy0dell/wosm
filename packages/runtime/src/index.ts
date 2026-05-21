@@ -58,6 +58,11 @@ export type RuntimeSafeErrorFallback = {
   provider?: string;
 };
 
+export type RuntimeTimeoutOptions = {
+  timeoutMs: number;
+  error: RuntimeSafeErrorFallback;
+};
+
 export const systemClock: RuntimeClock = {
   now: () => new Date(),
 };
@@ -125,7 +130,7 @@ export function runtimeBoundaryEffect<T>(
 export async function runRuntimeBoundary<T>(
   input: {
     operation: string;
-    clock?: RuntimeClock;
+    clock?: RuntimeClock | undefined;
     error: RuntimeSafeErrorFallback;
   },
   task: () => Promise<T>,
@@ -170,4 +175,42 @@ export async function runRuntimeBoundary<T>(
       durationMs: durationMs(startedAt, finishedAt),
     },
   };
+}
+
+export function runtimeBoundaryWithTimeoutEffect<T>(
+  input: RuntimeTimeoutOptions,
+  task: () => Promise<T>,
+): Effect.Effect<T, RuntimeSafeError> {
+  return runtimeBoundaryEffect(input, () => withTimeout(task, input));
+}
+
+export async function runRuntimeBoundaryWithTimeout<T>(
+  input: {
+    operation: string;
+    clock?: RuntimeClock | undefined;
+    timeoutMs: number;
+    error: RuntimeSafeErrorFallback;
+  },
+  task: () => Promise<T>,
+): Promise<RuntimeBoundaryResult<T>> {
+  return runRuntimeBoundary(input, () => withTimeout(task, input));
+}
+
+async function withTimeout<T>(task: () => Promise<T>, input: RuntimeTimeoutOptions): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      task(),
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(safeErrorFromUnknown(input.error, input.error)),
+          input.timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+  }
 }

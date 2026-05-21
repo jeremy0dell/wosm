@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ObserverIdFactory } from "./types";
+import type { ObserverIdFactory } from "./types.js";
 
 export const defaultIdFactory: ObserverIdFactory = {
   commandId: () => `cmd_${randomUUID()}`,

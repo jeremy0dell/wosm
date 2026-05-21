@@ -8,7 +8,7 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
-import { latestSchemaVersion, migrations } from "./migrations";
+import { latestSchemaVersion, migrations } from "./migrations/index.js";
 
 export type ObserverSqliteHealthStatus = "healthy" | "unavailable" | "closed";
 

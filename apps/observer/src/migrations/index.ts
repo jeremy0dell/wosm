@@ -1,5 +1,5 @@
-import { observerMetaMigration } from "./001_observer_meta";
-import { persistenceHistoryMigration } from "./002_persistence_history";
+import { observerMetaMigration } from "./001_observer_meta.js";
+import { persistenceHistoryMigration } from "./002_persistence_history.js";
 
 export type ObserverSqliteMigration = {
   version: number;

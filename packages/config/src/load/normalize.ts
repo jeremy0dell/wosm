@@ -1,5 +1,5 @@
-import type { ChildNormalizers, KeyMap, MutableRecord } from "./common";
-import { isRecord } from "./common";
+import type { ChildNormalizers, KeyMap, MutableRecord } from "./common.js";
+import { isRecord } from "./common.js";
 
 export function normalizeGlobalConfig(value: unknown): unknown {
   return normalizeObject(

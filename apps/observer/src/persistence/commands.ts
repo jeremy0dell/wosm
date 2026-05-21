@@ -1,9 +1,14 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CommandId, ErrorEnvelope, SafeError, WosmCommand } from "@wosm/contracts";
 import { ErrorEnvelopeSchema, SafeErrorSchema, WosmCommandSchema } from "@wosm/contracts";
-import { stringifyJson } from "./json";
-import { type CommandErrorRow, type CommandRow, commandErrorFromRow, commandFromRow } from "./rows";
-import type { PersistedCommand, PersistedCommandError } from "./types";
+import { stringifyJson } from "./json.js";
+import {
+  type CommandErrorRow,
+  type CommandRow,
+  commandErrorFromRow,
+  commandFromRow,
+} from "./rows.js";
+import type { PersistedCommand, PersistedCommandError } from "./types.js";
 
 export function recordCommandAccepted(
   database: DatabaseSync,

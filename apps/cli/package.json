@@ -5,9 +5,12 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
+  },
+  "bin": {
+    "wosm": "./dist/main.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -16,6 +19,8 @@
   "dependencies": {
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
-    "@wosm/protocol": "workspace:*"
+    "@wosm/observer": "workspace:*",
+    "@wosm/protocol": "workspace:*",
+    "@wosm/runtime": "workspace:*"
   }
 }

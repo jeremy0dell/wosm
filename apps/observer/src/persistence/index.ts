@@ -1,20 +1,20 @@
 import type { DatabaseSync } from "node:sqlite";
 import { WosmEventSchema } from "@wosm/contracts";
 import { Effect, systemClock, toIsoTimestamp } from "@wosm/runtime";
-import { runSqliteTransactionEffect } from "../sqlite";
-import * as commandStore from "./commands";
-import * as correlationStore from "./correlations";
-import { eventCommandId, eventTimestamp, listEvents, recordEvent } from "./events";
-import { defaultIdFactory } from "./idFactory";
+import { runSqliteTransactionEffect } from "../sqlite.js";
+import * as commandStore from "./commands.js";
+import * as correlationStore from "./correlations.js";
+import { eventCommandId, eventTimestamp, listEvents, recordEvent } from "./events.js";
+import { defaultIdFactory } from "./idFactory.js";
 import {
   insertProviderObservation,
   listProviderObservations,
   pruneExpiredProviderObservations,
-} from "./observations";
-import * as recoveryBreadcrumbStore from "./recoveryBreadcrumbs";
-import type { CreateObserverPersistenceOptions, ObserverPersistence } from "./types";
+} from "./observations.js";
+import * as recoveryBreadcrumbStore from "./recoveryBreadcrumbs.js";
+import type { CreateObserverPersistenceOptions, ObserverPersistence } from "./types.js";
 
-export type * from "./types";
+export type * from "./types.js";
 
 export function createObserverPersistence(
   options: CreateObserverPersistenceOptions,

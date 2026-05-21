@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
-import type { ProjectConfig } from "../schema";
-import { ConfigError } from "./errors";
+import type { ProjectConfig } from "../schema.js";
+import { ConfigError } from "./errors.js";
 
 export async function validateProjectRoots(
   projects: readonly ProjectConfig[],

@@ -18,10 +18,10 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
-import { buildWosmSnapshot, safeErrorToProviderHealth } from "./graph";
-import type { ObserverPersistence } from "./persistence";
-import type { ProviderRegistry } from "./providerRegistry";
-import type { ObserverSqliteHandle, ObserverSqliteHealth } from "./sqlite";
+import { buildWosmSnapshot, safeErrorToProviderHealth } from "./graph.js";
+import type { ObserverPersistence } from "./persistence/index.js";
+import type { ProviderRegistry } from "./providerRegistry.js";
+import type { ObserverSqliteHandle, ObserverSqliteHealth } from "./sqlite.js";
 
 export type ReconcileTiming = {
   reason: string;

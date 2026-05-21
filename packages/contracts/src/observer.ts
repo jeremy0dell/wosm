@@ -1,0 +1,75 @@
+import { z } from "zod";
+import { SafeErrorSchema } from "./errors.js";
+import { ProviderIdSchema, SchemaVersionSchema, TimestampSchema } from "./ids.js";
+import { ProviderHealthSchema } from "./providers.js";
+import { nonEmptyStringSchema } from "./shared.js";
+import { WosmSnapshotSchema } from "./snapshot.js";
+
+export const ObserverHealthStatusSchema = z.enum(["healthy", "degraded", "unavailable"]);
+
+export const ObserverSqliteHealthSummarySchema = z
+  .object({
+    path: nonEmptyStringSchema,
+    open: z.boolean(),
+    status: z.enum(["healthy", "unavailable", "closed"]),
+    schemaVersion: z.number().int().nonnegative(),
+    lastCheckedAt: TimestampSchema,
+    lastError: SafeErrorSchema.optional(),
+  })
+  .passthrough();
+
+export const ObserverReconcileTimingSchema = z
+  .object({
+    reason: nonEmptyStringSchema,
+    startedAt: TimestampSchema,
+    finishedAt: TimestampSchema,
+    durationMs: z.number().nonnegative(),
+    projectsScanned: z.number().int().nonnegative().optional(),
+    worktreesObserved: z.number().int().nonnegative().optional(),
+    terminalTargetsObserved: z.number().int().nonnegative().optional(),
+    harnessRunsObserved: z.number().int().nonnegative().optional(),
+    eventsEmitted: z.number().int().nonnegative().optional(),
+    errors: z.array(SafeErrorSchema).optional(),
+  })
+  .strict();
+
+export const ObserverHealthSchema = z
+  .object({
+    schemaVersion: SchemaVersionSchema,
+    status: ObserverHealthStatusSchema,
+    pid: z.number().int().positive().optional(),
+    startedAt: TimestampSchema.optional(),
+    version: nonEmptyStringSchema.optional(),
+    socketPath: nonEmptyStringSchema.optional(),
+    stateDir: nonEmptyStringSchema.optional(),
+    uptimeMs: z.number().nonnegative().optional(),
+    hookSpoolDepth: z.number().int().nonnegative().optional(),
+    providerHealth: z.record(ProviderIdSchema, ProviderHealthSchema).optional(),
+    sqlite: ObserverSqliteHealthSummarySchema.optional(),
+    lastReconcile: ObserverReconcileTimingSchema.optional(),
+  })
+  .strict();
+
+export type ObserverHealth = z.infer<typeof ObserverHealthSchema>;
+
+export const ObserverStopReceiptSchema = z
+  .object({
+    schemaVersion: SchemaVersionSchema,
+    stopped: z.boolean(),
+    at: TimestampSchema,
+    message: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
+export type ObserverStopReceipt = z.infer<typeof ObserverStopReceiptSchema>;
+
+export const ReconcileReceiptSchema = z
+  .object({
+    schemaVersion: SchemaVersionSchema,
+    reason: nonEmptyStringSchema,
+    reconciledAt: TimestampSchema,
+    snapshot: WosmSnapshotSchema,
+  })
+  .strict();
+
+export type ReconcileReceipt = z.infer<typeof ReconcileReceiptSchema>;

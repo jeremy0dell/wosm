@@ -1,6 +1,6 @@
 import type { z } from "zod";
-import type { ProjectConfig, WosmConfig } from "../schema";
-import { formatZodError } from "./common";
+import type { ProjectConfig, WosmConfig } from "../schema.js";
+import { formatZodError } from "./common.js";
 
 export type ConfigErrorCode =
   | "CONFIG_FILE_NOT_FOUND"

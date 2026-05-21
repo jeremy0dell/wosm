@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
-import { stringifyJson } from "./json";
-import { type RecoveryBreadcrumbRow, recoveryBreadcrumbFromRow } from "./rows";
-import type { PersistedRecoveryBreadcrumb } from "./types";
+import { stringifyJson } from "./json.js";
+import { type RecoveryBreadcrumbRow, recoveryBreadcrumbFromRow } from "./rows.js";
+import type { PersistedRecoveryBreadcrumb } from "./types.js";
 
 export function recordRecoveryBreadcrumb(
   database: DatabaseSync,

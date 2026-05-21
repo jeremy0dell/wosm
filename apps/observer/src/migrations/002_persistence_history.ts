@@ -1,4 +1,4 @@
-import type { ObserverSqliteMigration } from "./index";
+import type { ObserverSqliteMigration } from "./index.js";
 
 export const persistenceHistoryMigration: ObserverSqliteMigration = {
   version: 2,

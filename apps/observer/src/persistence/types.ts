@@ -12,7 +12,7 @@ import type {
   WosmEvent,
 } from "@wosm/contracts";
 import type { RuntimeClock } from "@wosm/runtime";
-import type { ObserverSqliteHandle } from "../sqlite";
+import type { ObserverSqliteHandle } from "../sqlite.js";
 
 export type PersistedCommandStatus = "accepted" | "started" | "succeeded" | "failed";
 

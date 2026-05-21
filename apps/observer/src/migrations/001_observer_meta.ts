@@ -1,4 +1,4 @@
-import type { ObserverSqliteMigration } from "./index";
+import type { ObserverSqliteMigration } from "./index.js";
 
 export const observerMetaMigration: ObserverSqliteMigration = {
   version: 1,

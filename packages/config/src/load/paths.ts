@@ -1,5 +1,5 @@
 import { isAbsolute, join, resolve } from "node:path";
-import type { ProjectConfig } from "../schema";
+import type { ProjectConfig } from "../schema.js";
 
 export const DEFAULT_CONFIG_PATH = "~/.config/wosm/config.toml";
 

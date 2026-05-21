@@ -7,8 +7,8 @@ import {
   TerminalTargetIdSchema,
   TimestampSchema,
   WorktreeIdSchema,
-} from "./ids";
-import { nonEmptyStringSchema, optionalProviderDataSchema } from "./shared";
+} from "./ids.js";
+import { nonEmptyStringSchema, optionalProviderDataSchema } from "./shared.js";
 
 export const ConfidenceSchema = z.enum(["high", "medium", "low"]);
 export const WorktreeStateSchema = z.enum(["exists", "missing", "orphaned"]);

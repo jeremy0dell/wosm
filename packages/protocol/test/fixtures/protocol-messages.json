@@ -1,0 +1,40 @@
+{
+  "request": {
+    "schemaVersion": "0.3.0",
+    "jsonrpc": "2.0",
+    "id": "req_1",
+    "method": "observer.health"
+  },
+  "successResponse": {
+    "schemaVersion": "0.3.0",
+    "jsonrpc": "2.0",
+    "id": "req_1",
+    "result": {
+      "schemaVersion": "0.3.0",
+      "status": "healthy",
+      "pid": 1234,
+      "startedAt": "2026-05-20T12:00:00.000Z",
+      "version": "0.0.0"
+    }
+  },
+  "errorResponse": {
+    "schemaVersion": "0.3.0",
+    "jsonrpc": "2.0",
+    "id": "req_1",
+    "error": {
+      "tag": "ProtocolError",
+      "code": "PROTOCOL_ERROR",
+      "message": "Invalid protocol request."
+    }
+  },
+  "eventEnvelope": {
+    "schemaVersion": "0.3.0",
+    "event": {
+      "type": "hook.ingested",
+      "at": "2026-05-20T12:02:00.000Z",
+      "hookId": "hook_1",
+      "provider": "worktrunk",
+      "event": "worktree.created"
+    }
+  }
+}

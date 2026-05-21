@@ -1,9 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CommandId, WosmEvent } from "@wosm/contracts";
 import { WosmEventSchema } from "@wosm/contracts";
-import { stringifyJson } from "./json";
-import { type EventRow, eventFromRow } from "./rows";
-import type { PersistedEvent } from "./types";
+import { stringifyJson } from "./json.js";
+import { type EventRow, eventFromRow } from "./rows.js";
+import type { PersistedEvent } from "./types.js";
 
 export function recordEvent(
   database: DatabaseSync,

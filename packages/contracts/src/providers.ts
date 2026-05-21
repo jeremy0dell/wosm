@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SafeErrorSchema } from "./errors";
+import { SafeErrorSchema } from "./errors.js";
 import type {
   HarnessRunId,
   ProjectId,
@@ -7,8 +7,8 @@ import type {
   SessionId,
   TerminalTargetId,
   WorktreeId,
-} from "./ids";
-import { ProviderIdSchema, TimestampSchema } from "./ids";
+} from "./ids.js";
+import { ProviderIdSchema, TimestampSchema } from "./ids.js";
 import type {
   HarnessEventObservation,
   HarnessRunObservation,
@@ -16,8 +16,8 @@ import type {
   TerminalIdentityBinding,
   TerminalTargetObservation,
   WorktreeObservation,
-} from "./observations";
-import { nonEmptyStringSchema } from "./shared";
+} from "./observations.js";
+import { nonEmptyStringSchema } from "./shared.js";
 
 export const ProviderTypeSchema = z.enum(["worktree", "terminal", "harness"]);
 export const ProviderHealthStatusSchema = z.enum(["healthy", "degraded", "unavailable", "unknown"]);

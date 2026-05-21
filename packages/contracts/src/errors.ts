@@ -6,8 +6,8 @@ import {
   SessionIdSchema,
   TimestampSchema,
   WorktreeIdSchema,
-} from "./ids";
-import { nonEmptyStringSchema, safeTextSchema } from "./shared";
+} from "./ids.js";
+import { nonEmptyStringSchema, safeTextSchema } from "./shared.js";
 
 export const ErrorSeveritySchema = z.enum(["debug", "info", "warn", "error", "fatal"]);
 

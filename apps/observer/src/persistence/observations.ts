@@ -5,13 +5,13 @@ import {
   TerminalTargetObservationSchema,
   WorktreeObservationSchema,
 } from "@wosm/contracts";
-import { stringifyJson } from "./json";
-import { type ProviderObservationRow, providerObservationFromRow } from "./rows";
+import { stringifyJson } from "./json.js";
+import { type ProviderObservationRow, providerObservationFromRow } from "./rows.js";
 import type {
   PersistedProviderObservation,
   ProviderObservationKind,
   ProviderObservationType,
-} from "./types";
+} from "./types.js";
 
 export function insertProviderObservation(
   database: DatabaseSync,

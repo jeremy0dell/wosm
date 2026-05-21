@@ -1,11 +1,19 @@
 import { readFile } from "node:fs/promises";
 import {
+  CommandRecordSchema,
   ErrorEnvelopeSchema,
+  EventFilterSchema,
   HarnessCapabilitiesSchema,
   HarnessEventObservationSchema,
   HarnessRunObservationSchema,
   HarnessStatusObservationSchema,
+  HookReceiptSchema,
+  HookSpoolRecordSchema,
+  ObserverHealthSchema,
+  ObserverStopReceiptSchema,
   ProviderHealthSchema,
+  ProviderHookEventSchema,
+  ReconcileReceiptSchema,
   SafeErrorSchema,
   TerminalCapabilitiesSchema,
   TerminalIdentityBindingSchema,
@@ -130,6 +138,8 @@ describe("Phase 1 contract schemas", () => {
       "command.failed",
       "command.started",
       "command.succeeded",
+      "hook.ingested",
+      "hook.spoolDrained",
       "observer.reconciled",
       "observer.started",
       "project.updated",
@@ -144,6 +154,119 @@ describe("Phase 1 contract schemas", () => {
     ]);
 
     expectFails(WosmEventSchema, await loadJson("events/invalid-event.json"), "invalid event");
+  });
+
+  it("parses Phase 5 hook, observer, command-record, and event-filter contracts", async () => {
+    const hookEvents = (await loadJson("hooks/provider-hook-events.json")) as Record<
+      string,
+      unknown
+    >;
+    const firstHookEvent = Object.values(hookEvents)[0];
+    const snapshot = (await loadJson("snapshots/snapshot-scenarios.json")) as Record<
+      string,
+      unknown
+    >;
+
+    for (const [name, hookEvent] of Object.entries(hookEvents)) {
+      expectParses(ProviderHookEventSchema, hookEvent, `hook event ${name}`);
+    }
+
+    expectFails(
+      ProviderHookEventSchema,
+      await loadJson("hooks/invalid-provider-hook-event.json"),
+      "invalid hook event",
+    );
+
+    expectParses(
+      HookReceiptSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        hookId: "hook_1",
+        provider: "worktrunk",
+        event: "worktree.created",
+        accepted: true,
+        status: "ingested",
+        receivedAt: "2026-05-20T12:02:00.000Z",
+        reconciled: true,
+      },
+      "hook receipt",
+    );
+
+    expectParses(
+      HookSpoolRecordSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        spoolId: "spool_1",
+        createdAt: "2026-05-20T12:02:01.000Z",
+        event: firstHookEvent,
+        attempts: 0,
+      },
+      "hook spool record",
+    );
+
+    expectParses(
+      ObserverHealthSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        status: "healthy",
+        pid: 1234,
+        startedAt: "2026-05-20T12:00:00.000Z",
+        version: "0.0.0",
+        socketPath: "/tmp/wosm/observer.sock",
+        stateDir: "/tmp/wosm/state",
+        hookSpoolDepth: 0,
+      },
+      "observer health",
+    );
+
+    expectParses(
+      ObserverStopReceiptSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        stopped: true,
+        at: "2026-05-20T12:05:00.000Z",
+      },
+      "observer stop receipt",
+    );
+
+    expectParses(
+      ReconcileReceiptSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        reason: "contract-test",
+        reconciledAt: "2026-05-20T12:05:00.000Z",
+        snapshot: snapshot.noProjects,
+      },
+      "reconcile receipt",
+    );
+
+    expectParses(
+      CommandRecordSchema,
+      {
+        id: "cmd_1",
+        type: "observer.reconcile",
+        command: {
+          type: "observer.reconcile",
+          payload: {
+            reason: "contract-test",
+          },
+        },
+        status: "succeeded",
+        createdAt: "2026-05-20T12:00:00.000Z",
+        startedAt: "2026-05-20T12:00:00.100Z",
+        finishedAt: "2026-05-20T12:00:00.200Z",
+      },
+      "command record",
+    );
+
+    expectParses(
+      EventFilterSchema,
+      {
+        type: ["command.accepted", "hook.ingested"],
+        since: "2026-05-20T12:00:00.000Z",
+      },
+      "event filter",
+    );
   });
 
   it("keeps SafeError safe while allowing rich internal ErrorEnvelope diagnostics", async () => {

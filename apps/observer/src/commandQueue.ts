@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { CommandId, CommandReceipt, WosmCommand } from "@wosm/contracts";
+import type { CommandId, CommandReceipt, WosmCommand, WosmEvent } from "@wosm/contracts";
 import { CommandReceiptSchema, WosmCommandSchema } from "@wosm/contracts";
 import {
   Effect,
@@ -8,8 +8,8 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
-import { createErrorEnvelope, toSafeError } from "./errors";
-import type { ObserverIdFactory, ObserverPersistence } from "./persistence";
+import { createErrorEnvelope, toSafeError } from "./errors.js";
+import type { ObserverIdFactory, ObserverPersistence } from "./persistence/index.js";
 
 export type CommandHandlerContext = {
   commandId: CommandId;
@@ -29,6 +29,9 @@ export type CreateCommandQueueOptions = {
   clock?: RuntimeClock;
   idFactory?: Partial<Pick<ObserverIdFactory, "commandId" | "errorId">>;
   handlers?: Partial<Record<WosmCommand["type"], CommandHandler>>;
+  eventBus?: {
+    publish(event: WosmEvent): void;
+  };
 };
 
 const defaultCommandId = () => `cmd_${randomUUID()}`;
@@ -51,27 +54,33 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
     dispatch: async (inputCommand) => {
       const command = WosmCommandSchema.parse(inputCommand);
       const commandId = idFactory.commandId();
+      const acceptedEvent: WosmEvent = {
+        type: "command.accepted",
+        commandId,
+        command,
+      };
       await options.persistence.recordCommandAccepted({
         commandId,
         command,
         createdAt: now(clock),
       });
-      await options.persistence.recordEvent(
-        {
-          type: "command.accepted",
-          commandId,
-          command,
-        },
-        { commandId, createdAt: now(clock) },
-      );
+      await options.persistence.recordEvent(acceptedEvent, { commandId, createdAt: now(clock) });
+      options.eventBus?.publish(acceptedEvent);
 
       const scope = commandScope(command);
       const previous = scopeChains.get(scope) ?? Promise.resolve();
       const execution = previous.then(() =>
-        executeCommand(options.persistence, handlers, clock, idFactory, {
-          commandId,
-          command,
-        }),
+        executeCommand(
+          options.persistence,
+          handlers,
+          clock,
+          idFactory,
+          {
+            commandId,
+            command,
+          },
+          options.eventBus === undefined ? {} : { eventBus: options.eventBus },
+        ),
       );
       const settled = execution.catch(() => undefined);
       scopeChains.set(scope, settled);
@@ -110,16 +119,23 @@ async function executeCommand(
   clock: RuntimeClock,
   idFactory: Pick<ObserverIdFactory, "errorId">,
   context: CommandHandlerContext,
+  runtime?: {
+    eventBus?: {
+      publish(event: WosmEvent): void;
+    };
+  },
 ): Promise<void> {
   await persistence.markCommandStarted(context.commandId, now(clock));
-  await persistence.recordEvent(
-    {
-      type: "command.started",
-      commandId: context.commandId,
-      command: context.command,
-    },
-    { commandId: context.commandId, createdAt: now(clock) },
-  );
+  const startedEvent: WosmEvent = {
+    type: "command.started",
+    commandId: context.commandId,
+    command: context.command,
+  };
+  await persistence.recordEvent(startedEvent, {
+    commandId: context.commandId,
+    createdAt: now(clock),
+  });
+  runtime?.eventBus?.publish(startedEvent);
 
   const handler = handlers.get(context.command.type) ?? noopHandler;
   const result = await Effect.runPromise(
@@ -143,13 +159,15 @@ async function executeCommand(
 
   if (result.ok) {
     await persistence.markCommandSucceeded(context.commandId, now(clock));
-    await persistence.recordEvent(
-      {
-        type: "command.succeeded",
-        commandId: context.commandId,
-      },
-      { commandId: context.commandId, createdAt: now(clock) },
-    );
+    const succeededEvent: WosmEvent = {
+      type: "command.succeeded",
+      commandId: context.commandId,
+    };
+    await persistence.recordEvent(succeededEvent, {
+      commandId: context.commandId,
+      createdAt: now(clock),
+    });
+    runtime?.eventBus?.publish(succeededEvent);
     return;
   }
 
@@ -179,14 +197,16 @@ async function executeCommand(
     envelope,
     finishedAt: now(clock),
   });
-  await persistence.recordEvent(
-    {
-      type: "command.failed",
-      commandId: context.commandId,
-      error: safeError,
-    },
-    { commandId: context.commandId, createdAt: now(clock) },
-  );
+  const failedEvent: WosmEvent = {
+    type: "command.failed",
+    commandId: context.commandId,
+    error: safeError,
+  };
+  await persistence.recordEvent(failedEvent, {
+    commandId: context.commandId,
+    createdAt: now(clock),
+  });
+  runtime?.eventBus?.publish(failedEvent);
 }
 
 async function noopHandler(): Promise<void> {}

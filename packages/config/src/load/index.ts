@@ -1,15 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
-import { isNodeError } from "./common";
-import { deriveProjectConfig } from "./deriveProjects";
-import type { LoadConfigFromTomlOptions, LoadConfigOptions, LoadedWosmConfig } from "./errors";
-import { ConfigError } from "./errors";
-import { applyProjectLocalConfigs } from "./localConfig";
-import { normalizeGlobalConfig } from "./normalize";
-import { parseGlobalConfig, parseWosmConfig } from "./parseToml";
-import { DEFAULT_CONFIG_PATH, normalizeConfigPath, resolveProjectLocalConfigPath } from "./paths";
-import { validateProjectIdentifiers, validateProjectRoots } from "./validate";
+import { isNodeError } from "./common.js";
+import { deriveProjectConfig } from "./deriveProjects.js";
+import type { LoadConfigFromTomlOptions, LoadConfigOptions, LoadedWosmConfig } from "./errors.js";
+import { ConfigError } from "./errors.js";
+import { applyProjectLocalConfigs } from "./localConfig.js";
+import { normalizeGlobalConfig } from "./normalize.js";
+import { parseGlobalConfig, parseWosmConfig } from "./parseToml.js";
+import {
+  DEFAULT_CONFIG_PATH,
+  normalizeConfigPath,
+  resolveProjectLocalConfigPath,
+} from "./paths.js";
+import { validateProjectIdentifiers, validateProjectRoots } from "./validate.js";
 
 export type {
   ConfigDiagnostic,
@@ -19,9 +23,9 @@ export type {
   LoadConfigFromTomlOptions,
   LoadConfigOptions,
   LoadedWosmConfig,
-} from "./errors";
-export { ConfigError } from "./errors";
-export { DEFAULT_CONFIG_PATH } from "./paths";
+} from "./errors.js";
+export { ConfigError } from "./errors.js";
+export { DEFAULT_CONFIG_PATH } from "./paths.js";
 
 export async function loadConfig(configPath: string): Promise<LoadedWosmConfig>;
 export async function loadConfig(options?: LoadConfigOptions): Promise<LoadedWosmConfig>;
