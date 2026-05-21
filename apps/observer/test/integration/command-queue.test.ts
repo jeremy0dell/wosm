@@ -1,6 +1,6 @@
 import type { WosmCommand } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { createCommandQueue } from "../../src/commandQueue";
+import { createCommandQueue } from "../../src/commands/queue";
 import { createObserverPersistence } from "../../src/persistence";
 import { openObserverSqlite } from "../../src/sqlite";
 

@@ -19,8 +19,8 @@ import {
 import type { RuntimeClock } from "@wosm/runtime";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { doctorWorktrunkHooks } from "@wosm/worktrunk";
-import type { ObserverPersistence } from "./persistence/index.js";
-import type { ObserverCore } from "./reconcile.js";
+import type { ObserverPersistence } from "../persistence/index.js";
+import type { ObserverCore } from "../reconcile/core.js";
 
 export type DiagnosticRuntimePaths = {
   stateDir: string;

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { ProviderProjectConfig, WosmCommand } from "@wosm/contracts";
 import { createFakeHarnessRun, createFakeTerminalTarget, createFakeWorktree } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
-import { createErrorEnvelope, toSafeError } from "../../src/errors";
+import { createErrorEnvelope, toSafeError } from "../../src/diagnostics/errors";
 import { createObserverPersistence } from "../../src/persistence";
 import { openObserverSqlite } from "../../src/sqlite";
 

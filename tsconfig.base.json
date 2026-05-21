@@ -19,9 +19,12 @@
       "@wosm/tui": ["apps/tui/src/index.ts"],
       "@wosm/config": ["packages/config/src/index.ts"],
       "@wosm/contracts": ["packages/contracts/src/index.ts"],
+      "@wosm/codex": ["integrations/harness/codex/src/index.ts"],
+      "@wosm/opencode": ["integrations/harness/opencode/src/index.ts"],
       "@wosm/observability": ["packages/observability/src/index.ts"],
       "@wosm/protocol": ["packages/protocol/src/index.ts"],
       "@wosm/runtime": ["packages/runtime/src/index.ts"],
+      "@wosm/scripted-harness": ["integrations/harness/scripted/src/index.ts"],
       "@wosm/testing": ["packages/testing/src/index.ts"],
       "@wosm/tmux": ["integrations/terminal/tmux/src/index.ts"],
       "@wosm/worktrunk": ["integrations/worktree/worktrunk/src/index.ts"]

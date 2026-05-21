@@ -45,6 +45,33 @@
       "canClassifyStatus": true
     }
   },
+  "harnessLaunchPlan": {
+    "provider": "scripted",
+    "command": "/usr/local/bin/node",
+    "args": [
+      "/tmp/wosm-fixtures/scripted-agent.mjs",
+      "--run-id",
+      "run_web_feature_auth",
+      "--state-dir",
+      "/tmp/wosm-fixtures/state/scripted",
+      "--scenario",
+      "/tmp/wosm-fixtures/scenarios/complete-file-task.json"
+    ],
+    "cwd": "/tmp/wosm-fixtures/web/worktrees/feature-auth",
+    "env": {
+      "WOSM_PROJECT_ID": "web",
+      "WOSM_WORKTREE_ID": "wt_web_feature_auth",
+      "WOSM_WORKTREE_PATH": "/tmp/wosm-fixtures/web/worktrees/feature-auth",
+      "WOSM_HARNESS_PROVIDER": "scripted",
+      "WOSM_SCRIPTED_RUN_ID": "run_web_feature_auth",
+      "WOSM_SCRIPTED_STATE_DIR": "/tmp/wosm-fixtures/state/scripted"
+    },
+    "mode": "interactive",
+    "providerData": {
+      "runner": "scripted-agent",
+      "stateDir": "/tmp/wosm-fixtures/state/scripted"
+    }
+  },
   "worktreeObservations": [
     {
       "id": "wt_web_feature_auth",

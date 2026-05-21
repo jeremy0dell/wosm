@@ -3,8 +3,8 @@ import { join } from "node:path";
 import type { HookReceipt, HookSpoolRecord, ProviderHookEvent, WosmEvent } from "@wosm/contracts";
 import { HookSpoolRecordSchema } from "@wosm/contracts";
 import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
-import type { ObserverEventBus } from "./eventBus.js";
-import type { ObserverPersistence } from "./persistence/index.js";
+import type { ObserverPersistence } from "../persistence/index.js";
+import type { ObserverEventBus } from "../runtime/eventBus.js";
 
 export type HookSpoolDrainResult = {
   scanned: number;

@@ -150,15 +150,20 @@ export type BuildHarnessLaunchRequest = {
   mode?: "interactive" | "exec";
 };
 
-export type HarnessLaunchPlan = {
-  provider: ProviderId;
-  command: string;
-  args: string[];
-  cwd?: string;
-  env?: Record<string, string>;
-  mode: "interactive" | "exec";
-  providerData?: unknown;
-};
+export const HarnessLaunchPlanSchema = z
+  .object({
+    provider: ProviderIdSchema,
+    command: nonEmptyStringSchema,
+    args: z.array(z.string()),
+    cwd: nonEmptyStringSchema.optional(),
+    env: z.record(nonEmptyStringSchema, z.string()).optional(),
+    mode: z.enum(["interactive", "exec"]),
+    displayTitle: nonEmptyStringSchema.optional(),
+    providerData: z.unknown().optional(),
+  })
+  .strict();
+
+export type HarnessLaunchPlan = z.infer<typeof HarnessLaunchPlanSchema>;
 
 export type HarnessDiscoveryContext = {
   projects: ProviderProjectConfig[];

@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { HookReceipt, ProviderHookEvent, WosmEvent } from "@wosm/contracts";
 import { HookReceiptSchema, ProviderHookEventSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
-import type { ObserverEventBus } from "./eventBus.js";
-import type { ObserverPersistence } from "./persistence/index.js";
+import type { ObserverPersistence } from "../persistence/index.js";
+import type { ObserverEventBus } from "../runtime/eventBus.js";
 
 export type HookIngestion = {
   ingest(event: ProviderHookEvent, options?: HookIngestOptions): Promise<HookReceipt>;

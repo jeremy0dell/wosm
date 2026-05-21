@@ -1,6 +1,6 @@
 import type { TerminalProvider } from "@wosm/contracts";
-import type { CommandHandler, CommandHandlerContext } from "./commandQueue.js";
-import type { ObserverCore } from "./reconcile.js";
+import type { ObserverCore } from "../reconcile/core.js";
+import type { CommandHandler, CommandHandlerContext } from "./queue.js";
 
 export type CreateTerminalFocusHandlerOptions = {
   core: ObserverCore;

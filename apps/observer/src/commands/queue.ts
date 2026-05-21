@@ -14,8 +14,8 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
-import { createErrorEnvelope, toSafeError } from "./errors.js";
-import type { ObserverIdFactory, ObserverPersistence } from "./persistence/index.js";
+import { createErrorEnvelope, toSafeError } from "../diagnostics/errors.js";
+import type { ObserverIdFactory, ObserverPersistence } from "../persistence/index.js";
 
 export type CommandHandlerContext = {
   commandId: CommandId;

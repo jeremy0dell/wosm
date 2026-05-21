@@ -19,17 +19,17 @@ import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import type { ObserverApi as ProtocolObserverApi } from "@wosm/protocol";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
-import type { CommandQueue } from "./commandQueue.js";
+import type { CommandQueue } from "../commands/queue.js";
 import {
   collectDiagnosticSnapshot,
   type DiagnosticRuntimePaths,
   runDoctor,
-} from "./diagnostics.js";
+} from "../diagnostics/collector.js";
+import { createHookIngestion, type HookIngestion } from "../hooks/ingestion.js";
+import { drainHookSpool, hookSpoolDepth } from "../hooks/spool.js";
+import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
+import type { ObserverCore } from "../reconcile/core.js";
 import type { ObserverEventBus } from "./eventBus.js";
-import { createHookIngestion, type HookIngestion } from "./hookIngestion.js";
-import { drainHookSpool, hookSpoolDepth } from "./hookSpool.js";
-import type { ObserverPersistence, PersistedCommand } from "./persistence/index.js";
-import type { ObserverCore } from "./reconcile.js";
 
 export type CreateObserverApiOptions = {
   core: ObserverCore;

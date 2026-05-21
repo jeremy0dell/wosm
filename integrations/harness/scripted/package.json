@@ -1,5 +1,5 @@
 {
-  "name": "@wosm/codex",
+  "name": "@wosm/scripted-harness",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@wosm/contracts": "workspace:*",
-    "@wosm/observability": "workspace:*",
-    "@wosm/runtime": "workspace:*"
+    "@wosm/runtime": "workspace:*",
+    "zod": "^4.1.12"
   }
 }

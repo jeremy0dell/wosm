@@ -1,3 +1,5 @@
+import { join } from "node:path";
+import { CodexHarnessProvider } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
 import type {
   HarnessCapabilities,
@@ -11,16 +13,18 @@ import type {
   WorktreeObservation,
   WorktreeProvider,
 } from "@wosm/contracts";
+import { OpenCodeHarnessProvider } from "@wosm/opencode";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
 import { TmuxProvider } from "@wosm/tmux";
 import { WorktrunkProvider } from "@wosm/worktrunk";
-import { ProviderRegistry } from "./providerRegistry.js";
+import { ProviderRegistry } from "./registry.js";
 
 export function createProviderRegistry(config: WosmConfig): ProviderRegistry {
   return new ProviderRegistry({
     worktree: createWorktreeProvider(config),
     terminal: createTerminalProvider(config),
-    harnesses: [new NoopHarnessProvider(config.defaults.harness)],
+    harnesses: createHarnessProviders(config),
   });
 }
 
@@ -47,6 +51,44 @@ function createTerminalProvider(config: WosmConfig): TerminalProvider {
   }
 
   return new NoopTerminalProvider(config.defaults.terminal);
+}
+
+function createHarnessProviders(config: WosmConfig): HarnessProvider[] {
+  const ids = new Set<string>([
+    config.defaults.harness,
+    ...config.projects.map((project) => project.defaults.harness),
+    ...Object.keys(config.harness ?? {}),
+  ]);
+  return [...ids].map((id) => createHarnessProvider(id, config));
+}
+
+function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider {
+  if (id === "scripted") {
+    return new ScriptedAgentHarnessProvider({
+      stateDir: join(config.observer?.stateDir ?? process.cwd(), "scripted"),
+      ...(config.harness?.scripted?.command === undefined
+        ? {}
+        : { nodeCommand: config.harness.scripted.command }),
+    });
+  }
+
+  if (id === "codex") {
+    return new CodexHarnessProvider({
+      ...(config.harness?.codex?.command === undefined
+        ? {}
+        : { command: config.harness.codex.command }),
+    });
+  }
+
+  if (id === "opencode") {
+    return new OpenCodeHarnessProvider({
+      ...(config.harness?.opencode?.command === undefined
+        ? {}
+        : { command: config.harness.opencode.command }),
+    });
+  }
+
+  return new NoopHarnessProvider(id);
 }
 
 function health(providerId: string, providerType: ProviderHealth["providerType"]): ProviderHealth {

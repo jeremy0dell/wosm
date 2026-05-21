@@ -5,6 +5,7 @@ import {
   EventFilterSchema,
   HarnessCapabilitiesSchema,
   HarnessEventObservationSchema,
+  HarnessLaunchPlanSchema,
   HarnessRunObservationSchema,
   HarnessStatusObservationSchema,
   HookReceiptSchema,
@@ -313,6 +314,7 @@ describe("Phase 1 contract schemas", () => {
       "harness capabilities",
     );
     expectParses(ProviderHealthSchema, observations.providerHealth, "provider health");
+    expectParses(HarnessLaunchPlanSchema, observations.harnessLaunchPlan, "harness launch plan");
 
     for (const [index, observation] of (observations.worktreeObservations as unknown[]).entries()) {
       expectParses(WorktreeObservationSchema, observation, `worktree observation ${index}`);

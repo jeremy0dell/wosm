@@ -9,7 +9,7 @@ import {
   RecoveryBreadcrumbError,
   readRecoveryBreadcrumbFile,
   writeRecoveryBreadcrumb,
-} from "../../src/breadcrumbs";
+} from "../../src/hooks/breadcrumbs";
 
 const now = "2026-05-20T12:00:00.000Z";
 

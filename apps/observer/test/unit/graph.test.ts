@@ -6,7 +6,7 @@ import type {
 } from "@wosm/contracts";
 import { WosmSnapshotSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { buildWosmSnapshot, type ObserverGraphProject } from "../../src/graph";
+import { buildWosmSnapshot, type ObserverGraphProject } from "../../src/reconcile/graph";
 
 const generatedAt = "2026-05-20T12:00:00.000Z";
 const observerStartedAt = "2026-05-20T11:55:00.000Z";

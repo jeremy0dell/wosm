@@ -4,17 +4,17 @@ import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { type LoadedWosmConfig, loadConfig, type WosmConfig } from "@wosm/config";
 import { systemClock } from "@wosm/runtime";
+import { createCommandQueue } from "../commands/queue.js";
+import { createTerminalFocusHandler } from "../commands/terminal.js";
+import { hookSpoolDir } from "../hooks/spool.js";
+import { createObserverPersistence } from "../persistence/index.js";
+import { createProviderRegistry } from "../providers/factory.js";
+import { createObserverCore } from "../reconcile/core.js";
+import { openObserverSqlite } from "../sqlite.js";
 import { createObserverApi } from "./api.js";
-import { createCommandQueue } from "./commandQueue.js";
 import { createObserverEventBus } from "./eventBus.js";
-import { hookSpoolDir } from "./hookSpool.js";
 import { createObserverLogger } from "./logging.js";
-import { createObserverPersistence } from "./persistence/index.js";
-import { createProviderRegistry } from "./providerFactory.js";
-import { createObserverCore } from "./reconcile.js";
 import { type ObserverServer, startObserverServer } from "./server.js";
-import { openObserverSqlite } from "./sqlite.js";
-import { createTerminalFocusHandler } from "./terminalCommands.js";
 
 export async function runObserverMain(argv = process.argv.slice(2)): Promise<number> {
   const options = parseArgs(argv);

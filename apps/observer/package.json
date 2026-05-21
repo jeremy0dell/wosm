@@ -16,9 +16,12 @@
   "dependencies": {
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
+    "@wosm/codex": "workspace:*",
+    "@wosm/opencode": "workspace:*",
     "@wosm/observability": "workspace:*",
     "@wosm/protocol": "workspace:*",
     "@wosm/runtime": "workspace:*",
+    "@wosm/scripted-harness": "workspace:*",
     "@wosm/tmux": "workspace:*",
     "@wosm/worktrunk": "workspace:*"
   }

@@ -56,6 +56,9 @@ importers:
 
   apps/observer:
     dependencies:
+      '@wosm/codex':
+        specifier: workspace:*
+        version: link:../../integrations/harness/codex
       '@wosm/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -65,12 +68,18 @@ importers:
       '@wosm/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@wosm/opencode':
+        specifier: workspace:*
+        version: link:../../integrations/harness/opencode
       '@wosm/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@wosm/scripted-harness':
+        specifier: workspace:*
+        version: link:../../integrations/harness/scripted
       '@wosm/tmux':
         specifier: workspace:*
         version: link:../../integrations/terminal/tmux
@@ -110,6 +119,18 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../../packages/runtime
+
+  integrations/harness/scripted:
+    dependencies:
+      '@wosm/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@wosm/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
 
   integrations/terminal/tmux:
     dependencies:

@@ -6,7 +6,7 @@ const roots = ["apps", "packages", "integrations"];
 
 const setTimeoutAllowlist = new Map([
   [
-    "apps/observer/src/main.ts",
+    "apps/observer/src/runtime/main.ts",
     "One-tick deferral lets observer.stop flush its protocol response before shutdown closes the server.",
   ],
 ]);
