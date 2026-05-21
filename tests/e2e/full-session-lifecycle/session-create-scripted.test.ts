@@ -1,0 +1,195 @@
+import { mkdir, mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { WosmConfig } from "@wosm/config";
+import type { WosmEvent } from "@wosm/contracts";
+import {
+  createCommandQueue,
+  createObserverApi,
+  createObserverCore,
+  createObserverEventBus,
+  createObserverPersistence,
+  openObserverSqlite,
+  ProviderRegistry,
+  registerObserverCommandHandlers,
+  startObserverServer,
+} from "@wosm/observer";
+import { createObserverClient } from "@wosm/protocol";
+import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
+import { FakeTerminalProvider, FakeWorktreeProvider } from "@wosm/testing";
+import { describe, expect, it } from "vitest";
+import { runScriptedAgentLaunchPlan } from "../../support/fake-agent";
+import { createTempSocketPath } from "../../support/sockets";
+
+const now = "2026-05-21T12:00:00.000Z";
+
+describe("full session lifecycle e2e", () => {
+  it("creates a scripted session through protocol command dispatch and updates the snapshot", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-session-e2e-"));
+    const stateDir = join(root, "state");
+    const worktreePath = join(root, "worktrees", "task");
+    await mkdir(stateDir, { recursive: true });
+    await mkdir(worktreePath, { recursive: true });
+    const { socketPath } = await createTempSocketPath();
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({ path: join(stateDir, "observer.sqlite"), clock });
+    const ids = observerIds();
+    const persistence = createObserverPersistence({ sqlite, clock, idFactory: ids });
+    const eventBus = createObserverEventBus();
+    const queue = createCommandQueue({ persistence, clock, idFactory: ids, eventBus });
+    const terminal = new FakeTerminalProvider({
+      now,
+      onLaunch: async ({ launchPlan }) => {
+        await runScriptedAgentLaunchPlan(launchPlan);
+      },
+    });
+    const harness = new ScriptedAgentHarnessProvider({
+      stateDir: join(stateDir, "scripted"),
+      scenarioPath: join(
+        process.cwd(),
+        "tests",
+        "agent",
+        "fixtures",
+        "scripted-agent",
+        "complete-file-task.json",
+      ),
+      runId: "run_web_task",
+      now: () => new Date(now),
+    });
+    const config = configFor(root, stateDir, socketPath);
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({
+        now,
+        createPath: () => worktreePath,
+      }),
+      terminal,
+      harnesses: [harness],
+    });
+    const core = createObserverCore({ config, providers, persistence, sqlite, clock });
+    registerObserverCommandHandlers({
+      queue,
+      core,
+      providers,
+      projects: config.projects,
+      persistence,
+      eventBus,
+      clock,
+      idFactory: {
+        sessionId: () => "ses_web_task",
+      },
+    });
+    const api = createObserverApi({
+      core,
+      persistence,
+      commandQueue: queue,
+      eventBus,
+      clock,
+      socketPath,
+      stateDir,
+    });
+    const server = await startObserverServer({ socketPath, api, clock, drainOnStart: false });
+    const client = createObserverClient({ socketPath, requestId: requestIds() });
+
+    try {
+      const stream = client.subscribe({ type: ["command.succeeded", "command.failed"] });
+      const receipt = await client.dispatch({
+        type: "session.create",
+        payload: {
+          projectId: "web",
+          branch: "task",
+          harness: { provider: "scripted", mode: "interactive" },
+          terminal: { provider: "fake-terminal", layout: "agent-build-shell", focus: true },
+          initialPrompt: "Complete the file task.",
+        },
+      });
+      const terminalEvent = await nextCommandTerminalEvent(stream, receipt.commandId);
+
+      expect(terminalEvent.type).toBe("command.succeeded");
+      await expect(readFile(join(worktreePath, "task.txt"), "utf8")).resolves.toBe(
+        "scripted agent completed the file task\n",
+      );
+      await expect(client.getSnapshot()).resolves.toMatchObject({
+        rows: [
+          {
+            id: "wt_web_task",
+            agent: {
+              harness: "scripted",
+              state: "exited",
+              sessionId: "ses_web_task",
+            },
+          },
+        ],
+        sessions: [
+          {
+            id: "ses_web_task",
+            worktreeId: "wt_web_task",
+          },
+        ],
+      });
+      expect(terminal.snapshot().focused).toEqual(["term_fake"]);
+    } finally {
+      await server.close();
+      sqlite.close();
+    }
+  });
+});
+
+async function nextCommandTerminalEvent(
+  events: AsyncIterable<WosmEvent>,
+  commandId: string,
+): Promise<WosmEvent> {
+  for await (const event of events) {
+    if ("commandId" in event && event.commandId === commandId) {
+      return event;
+    }
+  }
+  throw new Error(`No terminal command event for ${commandId}.`);
+}
+
+function configFor(root: string, stateDir: string, socketPath: string): WosmConfig {
+  return {
+    schemaVersion: 1,
+    observer: { stateDir, socketPath },
+    defaults: {
+      worktreeProvider: "fake-worktree",
+      terminal: "fake-terminal",
+      harness: "scripted",
+      layout: "agent-shell",
+    },
+    projects: [
+      {
+        id: "web",
+        label: "web",
+        root,
+        defaults: {
+          harness: "scripted",
+          terminal: "fake-terminal",
+          layout: "agent-shell",
+        },
+        worktrunk: {
+          enabled: true,
+        },
+      },
+    ],
+  };
+}
+
+function observerIds() {
+  let command = 0;
+  let event = 0;
+  let error = 0;
+  let observation = 0;
+  let breadcrumb = 0;
+  return {
+    commandId: () => `cmd_${++command}`,
+    eventId: () => `evt_${++event}`,
+    errorId: () => `err_${++error}`,
+    observationId: () => `obs_${++observation}`,
+    breadcrumbId: () => `crumb_${++breadcrumb}`,
+  };
+}
+
+function requestIds(): () => string {
+  let id = 0;
+  return () => `req_${++id}`;
+}

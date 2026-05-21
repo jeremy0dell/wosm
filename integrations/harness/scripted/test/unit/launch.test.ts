@@ -27,6 +27,8 @@ const request: BuildHarnessLaunchRequest = {
     observedAt: "2026-05-20T12:00:00.000Z",
   },
   mode: "interactive",
+  sessionId: "ses_web_task",
+  initialPrompt: "Complete the scripted file task.",
 };
 
 describe("scripted harness launch plan", () => {
@@ -37,7 +39,6 @@ describe("scripted harness launch plan", () => {
       stateDir: "/tmp/wosm/state/scripted",
       scenarioPath: "/tmp/wosm/scenarios/complete-file-task.json",
       runId: "run_web_task",
-      sessionId: "ses_web_task",
     });
 
     expect(plan).toMatchObject({
@@ -64,5 +65,9 @@ describe("scripted harness launch plan", () => {
       "--scenario",
       "/tmp/wosm/scenarios/complete-file-task.json",
     ]);
+    expect(plan.providerData).toMatchObject({
+      initialPromptProvided: true,
+    });
+    expect(JSON.stringify(plan)).not.toContain("Complete the scripted file task.");
   });
 });

@@ -147,7 +147,12 @@ export type BuildHarnessLaunchRequest = {
   project: ProviderProjectConfig;
   worktree: WorktreeObservation;
   terminalTarget?: TerminalTargetObservation;
+  sessionId?: SessionId;
   mode?: "interactive" | "exec";
+  initialPrompt?: string;
+  profile?: string;
+  approvalPolicy?: string;
+  sandboxMode?: string;
 };
 
 export const HarnessLaunchPlanSchema = z
@@ -164,6 +169,22 @@ export const HarnessLaunchPlanSchema = z
   .strict();
 
 export type HarnessLaunchPlan = z.infer<typeof HarnessLaunchPlanSchema>;
+
+export type TerminalLaunchProcessRequest = {
+  project: ProviderProjectConfig;
+  worktree: WorktreeObservation;
+  terminalTarget: TerminalIdentityBinding;
+  agentEndpointId: string;
+  launchPlan: HarnessLaunchPlan;
+  signal?: AbortSignal;
+};
+
+export type TerminalLaunchProcessResult = {
+  terminalTargetId: TerminalTargetId;
+  agentEndpointId: string;
+  started: boolean;
+  providerData?: unknown;
+};
 
 export type HarnessDiscoveryContext = {
   projects: ProviderProjectConfig[];
@@ -217,6 +238,7 @@ export interface TerminalProvider {
   health(): Promise<ProviderHealth>;
   listTargets(): Promise<TerminalTargetObservation[]>;
   openWorkspace(request: OpenWorkspaceRequest): Promise<OpenWorkspaceResult>;
+  launchProcess?(request: TerminalLaunchProcessRequest): Promise<TerminalLaunchProcessResult>;
   focusTarget(targetId: TerminalTargetId): Promise<void>;
   closeTarget(targetId: TerminalTargetId): Promise<void>;
   captureTarget?(targetId: TerminalTargetId): Promise<TerminalCapture>;

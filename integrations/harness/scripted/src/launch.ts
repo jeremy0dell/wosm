@@ -15,6 +15,7 @@ export function buildScriptedAgentLaunchPlan(
   options: ScriptedLaunchOptions,
 ): HarnessLaunchPlan {
   const runId = options.runId ?? `run_${request.project.id}_${request.worktree.id}`;
+  const sessionId = request.sessionId ?? options.sessionId;
   const runnerPath = options.runnerPath ?? defaultRunnerPath();
   const args = [
     runnerPath,
@@ -31,7 +32,7 @@ export function buildScriptedAgentLaunchPlan(
     WOSM_HARNESS_PROVIDER: "scripted",
     WOSM_SCRIPTED_RUN_ID: runId,
     WOSM_SCRIPTED_STATE_DIR: options.stateDir,
-    ...(options.sessionId === undefined ? {} : { WOSM_SESSION_ID: options.sessionId }),
+    ...(sessionId === undefined ? {} : { WOSM_SESSION_ID: sessionId }),
   };
 
   return {
@@ -47,6 +48,7 @@ export function buildScriptedAgentLaunchPlan(
       runnerPath,
       stateDir: options.stateDir,
       runId,
+      ...(request.initialPrompt === undefined ? {} : { initialPromptProvided: true }),
       ...(options.scenarioPath === undefined ? {} : { scenarioPath: options.scenarioPath }),
     },
   };

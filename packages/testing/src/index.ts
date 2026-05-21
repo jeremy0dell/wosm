@@ -25,6 +25,8 @@ import type {
   SafeError,
   TerminalCapabilities,
   TerminalCapture,
+  TerminalLaunchProcessRequest,
+  TerminalLaunchProcessResult,
   TerminalProvider,
   TerminalState,
   TerminalTargetId,
@@ -76,6 +78,7 @@ type FakeTerminalProviderMethod =
   | "health"
   | "listTargets"
   | "openWorkspace"
+  | "launchProcess"
   | "focusTarget"
   | "closeTarget"
   | "captureTarget"
@@ -136,6 +139,7 @@ export type FakeWorktreeProviderOptions = {
   id?: ProviderId;
   now?: FakeProviderClock;
   worktrees?: WorktreeObservation[];
+  createPath?: (request: CreateWorktreeRequest) => string;
   health?: Partial<ProviderHealth>;
   capabilities?: Partial<WorktreeCapabilities>;
   failures?: FakeProviderFailures<FakeWorktreeProviderMethod>;
@@ -148,6 +152,7 @@ export type FakeTerminalProviderOptions = {
   health?: Partial<ProviderHealth>;
   capabilities?: Partial<TerminalCapabilities>;
   failures?: FakeProviderFailures<FakeTerminalProviderMethod>;
+  onLaunch?: (request: TerminalLaunchProcessRequest) => void | Promise<void>;
 };
 
 export type FakeHarnessProviderOptions = {
@@ -298,6 +303,7 @@ export class FakeWorktreeProvider implements WorktreeProvider {
 
   readonly #now: FakeProviderClock | undefined;
   readonly #worktrees: WorktreeObservation[];
+  readonly #createPath: ((request: CreateWorktreeRequest) => string) | undefined;
   readonly #health: Partial<ProviderHealth> | undefined;
   readonly #capabilities: WorktreeCapabilities;
   readonly #failures: FakeProviderFailures<FakeWorktreeProviderMethod> | undefined;
@@ -306,6 +312,7 @@ export class FakeWorktreeProvider implements WorktreeProvider {
     this.id = options.id ?? "fake-worktree";
     this.#now = options.now;
     this.#worktrees = options.worktrees ?? [];
+    this.#createPath = options.createPath;
     this.#health = options.health;
     this.#capabilities = {
       ...defaultWorktreeCapabilities,
@@ -338,11 +345,12 @@ export class FakeWorktreeProvider implements WorktreeProvider {
 
   async createWorktree(request: CreateWorktreeRequest): Promise<WorktreeObservation> {
     maybeThrow(this.#failures, "createWorktree");
+    const path = this.#createPath?.(request) ?? request.path;
     const worktree = createFakeWorktree({
       provider: this.id,
       projectId: request.project.id,
       branch: request.branch,
-      ...(request.path === undefined ? {} : { path: request.path }),
+      ...(path === undefined ? {} : { path }),
       ...(this.#now === undefined ? {} : { now: this.#now }),
     });
     this.#worktrees.push(worktree);
@@ -388,9 +396,12 @@ export class FakeTerminalProvider implements TerminalProvider {
 
   readonly #now: FakeProviderClock | undefined;
   readonly #targets: TerminalTargetObservation[];
+  readonly #launches: TerminalLaunchProcessRequest[] = [];
+  readonly #focused: TerminalTargetId[] = [];
   readonly #health: Partial<ProviderHealth> | undefined;
   readonly #capabilities: TerminalCapabilities;
   readonly #failures: FakeProviderFailures<FakeTerminalProviderMethod> | undefined;
+  readonly #onLaunch: ((request: TerminalLaunchProcessRequest) => void | Promise<void>) | undefined;
 
   constructor(options: FakeTerminalProviderOptions = {}) {
     this.id = options.id ?? "fake-terminal";
@@ -402,6 +413,7 @@ export class FakeTerminalProvider implements TerminalProvider {
       ...options.capabilities,
     };
     this.#failures = options.failures;
+    this.#onLaunch = options.onLaunch;
   }
 
   capabilities(): TerminalCapabilities {
@@ -450,8 +462,20 @@ export class FakeTerminalProvider implements TerminalProvider {
     };
   }
 
+  async launchProcess(request: TerminalLaunchProcessRequest): Promise<TerminalLaunchProcessResult> {
+    maybeThrow(this.#failures, "launchProcess");
+    this.#launches.push(request);
+    await this.#onLaunch?.(request);
+    return {
+      terminalTargetId: request.terminalTarget.targetId,
+      agentEndpointId: request.agentEndpointId,
+      started: true,
+    };
+  }
+
   async focusTarget(_targetId: TerminalTargetId): Promise<void> {
     maybeThrow(this.#failures, "focusTarget");
+    this.#focused.push(_targetId);
   }
 
   async closeTarget(targetId: TerminalTargetId): Promise<void> {
@@ -475,9 +499,15 @@ export class FakeTerminalProvider implements TerminalProvider {
     maybeThrow(this.#failures, "sendInput");
   }
 
-  snapshot(): { targets: TerminalTargetObservation[] } {
+  snapshot(): {
+    targets: TerminalTargetObservation[];
+    launches: TerminalLaunchProcessRequest[];
+    focused: TerminalTargetId[];
+  } {
     return {
       targets: [...this.#targets],
+      launches: [...this.#launches],
+      focused: [...this.#focused],
     };
   }
 }
@@ -528,6 +558,20 @@ export class FakeHarnessProvider implements HarnessProvider {
       args: [request.project.id, request.worktree.branch],
       cwd: request.worktree.path,
       mode: request.mode ?? "interactive",
+      env: {
+        WOSM_PROJECT_ID: request.project.id,
+        WOSM_WORKTREE_ID: request.worktree.id,
+        WOSM_WORKTREE_PATH: request.worktree.path,
+        WOSM_HARNESS_PROVIDER: this.id,
+        ...(request.sessionId === undefined ? {} : { WOSM_SESSION_ID: request.sessionId }),
+      },
+      providerData: {
+        fake: true,
+        ...(request.initialPrompt === undefined ? {} : { initialPromptProvided: true }),
+        ...(request.profile === undefined ? {} : { profile: request.profile }),
+        ...(request.approvalPolicy === undefined ? {} : { approvalPolicy: request.approvalPolicy }),
+        ...(request.sandboxMode === undefined ? {} : { sandboxMode: request.sandboxMode }),
+      },
     };
   }
 
@@ -586,6 +630,10 @@ export class FakeHarnessProvider implements HarnessProvider {
       runId: request.runId,
       stopped: this.#runs.some((run) => run.id === request.runId),
     };
+  }
+
+  addRun(run: HarnessRunObservation): void {
+    this.#runs.push(run);
   }
 
   snapshot(): { runs: HarnessRunObservation[] } {

@@ -7,9 +7,11 @@ import {
   collectDiagnosticSnapshot,
   createCommandQueue,
   createObserverCore,
+  createObserverEventBus,
   createObserverPersistence,
   openObserverSqlite,
   ProviderRegistry,
+  registerObserverCommandHandlers,
 } from "@wosm/observer";
 import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
 import {
@@ -122,6 +124,95 @@ describe("scripted agent lifecycle", () => {
     expect(manifest.commandIds).toContain(receipt.commandId);
     expect(manifest.traceIds).toContain(receipt.traceId);
     expect(JSON.stringify(diagnostics.providerHealth)).toContain("scripted");
+    sqlite.close();
+  });
+
+  it("launches the deterministic agent through the session.create command path", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-scripted-session-"));
+    const stateDir = join(root, "state");
+    const worktreePath = join(root, "worktree");
+    await mkdir(stateDir, { recursive: true });
+    await mkdir(worktreePath, { recursive: true });
+    const provider = new ScriptedAgentHarnessProvider({
+      stateDir: join(stateDir, "scripted"),
+      scenarioPath: join(
+        process.cwd(),
+        "tests",
+        "agent",
+        "fixtures",
+        "scripted-agent",
+        "complete-file-task.json",
+      ),
+      runId: "run_web_task",
+      now: () => new Date(now),
+    });
+    const terminal = new FakeTerminalProvider({
+      now,
+      onLaunch: async ({ launchPlan }) => {
+        await runScriptedAgentLaunchPlan(launchPlan);
+      },
+    });
+    const sqlite = openObserverSqlite({ path: join(stateDir, "observer.sqlite") });
+    const idFactory = ids();
+    const persistence = createObserverPersistence({ sqlite, idFactory });
+    const eventBus = createObserverEventBus();
+    const queue = createCommandQueue({
+      persistence,
+      idFactory,
+      clock: { now: () => new Date(now) },
+      eventBus,
+    });
+    const testConfig = config(root, stateDir);
+    const worktreeProvider = new FakeWorktreeProvider({
+      createPath: () => worktreePath,
+    });
+    const providers = new ProviderRegistry({
+      worktree: worktreeProvider,
+      terminal,
+      harnesses: [provider],
+    });
+    const core = createObserverCore({
+      config: testConfig,
+      providers,
+      persistence,
+      sqlite,
+      clock: { now: () => new Date(now) },
+    });
+    registerObserverCommandHandlers({
+      queue,
+      core,
+      providers,
+      projects: testConfig.projects,
+      persistence,
+      eventBus,
+      clock: { now: () => new Date(now) },
+      idFactory: {
+        sessionId: () => "ses_web_task",
+      },
+    });
+
+    const receipt = await queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "task",
+        harness: { provider: "scripted", mode: "interactive" },
+        terminal: { provider: "fake-terminal", layout: "agent-build-shell" },
+      },
+    });
+    await queue.drain();
+
+    await expect(readFile(join(worktreePath, "task.txt"), "utf8")).resolves.toBe(
+      "scripted agent completed the file task\n",
+    );
+    expect(core.getSnapshot().rows[0]?.agent).toMatchObject({
+      harness: "scripted",
+      sessionId: "ses_web_task",
+      state: "exited",
+    });
+    await expect(persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
     sqlite.close();
   });
 });

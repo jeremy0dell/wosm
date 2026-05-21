@@ -1,4 +1,7 @@
 export * from "./commands/queue.js";
+export * from "./commands/reconcile.js";
+export * from "./commands/router.js";
+export * from "./commands/session/index.js";
 export * from "./commands/terminal.js";
 export * from "./diagnostics/collector.js";
 export * from "./diagnostics/errors.js";

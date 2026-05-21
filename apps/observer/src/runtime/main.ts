@@ -5,11 +5,11 @@ import { isAbsolute, join, resolve } from "node:path";
 import { type LoadedWosmConfig, loadConfig, type WosmConfig } from "@wosm/config";
 import { systemClock } from "@wosm/runtime";
 import { createCommandQueue } from "../commands/queue.js";
-import { createTerminalFocusHandler } from "../commands/terminal.js";
+import { registerObserverCommandHandlers } from "../commands/router.js";
 import { hookSpoolDir } from "../hooks/spool.js";
 import { createObserverPersistence } from "../persistence/index.js";
 import { createProviderRegistry } from "../providers/factory.js";
-import { createObserverCore } from "../reconcile/core.js";
+import { createObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
 import { openObserverSqlite } from "../sqlite.js";
 import { createObserverApi } from "./api.js";
 import { createObserverEventBus } from "./eventBus.js";
@@ -55,10 +55,16 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     clock,
     logger,
   });
-  commandQueue.registerHandler(
-    "terminal.focus",
-    createTerminalFocusHandler({ core, terminal: providers.terminal }),
-  );
+  registerObserverCommandHandlers({
+    queue: commandQueue,
+    core,
+    providers,
+    projects: providerProjectsFromConfig(config),
+    persistence,
+    eventBus,
+    clock,
+    logger,
+  });
 
   let server: ObserverServer | undefined;
   let stopResolve: () => void = () => undefined;

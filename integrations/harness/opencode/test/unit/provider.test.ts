@@ -28,6 +28,18 @@ describe("OpenCodeHarnessProvider skeleton", () => {
       args: [],
       cwd: "/tmp/wosm/web/task",
       mode: "interactive",
+      env: {
+        WOSM_SESSION_ID: "ses_web_task",
+        WOSM_PROJECT_ID: "web",
+        WOSM_WORKTREE_ID: "wt_web_task",
+        WOSM_WORKTREE_PATH: "/tmp/wosm/web/task",
+        WOSM_HARNESS_PROVIDER: "opencode",
+      },
+      providerData: {
+        skeleton: true,
+        initialPromptProvided: true,
+        profile: "default",
+      },
     });
     await expect(
       provider.discoverRuns({ projects: [], worktrees: [], terminalTargets: [] }),
@@ -73,6 +85,9 @@ function request(): BuildHarnessLaunchRequest {
       observedAt: now,
     },
     mode: "interactive",
+    sessionId: "ses_web_task",
+    initialPrompt: "Do not send this automatically.",
+    profile: "default",
   };
 }
 

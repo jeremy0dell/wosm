@@ -40,7 +40,8 @@ export function toSafeError(
     >
   > = {},
 ): SafeError {
-  const known = isSafeErrorLike(error) ? error : fallback;
+  const knownSafeError = isSafeErrorLike(error) ? error : undefined;
+  const known = knownSafeError ?? fallback;
   const safeMessage = redact(known.message).value;
   return SafeErrorSchema.parse({
     tag: known.tag,
@@ -48,6 +49,12 @@ export function toSafeError(
     message: safeMessage,
     ...(known.hint === undefined ? {} : { hint: redact(known.hint).value }),
     ...(known.provider === undefined ? {} : { provider: known.provider }),
+    ...(knownSafeError?.projectId === undefined ? {} : { projectId: knownSafeError.projectId }),
+    ...(knownSafeError?.worktreeId === undefined ? {} : { worktreeId: knownSafeError.worktreeId }),
+    ...(knownSafeError?.sessionId === undefined ? {} : { sessionId: knownSafeError.sessionId }),
+    ...(knownSafeError?.diagnosticId === undefined
+      ? {}
+      : { diagnosticId: knownSafeError.diagnosticId }),
     ...context,
   });
 }

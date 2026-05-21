@@ -28,6 +28,20 @@ describe("CodexHarnessProvider skeleton", () => {
       args: ["--cd", "/tmp/wosm/web/task"],
       cwd: "/tmp/wosm/web/task",
       mode: "interactive",
+      env: {
+        WOSM_SESSION_ID: "ses_web_task",
+        WOSM_PROJECT_ID: "web",
+        WOSM_WORKTREE_ID: "wt_web_task",
+        WOSM_WORKTREE_PATH: "/tmp/wosm/web/task",
+        WOSM_HARNESS_PROVIDER: "codex",
+      },
+      providerData: {
+        skeleton: true,
+        initialPromptProvided: true,
+        profile: "default",
+        approvalPolicy: "on-request",
+        sandboxMode: "workspace-write",
+      },
     });
     await expect(
       provider.discoverRuns({ projects: [], worktrees: [], terminalTargets: [] }),
@@ -73,6 +87,11 @@ function request(): BuildHarnessLaunchRequest {
       observedAt: now,
     },
     mode: "interactive",
+    sessionId: "ses_web_task",
+    initialPrompt: "Do not send this automatically.",
+    profile: "default",
+    approvalPolicy: "on-request",
+    sandboxMode: "workspace-write",
   };
 }
 

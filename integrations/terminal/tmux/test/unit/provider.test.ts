@@ -151,6 +151,62 @@ describe("TmuxProvider", () => {
     });
   });
 
+  it("launches a structured harness plan in the primary agent pane", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const provider = new TmuxProvider({
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        calls.push(input);
+        return result(input, "");
+      },
+    });
+
+    await expect(
+      provider.launchProcess?.({
+        project,
+        worktree,
+        terminalTarget: {
+          provider: "tmux",
+          targetId: "tmux:wosm:@web-feature-login:%web-feature-login-main",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          sessionId: "ses_web_feature",
+          confidence: "high",
+          reason: "Fixture binding.",
+          providerData: {
+            paneTarget: "wosm:web-feature-login.0",
+          },
+        },
+        agentEndpointId: "%web-feature-login-main",
+        launchPlan: {
+          provider: "codex",
+          command: "codex",
+          args: ["--cd", "/tmp/wosm/web/feature"],
+          cwd: "/tmp/wosm/web/feature",
+          env: {
+            WOSM_SESSION_ID: "ses_web_feature",
+            WOSM_TOKEN: "value with spaces",
+          },
+          mode: "interactive",
+        },
+      }),
+    ).resolves.toMatchObject({
+      started: true,
+      terminalTargetId: "tmux:wosm:@web-feature-login:%web-feature-login-main",
+      agentEndpointId: "%web-feature-login-main",
+    });
+
+    expect(calls.map((call) => call.args)).toEqual([
+      [
+        "send-keys",
+        "-t",
+        "wosm:web-feature-login.0",
+        "cd '/tmp/wosm/web/feature' && env 'WOSM_SESSION_ID=ses_web_feature' 'WOSM_TOKEN=value with spaces' codex --cd '/tmp/wosm/web/feature'",
+        "C-m",
+      ],
+    ]);
+  });
+
   it("aborts tmux subprocesses on timeout with a typed error", async () => {
     let aborted = false;
     const provider = new TmuxProvider({
@@ -165,6 +221,48 @@ describe("TmuxProvider", () => {
     });
 
     await expect(provider.listTargets()).rejects.toMatchObject({
+      tag: "TerminalProviderError",
+      code: "TERMINAL_TMUX_TIMEOUT",
+    });
+    expect(aborted).toBe(true);
+  });
+
+  it("maps launch timeout to a typed terminal provider error", async () => {
+    let aborted = false;
+    const provider = new TmuxProvider({
+      timeoutMs: 5,
+      runner: async (input) =>
+        new Promise((_, reject) => {
+          input.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(Object.assign(new Error("aborted"), { name: "AbortError", code: "ABORT_ERR" }));
+          });
+        }),
+    });
+
+    await expect(
+      provider.launchProcess?.({
+        project,
+        worktree,
+        terminalTarget: {
+          provider: "tmux",
+          targetId: "tmux:wosm:@web-feature-login:%web-feature-login-main",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          sessionId: "ses_web_feature",
+          confidence: "high",
+          reason: "Fixture binding.",
+        },
+        agentEndpointId: "%web-feature-login-main",
+        launchPlan: {
+          provider: "codex",
+          command: "codex",
+          args: [],
+          cwd: "/tmp/wosm/web/feature",
+          mode: "interactive",
+        },
+      }),
+    ).rejects.toMatchObject({
       tag: "TerminalProviderError",
       code: "TERMINAL_TMUX_TIMEOUT",
     });

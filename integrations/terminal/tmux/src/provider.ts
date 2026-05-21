@@ -6,6 +6,8 @@ import type {
   ProviderId,
   TerminalCapabilities,
   TerminalCapture,
+  TerminalLaunchProcessRequest,
+  TerminalLaunchProcessResult,
   TerminalProvider,
   TerminalTargetId,
   TerminalTargetObservation,
@@ -19,6 +21,7 @@ import {
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { TmuxTerminalProviderError, tmuxProviderErrorFromUnknown } from "./errors.js";
+import { renderHarnessLaunchCommand, resolveLaunchPaneTarget } from "./launch.js";
 import { parseTmuxTargetLines, tmuxListTargetsFormat } from "./parse.js";
 import {
   buildTmuxTargetId,
@@ -195,6 +198,28 @@ export class TmuxProvider implements TerminalProvider {
     };
   }
 
+  async launchProcess(request: TerminalLaunchProcessRequest): Promise<TerminalLaunchProcessResult> {
+    const paneTarget = resolveLaunchPaneTarget(request);
+    await this.#run(
+      ["send-keys", "-t", paneTarget, renderHarnessLaunchCommand(request.launchPlan), "C-m"],
+      {
+        operation: "provider.tmux.launchProcess",
+        fallback: {
+          code: "TERMINAL_LAUNCH_FAILED",
+          message: "tmux failed to launch the harness process.",
+        },
+      },
+    );
+    return {
+      terminalTargetId: request.terminalTarget.targetId,
+      agentEndpointId: request.agentEndpointId,
+      started: true,
+      providerData: {
+        paneTarget,
+      },
+    };
+  }
+
   async focusTarget(targetId: TerminalTargetId): Promise<void> {
     const target = parseTargetId(targetId);
     await this.#run(
@@ -340,6 +365,7 @@ export class TmuxProvider implements TerminalProvider {
           | "TERMINAL_CAPTURE_FAILED"
           | "TERMINAL_CLOSE_FAILED"
           | "TERMINAL_FOCUS_FAILED"
+          | "TERMINAL_LAUNCH_FAILED"
           | "TERMINAL_LIST_FAILED"
           | "TERMINAL_OPEN_FAILED"
           | "TERMINAL_SEND_INPUT_FAILED"

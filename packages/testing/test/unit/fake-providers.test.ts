@@ -94,6 +94,60 @@ describe("fake providers", () => {
     ]);
   });
 
+  it("records terminal launch plans against the primary agent target", async () => {
+    const terminal = new FakeTerminalProvider({ now });
+    const worktree = createFakeWorktree({
+      id: "wt_web_task",
+      projectId: "web",
+      branch: "task",
+      now,
+    });
+    const opened = await terminal.openWorkspace({
+      project,
+      worktree,
+      harness: "fake-harness",
+      layout: "agent-shell",
+      sessionId: "ses_web_task",
+    });
+    const harness = new FakeHarnessProvider({ now });
+    const launchPlan = await harness.buildLaunch({
+      project,
+      worktree,
+      sessionId: "ses_web_task",
+      initialPrompt: "Do the deterministic fake task.",
+      mode: "interactive",
+      profile: "default",
+    });
+
+    await expect(
+      terminal.launchProcess?.({
+        project,
+        worktree,
+        terminalTarget: opened.target,
+        agentEndpointId: opened.agentEndpointId,
+        launchPlan,
+      }),
+    ).resolves.toMatchObject({
+      started: true,
+      terminalTargetId: opened.target.targetId,
+      agentEndpointId: opened.agentEndpointId,
+    });
+    expect(terminal.snapshot().launches).toEqual([
+      expect.objectContaining({
+        agentEndpointId: opened.agentEndpointId,
+        launchPlan: expect.objectContaining({
+          env: expect.objectContaining({
+            WOSM_SESSION_ID: "ses_web_task",
+          }),
+          providerData: expect.objectContaining({
+            initialPromptProvided: true,
+            profile: "default",
+          }),
+        }),
+      }),
+    ]);
+  });
+
   it("injects typed provider failures without changing fixture data", async () => {
     const provider = new FakeTerminalProvider({
       now,
