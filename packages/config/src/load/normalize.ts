@@ -13,6 +13,7 @@ export function normalizeGlobalConfig(value: unknown): unknown {
       worktree: normalizeWorktreeProvidersConfig,
       terminal: normalizeTerminalProvidersConfig,
       harness: normalizeHarnessProvidersConfig,
+      observability: normalizeObservabilityConfig,
       projects: normalizeProjects,
     },
   );
@@ -95,6 +96,62 @@ function normalizeHarnessProviderConfig(value: unknown): unknown {
     sandbox_mode: "sandboxMode",
     approval_policy: "approvalPolicy",
     install_hooks: "installHooks",
+  });
+}
+
+function normalizeObservabilityConfig(value: unknown): unknown {
+  return normalizeObject(value, {}, { retention: normalizeRetentionConfig });
+}
+
+function normalizeRetentionConfig(value: unknown): unknown {
+  return normalizeObject(
+    value,
+    {
+      max_days: "maxDays",
+      max_total_mb: "maxTotalMb",
+      max_file_mb: "maxFileMb",
+      max_files_per_component: "maxFilesPerComponent",
+    },
+    {
+      components: normalizeRetentionComponentsConfig,
+      sqlite: normalizeRetentionSqliteConfig,
+      debugBundles: normalizeRetentionDebugBundlesConfig,
+      hookSpool: normalizeRetentionHookSpoolConfig,
+    },
+  );
+}
+
+function normalizeRetentionComponentsConfig(value: unknown): unknown {
+  return normalizeObject(value, {
+    observer_max_mb: "observerMaxMb",
+    cli_max_mb: "cliMaxMb",
+    tui_max_mb: "tuiMaxMb",
+    hook_runner_max_mb: "hookRunnerMaxMb",
+    provider_max_mb: "providerMaxMb",
+  });
+}
+
+function normalizeRetentionSqliteConfig(value: unknown): unknown {
+  return normalizeObject(value, {
+    events_max_days: "eventsMaxDays",
+    commands_max_days: "commandsMaxDays",
+    errors_max_days: "errorsMaxDays",
+    provider_observations_max_days: "providerObservationsMaxDays",
+  });
+}
+
+function normalizeRetentionDebugBundlesConfig(value: unknown): unknown {
+  return normalizeObject(value, {
+    max_bundles: "maxBundles",
+    max_days: "maxDays",
+  });
+}
+
+function normalizeRetentionHookSpoolConfig(value: unknown): unknown {
+  return normalizeObject(value, {
+    delivered_delete_immediately: "deliveredDeleteImmediately",
+    failed_max_days: "failedMaxDays",
+    failed_max_items: "failedMaxItems",
   });
 }
 

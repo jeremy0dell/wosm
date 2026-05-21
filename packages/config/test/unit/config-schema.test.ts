@@ -61,6 +61,31 @@ describe("Phase 1 config schemas", () => {
     ).toBe(false);
   });
 
+  it("validates observability retention config", async () => {
+    const config = ParsedWosmConfigSchema.parse(await loadJson("retention-config.json"));
+
+    expect(config.observability?.retention).toMatchObject({
+      maxDays: 7,
+      maxTotalMb: 128,
+      components: {
+        observerMaxMb: 50,
+      },
+      debugBundles: {
+        maxBundles: 5,
+      },
+    });
+    expect(
+      ParsedWosmConfigSchema.safeParse({
+        ...config,
+        observability: {
+          retention: {
+            maxDays: 0,
+          },
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("validates explicit project recovery breadcrumb opt-in", () => {
     const project = ProjectConfigSchema.parse({
       id: "web",

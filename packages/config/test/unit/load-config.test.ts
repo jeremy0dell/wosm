@@ -473,4 +473,58 @@ trust = "explicit"
       }),
     ]);
   });
+
+  it("normalizes observability retention TOML keys", async () => {
+    const tempDir = await makeTempDir();
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+projects = []
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[observability.retention]
+max_days = 7
+max_total_mb = 128
+max_file_mb = 5
+max_files_per_component = 3
+
+[observability.retention.components]
+observer_max_mb = 50
+hook_runner_max_mb = 10
+
+[observability.retention.sqlite]
+events_max_days = 14
+
+[observability.retention.debug_bundles]
+max_bundles = 5
+
+[observability.retention.hook_spool]
+failed_max_items = 100
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.observability?.retention).toMatchObject({
+      maxDays: 7,
+      maxTotalMb: 128,
+      components: {
+        observerMaxMb: 50,
+        hookRunnerMaxMb: 10,
+      },
+      sqlite: {
+        eventsMaxDays: 14,
+      },
+      debugBundles: {
+        maxBundles: 5,
+      },
+      hookSpool: {
+        failedMaxItems: 100,
+      },
+    });
+  });
 });

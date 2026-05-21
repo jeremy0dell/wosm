@@ -2,6 +2,10 @@ import {
   CommandIdSchema,
   CommandReceiptSchema,
   CommandRecordSchema,
+  DiagnosticCollectionOptionsSchema,
+  DiagnosticSnapshotSchema,
+  DoctorOptionsSchema,
+  DoctorReportSchema,
   EventFilterSchema,
   HookReceiptSchema,
   ObserverHealthSchema,
@@ -28,6 +32,8 @@ export const ProtocolMethodSchema = z.enum([
   "command.get",
   "observer.reconcile",
   "observer.ingestHookEvent",
+  "doctor.run",
+  "diagnostics.collect",
 ]);
 
 export type ProtocolMethod = z.infer<typeof ProtocolMethodSchema>;
@@ -124,6 +130,10 @@ export const HookIngestParamsSchema = z
 
 export const EventsSubscribeParamsSchema = EventFilterSchema.optional();
 
+export const DoctorRunParamsSchema = DoctorOptionsSchema;
+
+export const DiagnosticsCollectParamsSchema = DiagnosticCollectionOptionsSchema;
+
 export const ProtocolResultSchemas = {
   "observer.health": ObserverHealthSchema,
   "observer.stop": ObserverStopReceiptSchema,
@@ -133,6 +143,8 @@ export const ProtocolResultSchemas = {
   "command.get": CommandRecordSchema.nullable(),
   "observer.reconcile": ReconcileReceiptSchema,
   "observer.ingestHookEvent": HookReceiptSchema,
+  "doctor.run": DoctorReportSchema,
+  "diagnostics.collect": DiagnosticSnapshotSchema,
 } as const;
 
 export function protocolSafeError(input: {

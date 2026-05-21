@@ -10,6 +10,7 @@ import type {
   WorktreeObservation,
   WosmSnapshot,
 } from "@wosm/contracts";
+import type { JsonlLogger } from "@wosm/observability";
 import {
   durationMs,
   type RuntimeClock,
@@ -56,6 +57,7 @@ export type CreateObserverCoreInput = {
   clock?: RuntimeClock;
   sqlite?: ObserverSqliteHandle;
   persistence?: ObserverPersistence;
+  logger?: JsonlLogger;
   pid?: number;
   version?: string;
 };
@@ -87,6 +89,7 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
   return {
     reconcile: async (reason = "manual") => {
       const started = toIsoTimestamp(clock.now());
+      await input.logger?.info("Reconcile started.", { reason });
       const errors: SafeError[] = [];
       const worktrees: WorktreeObservation[] = [];
       let terminalTargets: TerminalTargetObservation[] = [];
@@ -120,6 +123,11 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
         );
         if (!result.ok) {
           errors.push(result.error);
+          await input.logger?.error("Worktree provider list failed.", {
+            provider: input.providers.worktree.id,
+            error: result.error,
+            durationMs: result.timing.durationMs,
+          });
           providerHealth[input.providers.worktree.id] = failedProviderHealth({
             providerId: input.providers.worktree.id,
             providerType: "worktree",
@@ -160,6 +168,11 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
         terminalTargets = terminalResult.value;
       } else {
         errors.push(terminalResult.error);
+        await input.logger?.error("Terminal provider list failed.", {
+          provider: input.providers.terminal.id,
+          error: terminalResult.error,
+          durationMs: terminalResult.timing.durationMs,
+        });
         providerHealth[input.providers.terminal.id] = failedProviderHealth({
           providerId: input.providers.terminal.id,
           providerType: "terminal",
@@ -205,6 +218,11 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
           harnessRuns = [...harnessRuns, ...result.value];
         } else {
           errors.push(result.error);
+          await input.logger?.error("Harness provider discovery failed.", {
+            provider: provider.id,
+            error: result.error,
+            durationMs: result.timing.durationMs,
+          });
           providerHealth[provider.id] = failedProviderHealth({
             providerId: provider.id,
             providerType: "harness",
@@ -264,6 +282,16 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
         );
         lastReconcile.eventsEmitted = 1;
       }
+
+      await input.logger?.info("Reconcile finished.", {
+        reason,
+        durationMs: lastReconcile.durationMs,
+        projectsScanned,
+        worktreesObserved: worktrees.length,
+        terminalTargetsObserved: terminalTargets.length,
+        harnessRunsObserved: harnessRuns.length,
+        errorCount: errors.length,
+      });
 
       return snapshot;
     },

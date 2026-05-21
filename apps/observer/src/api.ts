@@ -1,6 +1,11 @@
+import type { ConfigDiagnostic, WosmConfig } from "@wosm/config";
 import type {
   CommandId,
   CommandRecord,
+  DiagnosticCollectionOptions,
+  DiagnosticSnapshot,
+  DoctorOptions,
+  DoctorReport,
   EventFilter,
   HookReceipt,
   ObserverStopReceipt,
@@ -11,9 +16,15 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import type { JsonlLogger } from "@wosm/observability";
 import type { ObserverApi as ProtocolObserverApi } from "@wosm/protocol";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import type { CommandQueue } from "./commandQueue.js";
+import {
+  collectDiagnosticSnapshot,
+  type DiagnosticRuntimePaths,
+  runDoctor,
+} from "./diagnostics.js";
 import type { ObserverEventBus } from "./eventBus.js";
 import { createHookIngestion, type HookIngestion } from "./hookIngestion.js";
 import { drainHookSpool, hookSpoolDepth } from "./hookSpool.js";
@@ -30,6 +41,12 @@ export type CreateObserverApiOptions = {
   hookSpoolDir?: string;
   socketPath?: string;
   stateDir?: string;
+  diagnosticsDir?: string;
+  logPaths?: string[];
+  logger?: JsonlLogger;
+  config?: WosmConfig;
+  configPath?: string;
+  configDiagnostics?: ConfigDiagnostic[];
   onStop?: () => Promise<void> | void;
 };
 
@@ -91,6 +108,12 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       const command = await options.persistence.getCommand(commandId);
       return command === undefined ? undefined : toCommandRecord(command);
     },
+    runDoctor: async (doctorOptions?: DoctorOptions): Promise<DoctorReport> =>
+      runDoctor(diagnosticDeps(), doctorOptions),
+    collectDiagnostics: async (
+      diagnosticOptions?: DiagnosticCollectionOptions,
+    ): Promise<DiagnosticSnapshot> =>
+      collectDiagnosticSnapshot(diagnosticDeps(), diagnosticOptions),
     reconcile: async (reason = "manual"): Promise<ReconcileReceipt> => {
       if (!reconciling) {
         reconciling = true;
@@ -167,6 +190,28 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
   }
 
   return api;
+
+  function diagnosticDeps() {
+    const stateDir = options.stateDir ?? process.cwd();
+    const paths: DiagnosticRuntimePaths = {
+      stateDir,
+      ...(options.socketPath === undefined ? {} : { socketPath: options.socketPath }),
+      ...(options.hookSpoolDir === undefined ? {} : { hookSpoolDir: options.hookSpoolDir }),
+      diagnosticsDir: options.diagnosticsDir ?? `${stateDir}/diagnostics`,
+      ...(options.logPaths === undefined ? {} : { logPaths: options.logPaths }),
+    };
+    return {
+      config: options.config ?? emptyConfig(),
+      ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
+      ...(options.configDiagnostics === undefined
+        ? {}
+        : { configDiagnostics: options.configDiagnostics }),
+      core: options.core,
+      persistence: options.persistence,
+      paths,
+      clock,
+    };
+  }
 }
 
 function toCommandRecord(command: PersistedCommand): CommandRecord {
@@ -178,6 +223,21 @@ function toCommandRecord(command: PersistedCommand): CommandRecord {
     createdAt: command.createdAt,
     ...(command.startedAt === undefined ? {} : { startedAt: command.startedAt }),
     ...(command.finishedAt === undefined ? {} : { finishedAt: command.finishedAt }),
+    ...(command.traceId === undefined ? {} : { traceId: command.traceId }),
+    ...(command.spanId === undefined ? {} : { spanId: command.spanId }),
     ...(command.error === undefined ? {} : { error: command.error }),
+  };
+}
+
+function emptyConfig(): WosmConfig {
+  return {
+    schemaVersion: 1,
+    defaults: {
+      worktreeProvider: "noop-worktree",
+      terminal: "noop-terminal",
+      harness: "noop-harness",
+      layout: "agent-shell",
+    },
+    projects: [],
   };
 }

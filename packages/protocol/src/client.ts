@@ -2,6 +2,10 @@ import type {
   CommandId,
   CommandReceipt,
   CommandRecord,
+  DiagnosticCollectionOptions,
+  DiagnosticSnapshot,
+  DoctorOptions,
+  DoctorReport,
   EventFilter,
   HookReceipt,
   ObserverHealth,
@@ -15,6 +19,8 @@ import type {
 import {
   CommandReceiptSchema,
   CommandRecordSchema,
+  DiagnosticSnapshotSchema,
+  DoctorReportSchema,
   HookReceiptSchema,
   ObserverHealthSchema,
   ObserverStopReceiptSchema,
@@ -40,6 +46,8 @@ export type ObserverClient = {
   getCommand(commandId: CommandId): Promise<CommandRecord | undefined>;
   reconcile(reason?: string): Promise<ReconcileReceipt>;
   ingestHookEvent(event: ProviderHookEvent): Promise<HookReceipt>;
+  runDoctor(options?: DoctorOptions): Promise<DoctorReport>;
+  collectDiagnostics(options?: DiagnosticCollectionOptions): Promise<DiagnosticSnapshot>;
 };
 
 export type CreateObserverClientOptions = {
@@ -78,6 +86,12 @@ export function createObserverClient(options: CreateObserverClientOptions): Obse
     ingestHookEvent: async (event) =>
       HookReceiptSchema.parse(
         await call(options, requestId(), "observer.ingestHookEvent", { event }),
+      ),
+    runDoctor: async (params) =>
+      DoctorReportSchema.parse(await call(options, requestId(), "doctor.run", params)),
+    collectDiagnostics: async (params) =>
+      DiagnosticSnapshotSchema.parse(
+        await call(options, requestId(), "diagnostics.collect", params),
       ),
     subscribe: (filter) => subscribe(options, requestId(), filter),
   };

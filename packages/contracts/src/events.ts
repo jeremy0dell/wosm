@@ -33,6 +33,11 @@ export const WosmEventTypeSchema = z.enum([
   "hook.spoolDrained",
 ]);
 
+const DiagnosticEventFields = {
+  traceId: nonEmptyStringSchema.optional(),
+  spanId: nonEmptyStringSchema.optional(),
+};
+
 export const WosmEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("observer.started"), at: TimestampSchema }).strict(),
   z
@@ -40,6 +45,7 @@ export const WosmEventSchema = z.discriminatedUnion("type", [
       type: z.literal("observer.reconciled"),
       at: TimestampSchema,
       changed: z.number().int().nonnegative(),
+      ...DiagnosticEventFields,
     })
     .strict(),
   z.object({ type: z.literal("project.updated"), projectId: ProjectIdSchema }).strict(),
@@ -73,6 +79,7 @@ export const WosmEventSchema = z.discriminatedUnion("type", [
       type: z.literal("command.accepted"),
       commandId: CommandIdSchema,
       command: WosmCommandSchema,
+      ...DiagnosticEventFields,
     })
     .strict(),
   z
@@ -80,14 +87,22 @@ export const WosmEventSchema = z.discriminatedUnion("type", [
       type: z.literal("command.started"),
       commandId: CommandIdSchema,
       command: WosmCommandSchema,
+      ...DiagnosticEventFields,
     })
     .strict(),
-  z.object({ type: z.literal("command.succeeded"), commandId: CommandIdSchema }).strict(),
+  z
+    .object({
+      type: z.literal("command.succeeded"),
+      commandId: CommandIdSchema,
+      ...DiagnosticEventFields,
+    })
+    .strict(),
   z
     .object({
       type: z.literal("command.failed"),
       commandId: CommandIdSchema,
       error: SafeErrorSchema,
+      ...DiagnosticEventFields,
     })
     .strict(),
   z
@@ -122,6 +137,7 @@ export const EventFilterSchema = z
   .object({
     type: z.union([WosmEventTypeSchema, z.array(WosmEventTypeSchema).min(1)]).optional(),
     commandId: CommandIdSchema.optional(),
+    traceId: nonEmptyStringSchema.optional(),
     since: TimestampSchema.optional(),
   })
   .strict();

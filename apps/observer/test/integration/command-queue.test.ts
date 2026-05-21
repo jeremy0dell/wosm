@@ -70,6 +70,8 @@ describe("observer command queue", () => {
 
     expect(receipt).toEqual({
       commandId: "cmd_1",
+      traceId: expect.stringMatching(/^trc_/),
+      spanId: expect.stringMatching(/^spn_/),
       accepted: true,
       status: "accepted",
     });
@@ -78,11 +80,21 @@ describe("observer command queue", () => {
       expect.objectContaining({
         id: "cmd_1",
         status: "succeeded",
+        traceId: receipt.traceId,
+        spanId: receipt.spanId,
       }),
     ]);
-    expect(
-      (await persistence.listEvents({ commandId: "cmd_1" })).map((event) => event.type),
-    ).toEqual(["command.accepted", "command.started", "command.succeeded"]);
+    const events = await persistence.listEvents({ commandId: "cmd_1" });
+    expect(events.map((event) => event.type)).toEqual([
+      "command.accepted",
+      "command.started",
+      "command.succeeded",
+    ]);
+    expect(events.map((event) => event.traceId)).toEqual([
+      receipt.traceId,
+      receipt.traceId,
+      receipt.traceId,
+    ]);
     sqlite.close();
   });
 

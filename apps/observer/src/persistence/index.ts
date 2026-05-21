@@ -71,6 +71,8 @@ export function createObserverPersistence(
           source: eventOptions.source ?? "observer",
           createdAt,
           ...(commandId === undefined ? {} : { commandId }),
+          ...(eventOptions.traceId === undefined ? {} : { traceId: eventOptions.traceId }),
+          ...(eventOptions.spanId === undefined ? {} : { spanId: eventOptions.spanId }),
         });
       }),
 

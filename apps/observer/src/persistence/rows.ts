@@ -30,6 +30,8 @@ export type CommandRow = {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  trace_id: string | null;
+  span_id: string | null;
   error_json: string | null;
 };
 
@@ -45,6 +47,8 @@ export type EventRow = {
   type: WosmEvent["type"];
   source: string;
   command_id: string | null;
+  trace_id: string | null;
+  span_id: string | null;
   payload_json: string;
   created_at: string;
 };
@@ -143,6 +147,8 @@ export function commandFromRow(row: CommandRow): PersistedCommand {
     createdAt: row.created_at,
     ...(row.started_at === null ? {} : { startedAt: row.started_at }),
     ...(row.finished_at === null ? {} : { finishedAt: row.finished_at }),
+    ...(row.trace_id === null ? {} : { traceId: row.trace_id }),
+    ...(row.span_id === null ? {} : { spanId: row.span_id }),
     ...(row.error_json === null ? {} : { error: SafeErrorSchema.parse(parseJson(row.error_json)) }),
   };
 }
@@ -165,6 +171,8 @@ export function eventFromRow(row: EventRow): PersistedEvent {
     event,
     createdAt: row.created_at,
     ...(row.command_id === null ? {} : { commandId: row.command_id }),
+    ...(row.trace_id === null ? {} : { traceId: row.trace_id }),
+    ...(row.span_id === null ? {} : { spanId: row.span_id }),
   };
 }
 

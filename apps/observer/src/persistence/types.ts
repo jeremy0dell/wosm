@@ -32,6 +32,8 @@ export type PersistedCommand = {
   createdAt: string;
   startedAt?: string;
   finishedAt?: string;
+  traceId?: string;
+  spanId?: string;
   error?: SafeError;
 };
 
@@ -42,6 +44,8 @@ export type PersistedEvent = {
   event: WosmEvent;
   createdAt: string;
   commandId?: CommandId;
+  traceId?: string;
+  spanId?: string;
 };
 
 export type PersistedCommandError = {
@@ -159,6 +163,8 @@ export type ObserverPersistence = {
     commandId: CommandId;
     command: WosmCommand;
     createdAt?: string;
+    traceId?: string;
+    spanId?: string;
   }): Promise<PersistedCommand>;
   markCommandStarted(commandId: CommandId, startedAt?: string): Promise<PersistedCommand>;
   markCommandSucceeded(commandId: CommandId, finishedAt?: string): Promise<PersistedCommand>;
@@ -173,7 +179,13 @@ export type ObserverPersistence = {
   listCommandErrors(commandId?: CommandId): Promise<PersistedCommandError[]>;
   recordEvent(
     event: WosmEvent,
-    options?: { source?: string; commandId?: CommandId; createdAt?: string },
+    options?: {
+      source?: string;
+      commandId?: CommandId;
+      traceId?: string;
+      spanId?: string;
+      createdAt?: string;
+    },
   ): Promise<PersistedEvent>;
   listEvents(filter?: {
     commandId?: CommandId;

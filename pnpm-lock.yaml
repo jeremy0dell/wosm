@@ -35,6 +35,9 @@ importers:
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@wosm/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@wosm/observer':
         specifier: workspace:*
         version: link:../observer
@@ -143,6 +146,9 @@ importers:
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@wosm/runtime':
+        specifier: workspace:*
+        version: link:../runtime
 
   packages/protocol:
     dependencies:

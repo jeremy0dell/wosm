@@ -36,5 +36,24 @@
       "provider": "worktrunk",
       "event": "worktree.created"
     }
+  },
+  "doctorRequest": {
+    "schemaVersion": "0.3.0",
+    "jsonrpc": "2.0",
+    "id": "req_doctor",
+    "method": "doctor.run",
+    "params": {
+      "projectId": "web"
+    }
+  },
+  "diagnosticsRequest": {
+    "schemaVersion": "0.3.0",
+    "jsonrpc": "2.0",
+    "id": "req_diag",
+    "method": "diagnostics.collect",
+    "params": {
+      "commandId": "cmd_1",
+      "includeLogs": true
+    }
   }
 }

@@ -50,6 +50,36 @@
       "installHooks": true
     }
   },
+  "observability": {
+    "retention": {
+      "maxDays": 14,
+      "maxTotalMb": 250,
+      "maxFileMb": 10,
+      "maxFilesPerComponent": 5,
+      "components": {
+        "observerMaxMb": 100,
+        "cliMaxMb": 25,
+        "tuiMaxMb": 25,
+        "hookRunnerMaxMb": 25,
+        "providerMaxMb": 75
+      },
+      "sqlite": {
+        "eventsMaxDays": 30,
+        "commandsMaxDays": 60,
+        "errorsMaxDays": 60,
+        "providerObservationsMaxDays": 14
+      },
+      "debugBundles": {
+        "maxBundles": 10,
+        "maxDays": 30
+      },
+      "hookSpool": {
+        "deliveredDeleteImmediately": true,
+        "failedMaxDays": 7,
+        "failedMaxItems": 1000
+      }
+    }
+  },
   "projects": [
     {
       "id": "web",

@@ -2,7 +2,7 @@
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
-import { loadConfig, type WosmConfig } from "@wosm/config";
+import { type LoadedWosmConfig, loadConfig, type WosmConfig } from "@wosm/config";
 import type {
   HarnessCapabilities,
   HarnessProvider,
@@ -20,6 +20,7 @@ import { createObserverApi } from "./api.js";
 import { createCommandQueue } from "./commandQueue.js";
 import { createObserverEventBus } from "./eventBus.js";
 import { hookSpoolDir } from "./hookSpool.js";
+import { createObserverLogger } from "./logging.js";
 import { createObserverPersistence } from "./persistence/index.js";
 import { ProviderRegistry } from "./providerRegistry.js";
 import { createObserverCore } from "./reconcile.js";
@@ -28,10 +29,16 @@ import { openObserverSqlite } from "./sqlite.js";
 
 export async function runObserverMain(argv = process.argv.slice(2)): Promise<number> {
   const options = parseArgs(argv);
-  const config =
+  const loadedConfig: LoadedWosmConfig =
     options.configPath === undefined
-      ? emptyConfig()
-      : (await loadConfig(options.configPath)).config;
+      ? {
+          configPath: "",
+          config: emptyConfig(),
+          projects: [],
+          diagnostics: [],
+        }
+      : await loadConfig(options.configPath);
+  const config = loadedConfig.config;
   const homeDir = homedir();
   const stateDir = resolvePath(
     options.stateDir ?? config.observer?.stateDir ?? "~/.local/state/wosm",
@@ -48,7 +55,8 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
   });
   const persistence = createObserverPersistence({ sqlite, clock });
   const eventBus = createObserverEventBus();
-  const commandQueue = createCommandQueue({ persistence, clock, eventBus });
+  const logger = createObserverLogger({ stateDir, clock });
+  const commandQueue = createCommandQueue({ persistence, clock, eventBus, logger });
   const providers = createNoopProviders(config);
   const core = createObserverCore({
     config,
@@ -56,6 +64,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     persistence,
     sqlite,
     clock,
+    logger,
   });
 
   let server: ObserverServer | undefined;
@@ -71,7 +80,13 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     hookSpoolDir: spoolDir,
     socketPath,
     stateDir,
+    diagnosticsDir: join(stateDir, "diagnostics"),
+    logPaths: [logger.path],
+    config,
+    ...(options.configPath === undefined ? {} : { configPath: loadedConfig.configPath }),
+    configDiagnostics: loadedConfig.diagnostics,
     clock,
+    logger,
     onStop: () => {
       setTimeout(() => {
         void server?.close().finally(stopResolve);

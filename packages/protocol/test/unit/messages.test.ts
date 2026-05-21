@@ -20,6 +20,8 @@ describe("protocol message envelopes", () => {
     expect(ProtocolResponseSchema.safeParse(messages.successResponse).success).toBe(true);
     expect(ProtocolResponseSchema.safeParse(messages.errorResponse).success).toBe(true);
     expect(ProtocolEventEnvelopeSchema.safeParse(messages.eventEnvelope).success).toBe(true);
+    expect(ProtocolRequestSchema.safeParse(messages.doctorRequest).success).toBe(true);
+    expect(ProtocolRequestSchema.safeParse(messages.diagnosticsRequest).success).toBe(true);
   });
 
   it("rejects unknown protocol methods", () => {

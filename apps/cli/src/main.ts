@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { loadConfig } from "@wosm/config";
+import { runDebugBundleCommand } from "./commands/debugBundle.js";
+import { runDoctorCommand } from "./commands/doctor.js";
 import { runHookCommand } from "./commands/hook.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
 import type { HookReceiverDeps } from "./hookReceiver.js";
@@ -31,6 +33,24 @@ export async function runCli(
       options.observerDeps,
     );
     return { code: 0, output: observerCommandSummary(result) };
+  }
+
+  if (command === "doctor") {
+    const result = await runDoctorCommand(
+      args.slice(1),
+      { config, configPath },
+      options.observerDeps,
+    );
+    return { code: result.status === "unavailable" ? 1 : 0, output: result };
+  }
+
+  if (command === "debug" && args[1] === "bundle") {
+    const result = await runDebugBundleCommand(
+      args.slice(2),
+      { config, configPath },
+      options.observerDeps,
+    );
+    return { code: 0, output: result };
   }
 
   if (command === "hook") {

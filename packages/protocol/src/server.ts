@@ -2,6 +2,10 @@ import type {
   CommandId,
   CommandReceipt,
   CommandRecord,
+  DiagnosticCollectionOptions,
+  DiagnosticSnapshot,
+  DoctorOptions,
+  DoctorReport,
   EventFilter,
   HookReceipt,
   ObserverHealth,
@@ -16,6 +20,8 @@ import { SafeErrorSchema } from "@wosm/contracts";
 import {
   CommandDispatchParamsSchema,
   CommandGetParamsSchema,
+  DiagnosticsCollectParamsSchema,
+  DoctorRunParamsSchema,
   EventsSubscribeParamsSchema,
   HookIngestParamsSchema,
   PROTOCOL_SCHEMA_VERSION,
@@ -39,6 +45,8 @@ export type ObserverApi = {
   getCommand(commandId: CommandId): Promise<CommandRecord | undefined>;
   reconcile(reason?: string): Promise<ReconcileReceipt>;
   ingestHookEvent(event: ProviderHookEvent): Promise<HookReceipt>;
+  runDoctor(options?: DoctorOptions): Promise<DoctorReport>;
+  collectDiagnostics(options?: DiagnosticCollectionOptions): Promise<DiagnosticSnapshot>;
 };
 
 export type ProtocolServerOptions = {
@@ -117,6 +125,18 @@ async function routeRequest(
         const params = HookIngestParamsSchema.parse(request.params);
         const result = await api.ingestHookEvent(params.event);
         sendResult(connection, request.id, "observer.ingestHookEvent", result);
+        return;
+      }
+      case "doctor.run": {
+        const params = DoctorRunParamsSchema.parse(request.params);
+        const result = await api.runDoctor(params);
+        sendResult(connection, request.id, "doctor.run", result);
+        return;
+      }
+      case "diagnostics.collect": {
+        const params = DiagnosticsCollectParamsSchema.parse(request.params);
+        const result = await api.collectDiagnostics(params);
+        sendResult(connection, request.id, "diagnostics.collect", result);
         return;
       }
       case "events.subscribe": {

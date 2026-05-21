@@ -1,5 +1,7 @@
 import type {
   CommandRecord,
+  DiagnosticSnapshot,
+  DoctorReport,
   HookReceipt,
   ObserverHealth,
   ObserverStopReceipt,
@@ -67,6 +69,15 @@ describe("protocol client/server", () => {
     await expect(client.reconcile("manual")).resolves.toMatchObject({
       schemaVersion: WOSM_SCHEMA_VERSION,
       reason: "manual",
+    });
+    await expect(client.runDoctor()).resolves.toMatchObject({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      status: "healthy",
+    });
+    await expect(client.collectDiagnostics()).resolves.toMatchObject({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      commands: [],
+      events: [],
     });
 
     const hookEvent: ProviderHookEvent = {
@@ -196,6 +207,8 @@ function fakeApi(overrides: Partial<ObserverApi> & { snapshot?: WosmSnapshot } =
       receivedAt: event.receivedAt,
       reconciled: true,
     }),
+    runDoctor: async (): Promise<DoctorReport> => doctorReport(snapshot),
+    collectDiagnostics: async (): Promise<DiagnosticSnapshot> => diagnosticSnapshot(snapshot),
     ...overrides,
   };
 }
@@ -232,6 +245,98 @@ function emptySnapshot(): WosmSnapshot {
 function ids(prefix: string): () => string {
   let id = 0;
   return () => `${prefix}_${++id}`;
+}
+
+function diagnosticSnapshot(snapshot: WosmSnapshot): DiagnosticSnapshot {
+  return {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    collectedAt: now,
+    observerHealth: {
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      status: "healthy",
+      pid: 1234,
+      startedAt: now,
+      version: "0.0.0",
+    },
+    snapshot,
+    providerHealth: {},
+    commands: [],
+    events: [],
+    errors: [],
+    logs: [],
+  };
+}
+
+function doctorReport(snapshot: WosmSnapshot): DoctorReport {
+  return {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    generatedAt: now,
+    status: "healthy",
+    checks: [
+      {
+        name: "observer",
+        status: "ok",
+        message: "Observer is healthy.",
+      },
+    ],
+    observer: {
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      status: "healthy",
+      pid: 1234,
+      startedAt: now,
+      version: "0.0.0",
+    },
+    config: {
+      projectCount: 0,
+      diagnostics: [],
+    },
+    providers: {},
+    snapshot,
+    logs: {
+      paths: [],
+      recent: [],
+    },
+    localState: {
+      stateDir: "/tmp/wosm/state",
+      totalBytes: 0,
+      limitBytes: 262144000,
+      overLimit: false,
+      entries: [],
+    },
+    retention: {
+      maxDays: 14,
+      maxTotalMb: 250,
+      maxFileMb: 10,
+      maxFilesPerComponent: 5,
+      components: {
+        observerMaxMb: 100,
+        cliMaxMb: 25,
+        tuiMaxMb: 25,
+        hookRunnerMaxMb: 25,
+        providerMaxMb: 75,
+      },
+      sqlite: {
+        eventsMaxDays: 30,
+        commandsMaxDays: 60,
+        errorsMaxDays: 60,
+        providerObservationsMaxDays: 14,
+      },
+      debugBundles: {
+        maxBundles: 10,
+        maxDays: 30,
+      },
+      hookSpool: {
+        deliveredDeleteImmediately: true,
+        failedMaxDays: 7,
+        failedMaxItems: 1000,
+      },
+    },
+    recentErrors: [],
+    debugBundle: {
+      available: true,
+      diagnosticsDir: "/tmp/wosm/state/diagnostics",
+    },
+  };
 }
 
 async function sendRawRequest(socketPath: string, request: unknown): Promise<unknown> {

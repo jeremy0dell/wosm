@@ -84,7 +84,13 @@ describe("observer persistence", () => {
       createdAt: now,
     });
 
-    await persistence.recordCommandAccepted({ commandId: "cmd_1", command, createdAt: now });
+    await persistence.recordCommandAccepted({
+      commandId: "cmd_1",
+      command,
+      createdAt: now,
+      traceId: "trc_persist",
+      spanId: "spn_persist",
+    });
     await persistence.markCommandStarted("cmd_1", now);
     await persistence.markCommandFailed({
       commandId: "cmd_1",
@@ -97,8 +103,10 @@ describe("observer persistence", () => {
         type: "command.failed",
         commandId: "cmd_1",
         error: safeError,
+        traceId: "trc_persist",
+        spanId: "spn_persist",
       },
-      { commandId: "cmd_1", createdAt: later },
+      { commandId: "cmd_1", traceId: "trc_persist", spanId: "spn_persist", createdAt: later },
     );
     sqlite.close();
 
@@ -114,6 +122,8 @@ describe("observer persistence", () => {
         id: "cmd_1",
         status: "failed",
         error: safeError,
+        traceId: "trc_persist",
+        spanId: "spn_persist",
       }),
     ]);
     expect(JSON.stringify((await reloaded.listCommands())[0]?.error)).not.toContain("internal");
@@ -130,6 +140,8 @@ describe("observer persistence", () => {
       expect.objectContaining({
         type: "command.failed",
         commandId: "cmd_1",
+        traceId: "trc_persist",
+        spanId: "spn_persist",
       }),
     ]);
     reopened.close();

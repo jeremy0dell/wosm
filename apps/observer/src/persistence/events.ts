@@ -13,14 +13,16 @@ export function recordEvent(
     source: string;
     createdAt: string;
     commandId?: CommandId;
+    traceId?: string;
+    spanId?: string;
   },
 ): PersistedEvent {
   const parsedEvent = WosmEventSchema.parse(event);
   database
     .prepare(
       `
-        INSERT INTO events (id, type, source, command_id, payload_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO events (id, type, source, command_id, trace_id, span_id, payload_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
     )
     .run(
@@ -28,6 +30,8 @@ export function recordEvent(
       parsedEvent.type,
       options.source,
       options.commandId ?? null,
+      options.traceId ?? null,
+      options.spanId ?? null,
       stringifyJson(parsedEvent),
       options.createdAt,
     );

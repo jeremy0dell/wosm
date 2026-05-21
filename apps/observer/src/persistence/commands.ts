@@ -12,17 +12,30 @@ import type { PersistedCommand, PersistedCommandError } from "./types.js";
 
 export function recordCommandAccepted(
   database: DatabaseSync,
-  input: { commandId: CommandId; command: WosmCommand; createdAt: string },
+  input: {
+    commandId: CommandId;
+    command: WosmCommand;
+    createdAt: string;
+    traceId?: string;
+    spanId?: string;
+  },
 ): PersistedCommand {
   const command = WosmCommandSchema.parse(input.command);
   database
     .prepare(
       `
-        INSERT INTO commands (id, type, payload_json, status, created_at)
-        VALUES (?, ?, ?, 'accepted', ?)
+        INSERT INTO commands (id, type, payload_json, status, created_at, trace_id, span_id)
+        VALUES (?, ?, ?, 'accepted', ?, ?, ?)
       `,
     )
-    .run(input.commandId, command.type, stringifyJson(command), input.createdAt);
+    .run(
+      input.commandId,
+      command.type,
+      stringifyJson(command),
+      input.createdAt,
+      input.traceId ?? null,
+      input.spanId ?? null,
+    );
   return readCommand(database, input.commandId);
 }
 

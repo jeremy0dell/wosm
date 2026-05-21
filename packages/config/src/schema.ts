@@ -159,6 +159,75 @@ export const HarnessProviderConfigSchema = z
 
 export type HarnessProviderConfig = z.infer<typeof HarnessProviderConfigSchema>;
 
+export const ObservabilityRetentionComponentsSchema = z
+  .object({
+    observerMaxMb: z.number().int().positive().optional(),
+    cliMaxMb: z.number().int().positive().optional(),
+    tuiMaxMb: z.number().int().positive().optional(),
+    hookRunnerMaxMb: z.number().int().positive().optional(),
+    providerMaxMb: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export type ObservabilityRetentionComponents = z.infer<
+  typeof ObservabilityRetentionComponentsSchema
+>;
+
+export const ObservabilityRetentionSqliteSchema = z
+  .object({
+    eventsMaxDays: z.number().int().positive().optional(),
+    commandsMaxDays: z.number().int().positive().optional(),
+    errorsMaxDays: z.number().int().positive().optional(),
+    providerObservationsMaxDays: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export type ObservabilityRetentionSqlite = z.infer<typeof ObservabilityRetentionSqliteSchema>;
+
+export const ObservabilityRetentionDebugBundlesSchema = z
+  .object({
+    maxBundles: z.number().int().positive().optional(),
+    maxDays: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export type ObservabilityRetentionDebugBundles = z.infer<
+  typeof ObservabilityRetentionDebugBundlesSchema
+>;
+
+export const ObservabilityRetentionHookSpoolSchema = z
+  .object({
+    deliveredDeleteImmediately: z.boolean().optional(),
+    failedMaxDays: z.number().int().positive().optional(),
+    failedMaxItems: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export type ObservabilityRetentionHookSpool = z.infer<typeof ObservabilityRetentionHookSpoolSchema>;
+
+export const ObservabilityRetentionConfigSchema = z
+  .object({
+    maxDays: z.number().int().positive().optional(),
+    maxTotalMb: z.number().int().positive().optional(),
+    maxFileMb: z.number().int().positive().optional(),
+    maxFilesPerComponent: z.number().int().positive().optional(),
+    components: ObservabilityRetentionComponentsSchema.optional(),
+    sqlite: ObservabilityRetentionSqliteSchema.optional(),
+    debugBundles: ObservabilityRetentionDebugBundlesSchema.optional(),
+    hookSpool: ObservabilityRetentionHookSpoolSchema.optional(),
+  })
+  .strict();
+
+export type ObservabilityRetentionConfig = z.infer<typeof ObservabilityRetentionConfigSchema>;
+
+export const ObservabilityConfigSchema = z
+  .object({
+    retention: ObservabilityRetentionConfigSchema.optional(),
+  })
+  .strict();
+
+export type ObservabilityConfig = z.infer<typeof ObservabilityConfigSchema>;
+
 export const ProjectLocalConfigSchema = z
   .object({
     schemaVersion: ConfigSchemaVersionSchema,
@@ -178,6 +247,7 @@ export const ParsedWosmConfigSchema = z
     worktree: WorktreeProvidersConfigSchema.optional(),
     terminal: TerminalProvidersConfigSchema.optional(),
     harness: z.record(providerIdSchema, HarnessProviderConfigSchema).optional(),
+    observability: ObservabilityConfigSchema.optional(),
     projects: z.array(ProjectConfigSchema),
   })
   .strict();

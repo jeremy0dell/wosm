@@ -1,3 +1,5 @@
+export * from "./commands/debugBundle.js";
+export * from "./commands/doctor.js";
 export * from "./commands/hook.js";
 export * from "./commands/observer.js";
 export * from "./hookReceiver.js";

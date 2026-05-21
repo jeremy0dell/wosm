@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { CommandId, CommandReceipt, WosmCommand, WosmEvent } from "@wosm/contracts";
+import type {
+  CommandId,
+  CommandReceipt,
+  TraceContext,
+  WosmCommand,
+  WosmEvent,
+} from "@wosm/contracts";
 import { CommandReceiptSchema, WosmCommandSchema } from "@wosm/contracts";
+import { createTraceContext, type JsonlLogger } from "@wosm/observability";
 import {
   Effect,
   type RuntimeClock,
@@ -13,6 +20,7 @@ import type { ObserverIdFactory, ObserverPersistence } from "./persistence/index
 
 export type CommandHandlerContext = {
   commandId: CommandId;
+  trace: TraceContext;
   command: WosmCommand;
 };
 
@@ -29,6 +37,7 @@ export type CreateCommandQueueOptions = {
   clock?: RuntimeClock;
   idFactory?: Partial<Pick<ObserverIdFactory, "commandId" | "errorId">>;
   handlers?: Partial<Record<WosmCommand["type"], CommandHandler>>;
+  logger?: JsonlLogger;
   eventBus?: {
     publish(event: WosmEvent): void;
   };
@@ -54,17 +63,33 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
     dispatch: async (inputCommand) => {
       const command = WosmCommandSchema.parse(inputCommand);
       const commandId = idFactory.commandId();
+      const trace = createTraceContext({ operation: `command.${command.type}` });
       const acceptedEvent: WosmEvent = {
         type: "command.accepted",
         commandId,
         command,
+        traceId: trace.traceId,
+        spanId: trace.spanId,
       };
       await options.persistence.recordCommandAccepted({
         commandId,
         command,
         createdAt: now(clock),
+        traceId: trace.traceId,
+        spanId: trace.spanId,
       });
-      await options.persistence.recordEvent(acceptedEvent, { commandId, createdAt: now(clock) });
+      await options.persistence.recordEvent(acceptedEvent, {
+        commandId,
+        traceId: trace.traceId,
+        spanId: trace.spanId,
+        createdAt: now(clock),
+      });
+      await options.logger?.info("Command accepted.", {
+        commandId,
+        commandType: command.type,
+        traceId: trace.traceId,
+        spanId: trace.spanId,
+      });
       options.eventBus?.publish(acceptedEvent);
 
       const scope = commandScope(command);
@@ -77,9 +102,13 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
           idFactory,
           {
             commandId,
+            trace,
             command,
           },
-          options.eventBus === undefined ? {} : { eventBus: options.eventBus },
+          {
+            ...(options.eventBus === undefined ? {} : { eventBus: options.eventBus }),
+            ...(options.logger === undefined ? {} : { logger: options.logger }),
+          },
         ),
       );
       const settled = execution.catch(() => undefined);
@@ -94,6 +123,8 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
 
       return CommandReceiptSchema.parse({
         commandId,
+        traceId: trace.traceId,
+        spanId: trace.spanId,
         accepted: true,
         status: "accepted",
       });
@@ -123,6 +154,7 @@ async function executeCommand(
     eventBus?: {
       publish(event: WosmEvent): void;
     };
+    logger?: JsonlLogger;
   },
 ): Promise<void> {
   await persistence.markCommandStarted(context.commandId, now(clock));
@@ -130,10 +162,20 @@ async function executeCommand(
     type: "command.started",
     commandId: context.commandId,
     command: context.command,
+    traceId: context.trace.traceId,
+    spanId: context.trace.spanId,
   };
   await persistence.recordEvent(startedEvent, {
     commandId: context.commandId,
+    traceId: context.trace.traceId,
+    spanId: context.trace.spanId,
     createdAt: now(clock),
+  });
+  await runtime?.logger?.info("Command started.", {
+    commandId: context.commandId,
+    commandType: context.command.type,
+    traceId: context.trace.traceId,
+    spanId: context.trace.spanId,
   });
   runtime?.eventBus?.publish(startedEvent);
 
@@ -147,6 +189,7 @@ async function executeCommand(
               tag: "CommandExecutionError",
               code: "COMMAND_EXECUTION_FAILED",
               message: "Observer command execution failed.",
+              traceId: context.trace.traceId,
             },
           },
           () => handler(context),
@@ -162,10 +205,20 @@ async function executeCommand(
     const succeededEvent: WosmEvent = {
       type: "command.succeeded",
       commandId: context.commandId,
+      traceId: context.trace.traceId,
+      spanId: context.trace.spanId,
     };
     await persistence.recordEvent(succeededEvent, {
       commandId: context.commandId,
+      traceId: context.trace.traceId,
+      spanId: context.trace.spanId,
       createdAt: now(clock),
+    });
+    await runtime?.logger?.info("Command succeeded.", {
+      commandId: context.commandId,
+      commandType: context.command.type,
+      traceId: context.trace.traceId,
+      spanId: context.trace.spanId,
     });
     runtime?.eventBus?.publish(succeededEvent);
     return;
@@ -178,7 +231,7 @@ async function executeCommand(
       code: "COMMAND_EXECUTION_FAILED",
       message: "Observer command execution failed.",
     },
-    { commandId: context.commandId },
+    { commandId: context.commandId, traceId: context.trace.traceId },
   );
   const envelope = createErrorEnvelope({
     id: idFactory.errorId(),
@@ -189,6 +242,8 @@ async function executeCommand(
       message: "Observer command execution failed.",
     },
     commandId: context.commandId,
+    traceId: context.trace.traceId,
+    spanId: context.trace.spanId,
     createdAt: now(clock),
   });
   await persistence.markCommandFailed({
@@ -201,10 +256,21 @@ async function executeCommand(
     type: "command.failed",
     commandId: context.commandId,
     error: safeError,
+    traceId: context.trace.traceId,
+    spanId: context.trace.spanId,
   };
   await persistence.recordEvent(failedEvent, {
     commandId: context.commandId,
+    traceId: context.trace.traceId,
+    spanId: context.trace.spanId,
     createdAt: now(clock),
+  });
+  await runtime?.logger?.error("Command failed.", {
+    commandId: context.commandId,
+    commandType: context.command.type,
+    traceId: context.trace.traceId,
+    spanId: context.trace.spanId,
+    error: safeError,
   });
   runtime?.eventBus?.publish(failedEvent);
 }

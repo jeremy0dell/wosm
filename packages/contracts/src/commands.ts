@@ -180,6 +180,8 @@ export type WosmCommand = z.infer<typeof WosmCommandSchema>;
 export const CommandReceiptSchema = z
   .object({
     commandId: CommandIdSchema,
+    traceId: nonEmptyStringSchema.optional(),
+    spanId: nonEmptyStringSchema.optional(),
     accepted: z.boolean(),
     status: z.enum(["accepted", "rejected"]),
     error: SafeErrorSchema.optional(),
@@ -197,6 +199,8 @@ export const CommandRecordSchema = z
     createdAt: TimestampSchema,
     startedAt: TimestampSchema.optional(),
     finishedAt: TimestampSchema.optional(),
+    traceId: nonEmptyStringSchema.optional(),
+    spanId: nonEmptyStringSchema.optional(),
     error: SafeErrorSchema.optional(),
   })
   .strict();

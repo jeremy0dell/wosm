@@ -5,6 +5,9 @@ import type { WosmConfig } from "@wosm/config";
 export type ObserverPaths = {
   stateDir: string;
   socketPath: string;
+  dbPath: string;
+  logDir: string;
+  diagnosticsDir: string;
   hookSpoolDir: string;
 };
 
@@ -14,6 +17,9 @@ export function resolveObserverPaths(config?: WosmConfig, homeDir = homedir()): 
   return {
     stateDir,
     socketPath,
+    dbPath: join(stateDir, "observer.sqlite"),
+    logDir: join(stateDir, "logs"),
+    diagnosticsDir: join(stateDir, "diagnostics"),
     hookSpoolDir: join(stateDir, "spool", "hooks"),
   };
 }
