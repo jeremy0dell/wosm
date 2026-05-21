@@ -16,3 +16,4 @@ export * from "./providerRegistry.js";
 export * from "./reconcile.js";
 export * from "./server.js";
 export * from "./sqlite.js";
+export * from "./terminalCommands.js";

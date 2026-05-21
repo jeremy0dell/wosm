@@ -19,6 +19,7 @@
     "@wosm/observability": "workspace:*",
     "@wosm/protocol": "workspace:*",
     "@wosm/runtime": "workspace:*",
+    "@wosm/tmux": "workspace:*",
     "@wosm/worktrunk": "workspace:*"
   }
 }

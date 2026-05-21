@@ -23,6 +23,7 @@
       "@wosm/protocol": ["packages/protocol/src/index.ts"],
       "@wosm/runtime": ["packages/runtime/src/index.ts"],
       "@wosm/testing": ["packages/testing/src/index.ts"],
+      "@wosm/tmux": ["integrations/terminal/tmux/src/index.ts"],
       "@wosm/worktrunk": ["integrations/worktree/worktrunk/src/index.ts"]
     }
   }

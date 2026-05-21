@@ -12,6 +12,9 @@ export const wosmAliases = {
   "@wosm/protocol": fileURLToPath(new URL("./packages/protocol/src/index.ts", import.meta.url)),
   "@wosm/runtime": fileURLToPath(new URL("./packages/runtime/src/index.ts", import.meta.url)),
   "@wosm/testing": fileURLToPath(new URL("./packages/testing/src/index.ts", import.meta.url)),
+  "@wosm/tmux": fileURLToPath(
+    new URL("./integrations/terminal/tmux/src/index.ts", import.meta.url),
+  ),
   "@wosm/worktrunk": fileURLToPath(
     new URL("./integrations/worktree/worktrunk/src/index.ts", import.meta.url),
   ),

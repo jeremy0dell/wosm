@@ -4,6 +4,7 @@ import { runDebugBundleCommand } from "./commands/debugBundle.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runHookCommand } from "./commands/hook.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
+import { type PopupCommandDeps, runPopupCommand } from "./commands/popup.js";
 import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
 import type { HookReceiverDeps } from "./hookReceiver.js";
 import type { ObserverProcessDeps } from "./observerProcess.js";
@@ -17,6 +18,7 @@ export type CliRunOptions = {
   stdin?: string | undefined;
   hookDeps?: HookReceiverDeps | undefined;
   observerDeps?: ObserverProcessDeps | undefined;
+  popupDeps?: PopupCommandDeps | undefined;
 };
 
 export async function runCli(
@@ -58,6 +60,15 @@ export async function runCli(
     const stdin = options.stdin ?? (await readStdinIfAvailable());
     const result = await runHookCommand(args.slice(1), { config, stdin }, options.hookDeps);
     return { code: result.status === "rejected" ? 1 : 0, output: result };
+  }
+
+  if (command === "popup") {
+    const result = await runPopupCommand(args.slice(1), { config }, options.popupDeps);
+    return { code: 0, output: result };
+  }
+
+  if (command === "tui" && args[1] === "--popup") {
+    return { code: 0, output: { mode: "popup" } };
   }
 
   if (command === "worktrunk" && args[1] === "hooks") {

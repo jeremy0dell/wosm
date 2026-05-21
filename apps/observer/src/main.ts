@@ -14,6 +14,7 @@ import { createProviderRegistry } from "./providerFactory.js";
 import { createObserverCore } from "./reconcile.js";
 import { type ObserverServer, startObserverServer } from "./server.js";
 import { openObserverSqlite } from "./sqlite.js";
+import { createTerminalFocusHandler } from "./terminalCommands.js";
 
 export async function runObserverMain(argv = process.argv.slice(2)): Promise<number> {
   const options = parseArgs(argv);
@@ -54,6 +55,10 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     clock,
     logger,
   });
+  commandQueue.registerHandler(
+    "terminal.focus",
+    createTerminalFocusHandler({ core, terminal: providers.terminal }),
+  );
 
   let server: ObserverServer | undefined;
   let stopResolve: () => void = () => undefined;

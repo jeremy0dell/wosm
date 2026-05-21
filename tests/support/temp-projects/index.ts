@@ -56,6 +56,21 @@ export async function writeConfigToml(root: string, config: WosmConfig): Promise
       `harness = ${JSON.stringify(config.defaults.harness)}`,
       `layout = ${JSON.stringify(config.defaults.layout)}`,
       "",
+      ...(config.terminal?.tmux === undefined
+        ? []
+        : [
+            "[terminal.tmux]",
+            ...(config.terminal.tmux.popupWidth === undefined
+              ? []
+              : [`popup_width = ${JSON.stringify(config.terminal.tmux.popupWidth)}`]),
+            ...(config.terminal.tmux.popupHeight === undefined
+              ? []
+              : [`popup_height = ${JSON.stringify(config.terminal.tmux.popupHeight)}`]),
+            ...(config.terminal.tmux.popupPosition === undefined
+              ? []
+              : [`popup_position = ${JSON.stringify(config.terminal.tmux.popupPosition)}`]),
+            "",
+          ]),
     ].join("\n"),
   );
   return path;

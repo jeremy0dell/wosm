@@ -12,13 +12,14 @@ import type {
   WorktreeProvider,
 } from "@wosm/contracts";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { TmuxProvider } from "@wosm/tmux";
 import { WorktrunkProvider } from "@wosm/worktrunk";
 import { ProviderRegistry } from "./providerRegistry.js";
 
 export function createProviderRegistry(config: WosmConfig): ProviderRegistry {
   return new ProviderRegistry({
     worktree: createWorktreeProvider(config),
-    terminal: new NoopTerminalProvider(config.defaults.terminal),
+    terminal: createTerminalProvider(config),
     harnesses: [new NoopHarnessProvider(config.defaults.harness)],
   });
 }
@@ -36,6 +37,16 @@ function createWorktreeProvider(config: WosmConfig): WorktreeProvider {
   }
 
   return new NoopWorktreeProvider(config.defaults.worktreeProvider);
+}
+
+function createTerminalProvider(config: WosmConfig): TerminalProvider {
+  if (config.defaults.terminal === "tmux") {
+    return new TmuxProvider({
+      ...(config.terminal?.tmux === undefined ? {} : { config: config.terminal.tmux }),
+    });
+  }
+
+  return new NoopTerminalProvider(config.defaults.terminal);
 }
 
 function health(providerId: string, providerType: ProviderHealth["providerType"]): ProviderHealth {

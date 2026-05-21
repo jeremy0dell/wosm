@@ -125,10 +125,14 @@ export function externalCommandErrorFromUnknown(
     ...(typeof cause.signal === "string" ? { signal: cause.signal } : {}),
     ...(typeof cause.stdout === "string"
       ? { stdoutSnippet: redactCommandOutput(cause.stdout).slice(0, 2000) }
-      : {}),
+      : typeof cause.stdoutSnippet === "string"
+        ? { stdoutSnippet: redactCommandOutput(cause.stdoutSnippet).slice(0, 2000) }
+        : {}),
     ...(typeof cause.stderr === "string"
       ? { stderrSnippet: redactCommandOutput(cause.stderr).slice(0, 2000) }
-      : {}),
+      : typeof cause.stderrSnippet === "string"
+        ? { stderrSnippet: redactCommandOutput(cause.stderrSnippet).slice(0, 2000) }
+        : {}),
   };
 }
 

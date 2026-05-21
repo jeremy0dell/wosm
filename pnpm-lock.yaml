@@ -47,6 +47,9 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@wosm/tmux':
+        specifier: workspace:*
+        version: link:../../integrations/terminal/tmux
       '@wosm/worktrunk':
         specifier: workspace:*
         version: link:../../integrations/worktree/worktrunk
@@ -68,6 +71,9 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      '@wosm/tmux':
+        specifier: workspace:*
+        version: link:../../integrations/terminal/tmux
       '@wosm/worktrunk':
         specifier: workspace:*
         version: link:../../integrations/worktree/worktrunk
@@ -107,6 +113,9 @@ importers:
 
   integrations/terminal/tmux:
     dependencies:
+      '@wosm/config':
+        specifier: workspace:*
+        version: link:../../../packages/config
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
