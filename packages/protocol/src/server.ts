@@ -17,6 +17,7 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { SafeErrorSchema } from "@wosm/contracts";
+import { Effect, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import {
   CommandDispatchParamsSchema,
   CommandGetParamsSchema,
@@ -52,6 +53,7 @@ export type ObserverApi = {
 export type ProtocolServerOptions = {
   socketPath: string;
   api: ObserverApi;
+  requestTimeoutMs?: number;
 };
 
 export async function startProtocolServer(
@@ -59,11 +61,16 @@ export async function startProtocolServer(
 ): Promise<UnixSocketServer> {
   return listenUnixSocket({
     socketPath: options.socketPath,
-    onConnection: (connection) => handleConnection(connection, options.api),
+    onConnection: (connection) =>
+      handleConnection(connection, options.api, options.requestTimeoutMs ?? 5000),
   });
 }
 
-async function handleConnection(connection: NdjsonConnection, api: ObserverApi): Promise<void> {
+async function handleConnection(
+  connection: NdjsonConnection,
+  api: ObserverApi,
+  requestTimeoutMs: number,
+): Promise<void> {
   try {
     for await (const message of connection.messages()) {
       const request = ProtocolRequestSchema.safeParse(message);
@@ -71,7 +78,7 @@ async function handleConnection(connection: NdjsonConnection, api: ObserverApi):
         connection.send(errorResponse(requestId(message), "Invalid protocol request."));
         continue;
       }
-      await routeRequest(connection, api, request.data);
+      await routeRequest(connection, api, request.data, requestTimeoutMs);
     }
   } catch {
     connection.close();
@@ -82,70 +89,99 @@ async function routeRequest(
   connection: NdjsonConnection,
   api: ObserverApi,
   request: ProtocolRequest,
+  requestTimeoutMs: number,
 ): Promise<void> {
+  if (request.method === "events.subscribe") {
+    await routeSubscriptionRequest(connection, api, request);
+    return;
+  }
+
+  const result = await runRuntimeBoundaryWithTimeout(
+    {
+      operation: `protocol.server.${request.method}`,
+      timeoutMs: requestTimeoutMs,
+      error: protocolSafeError({
+        code: "PROTOCOL_HANDLER_FAILED",
+        message: "Observer protocol method failed.",
+      }),
+      timeoutError: protocolSafeError({
+        tag: "TimeoutError",
+        code: "PROTOCOL_HANDLER_TIMEOUT",
+        message: "Observer protocol method timed out.",
+      }),
+    },
+    async () => routeSingleResponseRequest(api, request),
+  );
+  if (!result.ok) {
+    connection.send(errorResponse(request.id, "Observer protocol method failed.", result.error));
+    return;
+  }
+  try {
+    sendResult(connection, request.id, request.method, result.value);
+  } catch (error) {
+    connection.send(
+      errorResponse(request.id, "Observer protocol response validation failed.", error),
+    );
+  }
+}
+
+async function routeSingleResponseRequest(
+  api: ObserverApi,
+  request: ProtocolRequest,
+): Promise<unknown> {
   try {
     switch (request.method) {
       case "observer.health": {
-        const result = await api.health();
-        sendResult(connection, request.id, "observer.health", result);
-        return;
+        return await api.health();
       }
       case "observer.stop": {
-        const result = await api.stop();
-        sendResult(connection, request.id, "observer.stop", result);
-        return;
+        return await api.stop();
       }
       case "snapshot.get": {
         const params = SnapshotGetParamsSchema.parse(request.params);
-        const result = await api.getSnapshot(
+        return await api.getSnapshot(
           params?.includeDebug === undefined ? undefined : { includeDebug: params.includeDebug },
         );
-        sendResult(connection, request.id, "snapshot.get", result);
-        return;
       }
       case "command.dispatch": {
         const params = CommandDispatchParamsSchema.parse(request.params);
-        const result = await api.dispatch(params.command);
-        sendResult(connection, request.id, "command.dispatch", result);
-        return;
+        return await api.dispatch(params.command);
       }
       case "command.get": {
         const params = CommandGetParamsSchema.parse(request.params);
-        const result = (await api.getCommand(params.commandId)) ?? null;
-        sendResult(connection, request.id, "command.get", result);
-        return;
+        return (await api.getCommand(params.commandId)) ?? null;
       }
       case "observer.reconcile": {
         const params = ReconcileParamsSchema.parse(request.params);
-        const result = await api.reconcile(params?.reason);
-        sendResult(connection, request.id, "observer.reconcile", result);
-        return;
+        return await api.reconcile(params?.reason);
       }
       case "observer.ingestHookEvent": {
         const params = HookIngestParamsSchema.parse(request.params);
-        const result = await api.ingestHookEvent(params.event);
-        sendResult(connection, request.id, "observer.ingestHookEvent", result);
-        return;
+        return await api.ingestHookEvent(params.event);
       }
       case "doctor.run": {
         const params = DoctorRunParamsSchema.parse(request.params);
-        const result = await api.runDoctor(params);
-        sendResult(connection, request.id, "doctor.run", result);
-        return;
+        return await api.runDoctor(params);
       }
       case "diagnostics.collect": {
         const params = DiagnosticsCollectParamsSchema.parse(request.params);
-        const result = await api.collectDiagnostics(params);
-        sendResult(connection, request.id, "diagnostics.collect", result);
-        return;
-      }
-      case "events.subscribe": {
-        const params = EventsSubscribeParamsSchema.parse(request.params);
-        sendResult(connection, request.id, "events.subscribe", { subscribed: true });
-        await streamEvents(connection, api.subscribe(params));
-        return;
+        return await api.collectDiagnostics(params);
       }
     }
+  } catch (error) {
+    throw protocolSafeErrorFromUnknown(error);
+  }
+}
+
+async function routeSubscriptionRequest(
+  connection: NdjsonConnection,
+  api: ObserverApi,
+  request: ProtocolRequest,
+): Promise<void> {
+  try {
+    const params = EventsSubscribeParamsSchema.parse(request.params);
+    sendResult(connection, request.id, "events.subscribe", { subscribed: true });
+    await streamEvents(connection, api.subscribe(params));
   } catch (error) {
     connection.send(errorResponse(request.id, "Observer protocol method failed.", error));
   }
@@ -175,10 +211,7 @@ async function streamEvents(
   const iterator = events[Symbol.asyncIterator]();
   try {
     for (;;) {
-      const next = await Promise.race([
-        iterator.next(),
-        connection.closed.then(() => ({ done: true as const, value: undefined })),
-      ]);
+      const next = await nextEventOrClosed(connection, iterator);
       if (next.done) {
         return;
       }
@@ -194,6 +227,27 @@ async function streamEvents(
   }
 }
 
+async function nextEventOrClosed(
+  connection: NdjsonConnection,
+  iterator: AsyncIterator<WosmEvent>,
+): Promise<IteratorResult<WosmEvent>> {
+  return Effect.runPromise(
+    Effect.raceFirst(
+      Effect.tryPromise({
+        try: () => iterator.next(),
+        catch: protocolSafeErrorFromUnknown,
+      }),
+      Effect.as(
+        Effect.tryPromise({
+          try: () => connection.closed,
+          catch: protocolSafeErrorFromUnknown,
+        }),
+        { done: true as const, value: undefined },
+      ),
+    ),
+  );
+}
+
 function errorResponse(id: string, message: string, error?: unknown) {
   const parsedSafeError = SafeErrorSchema.safeParse(error);
   const safeError = parsedSafeError.success ? parsedSafeError.data : protocolSafeError({ message });
@@ -203,6 +257,13 @@ function errorResponse(id: string, message: string, error?: unknown) {
     id,
     error: safeError,
   });
+}
+
+function protocolSafeErrorFromUnknown(error: unknown) {
+  const parsedSafeError = SafeErrorSchema.safeParse(error);
+  return parsedSafeError.success
+    ? parsedSafeError.data
+    : protocolSafeError({ message: "Observer protocol method failed." });
 }
 
 function requestId(message: unknown): string {

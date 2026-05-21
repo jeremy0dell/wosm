@@ -16,6 +16,8 @@ export type CancellationController = {
   cancel(reason?: Partial<RuntimeCancellationError>): void;
 };
 
+export type CancellableTask<T> = (context: { signal: AbortSignal }) => Promise<T>;
+
 export function createCancellationController(): CancellationController {
   let aborted = false;
   let reason: RuntimeCancellationError | undefined;
@@ -67,23 +69,32 @@ export function createCancellationController(): CancellationController {
 
 export async function runWithCancellation<T>(
   token: CancellationToken,
-  task: () => Promise<T>,
+  task: CancellableTask<T>,
 ): Promise<T> {
   token.throwIfAborted();
   return new Promise<T>((resolve, reject) => {
-    const unsubscribe = token.onCancel((cancelReason) => {
+    let settled = false;
+    const controller = new AbortController();
+    let unsubscribe: () => void = () => undefined;
+    const settle = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       unsubscribe();
-      reject(cancelReason);
+      callback();
+    };
+    unsubscribe = token.onCancel((cancelReason) => {
+      controller.abort(cancelReason);
+      settle(() => reject(cancelReason));
     });
 
-    task()
+    task({ signal: controller.signal })
       .then((value) => {
-        unsubscribe();
-        resolve(value);
+        settle(() => resolve(value));
       })
       .catch((error) => {
-        unsubscribe();
-        reject(safeErrorFromUnknown(error, fallbackCancellationError()));
+        settle(() => reject(safeErrorFromUnknown(error, fallbackCancellationError())));
       });
   });
 }

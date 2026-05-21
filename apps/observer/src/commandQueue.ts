@@ -9,9 +9,8 @@ import type {
 import { CommandReceiptSchema, WosmCommandSchema } from "@wosm/contracts";
 import { createTraceContext, type JsonlLogger } from "@wosm/observability";
 import {
-  Effect,
   type RuntimeClock,
-  runtimeBoundaryEffect,
+  runRuntimeBoundaryWithTimeout,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
@@ -22,13 +21,17 @@ export type CommandHandlerContext = {
   commandId: CommandId;
   trace: TraceContext;
   command: WosmCommand;
+  signal: AbortSignal;
 };
+
+type CommandExecutionContext = Omit<CommandHandlerContext, "signal">;
 
 export type CommandHandler = (context: CommandHandlerContext) => Promise<void>;
 
 export type CommandQueue = {
   dispatch(command: WosmCommand): Promise<CommandReceipt>;
   drain(): Promise<void>;
+  shutdown(): Promise<void>;
   registerHandler(commandType: WosmCommand["type"], handler: CommandHandler): void;
 };
 
@@ -41,6 +44,7 @@ export type CreateCommandQueueOptions = {
   eventBus?: {
     publish(event: WosmEvent): void;
   };
+  commandTimeoutMs?: number;
 };
 
 const defaultCommandId = () => `cmd_${randomUUID()}`;
@@ -58,12 +62,28 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
   );
   const scopeChains = new Map<string, Promise<void>>();
   const pending = new Set<Promise<void>>();
+  const controllers = new Set<AbortController>();
+  const commandTimeoutMs = options.commandTimeoutMs ?? 30_000;
+  let shuttingDown = false;
 
   const queue: CommandQueue = {
     dispatch: async (inputCommand) => {
       const command = WosmCommandSchema.parse(inputCommand);
+      if (shuttingDown) {
+        return CommandReceiptSchema.parse({
+          commandId: idFactory.commandId(),
+          accepted: false,
+          status: "rejected",
+          error: {
+            tag: "CancellationError",
+            code: "COMMAND_QUEUE_SHUTTING_DOWN",
+            message: "Observer command queue is shutting down.",
+          },
+        });
+      }
       const commandId = idFactory.commandId();
       const trace = createTraceContext({ operation: `command.${command.type}` });
+      const controller = new AbortController();
       const acceptedEvent: WosmEvent = {
         type: "command.accepted",
         commandId,
@@ -108,13 +128,17 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
           {
             ...(options.eventBus === undefined ? {} : { eventBus: options.eventBus }),
             ...(options.logger === undefined ? {} : { logger: options.logger }),
+            signal: controller.signal,
+            commandTimeoutMs,
           },
         ),
       );
       const settled = execution.catch(() => undefined);
       scopeChains.set(scope, settled);
+      controllers.add(controller);
       pending.add(settled);
       settled.finally(() => {
+        controllers.delete(controller);
         pending.delete(settled);
         if (scopeChains.get(scope) === settled) {
           scopeChains.delete(scope);
@@ -136,6 +160,14 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
       }
     },
 
+    shutdown: async () => {
+      shuttingDown = true;
+      for (const controller of controllers) {
+        controller.abort(commandCancellationError());
+      }
+      await queue.drain();
+    },
+
     registerHandler: (commandType, handler) => {
       handlers.set(commandType, handler);
     },
@@ -149,12 +181,14 @@ async function executeCommand(
   handlers: Map<WosmCommand["type"], CommandHandler>,
   clock: RuntimeClock,
   idFactory: Pick<ObserverIdFactory, "errorId">,
-  context: CommandHandlerContext,
+  context: CommandExecutionContext,
   runtime?: {
     eventBus?: {
       publish(event: WosmEvent): void;
     };
     logger?: JsonlLogger;
+    signal?: AbortSignal;
+    commandTimeoutMs?: number;
   },
 ): Promise<void> {
   await persistence.markCommandStarted(context.commandId, now(clock));
@@ -180,24 +214,35 @@ async function executeCommand(
   runtime?.eventBus?.publish(startedEvent);
 
   const handler = handlers.get(context.command.type) ?? noopHandler;
-  const result = await Effect.runPromise(
-    Effect.catchAll(
-      Effect.map(
-        runtimeBoundaryEffect(
-          {
-            error: {
-              tag: "CommandExecutionError",
-              code: "COMMAND_EXECUTION_FAILED",
-              message: "Observer command execution failed.",
-              traceId: context.trace.traceId,
-            },
-          },
-          () => handler(context),
-        ),
-        () => ({ ok: true as const }),
-      ),
-      (error) => Effect.succeed({ ok: false as const, error }),
-    ),
+  const result = await runRuntimeBoundaryWithTimeout(
+    {
+      operation: `command.${context.command.type}`,
+      clock,
+      timeoutMs: runtime?.commandTimeoutMs ?? 30_000,
+      error: {
+        tag: "CommandExecutionError",
+        code: "COMMAND_EXECUTION_FAILED",
+        message: "Observer command execution failed.",
+        traceId: context.trace.traceId,
+      },
+      timeoutError: {
+        tag: "TimeoutError",
+        code: "COMMAND_TIMEOUT",
+        message: "Observer command execution timed out.",
+        traceId: context.trace.traceId,
+      },
+      trace: context.trace,
+    },
+    async ({ signal }) => {
+      const linked = linkAbortSignals(signal, runtime?.signal);
+      try {
+        throwIfCommandCancelled(linked.signal);
+        await handler({ ...context, signal: linked.signal });
+        throwIfCommandCancelled(linked.signal);
+      } finally {
+        linked.cleanup();
+      }
+    },
   );
 
   if (result.ok) {
@@ -275,7 +320,58 @@ async function executeCommand(
   runtime?.eventBus?.publish(failedEvent);
 }
 
-async function noopHandler(): Promise<void> {}
+async function noopHandler(context: CommandHandlerContext): Promise<void> {
+  throwIfCommandCancelled(context.signal);
+}
+
+function commandCancellationError() {
+  return {
+    tag: "CancellationError",
+    code: "COMMAND_CANCELLED",
+    message: "Observer command was cancelled.",
+  };
+}
+
+function throwIfCommandCancelled(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw signal.reason ?? commandCancellationError();
+  }
+}
+
+function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
+  signal: AbortSignal;
+  cleanup(): void;
+} {
+  const controller = new AbortController();
+  const listeners: Array<() => void> = [];
+  const abort = (signal: AbortSignal) => {
+    if (!controller.signal.aborted) {
+      controller.abort(signal.reason ?? commandCancellationError());
+    }
+  };
+
+  for (const signal of signals) {
+    if (signal === undefined) {
+      continue;
+    }
+    if (signal.aborted) {
+      abort(signal);
+      continue;
+    }
+    const listener = () => abort(signal);
+    signal.addEventListener("abort", listener, { once: true });
+    listeners.push(() => signal.removeEventListener("abort", listener));
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+  };
+}
 
 function commandScope(command: WosmCommand): string {
   if ("sessionId" in command.payload && typeof command.payload.sessionId === "string") {

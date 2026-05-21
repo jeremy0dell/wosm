@@ -1,6 +1,7 @@
 import type { WosmConfig } from "@wosm/config";
 import type { DoctorOptions, DoctorReport } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
+import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import {
   type ObserverProcessDeps,
   type ObserverStatus,
@@ -24,7 +25,27 @@ export async function runDoctorCommand(
   const status = await startObserver({ ...options, paths }, deps);
   assertRunning(status);
   const client = (deps.clientFactory ?? defaultClientFactory)(paths.socketPath);
-  return client.runDoctor(doctorOptions);
+  const result = await runRuntimeBoundaryWithTimeout(
+    {
+      operation: "cli.doctor.run",
+      timeoutMs: options.timeoutMs ?? 1000,
+      error: {
+        tag: "DoctorCommandError",
+        code: "DOCTOR_RPC_FAILED",
+        message: "Doctor command could not collect observer diagnostics.",
+      },
+      timeoutError: {
+        tag: "TimeoutError",
+        code: "DOCTOR_RPC_TIMEOUT",
+        message: "Doctor command timed out while contacting the observer.",
+      },
+    },
+    async () => client.runDoctor(doctorOptions),
+  );
+  if (!result.ok) {
+    throw result.error;
+  }
+  return result.value;
 }
 
 function parseDoctorOptions(args: string[]): DoctorOptions {

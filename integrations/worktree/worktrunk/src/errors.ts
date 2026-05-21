@@ -2,8 +2,10 @@ import type { SafeError } from "@wosm/contracts";
 import { safeErrorFromUnknown } from "@wosm/runtime";
 
 export type WorktrunkProviderErrorCode =
+  | "WORKTRUNK_CANCELLED"
   | "WORKTRUNK_COMMAND_FAILED"
   | "WORKTRUNK_INVALID_OUTPUT"
+  | "WORKTRUNK_TIMEOUT"
   | "WORKTRUNK_UNAVAILABLE"
   | "WORKTRUNK_WORKTREE_NOT_FOUND";
 

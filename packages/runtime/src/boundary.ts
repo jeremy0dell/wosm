@@ -10,10 +10,16 @@ export type RuntimeClock = {
 };
 
 export type RuntimeTraceContext = {
-  traceId?: string;
-  spanId?: string;
-  operation?: string;
+  traceId?: string | undefined;
+  spanId?: string | undefined;
+  operation?: string | undefined;
 };
+
+export type RuntimeBoundaryExecutionContext = {
+  signal: AbortSignal;
+};
+
+export type RuntimeBoundaryTask<T> = (context: RuntimeBoundaryExecutionContext) => Promise<T>;
 
 export type RuntimeBoundaryTiming = {
   operation: string;
@@ -41,6 +47,7 @@ export type RuntimeBoundaryResult<T> =
 export type RuntimeTimeoutOptions = {
   timeoutMs: number;
   error: RuntimeSafeErrorFallback;
+  timeoutError?: RuntimeSafeErrorFallback | undefined;
 };
 
 export type RuntimeRetryOptions = {
@@ -65,10 +72,10 @@ export function runtimeBoundaryEffect<T>(
   input: {
     error: RuntimeSafeErrorFallback;
   },
-  task: () => Promise<T>,
+  task: RuntimeBoundaryTask<T>,
 ): Effect.Effect<T, RuntimeSafeError> {
   return Effect.tryPromise({
-    try: task,
+    try: (signal) => task({ signal }),
     catch: (error) => safeErrorFromUnknown(error, input.error),
   });
 }
@@ -80,13 +87,113 @@ export async function runRuntimeBoundary<T>(
     error: RuntimeSafeErrorFallback;
     trace?: RuntimeTraceContext | undefined;
   },
-  task: () => Promise<T>,
+  task: RuntimeBoundaryTask<T>,
 ): Promise<RuntimeBoundaryResult<T>> {
   const clock = input.clock ?? systemClock;
   const startedAt = toIsoTimestamp(clock.now());
+  return finishRuntimeBoundary(input, startedAt, runtimeBoundaryEffect(input, task));
+}
+
+export function runtimeBoundaryWithTimeoutEffect<T>(
+  input: RuntimeTimeoutOptions,
+  task: RuntimeBoundaryTask<T>,
+): Effect.Effect<T, RuntimeSafeError> {
+  return Effect.timeoutFail(runtimeBoundaryEffect(input, task), {
+    duration: `${input.timeoutMs} millis`,
+    onTimeout: () =>
+      safeErrorFromUnknown(input.timeoutError ?? input.error, input.timeoutError ?? input.error),
+  });
+}
+
+export async function runRuntimeBoundaryWithTimeout<T>(
+  input: {
+    operation: string;
+    clock?: RuntimeClock | undefined;
+    timeoutMs: number;
+    error: RuntimeSafeErrorFallback;
+    timeoutError?: RuntimeSafeErrorFallback | undefined;
+    trace?: RuntimeTraceContext | undefined;
+  },
+  task: RuntimeBoundaryTask<T>,
+): Promise<RuntimeBoundaryResult<T>> {
+  const clock = input.clock ?? systemClock;
+  const startedAt = toIsoTimestamp(clock.now());
+  return finishRuntimeBoundary(input, startedAt, runtimeBoundaryWithTimeoutEffect(input, task));
+}
+
+export async function runRuntimeBoundaryWithRetry<T>(
+  input: {
+    operation: string;
+    clock?: RuntimeClock | undefined;
+    error: RuntimeSafeErrorFallback;
+    retry: RuntimeRetryOptions;
+    trace?: RuntimeTraceContext | undefined;
+  },
+  task: RuntimeBoundaryTask<T>,
+): Promise<RuntimeBoundaryResult<T>> {
+  const clock = input.clock ?? systemClock;
+  const startedAt = toIsoTimestamp(clock.now());
+  return finishRuntimeBoundary(
+    input,
+    startedAt,
+    runtimeBoundaryWithRetryEffect(input.retry, input.error, task),
+  );
+}
+
+export async function runRuntimeBoundaryWithRetryAndTimeout<T>(
+  input: {
+    operation: string;
+    clock?: RuntimeClock | undefined;
+    timeoutMs: number;
+    error: RuntimeSafeErrorFallback;
+    timeoutError?: RuntimeSafeErrorFallback | undefined;
+    retry: RuntimeRetryOptions;
+    trace?: RuntimeTraceContext | undefined;
+  },
+  task: RuntimeBoundaryTask<T>,
+): Promise<RuntimeBoundaryResult<T>> {
+  const clock = input.clock ?? systemClock;
+  const startedAt = toIsoTimestamp(clock.now());
+  const attempt = runtimeBoundaryWithTimeoutEffect(input, task);
+  return finishRuntimeBoundary(input, startedAt, retryEffect(attempt, input.retry));
+}
+
+export function runtimeBoundaryWithRetryEffect<T>(
+  retry: RuntimeRetryOptions,
+  fallback: RuntimeSafeErrorFallback,
+  task: RuntimeBoundaryTask<T>,
+): Effect.Effect<T, RuntimeSafeError> {
+  return retryEffect(runtimeBoundaryEffect({ error: fallback }, task), retry);
+}
+
+export async function withRetry<T>(
+  retry: RuntimeRetryOptions,
+  fallback: RuntimeSafeErrorFallback,
+  task: RuntimeBoundaryTask<T>,
+): Promise<T> {
+  return Effect.runPromise(runtimeBoundaryWithRetryEffect(retry, fallback, task));
+}
+
+export async function withTimeout<T>(
+  task: RuntimeBoundaryTask<T>,
+  input: RuntimeTimeoutOptions,
+): Promise<T> {
+  return Effect.runPromise(runtimeBoundaryWithTimeoutEffect(input, task));
+}
+
+async function finishRuntimeBoundary<T>(
+  input: {
+    operation: string;
+    clock?: RuntimeClock | undefined;
+    trace?: RuntimeTraceContext | undefined;
+  },
+  startedAt: string,
+  effect: Effect.Effect<T, RuntimeSafeError>,
+): Promise<RuntimeBoundaryResult<T>> {
+  const clock = input.clock ?? systemClock;
   const result = await Effect.runPromise(
     Effect.catchAll(
-      Effect.map(runtimeBoundaryEffect(input, task), (value) => ({
+      Effect.map(effect, (value) => ({
         ok: true as const,
         value,
       })),
@@ -123,87 +230,24 @@ export async function runRuntimeBoundary<T>(
   };
 }
 
-export function runtimeBoundaryWithTimeoutEffect<T>(
-  input: RuntimeTimeoutOptions,
-  task: () => Promise<T>,
-): Effect.Effect<T, RuntimeSafeError> {
-  return runtimeBoundaryEffect(input, () => withTimeout(task, input));
-}
-
-export async function runRuntimeBoundaryWithTimeout<T>(
-  input: {
-    operation: string;
-    clock?: RuntimeClock | undefined;
-    timeoutMs: number;
-    error: RuntimeSafeErrorFallback;
-    trace?: RuntimeTraceContext | undefined;
-  },
-  task: () => Promise<T>,
-): Promise<RuntimeBoundaryResult<T>> {
-  return runRuntimeBoundary(input, () => withTimeout(task, input));
-}
-
-export async function runRuntimeBoundaryWithRetry<T>(
-  input: {
-    operation: string;
-    clock?: RuntimeClock | undefined;
-    error: RuntimeSafeErrorFallback;
-    retry: RuntimeRetryOptions;
-    trace?: RuntimeTraceContext | undefined;
-  },
-  task: () => Promise<T>,
-): Promise<RuntimeBoundaryResult<T>> {
-  return runRuntimeBoundary(input, () => withRetry(input.retry, input.error, task));
-}
-
-export async function withRetry<T>(
+function retryEffect<T>(
+  effect: Effect.Effect<T, RuntimeSafeError>,
   retry: RuntimeRetryOptions,
-  fallback: RuntimeSafeErrorFallback,
-  task: () => Promise<T>,
-): Promise<T> {
-  let attempt = 0;
-  let lastError: RuntimeSafeError | undefined;
-
-  while (attempt <= retry.retries) {
-    try {
-      return await task();
-    } catch (error) {
-      const safeError = safeErrorFromUnknown(error, fallback);
-      lastError = safeError;
-      const shouldRetry = retry.shouldRetry?.(safeError, attempt) ?? attempt < retry.retries;
+): Effect.Effect<T, RuntimeSafeError> {
+  const runAttempt = (attempt: number): Effect.Effect<T, RuntimeSafeError> =>
+    Effect.catchAll(effect, (error) => {
+      const shouldRetry = retry.shouldRetry?.(error, attempt) ?? attempt < retry.retries;
       if (!shouldRetry || attempt >= retry.retries) {
-        throw safeError;
+        return Effect.fail(error);
       }
-      attempt += 1;
-      if (retry.delayMs !== undefined && retry.delayMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, retry.delayMs));
-      }
-    }
-  }
 
-  throw lastError ?? safeErrorFromUnknown(undefined, fallback);
-}
+      const next = runAttempt(attempt + 1);
+      return retry.delayMs === undefined || retry.delayMs <= 0
+        ? next
+        : Effect.flatMap(Effect.sleep(`${retry.delayMs} millis`), () => next);
+    });
 
-export async function withTimeout<T>(
-  task: () => Promise<T>,
-  input: RuntimeTimeoutOptions,
-): Promise<T> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      task(),
-      new Promise<T>((_, reject) => {
-        timeout = setTimeout(
-          () => reject(safeErrorFromUnknown(input.error, input.error)),
-          input.timeoutMs,
-        );
-      }),
-    ]);
-  } finally {
-    if (timeout !== undefined) {
-      clearTimeout(timeout);
-    }
-  }
+  return runAttempt(0);
 }
 
 function withTrace(

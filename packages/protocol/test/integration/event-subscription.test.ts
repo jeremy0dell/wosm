@@ -3,6 +3,7 @@ import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
   connectUnixSocket,
   createObserverClient,
+  listenUnixSocket,
   type ObserverApi,
   PROTOCOL_SCHEMA_VERSION,
   startProtocolServer,
@@ -105,6 +106,31 @@ describe("protocol event subscriptions", () => {
       await waitFor(() => returned);
     } finally {
       connection.close();
+      await server.close();
+    }
+  });
+
+  it("times out and closes the socket when subscription ack hangs", async () => {
+    const { socketPath } = await createTempSocketPath();
+    let closed = false;
+    const server = await listenUnixSocket({
+      socketPath,
+      onConnection: async (connection) => {
+        await connection.closed;
+        closed = true;
+      },
+    });
+    const client = createObserverClient({ socketPath, timeoutMs: 10, requestId: ids("hang") });
+    const iterator = client.subscribe()[Symbol.asyncIterator]();
+
+    try {
+      await expect(iterator.next()).rejects.toMatchObject({
+        tag: "TimeoutError",
+        code: "PROTOCOL_SUBSCRIBE_TIMEOUT",
+      });
+      await waitFor(() => closed);
+    } finally {
+      await iterator.return?.();
       await server.close();
     }
   });

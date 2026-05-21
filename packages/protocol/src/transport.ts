@@ -1,6 +1,8 @@
 import { chmod, lstat, mkdir, unlink } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { dirname } from "node:path";
+import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
+import { protocolSafeError } from "./messages.js";
 
 export type NdjsonConnection = {
   send(value: unknown): void;
@@ -96,28 +98,91 @@ export function connectUnixSocket(
   socketPath: string,
   options: ConnectUnixSocketOptions = {},
 ): Promise<NdjsonConnection> {
+  const task = ({ signal }: { signal: AbortSignal }) => connectUnixSocketOnce(socketPath, signal);
+  if (options.timeoutMs === undefined) {
+    return runRuntimeBoundary(
+      {
+        operation: "protocol.socket.connect",
+        error: protocolSafeError({
+          code: "PROTOCOL_CONNECT_FAILED",
+          message: `Could not connect to observer socket ${socketPath}.`,
+        }),
+      },
+      task,
+    ).then((result) => {
+      if (!result.ok) {
+        throw result.error;
+      }
+      return result.value;
+    });
+  }
+
+  return runRuntimeBoundaryWithTimeout(
+    {
+      operation: "protocol.socket.connect",
+      timeoutMs: options.timeoutMs,
+      error: protocolSafeError({
+        code: "PROTOCOL_CONNECT_FAILED",
+        message: `Could not connect to observer socket ${socketPath}.`,
+      }),
+      timeoutError: protocolSafeError({
+        tag: "TimeoutError",
+        code: "PROTOCOL_CONNECT_TIMEOUT",
+        message: `Timed out connecting to observer socket ${socketPath}.`,
+      }),
+    },
+    task,
+  ).then((result) => {
+    if (!result.ok) {
+      throw result.error;
+    }
+    return result.value;
+  });
+}
+
+function connectUnixSocketOnce(socketPath: string, signal: AbortSignal): Promise<NdjsonConnection> {
   return new Promise((resolve, reject) => {
     const socket = createConnection(socketPath);
-    const timeout =
-      options.timeoutMs === undefined
-        ? undefined
-        : setTimeout(() => {
-            socket.destroy();
-            reject(new Error(`Timed out connecting to observer socket ${socketPath}.`));
-          }, options.timeoutMs);
+    let settled = false;
+    const cleanup = () => {
+      socket.off("connect", onConnect);
+      socket.off("error", onError);
+      signal.removeEventListener("abort", onAbort);
+    };
+    const settle = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const onAbort = () => {
+      socket.destroy();
+      settle(() =>
+        reject(
+          protocolSafeError({
+            tag: "TimeoutError",
+            code: "PROTOCOL_CONNECT_TIMEOUT",
+            message: `Timed out connecting to observer socket ${socketPath}.`,
+          }),
+        ),
+      );
+    };
+    const onConnect = () => {
+      settle(() => resolve(ndjsonConnection(socket)));
+    };
+    const onError = (error: Error) => {
+      settle(() => reject(error));
+    };
 
-    socket.once("connect", () => {
-      if (timeout !== undefined) {
-        clearTimeout(timeout);
-      }
-      resolve(ndjsonConnection(socket));
-    });
-    socket.once("error", (error) => {
-      if (timeout !== undefined) {
-        clearTimeout(timeout);
-      }
-      reject(error);
-    });
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    socket.once("connect", onConnect);
+    socket.once("error", onError);
   });
 }
 

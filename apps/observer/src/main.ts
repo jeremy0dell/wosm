@@ -60,6 +60,15 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
   const stopped = new Promise<void>((resolve) => {
     stopResolve = resolve;
   });
+  let stopping: Promise<void> | undefined;
+  const stopObserver = async () => {
+    stopping ??= (async () => {
+      await commandQueue.shutdown();
+      await server?.close();
+      stopResolve();
+    })();
+    await stopping;
+  };
   const api = createObserverApi({
     core,
     persistence,
@@ -77,14 +86,14 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     logger,
     onStop: () => {
       setTimeout(() => {
-        void server?.close().finally(stopResolve);
+        void stopObserver();
       }, 0);
     },
   });
 
   server = await startObserverServer({ socketPath, api, clock });
   const stopFromSignal = () => {
-    void server?.close().finally(stopResolve);
+    void stopObserver();
   };
   process.once("SIGINT", stopFromSignal);
   process.once("SIGTERM", stopFromSignal);

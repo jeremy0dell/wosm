@@ -239,4 +239,86 @@ describe("observer reconcile with fake providers", () => {
       }),
     ]);
   });
+
+  it("times out hung provider reads and records degraded provider health", async () => {
+    const terminal = new FakeTerminalProvider({ now });
+    terminal.listTargets = async () => new Promise(() => undefined);
+    const core = createObserverCore({
+      config,
+      providerTimeoutMs: 5,
+      providerReadRetries: 0,
+      providers: new ProviderRegistry({
+        worktree: new FakeWorktreeProvider({ now }),
+        terminal,
+        harnesses: [new FakeHarnessProvider({ now })],
+      }),
+      clock: {
+        now: () => new Date(now),
+      },
+    });
+
+    const snapshot = await core.reconcile("provider-timeout");
+
+    expect(snapshot.providerHealth["fake-terminal"]).toMatchObject({
+      status: "unavailable",
+      lastError: {
+        tag: "TimeoutError",
+        code: "PROVIDER_TIMEOUT",
+        provider: "fake-terminal",
+      },
+    });
+  });
+
+  it("retries safe provider reads and serializes concurrent reconciles", async () => {
+    const worktree = new FakeWorktreeProvider({
+      now,
+      worktrees: [createFakeWorktree({ id: "wt_web_retry", projectId: "web", now })],
+    });
+    let attempts = 0;
+    let active = 0;
+    let maxActive = 0;
+    const originalList = worktree.listWorktrees.bind(worktree);
+    worktree.listWorktrees = async (project) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      attempts += 1;
+      try {
+        if (attempts === 1) {
+          throw {
+            tag: "WorktreeProviderError",
+            code: "TRANSIENT_LIST_FAILED",
+            message: "Transient list failure.",
+            provider: "fake-worktree",
+          };
+        }
+        await new Promise((resolve) => setImmediate(resolve));
+        return originalList(project);
+      } finally {
+        active -= 1;
+      }
+    };
+    const core = createObserverCore({
+      config,
+      providerTimeoutMs: 100,
+      providerReadRetries: 1,
+      providers: new ProviderRegistry({
+        worktree,
+        terminal: new FakeTerminalProvider({ now }),
+        harnesses: [new FakeHarnessProvider({ now })],
+      }),
+      clock: {
+        now: () => new Date(now),
+      },
+    });
+
+    const [first, second] = await Promise.all([
+      core.reconcile("concurrent-a"),
+      core.reconcile("concurrent-b"),
+    ]);
+
+    expect(first.providerHealth["fake-worktree"]?.status).toBe("healthy");
+    expect(second.providerHealth["fake-worktree"]?.status).toBe("healthy");
+    expect(attempts).toBeGreaterThan(config.projects.length);
+    expect(maxActive).toBe(1);
+  });
 });

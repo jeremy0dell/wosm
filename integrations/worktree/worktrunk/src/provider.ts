@@ -14,7 +14,7 @@ import {
   type ExternalCommandRunner,
   type RuntimeClock,
   runExternalCommand,
-  runRuntimeBoundary,
+  runRuntimeBoundaryWithRetryAndTimeout,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
@@ -67,7 +67,7 @@ export class WorktrunkProvider implements WorktreeProvider {
   async health(): Promise<ProviderHealth> {
     const checkedAt = toIsoTimestamp(this.#clock.now());
     try {
-      await this.#run(["--version"]);
+      await this.#run(["--version"], undefined, undefined, { retries: 1 });
       return {
         providerId: this.id,
         providerType: "worktree",
@@ -97,10 +97,15 @@ export class WorktrunkProvider implements WorktreeProvider {
       return [];
     }
 
-    const output = await this.#run(this.#args(["list", "--format=json"]), project.root, {
-      code: "WORKTRUNK_COMMAND_FAILED",
-      message: "Worktrunk failed to list worktrees.",
-    });
+    const output = await this.#run(
+      this.#args(["list", "--format=json"]),
+      project.root,
+      {
+        code: "WORKTRUNK_COMMAND_FAILED",
+        message: "Worktrunk failed to list worktrees.",
+      },
+      { retries: 1 },
+    );
     const observations = parseWorktrunkListJson(output.stdout, {
       project,
       providerId: this.id,
@@ -212,11 +217,13 @@ export class WorktrunkProvider implements WorktreeProvider {
       code: "WORKTRUNK_UNAVAILABLE",
       message: "Worktrunk is not available.",
     },
+    policy: { retries?: number } = {},
   ) {
-    const result = await runRuntimeBoundary(
+    const result = await runRuntimeBoundaryWithRetryAndTimeout(
       {
         operation: `provider.worktrunk.${args[0] ?? "command"}`,
         clock: this.#clock,
+        timeoutMs: this.#timeoutMs,
         error: {
           tag:
             fallback.code === "WORKTRUNK_UNAVAILABLE"
@@ -226,14 +233,26 @@ export class WorktrunkProvider implements WorktreeProvider {
           message: fallback.message,
           provider: this.id,
         },
+        timeoutError: {
+          tag: "TimeoutError",
+          code: "WORKTRUNK_TIMEOUT",
+          message: "Worktrunk command timed out.",
+          provider: this.id,
+        },
+        retry: {
+          retries: policy.retries ?? 0,
+          delayMs: 10,
+          shouldRetry: (error) =>
+            error.code !== "WORKTRUNK_TIMEOUT" && error.code !== "WORKTRUNK_CANCELLED",
+        },
       },
-      () =>
+      ({ signal }) =>
         runExternalCommand(
           {
             command: this.#command,
             args,
             ...(cwd === undefined ? {} : { cwd }),
-            timeoutMs: this.#timeoutMs,
+            signal,
             maxOutputChars: 512 * 1024,
           },
           this.#runner,
@@ -252,6 +271,20 @@ export class WorktrunkProvider implements WorktreeProvider {
           hint: "Install the wt binary or set worktree.worktrunk.command.",
           cause,
         });
+      }
+      if (isTimeout(cause)) {
+        throw new WorktrunkProviderError("WORKTRUNK_TIMEOUT", "Worktrunk command timed out.", {
+          cause,
+        });
+      }
+      if (isAbort(cause)) {
+        throw new WorktrunkProviderError(
+          "WORKTRUNK_CANCELLED",
+          "Worktrunk command was cancelled.",
+          {
+            cause,
+          },
+        );
       }
       throw providerErrorFromUnknown(cause, {
         code: fallback.code,
@@ -275,8 +308,16 @@ function parseCommandObservation(
   }
   try {
     return parseWorktrunkListJson(trimmed, options);
-  } catch {
-    return parseWorktrunkListPayload(JSON.parse(trimmed), options);
+  } catch (cause) {
+    try {
+      return parseWorktrunkListPayload(JSON.parse(trimmed), options);
+    } catch (nestedCause) {
+      throw new WorktrunkProviderError(
+        "WORKTRUNK_INVALID_OUTPUT",
+        "Worktrunk command output is not valid worktree JSON.",
+        { cause: nestedCause ?? cause },
+      );
+    }
   }
 }
 
@@ -290,4 +331,22 @@ function isMissingBinary(error: unknown): boolean {
   }
   const cause = error as { code?: unknown; cause?: unknown };
   return cause.code === "ENOENT" || isMissingBinary(cause.cause);
+}
+
+function isTimeout(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "WORKTRUNK_TIMEOUT"
+  );
+}
+
+function isAbort(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error.code === "WORKTRUNK_CANCELLED" || error.code === "EXTERNAL_COMMAND_ABORTED")
+  );
 }

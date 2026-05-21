@@ -26,7 +26,7 @@ function commandIds() {
   };
 }
 
-function createPersistenceAndQueue() {
+function createPersistenceAndQueue(options: { commandTimeoutMs?: number } = {}) {
   const ids = commandIds();
   const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
   const persistence = createObserverPersistence({
@@ -38,6 +38,7 @@ function createPersistenceAndQueue() {
     persistence,
     clock: { now: () => new Date(now) },
     idFactory: ids,
+    ...options,
   });
   return { sqlite, persistence, queue };
 }
@@ -165,6 +166,66 @@ describe("observer command queue", () => {
 
     expect(starts).toEqual(["cmd_1", "cmd_2"]);
     expect(finishes).toEqual(["cmd_1", "cmd_2"]);
+    sqlite.close();
+  });
+
+  it("times out hung commands and persists a typed failure", async () => {
+    const { sqlite, persistence, queue } = createPersistenceAndQueue({ commandTimeoutMs: 5 });
+    queue.registerHandler("observer.reconcile", async () => new Promise(() => undefined));
+
+    await queue.dispatch(reconcileCommand);
+    await queue.drain();
+
+    expect(await persistence.listCommands()).toEqual([
+      expect.objectContaining({
+        id: "cmd_1",
+        status: "failed",
+        error: expect.objectContaining({
+          tag: "TimeoutError",
+          code: "COMMAND_TIMEOUT",
+          commandId: "cmd_1",
+        }),
+      }),
+    ]);
+    expect(
+      (await persistence.listEvents({ commandId: "cmd_1" })).map((event) => event.type),
+    ).toEqual(["command.accepted", "command.started", "command.failed"]);
+    sqlite.close();
+  });
+
+  it("shutdown interrupts an in-flight command and drains after failure is recorded", async () => {
+    const { sqlite, persistence, queue } = createPersistenceAndQueue({ commandTimeoutMs: 1000 });
+    let started = () => {};
+    const commandStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    queue.registerHandler(
+      "observer.reconcile",
+      async ({ signal }) =>
+        new Promise((_, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+          started();
+        }),
+    );
+
+    await queue.dispatch(reconcileCommand);
+    await commandStarted;
+    await queue.shutdown();
+
+    expect(await persistence.listCommands()).toEqual([
+      expect.objectContaining({
+        id: "cmd_1",
+        status: "failed",
+        error: expect.objectContaining({
+          tag: "CancellationError",
+          code: "COMMAND_CANCELLED",
+          commandId: "cmd_1",
+        }),
+      }),
+    ]);
+    expect(
+      (await persistence.listEvents({ commandId: "cmd_1" })).map((event) => event.type),
+    ).toEqual(["command.accepted", "command.started", "command.failed"]);
     sqlite.close();
   });
 });

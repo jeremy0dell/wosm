@@ -125,15 +125,15 @@ describe("CLI hook receiver", () => {
     expect(receipt).toMatchObject({
       status: "spooled",
       error: {
-        tag: "HookDeliveryError",
-        code: "HOOK_DELIVERY_FAILED",
+        tag: "TimeoutError",
+        code: "HOOK_DELIVERY_TIMEOUT",
       },
     });
     expect(receipt.error?.message).not.toContain(" at ");
     const files = await listHookSpoolFiles(fixture.hookSpoolDir);
     expect(files).toHaveLength(1);
     const record = await readHookSpoolRecord(fixture.hookSpoolDir, files[0] ?? "");
-    expect(record.lastError).toMatchObject({ code: "HOOK_DELIVERY_FAILED" });
+    expect(record.lastError).toMatchObject({ code: "HOOK_DELIVERY_TIMEOUT" });
     await expect(fileMode(fixture.hookSpoolDir)).resolves.toBe(0o700);
     await expect(fileMode(join(fixture.hookSpoolDir, files[0] ?? ""))).resolves.toBe(0o600);
   });

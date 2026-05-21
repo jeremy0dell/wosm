@@ -45,6 +45,31 @@ export type WorktrunkHookDoctorResult = {
   message: string;
 };
 
+export type WorktrunkHookSetupErrorCode =
+  | "WORKTRUNK_HOOK_CONFIG_UNREADABLE"
+  | "WORKTRUNK_HOOK_INVALID_TOML"
+  | "WORKTRUNK_HOOK_WRITE_FAILED";
+
+export class WorktrunkHookSetupError extends Error {
+  readonly tag = "WorktrunkHookSetupError";
+  readonly code: WorktrunkHookSetupErrorCode;
+  readonly provider = "worktrunk";
+
+  constructor(
+    code: WorktrunkHookSetupErrorCode,
+    message: string,
+    options: { cause?: unknown } = {},
+  ) {
+    super(message, { cause: options.cause });
+    Object.defineProperty(this, "name", {
+      value: this.tag,
+      enumerable: false,
+      configurable: true,
+    });
+    this.code = code;
+  }
+}
+
 const generatedCommandKey = "wosm";
 
 export async function planWorktrunkHooks(
@@ -83,8 +108,7 @@ export async function installWorktrunkHooks(
   }
 
   const backupPath = await backupIfPresent(plan.configPath);
-  await mkdir(dirname(plan.configPath), { recursive: true, mode: 0o700 });
-  await writeFile(plan.configPath, plan.after, { mode: 0o600 });
+  await writeHookConfig(plan.configPath, plan.after);
   return {
     ...plan,
     installed: true,
@@ -108,7 +132,7 @@ export async function uninstallWorktrunkHooks(
 
   if (changed) {
     const backupPath = await backupIfPresent(configPath);
-    await writeFile(configPath, after, { mode: 0o600 });
+    await writeHookConfig(configPath, after);
     return {
       provider: "worktrunk",
       configPath,
@@ -294,7 +318,15 @@ function parseTomlDocument(source: string): Record<string, unknown> {
   if (source.trim().length === 0) {
     return {};
   }
-  return parse(source) as Record<string, unknown>;
+  try {
+    return parse(source) as Record<string, unknown>;
+  } catch (cause) {
+    throw new WorktrunkHookSetupError(
+      "WORKTRUNK_HOOK_INVALID_TOML",
+      "Worktrunk hook config is not valid TOML.",
+      { cause },
+    );
+  }
 }
 
 function stringifyTomlDocument(document: Record<string, unknown>): string {
@@ -305,19 +337,58 @@ function stringifyTomlDocument(document: Record<string, unknown>): string {
 async function readOptionalFile(path: string): Promise<string> {
   try {
     return await readFile(path, "utf8");
-  } catch {
-    return "";
+  } catch (cause) {
+    if (isNodeError(cause) && cause.code === "ENOENT") {
+      return "";
+    }
+    throw new WorktrunkHookSetupError(
+      "WORKTRUNK_HOOK_CONFIG_UNREADABLE",
+      "Worktrunk hook config could not be read.",
+      { cause },
+    );
   }
+}
+
+async function writeHookConfig(path: string, contents: string): Promise<void> {
+  try {
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+    await writeFile(path, contents, { mode: 0o600 });
+  } catch (cause) {
+    throw new WorktrunkHookSetupError(
+      "WORKTRUNK_HOOK_WRITE_FAILED",
+      "Worktrunk hook config could not be written.",
+      { cause },
+    );
+  }
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === "object" && error !== null && "code" in error;
 }
 
 async function backupIfPresent(path: string): Promise<string | undefined> {
   try {
     await stat(path);
-  } catch {
-    return undefined;
+  } catch (cause) {
+    if (isNodeError(cause) && cause.code === "ENOENT") {
+      return undefined;
+    }
+    throw new WorktrunkHookSetupError(
+      "WORKTRUNK_HOOK_CONFIG_UNREADABLE",
+      "Worktrunk hook config metadata could not be read.",
+      { cause },
+    );
   }
   const backupPath = `${path}.bak.${new Date().toISOString().replaceAll(/[^0-9]/g, "")}`;
-  await copyFile(path, backupPath);
+  try {
+    await copyFile(path, backupPath);
+  } catch (cause) {
+    throw new WorktrunkHookSetupError(
+      "WORKTRUNK_HOOK_WRITE_FAILED",
+      "Worktrunk hook config backup could not be written.",
+      { cause },
+    );
+  }
   return backupPath;
 }
 

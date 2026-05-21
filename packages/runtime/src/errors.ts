@@ -16,9 +16,9 @@ export type RuntimeSafeErrorFallback = {
   tag: string;
   code: string;
   message: string;
-  hint?: string;
-  provider?: string;
-  traceId?: string;
+  hint?: string | undefined;
+  provider?: string | undefined;
+  traceId?: string | undefined;
 };
 
 export type RuntimeTimeoutError = RuntimeSafeError & {

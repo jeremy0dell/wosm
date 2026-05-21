@@ -2,6 +2,7 @@ import type { WosmConfig } from "@wosm/config";
 import type { DebugBundleManifest, DiagnosticCollectionOptions } from "@wosm/contracts";
 import { writeDebugBundle } from "@wosm/observability";
 import { createObserverClient } from "@wosm/protocol";
+import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import {
   type ObserverProcessDeps,
   type ObserverStatus,
@@ -30,11 +31,45 @@ export async function runDebugBundleCommand(
   const status = await startObserver({ ...options, paths }, deps);
   assertRunning(status);
   const client = (deps.clientFactory ?? defaultClientFactory)(paths.socketPath);
-  const snapshot = await client.collectDiagnostics(collectionOptions);
-  const manifest = await writeDebugBundle({
-    diagnosticsDir: paths.diagnosticsDir,
-    snapshot,
-  });
+  const collected = await runRuntimeBoundaryWithTimeout(
+    {
+      operation: "cli.debugBundle.collectDiagnostics",
+      timeoutMs: options.timeoutMs ?? 1000,
+      error: {
+        tag: "DebugBundleError",
+        code: "DEBUG_BUNDLE_COLLECT_FAILED",
+        message: "Debug bundle diagnostics collection failed.",
+      },
+      timeoutError: {
+        tag: "TimeoutError",
+        code: "DEBUG_BUNDLE_COLLECT_TIMEOUT",
+        message: "Debug bundle diagnostics collection timed out.",
+      },
+    },
+    async () => client.collectDiagnostics(collectionOptions),
+  );
+  if (!collected.ok) {
+    throw collected.error;
+  }
+  const written = await runRuntimeBoundary(
+    {
+      operation: "cli.debugBundle.write",
+      error: {
+        tag: "DebugBundleError",
+        code: "DEBUG_BUNDLE_WRITE_FAILED",
+        message: "Debug bundle could not be written.",
+      },
+    },
+    async () =>
+      writeDebugBundle({
+        diagnosticsDir: paths.diagnosticsDir,
+        snapshot: collected.value,
+      }),
+  );
+  if (!written.ok) {
+    throw written.error;
+  }
+  const manifest = written.value;
   return {
     bundlePath: manifest.bundlePath,
     manifest,

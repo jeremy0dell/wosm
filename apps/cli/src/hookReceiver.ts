@@ -105,6 +105,12 @@ async function deliverHook(
         message: "Hook event could not be delivered to the observer.",
         provider: event.provider,
       },
+      timeoutError: {
+        tag: "TimeoutError",
+        code: "HOOK_DELIVERY_TIMEOUT",
+        message: "Hook event delivery timed out.",
+        provider: event.provider,
+      },
     },
     async () => {
       const client = (deps.clientFactory ?? defaultClientFactory)(paths.socketPath);

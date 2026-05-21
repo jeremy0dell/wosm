@@ -79,4 +79,21 @@ describe("Worktrunk hook setup", () => {
     expect(removed.installed).toBe(false);
     expect(contents).not.toContain("hook worktrunk post-create");
   });
+
+  it("maps invalid hook config TOML to a typed setup error", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-wt-hooks-"));
+    const configPath = join(root, "config.toml");
+    await writeFile(configPath, "not = [valid");
+
+    await expect(
+      planWorktrunkHooks({
+        worktrunkConfigPath: configPath,
+        wosmConfigPath: "/tmp/wosm/config.toml",
+      }),
+    ).rejects.toMatchObject({
+      tag: "WorktrunkHookSetupError",
+      code: "WORKTRUNK_HOOK_INVALID_TOML",
+      provider: "worktrunk",
+    });
+  });
 });

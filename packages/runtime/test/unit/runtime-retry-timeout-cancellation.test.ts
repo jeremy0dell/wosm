@@ -1,7 +1,9 @@
 import {
   createCancellationController,
+  Effect,
   runRuntimeBoundaryWithRetry,
   runRuntimeBoundaryWithTimeout,
+  runtimeBoundaryWithRetryEffect,
   runWithCancellation,
 } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
@@ -42,6 +44,7 @@ describe("runtime retry, timeout, and cancellation helpers", () => {
   });
 
   it("maps timeout and cancellation to typed safe errors", async () => {
+    let timeoutAborted = false;
     const timeout = await runRuntimeBoundaryWithTimeout(
       {
         operation: "external.fake",
@@ -52,7 +55,13 @@ describe("runtime retry, timeout, and cancellation helpers", () => {
           message: "Fake operation timed out.",
         },
       },
-      async () => new Promise((resolve) => setTimeout(resolve, 20)),
+      async ({ signal }) =>
+        new Promise((resolve) => {
+          signal.addEventListener("abort", () => {
+            timeoutAborted = true;
+          });
+          setTimeout(resolve, 20);
+        }),
     );
 
     expect(timeout).toMatchObject({
@@ -62,16 +71,57 @@ describe("runtime retry, timeout, and cancellation helpers", () => {
         code: "TIMEOUT_FAKE",
       },
     });
+    expect(timeoutAborted).toBe(true);
 
     const controller = createCancellationController();
+    let cancellationAborted = false;
     const cancelled = runWithCancellation(
       controller.token,
-      async () => new Promise((resolve) => setTimeout(resolve, 20)),
+      async ({ signal }) =>
+        new Promise((resolve) => {
+          signal.addEventListener("abort", () => {
+            cancellationAborted = true;
+          });
+          setTimeout(resolve, 20);
+        }),
     );
     controller.cancel({ code: "CANCELLED_TEST", message: "Test cancelled." });
     await expect(cancelled).rejects.toMatchObject({
       tag: "CancellationError",
       code: "CANCELLED_TEST",
     });
+    expect(cancellationAborted).toBe(true);
+  });
+
+  it("keeps retry delays interruptible through the Effect boundary", async () => {
+    let attempts = 0;
+    const effect = runtimeBoundaryWithRetryEffect(
+      { retries: 10, delayMs: 1000 },
+      {
+        tag: "ProviderUnavailableError",
+        code: "PROVIDER_FAILED",
+        message: "Provider failed.",
+      },
+      async () => {
+        attempts += 1;
+        throw new Error("transient");
+      },
+    );
+
+    const startedAt = Date.now();
+    await expect(
+      Effect.runPromise(
+        Effect.timeoutFail(effect, {
+          duration: "10 millis",
+          onTimeout: () => ({
+            tag: "TimeoutError",
+            code: "RETRY_DELAY_TIMEOUT",
+            message: "Retry delay timed out.",
+          }),
+        }),
+      ),
+    ).rejects.toThrow("RETRY_DELAY_TIMEOUT");
+    expect(Date.now() - startedAt).toBeLessThan(500);
+    expect(attempts).toBe(1);
   });
 });

@@ -6,6 +6,7 @@ import type { ObserverHealth, ObserverStopReceipt, SafeError } from "@wosm/contr
 import { createObserverClient, isSocketStale, removeStaleSocket } from "@wosm/protocol";
 import {
   type RuntimeClock,
+  runRuntimeBoundaryWithRetryAndTimeout,
   runRuntimeBoundaryWithTimeout,
   safeErrorFromUnknown,
   systemClock,
@@ -97,6 +98,11 @@ export async function startObserver(
       error: {
         tag: "ObserverStartupError",
         code: "OBSERVER_START_FAILED",
+        message: "Observer startup failed.",
+      },
+      timeoutError: {
+        tag: "ObserverStartupError",
+        code: "OBSERVER_START_FAILED",
         message: "Observer did not become healthy before the startup timeout.",
       },
     },
@@ -152,26 +158,33 @@ export async function waitForObserverHealth(
   deps: ObserverProcessDeps = {},
 ): Promise<ObserverHealth> {
   const timeoutMs = options.timeoutMs ?? 2000;
-  const sleep =
-    deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const client = (deps.clientFactory ?? defaultClientFactory)(options.paths.socketPath);
-  const deadline = Date.now() + timeoutMs;
-  let lastError: unknown;
+  const result = await runRuntimeBoundaryWithRetryAndTimeout(
+    {
+      operation: "cli.observer.waitForHealth",
+      timeoutMs,
+      error: {
+        tag: "ObserverStartupError",
+        code: "OBSERVER_HEALTH_FAILED",
+        message: "Observer health check failed.",
+      },
+      timeoutError: {
+        tag: "ObserverStartupError",
+        code: "OBSERVER_HEALTH_TIMEOUT",
+        message: "Observer did not report healthy before the timeout.",
+      },
+      retry: {
+        retries: Math.max(1, Math.ceil(timeoutMs / 25)),
+        delayMs: 25,
+      },
+    },
+    async () => client.health(),
+  );
 
-  while (Date.now() <= deadline) {
-    try {
-      return await client.health();
-    } catch (error) {
-      lastError = error;
-      await sleep(25);
-    }
+  if (!result.ok) {
+    throw result.error;
   }
-
-  throw safeErrorFromUnknown(lastError, {
-    tag: "ObserverStartupError",
-    code: "OBSERVER_HEALTH_TIMEOUT",
-    message: "Observer did not report healthy before the timeout.",
-  });
+  return result.value;
 }
 
 function defaultClientFactory(socketPath: string) {

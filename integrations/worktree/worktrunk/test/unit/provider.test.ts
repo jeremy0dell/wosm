@@ -100,6 +100,72 @@ describe("WorktrunkProvider", () => {
       },
     });
   });
+
+  it("aborts Worktrunk subprocesses on timeout with a typed provider error", async () => {
+    let aborted = false;
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      timeoutMs: 5,
+      clock: { now: () => new Date(now) },
+      runner: async (input) =>
+        new Promise((_, reject) => {
+          input.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(Object.assign(new Error("aborted"), { name: "AbortError", code: "ABORT_ERR" }));
+          });
+        }),
+    });
+
+    await expect(provider.listWorktrees(project)).rejects.toMatchObject({
+      tag: "WorktreeProviderError",
+      code: "WORKTRUNK_TIMEOUT",
+    });
+    expect(aborted).toBe(true);
+  });
+
+  it("maps invalid create output to a WorktrunkProviderError", async () => {
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async (input) => result(input, "{not-json"),
+    });
+
+    await expect(provider.createWorktree({ project, branch: "feature" })).rejects.toMatchObject({
+      tag: "WorktreeProviderError",
+      code: "WORKTRUNK_INVALID_OUTPUT",
+    });
+  });
+
+  it("retries safe reads but not create commands", async () => {
+    let listCalls = 0;
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        if (input.args?.includes("list")) {
+          listCalls += 1;
+          if (listCalls === 1) {
+            throw Object.assign(new Error("temporary"), { code: "EAGAIN" });
+          }
+          return result(
+            input,
+            JSON.stringify([{ path: "/tmp/wosm/web/feature", branch: "feature" }]),
+          );
+        }
+        if (input.args?.includes("switch")) {
+          throw Object.assign(new Error("temporary"), { code: "EAGAIN" });
+        }
+        return result(input, "wt 0.0.0");
+      },
+    });
+
+    await expect(provider.listWorktrees(project)).resolves.toHaveLength(1);
+    await expect(provider.createWorktree({ project, branch: "feature" })).rejects.toMatchObject({
+      tag: "WorktreeProviderError",
+      code: "WORKTRUNK_COMMAND_FAILED",
+    });
+    expect(listCalls).toBe(2);
+  });
 });
 
 function result(input: ExternalCommandInput, stdout: string): ExternalCommandResult {

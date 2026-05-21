@@ -3,7 +3,7 @@ import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { HookReceipt, HookSpoolRecord, ProviderHookEvent, SafeError } from "@wosm/contracts";
 import { HookReceiptSchema, HookSpoolRecordSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
-import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
 
 export type WriteHookSpoolRecordOptions = {
   spoolDir: string;
@@ -20,21 +20,39 @@ export async function writeHookSpoolRecord(
 ): Promise<HookReceipt> {
   const clock = options.clock ?? systemClock;
   const spoolId = (options.spoolId ?? defaultSpoolId)();
-  await mkdir(options.spoolDir, { recursive: true, mode: 0o700 });
-  await chmod(options.spoolDir, 0o700);
+  const result = await runRuntimeBoundary(
+    {
+      operation: "cli.hookSpool.write",
+      clock,
+      error: {
+        tag: "HookSpoolError",
+        code: "HOOK_SPOOL_WRITE_FAILED",
+        message: "Hook event could not be written to the hook spool.",
+        provider: options.event.provider,
+      },
+    },
+    async () => {
+      await mkdir(options.spoolDir, { recursive: true, mode: 0o700 });
+      await chmod(options.spoolDir, 0o700);
 
-  const record: HookSpoolRecord = HookSpoolRecordSchema.parse({
-    schemaVersion: WOSM_SCHEMA_VERSION,
-    spoolId,
-    createdAt: toIsoTimestamp(clock.now()),
-    event: options.event,
-    attempts: 0,
-    ...(options.error === undefined ? {} : { lastError: options.error }),
-  });
-  await writeFile(join(options.spoolDir, `${spoolId}.json`), JSON.stringify(record, null, 2), {
-    mode: 0o600,
-    flag: "wx",
-  });
+      const record: HookSpoolRecord = HookSpoolRecordSchema.parse({
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        spoolId,
+        createdAt: toIsoTimestamp(clock.now()),
+        event: options.event,
+        attempts: 0,
+        ...(options.error === undefined ? {} : { lastError: options.error }),
+      });
+      await writeFile(join(options.spoolDir, `${spoolId}.json`), JSON.stringify(record, null, 2), {
+        mode: 0o600,
+        flag: "wx",
+      });
+    },
+  );
+
+  if (!result.ok) {
+    throw result.error;
+  }
 
   return HookReceiptSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,

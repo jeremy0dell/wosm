@@ -15,6 +15,7 @@ import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
   connectUnixSocket,
   createObserverClient,
+  listenUnixSocket,
   type ObserverApi,
   PROTOCOL_SCHEMA_VERSION,
   startProtocolServer,
@@ -163,6 +164,97 @@ describe("protocol client/server", () => {
     try {
       await expect(client.getCommand("cmd_missing")).resolves.toBeUndefined();
     } finally {
+      await server.close();
+    }
+  });
+
+  it("times out when a connected socket never returns a response", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const server = await listenUnixSocket({
+      socketPath,
+      onConnection: () => undefined,
+    });
+    const client = createObserverClient({ socketPath, timeoutMs: 10, requestId: ids("timeout") });
+
+    try {
+      await expect(client.health()).rejects.toMatchObject({
+        tag: "TimeoutError",
+        code: "PROTOCOL_REQUEST_TIMEOUT",
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("maps server handler timeout to a typed protocol error", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const server = await startProtocolServer({
+      socketPath,
+      requestTimeoutMs: 10,
+      api: fakeApi({
+        health: async () => new Promise(() => undefined),
+      }),
+    });
+    const client = createObserverClient({ socketPath, timeoutMs: 200, requestId: ids("handler") });
+
+    try {
+      await expect(client.health()).rejects.toMatchObject({
+        tag: "TimeoutError",
+        code: "PROTOCOL_HANDLER_TIMEOUT",
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("returns SafeError envelopes for malformed API results and keeps the connection usable", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const server = await startProtocolServer({
+      socketPath,
+      api: fakeApi({
+        health: async () => ({ status: "not-a-health-report" }) as never,
+      }),
+    });
+    const connection = await connectUnixSocket(socketPath, { timeoutMs: 500 });
+    const messages = connection.messages()[Symbol.asyncIterator]();
+
+    try {
+      connection.send({
+        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        jsonrpc: "2.0",
+        id: "bad_result",
+        method: "observer.health",
+      });
+      await expect(messages.next()).resolves.toMatchObject({
+        done: false,
+        value: {
+          id: "bad_result",
+          error: {
+            tag: "ProtocolError",
+            code: "PROTOCOL_ERROR",
+            message: "Observer protocol response validation failed.",
+          },
+        },
+      });
+
+      connection.send({
+        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        jsonrpc: "2.0",
+        id: "after_bad_result",
+        method: "snapshot.get",
+      });
+      await expect(messages.next()).resolves.toMatchObject({
+        done: false,
+        value: {
+          id: "after_bad_result",
+          result: {
+            schemaVersion: WOSM_SCHEMA_VERSION,
+            counts: { projects: 0 },
+          },
+        },
+      });
+    } finally {
+      connection.close();
       await server.close();
     }
   });
