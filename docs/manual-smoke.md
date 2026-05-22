@@ -209,3 +209,31 @@ pnpm test:e2e:codex:real
 ```
 
 The test uses a temporary project/worktree plus a temporary Codex shim that records argv and then executes the real Codex binary. The expected observer result is a normalized Codex harness run with conservative `unknown` low-confidence status.
+
+## Real Dogfood E2E
+
+Phase 16 adds an opt-in product dogfood lane that drives the built `bin/wosm` CLI against real config TOML, a real observer process, real Unix socket, real SQLite file, real Worktrunk, real tmux, and real Codex. It uses a temporary clone of this repository and unique tmux/Worktrunk state, not the active checkout.
+
+```bash
+pnpm build
+pnpm setup:system:check
+codex login status
+
+WOSM_REAL_DOGFOOD=1 \
+WOSM_REAL_WORKTRUNK=1 \
+WOSM_REAL_CODEX=1 \
+WOSM_WORKTRUNK_BIN="$(command -v wt)" \
+WOSM_TMUX_BIN="$(command -v tmux)" \
+WOSM_CODEX_BIN="$(command -v codex)" \
+pnpm test:e2e:real
+```
+
+The suite covers observer start/status/reconcile/snapshot/debug bundle, real Worktrunk worktree creation, tmux workbench focus, Codex launch with bounded sentinel prompts, real Codex hooks from an isolated temporary `CODEX_HOME` calling `wosm hook codex ...`, Worktrunk hook delivery/spool/drain, restart recovery, SQLite deletion recovery, and TUI key-driven control. Failed lifecycle tests attempt to write a debug bundle under that test's temp state directory.
+
+From the repo root, local wrapper scripts set the required real flags and binary paths automatically:
+
+```bash
+pnpm test:e2e:real:local
+pnpm test:e2e:real:codex-hooks
+pnpm test:e2e:real:codex-hooks:keep-temp
+```
