@@ -1,0 +1,121 @@
+import type { WosmSnapshot } from "@wosm/contracts";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { findRowByBranch } from "../../support/real-wosm/assertions";
+import { uniqueTmuxSession, writeRealWosmConfig } from "../../support/real-wosm/config";
+import {
+  type RealDogfoodEnvironment,
+  realDogfoodEnabled,
+  requireRealDogfoodEnvironment,
+} from "../../support/real-wosm/env";
+import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
+import { createRealObserverClient, waitForSnapshot } from "../../support/real-wosm/protocol";
+import { createRealTempRepo, uniqueBranch } from "../../support/real-wosm/repo";
+import {
+  activeTmuxWindow,
+  captureTmuxPane,
+  killTmuxSession,
+  sendTmuxKeys,
+  startWosmTuiInTmux,
+} from "../../support/real-wosm/tmux";
+import {
+  createRealWorktrunkWorktree,
+  removeRealWorktrunkWorktree,
+} from "../../support/real-wosm/worktrunk";
+
+const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+
+describeReal("real TUI control dogfood", () => {
+  let env: RealDogfoodEnvironment;
+  let cleanup: CleanupStack;
+
+  beforeAll(async () => {
+    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+  });
+
+  afterEach(async () => {
+    await cleanup?.run();
+  });
+
+  it("starts an agent and focuses the real tmux workbench through TUI key input", async () => {
+    cleanup = new CleanupStack();
+    const repo = await createRealTempRepo(env);
+    cleanup.defer(repo.cleanup);
+    const config = await writeRealWosmConfig({ env, repo });
+    const tuiSession = uniqueTmuxSession("wosm-real-tui");
+    cleanup.defer(async () => {
+      await runWosmJson(env, { configPath: config.configPath, args: ["observer", "stop"] }).catch(
+        () => undefined,
+      );
+    });
+    cleanup.defer(async () => {
+      await killTmuxSession(env, tuiSession);
+    });
+    cleanup.defer(async () => {
+      await killTmuxSession(env, config.tmuxSession);
+    });
+
+    const branch = uniqueBranch("tui");
+    cleanup.defer(async () => {
+      await removeRealWorktrunkWorktree({ env, config, repo, branch });
+    });
+    await createRealWorktrunkWorktree({ env, config, repo, branch });
+    await runWosmJson(env, {
+      configPath: config.configPath,
+      args: ["reconcile", "--reason", "real-tui-preload"],
+      timeoutMs: 60_000,
+    });
+
+    await startWosmTuiInTmux({
+      env,
+      configPath: config.configPath,
+      sessionName: tuiSession,
+    });
+    await waitForTuiText(env, tuiSession, branch);
+    await sendTmuxKeys({ env, target: tuiSession, keys: ["s"] });
+
+    const client = createRealObserverClient(config, 30_000);
+    const snapshot = await waitForSnapshot(
+      client,
+      (candidate) => findMaybeRow(candidate, branch)?.agent?.harness === "codex",
+      "TUI did not start a Codex agent for the selected row.",
+      120_000,
+    );
+    const row = findRowByBranch(snapshot, branch);
+    expect(row.agent).toMatchObject({ harness: "codex" });
+
+    await sendTmuxKeys({ env, target: tuiSession, keys: ["1"] });
+    await expect(activeTmuxWindow(env, config.tmuxSession)).resolves.toBe(
+      expectedWindowName(config.projectId, branch),
+    );
+  }, 240_000);
+});
+
+async function waitForTuiText(
+  env: RealDogfoodEnvironment,
+  target: string,
+  text: string,
+): Promise<void> {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() <= deadline) {
+    const captured = await captureTmuxPane({ env, target });
+    if (captured.includes(text)) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`TUI did not render ${text}.`);
+}
+
+function findMaybeRow(snapshot: WosmSnapshot, branch: string) {
+  return snapshot.rows.find((row) => row.branch === branch);
+}
+
+function expectedWindowName(projectId: string, branch: string): string {
+  const normalized = `${projectId}-${branch}`
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9._-]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .replaceAll(/-{2,}/g, "-");
+  const safe = normalized.length > 0 ? normalized : "worktree";
+  return safe.slice(0, 48).replaceAll(/-+$/g, "") || "worktree";
+}

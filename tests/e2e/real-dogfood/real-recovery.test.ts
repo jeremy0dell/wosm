@@ -1,0 +1,158 @@
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
+import type { CommandRecord, WosmCommand, WosmSnapshot } from "@wosm/contracts";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { assertDebugBundleContains, findRowByBranch } from "../../support/real-wosm/assertions";
+import { writeRealWosmConfig } from "../../support/real-wosm/config";
+import {
+  type RealDogfoodEnvironment,
+  realDogfoodEnabled,
+  requireRealDogfoodEnvironment,
+} from "../../support/real-wosm/env";
+import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
+import { createRealTempRepo, uniqueBranch } from "../../support/real-wosm/repo";
+import { killTmuxSession } from "../../support/real-wosm/tmux";
+import {
+  createRealWorktrunkWorktree,
+  removeRealWorktrunkWorktree,
+} from "../../support/real-wosm/worktrunk";
+
+const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+
+type CommandDispatchWaitResult = {
+  status: "succeeded" | "failed";
+  receipt: { commandId: string };
+  command: CommandRecord;
+};
+
+describeReal("real observer recovery dogfood", () => {
+  let env: RealDogfoodEnvironment;
+  let cleanup: CleanupStack;
+
+  beforeAll(async () => {
+    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+  });
+
+  afterEach(async () => {
+    await cleanup?.run();
+  });
+
+  it("recovers provider graph after observer restart and SQLite deletion", async () => {
+    cleanup = new CleanupStack();
+    const repo = await createRealTempRepo(env);
+    cleanup.defer(repo.cleanup);
+    const config = await writeRealWosmConfig({ env, repo });
+    cleanup.defer(async () => {
+      await runWosmJson(env, { configPath: config.configPath, args: ["observer", "stop"] }).catch(
+        () => undefined,
+      );
+    });
+    cleanup.defer(async () => {
+      await killTmuxSession(env, config.tmuxSession);
+    });
+
+    const branch = uniqueBranch("recovery");
+    cleanup.defer(async () => {
+      await removeRealWorktrunkWorktree({ env, config, repo, branch });
+    });
+    await createRealWorktrunkWorktree({ env, config, repo, branch });
+
+    const first = await runWosmJson<{ snapshot: WosmSnapshot }>(env, {
+      configPath: config.configPath,
+      args: ["reconcile", "--reason", "real-recovery-before-delete"],
+      timeoutMs: 60_000,
+    });
+    expect(findRowByBranch(first.snapshot, branch).id).toEqual(expect.any(String));
+
+    const status = await runWosmJson<{ health: { pid: number } }>(env, {
+      configPath: config.configPath,
+      args: ["observer", "status"],
+    });
+    process.kill(status.health.pid, "SIGTERM");
+    await waitForObserverDown(env, config.configPath);
+
+    await rm(join(config.stateDir, "observer.sqlite"), { force: true });
+    const recovered = await runWosmJson<{ snapshot: WosmSnapshot }>(env, {
+      configPath: config.configPath,
+      args: ["reconcile", "--reason", "real-recovery-after-sqlite-delete"],
+      timeoutMs: 60_000,
+    });
+    expect(findRowByBranch(recovered.snapshot, branch).id).toEqual(expect.any(String));
+  }, 180_000);
+
+  it("leaves debug evidence when a tmux target goes stale", async () => {
+    cleanup = new CleanupStack();
+    const repo = await createRealTempRepo(env);
+    cleanup.defer(repo.cleanup);
+    const config = await writeRealWosmConfig({ env, repo });
+    cleanup.defer(async () => {
+      await runWosmJson(env, { configPath: config.configPath, args: ["observer", "stop"] }).catch(
+        () => undefined,
+      );
+    });
+    cleanup.defer(async () => {
+      await killTmuxSession(env, config.tmuxSession);
+    });
+
+    const branch = uniqueBranch("stale-tmux");
+    cleanup.defer(async () => {
+      await removeRealWorktrunkWorktree({ env, config, repo, branch });
+    });
+    await createRealWorktrunkWorktree({ env, config, repo, branch });
+    await runWosmJson(env, {
+      configPath: config.configPath,
+      args: ["reconcile", "--reason", "real-stale-tmux-before"],
+      timeoutMs: 60_000,
+    });
+    const snapshot = await runWosmJson<WosmSnapshot>(env, {
+      configPath: config.configPath,
+      args: ["snapshot", "--json"],
+    });
+    const row = findRowByBranch(snapshot, branch);
+    const command: WosmCommand = {
+      type: "session.startAgent",
+      payload: {
+        projectId: config.projectId,
+        worktreeId: row.id,
+        harness: { provider: "codex", mode: "interactive" },
+        terminal: { provider: "tmux", focus: true },
+      },
+    };
+    const started = await runWosmJson<CommandDispatchWaitResult>(env, {
+      configPath: config.configPath,
+      args: ["command", "dispatch", "--stdin", "--wait", "--timeout-ms", "90000"],
+      stdin: JSON.stringify(command),
+      timeoutMs: 100_000,
+    });
+    expect(started.status).toBe("succeeded");
+
+    await killTmuxSession(env, config.tmuxSession);
+    await runWosmJson(env, {
+      configPath: config.configPath,
+      args: ["reconcile", "--reason", "real-stale-tmux-after-kill"],
+      timeoutMs: 60_000,
+    });
+    const bundle = await runWosmJson<{ bundlePath: string }>(env, {
+      configPath: config.configPath,
+      args: ["debug", "bundle", "--command", started.receipt.commandId],
+      timeoutMs: 30_000,
+    });
+    await assertDebugBundleContains(bundle.bundlePath, "commands.jsonl", started.receipt.commandId);
+    await assertDebugBundleContains(bundle.bundlePath, "provider-health.json", "tmux");
+  }, 240_000);
+});
+
+async function waitForObserverDown(env: RealDogfoodEnvironment, configPath: string): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() <= deadline) {
+    const result = await runWosmJson(env, {
+      configPath,
+      args: ["observer", "status"],
+      timeoutMs: 5_000,
+    }).catch(() => undefined);
+    if (result === undefined || (result as { status?: string }).status !== "running") {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}

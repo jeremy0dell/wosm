@@ -5,10 +5,12 @@ export default defineConfig({
   ...commonResolveConfig,
   test: {
     ...commonTestConfig,
-    include: ["tests/e2e/**/*.test.ts"],
-    exclude: ["tests/e2e/real-dogfood/**/*.test.ts"],
+    include: ["tests/e2e/real-dogfood/**/*.test.ts"],
     fileParallelism: false,
-    testTimeout: 60_000,
+    sequence: {
+      concurrent: false,
+    },
     passWithNoTests: true,
+    testTimeout: 300_000,
   },
 });
