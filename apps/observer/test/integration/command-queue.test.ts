@@ -137,6 +137,46 @@ describe("observer command queue", () => {
     sqlite.close();
   });
 
+  it("preserves SafeError causes through command failure wrappers", async () => {
+    const { sqlite, persistence, queue } = createPersistenceAndQueue();
+    const cause = {
+      tag: "ProviderUnavailableError",
+      code: "WORKTRUNK_UNAVAILABLE",
+      message: "Worktrunk is not available.",
+      hint: "Install Worktrunk with brew install worktrunk.",
+      provider: "worktrunk",
+    };
+    queue.registerHandler("observer.reconcile", async () => {
+      throw new Error("observer command wrapper", { cause });
+    });
+
+    await queue.dispatch(reconcileCommand);
+    await queue.drain();
+
+    expect(await persistence.listCommands()).toEqual([
+      expect.objectContaining({
+        id: "cmd_1",
+        status: "failed",
+        error: expect.objectContaining({
+          tag: "ProviderUnavailableError",
+          code: "WORKTRUNK_UNAVAILABLE",
+          provider: "worktrunk",
+          commandId: "cmd_1",
+        }),
+      }),
+    ]);
+    expect(await persistence.listCommandErrors("cmd_1")).toEqual([
+      expect.objectContaining({
+        envelope: expect.objectContaining({
+          tag: "ProviderUnavailableError",
+          code: "WORKTRUNK_UNAVAILABLE",
+          provider: "worktrunk",
+        }),
+      }),
+    ]);
+    sqlite.close();
+  });
+
   it("serializes command execution by session scope", async () => {
     const { sqlite, queue } = createPersistenceAndQueue();
     const starts: string[] = [];

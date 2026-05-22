@@ -40,7 +40,7 @@ export function toSafeError(
     >
   > = {},
 ): SafeError {
-  const knownSafeError = isSafeErrorLike(error) ? error : undefined;
+  const knownSafeError = isSafeErrorLike(error) ? error : safeErrorCause(error);
   const known = knownSafeError ?? fallback;
   const safeMessage = redact(known.message).value;
   const safeError: SafeError = {
@@ -114,6 +114,18 @@ function isSafeErrorLike(value: unknown): value is SafeError {
     typeof candidate.code === "string" &&
     typeof candidate.message === "string"
   );
+}
+
+function safeErrorCause(error: unknown, seen = new Set<unknown>()): SafeError | undefined {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return undefined;
+  }
+  seen.add(error);
+  const cause = (error as { cause?: unknown }).cause;
+  if (isSafeErrorLike(cause)) {
+    return cause;
+  }
+  return safeErrorCause(cause, seen);
 }
 
 function applySafeErrorContext(

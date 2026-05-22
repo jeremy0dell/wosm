@@ -59,7 +59,11 @@ export function safeErrorFromUnknown(
   fallback: RuntimeSafeErrorFallback,
 ): RuntimeSafeError {
   if (isSafeError(error)) {
-    return error;
+    return copySafeError(error);
+  }
+  const cause = safeErrorCause(error);
+  if (cause !== undefined) {
+    return copySafeError(cause);
   }
 
   const safeError: RuntimeSafeError = {
@@ -79,4 +83,42 @@ export function safeErrorFromUnknown(
   }
 
   return safeError;
+}
+
+function copySafeError(input: RuntimeSafeError): RuntimeSafeError {
+  const safeError: RuntimeSafeError = {
+    tag: input.tag,
+    code: input.code,
+    message: input.message,
+  };
+  if (input.hint !== undefined) safeError.hint = input.hint;
+  if (input.commandId !== undefined) safeError.commandId = input.commandId;
+  if (input.projectId !== undefined) safeError.projectId = input.projectId;
+  if (input.worktreeId !== undefined) safeError.worktreeId = input.worktreeId;
+  if (input.sessionId !== undefined) safeError.sessionId = input.sessionId;
+  if (input.provider !== undefined) safeError.provider = input.provider;
+  if (input.traceId !== undefined) safeError.traceId = input.traceId;
+  if (input.diagnosticId !== undefined) safeError.diagnosticId = input.diagnosticId;
+  if (input.tag === "ExternalCommandError") {
+    const source = input as Partial<ExternalCommandError>;
+    const target = safeError as ExternalCommandError;
+    if (typeof source.command === "string") target.command = source.command;
+    if (typeof source.exitCode === "number") target.exitCode = source.exitCode;
+    if (typeof source.signal === "string") target.signal = source.signal;
+    if (typeof source.stdoutSnippet === "string") target.stdoutSnippet = source.stdoutSnippet;
+    if (typeof source.stderrSnippet === "string") target.stderrSnippet = source.stderrSnippet;
+  }
+  return safeError;
+}
+
+function safeErrorCause(error: unknown, seen = new Set<unknown>()): RuntimeSafeError | undefined {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return undefined;
+  }
+  seen.add(error);
+  const cause = (error as { cause?: unknown }).cause;
+  if (isSafeError(cause)) {
+    return cause;
+  }
+  return safeErrorCause(cause, seen);
 }
