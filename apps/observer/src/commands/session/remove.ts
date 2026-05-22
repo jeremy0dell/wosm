@@ -7,6 +7,7 @@ import type { ObserverEventBus } from "../../runtime/eventBus.js";
 import {
   assertSessionCloseAllowed,
   assertWorktreeRemovalAllowed,
+  canUseTerminalCloseFallbackForWorktree,
   closeSessionResources,
   closeTerminalForWorktree,
   publishRemovedSessionIfAbsent,
@@ -55,6 +56,7 @@ export function createSessionRemoveHandler(
         providers: options.providers,
         row,
         force: payload.force === true,
+        allowUnsupportedStop: canUseTerminalCloseFallbackForWorktree(row, payload.force === true),
         context,
         clock: options.clock,
         commandTimeoutMs: options.commandTimeoutMs,

@@ -1,4 +1,5 @@
 import type { WosmConfig } from "@wosm/config";
+import type { HarnessProvider } from "@wosm/contracts";
 import {
   createFakeHarnessRun,
   createFakeTerminalTarget,
@@ -159,6 +160,31 @@ describe("cleanup command handlers", () => {
     fixture.sqlite.close();
   });
 
+  it("force-removes an active worktree when the terminal-owned harness cannot stop natively", async () => {
+    const fixture = createFixture({ dirty: true, state: "working", harnessStopSupported: false });
+    await fixture.core.reconcile("pre-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "worktree.remove",
+      payload: {
+        worktreeId: "wt_web_cleanup",
+        projectId: "web",
+        force: true,
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(fixture.harness.snapshot().stopped).toEqual([]);
+    expect(fixture.terminal.snapshot().closed).toEqual(["term_web_cleanup"]);
+    expect(fixture.worktree.snapshot().removed).toEqual([
+      { projectId: "web", worktreeId: "wt_web_cleanup", force: true },
+    ]);
+    fixture.sqlite.close();
+  });
+
   it("implements session.remove as close-all plus optional worktree removal", async () => {
     const fixture = createFixture({ state: "working" });
     await fixture.core.reconcile("pre-cleanup");
@@ -181,9 +207,36 @@ describe("cleanup command handlers", () => {
     expect(fixture.core.getSnapshot().sessions).toEqual([]);
     fixture.sqlite.close();
   });
+
+  it("removes a session and worktree when the terminal-owned harness cannot stop natively", async () => {
+    const fixture = createFixture({ state: "working", harnessStopSupported: false });
+    await fixture.core.reconcile("pre-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.remove",
+      payload: {
+        sessionId: "ses_web_cleanup",
+        removeWorktree: true,
+        force: true,
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(fixture.harness.snapshot().stopped).toEqual([]);
+    expect(fixture.terminal.snapshot().closed).toEqual(["term_web_cleanup"]);
+    expect(fixture.worktree.snapshot().worktrees).toEqual([]);
+    fixture.sqlite.close();
+  });
 });
 
-function createFixture(input: { dirty?: boolean; state: "none" | "working" }) {
+function createFixture(input: {
+  dirty?: boolean;
+  state: "none" | "working";
+  harnessStopSupported?: boolean;
+}) {
   const clock = { now: () => new Date(now) };
   const sqlite = openObserverSqlite({ clock });
   const ids = observerIds();
@@ -234,10 +287,12 @@ function createFixture(input: { dirty?: boolean; state: "none" | "working" }) {
             }),
           ],
   });
+  const harnessProvider =
+    input.harnessStopSupported === false ? withoutNativeStop(harness) : harness;
   const providers = new ProviderRegistry({
     worktree,
     terminal,
-    harnesses: [harness],
+    harnesses: [harnessProvider],
   });
   const core = createObserverCore({ config, providers, persistence, sqlite, clock });
   registerObserverCommandHandlers({
@@ -250,6 +305,21 @@ function createFixture(input: { dirty?: boolean; state: "none" | "working" }) {
     clock,
   });
   return { sqlite, persistence, eventBus, queue, providers, core, worktree, terminal, harness };
+}
+
+function withoutNativeStop(provider: FakeHarnessProvider): HarnessProvider {
+  return new Proxy(provider, {
+    get(target, property, receiver) {
+      if (property === "stop") {
+        return undefined;
+      }
+      if (property === "capabilities") {
+        return () => ({ ...target.capabilities(), canStop: false });
+      }
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }
 
 const config: WosmConfig = {

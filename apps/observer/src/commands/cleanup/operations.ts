@@ -34,7 +34,10 @@ export async function closeSessionResources(
   } & CleanupRuntime,
 ): Promise<void> {
   if (input.mode === "harness" || input.mode === "all") {
-    await stopHarnessForSession(input);
+    await stopHarnessForSession({
+      ...input,
+      allowUnsupportedStop: input.mode === "all" && canUseTerminalCloseFallbackForSession(input),
+    });
   }
   throwIfAborted(input.context.signal);
 
@@ -68,6 +71,7 @@ export async function stopHarnessForWorktree(
     row: WorktreeRow;
     force: boolean;
     context: CommandHandlerContext;
+    allowUnsupportedStop?: boolean | undefined;
   } & CleanupRuntime,
 ): Promise<void> {
   if (input.row.agent === undefined || !isRunningAgentState(input.row.agent.state)) {
@@ -80,6 +84,7 @@ export async function stopHarnessForWorktree(
     sessionId: input.row.agent.sessionId,
     worktreeId: input.row.id,
     force: input.force,
+    allowUnsupportedStop: input.allowUnsupportedStop === true,
     context: input.context,
     clock: input.clock,
     commandTimeoutMs: input.commandTimeoutMs,
@@ -196,6 +201,7 @@ async function stopHarnessForSession(
     row?: WorktreeRow | undefined;
     force: boolean;
     context: CommandHandlerContext;
+    allowUnsupportedStop?: boolean | undefined;
   } & CleanupRuntime,
 ): Promise<void> {
   if (!isRunningAgentState(input.row?.agent?.state ?? input.session.status.value)) {
@@ -210,6 +216,7 @@ async function stopHarnessForSession(
     sessionId: input.session.id,
     worktreeId: input.session.worktreeId,
     force: input.force,
+    allowUnsupportedStop: input.allowUnsupportedStop === true,
     context: input.context,
     clock: input.clock,
     commandTimeoutMs: input.commandTimeoutMs,
@@ -223,6 +230,7 @@ async function stopHarnessRun(
     sessionId?: string | undefined;
     worktreeId: string;
     force: boolean;
+    allowUnsupportedStop?: boolean | undefined;
     context: CommandHandlerContext;
   } & CleanupRuntime,
 ): Promise<void> {
@@ -238,6 +246,9 @@ async function stopHarnessRun(
     throw error;
   }
   if (input.provider.stop === undefined) {
+    if (input.allowUnsupportedStop === true) {
+      return;
+    }
     const error: SafeError = {
       tag: "HarnessProviderError",
       code: "HARNESS_STOP_UNSUPPORTED",
@@ -274,4 +285,24 @@ async function stopHarnessRun(
     },
     () => input.provider.stop?.(stopRequest) as Promise<unknown>,
   );
+}
+
+function canUseTerminalCloseFallbackForSession(input: {
+  session: SessionView;
+  row?: WorktreeRow | undefined;
+  force: boolean;
+}): boolean {
+  if (!input.force) {
+    return false;
+  }
+  return (
+    (terminalTargetIdForSession(input.session) ?? terminalTargetIdForRow(input.row)) !== undefined
+  );
+}
+
+export function canUseTerminalCloseFallbackForWorktree(row: WorktreeRow, force: boolean): boolean {
+  if (!force) {
+    return false;
+  }
+  return terminalTargetIdForRow(row) !== undefined;
 }

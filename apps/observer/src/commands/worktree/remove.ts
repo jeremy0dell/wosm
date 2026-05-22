@@ -5,6 +5,7 @@ import type { ObserverCore } from "../../reconcile/core.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
 import {
   assertWorktreeRemovalAllowed,
+  canUseTerminalCloseFallbackForWorktree,
   closeTerminalForWorktree,
   publishRemovedSessionIfAbsent,
   publishWorktreeRemoved,
@@ -43,6 +44,7 @@ export function createWorktreeRemoveHandler(
       providers: options.providers,
       row,
       force,
+      allowUnsupportedStop: canUseTerminalCloseFallbackForWorktree(row, force),
       context,
       clock: options.clock,
       commandTimeoutMs: options.commandTimeoutMs,
