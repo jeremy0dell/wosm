@@ -32,6 +32,8 @@ import {
   tmuxWindowTarget,
 } from "./topology.js";
 
+const tmuxPrimaryPaneIdentityFormat = ["#{session_name}", "#{window_id}", "#{pane_id}"].join("\t");
+
 export type TmuxProviderOptions = {
   command?: string;
   config?: TmuxConfig;
@@ -167,16 +169,11 @@ export class TmuxProvider implements TerminalProvider {
     await this.#setPaneOption(paneTarget, "@wosm.role", "main-agent");
     await this.#setPaneOption(paneTarget, "@wosm.harness", request.harness);
 
-    const pseudoWindowId = `@${windowName}`;
-    const pseudoPaneId = `%${windowName}-main`;
+    const primaryPane = await this.#resolvePrimaryPaneIdentity(paneTarget);
     return {
       target: {
         provider: this.id,
-        targetId: buildTmuxTargetId({
-          sessionId: sessionName,
-          windowId: pseudoWindowId,
-          paneId: pseudoPaneId,
-        }),
+        targetId: buildTmuxTargetId(primaryPane),
         projectId: request.project.id,
         worktreeId: request.worktree.id,
         ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
@@ -185,16 +182,20 @@ export class TmuxProvider implements TerminalProvider {
           windowName,
           windowTarget,
           paneTarget,
+          windowId: primaryPane.windowId,
+          paneId: primaryPane.paneId,
         },
         confidence: "high",
         reason: "tmux workbench workspace is open and identity binding was written.",
       },
-      agentEndpointId: pseudoPaneId,
+      agentEndpointId: primaryPane.paneId,
       providerData: {
         sessionName,
         windowName,
         windowTarget,
         paneTarget,
+        windowId: primaryPane.windowId,
+        paneId: primaryPane.paneId,
       },
     };
   }
@@ -355,6 +356,31 @@ export class TmuxProvider implements TerminalProvider {
         message: "tmux failed to write pane identity binding.",
       },
     });
+  }
+
+  async #resolvePrimaryPaneIdentity(paneTarget: string): Promise<{
+    sessionId: string;
+    windowId: string;
+    paneId: string;
+  }> {
+    const output = await this.#run(
+      ["display-message", "-p", "-t", paneTarget, tmuxPrimaryPaneIdentityFormat],
+      {
+        operation: "provider.tmux.openWorkspace",
+        fallback: {
+          code: "TERMINAL_OPEN_FAILED",
+          message: "tmux failed to resolve the primary pane identity.",
+        },
+      },
+    );
+    const [sessionId = "", windowId = "", paneId = ""] = output.stdout.trim().split("\t");
+    if (sessionId.length === 0 || windowId.length === 0 || paneId.length === 0) {
+      throw new TmuxTerminalProviderError(
+        "TERMINAL_OPEN_FAILED",
+        "tmux returned an invalid primary pane identity.",
+      );
+    }
+    return { sessionId, windowId, paneId };
   }
 
   async #run(

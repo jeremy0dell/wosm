@@ -53,6 +53,9 @@ describe("TmuxProvider", () => {
         if (input.args?.[0] === "has-session") {
           throw Object.assign(new Error("missing"), { code: 1, stderr: "can't find session" });
         }
+        if (input.args?.[0] === "display-message") {
+          return result(input, "wosm\t@7\t%8");
+        }
         return result(input, "");
       },
     });
@@ -68,13 +71,13 @@ describe("TmuxProvider", () => {
     ).resolves.toMatchObject({
       target: {
         provider: "tmux",
-        targetId: "tmux:wosm:@web-feature-login:%web-feature-login-main",
+        targetId: "tmux:wosm:@7:%8",
         projectId: "web",
         worktreeId: "wt_web_feature",
         sessionId: "ses_web_feature",
         confidence: "high",
       },
-      agentEndpointId: "%web-feature-login-main",
+      agentEndpointId: "%8",
     });
 
     expect(calls.map((call) => call.args)).toEqual([
@@ -93,6 +96,13 @@ describe("TmuxProvider", () => {
       ],
       ["set-option", "-p", "-t", "wosm:web-feature-login.0", "@wosm.role", "main-agent"],
       ["set-option", "-p", "-t", "wosm:web-feature-login.0", "@wosm.harness", "codex"],
+      [
+        "display-message",
+        "-p",
+        "-t",
+        "wosm:web-feature-login.0",
+        "#{session_name}\t#{window_id}\t#{pane_id}",
+      ],
     ]);
   });
 
