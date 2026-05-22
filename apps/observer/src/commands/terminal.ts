@@ -1,10 +1,30 @@
 import type { TerminalProvider } from "@wosm/contracts";
+import type { RuntimeClock } from "@wosm/runtime";
+import type { ObserverPersistence } from "../persistence/index.js";
 import type { ObserverCore } from "../reconcile/core.js";
+import type { ObserverEventBus } from "../runtime/eventBus.js";
+import { publishRemovedSessionIfAbsent } from "./cleanup/events.js";
+import {
+  assertTerminalCloseAllowed,
+  resolveTerminalTargetOrThrow,
+  terminalTargetMissingError,
+} from "./cleanup/index.js";
+import { closeTerminalTarget } from "./cleanup/operations.js";
 import type { CommandHandler, CommandHandlerContext } from "./queue.js";
+import { reconcileAndPublish } from "./reconcile.js";
 
 export type CreateTerminalFocusHandlerOptions = {
   core: ObserverCore;
   terminal: TerminalProvider;
+};
+
+export type CreateTerminalCloseHandlerOptions = {
+  core: ObserverCore;
+  terminal: TerminalProvider;
+  persistence?: ObserverPersistence | undefined;
+  eventBus?: ObserverEventBus | undefined;
+  clock?: RuntimeClock | undefined;
+  commandTimeoutMs?: number | undefined;
 };
 
 export function createTerminalFocusHandler(
@@ -21,6 +41,53 @@ export function createTerminalFocusHandler(
     throwIfAborted(context.signal);
     await options.terminal.focusTarget(targetId);
     throwIfAborted(context.signal);
+  };
+}
+
+export function createTerminalCloseHandler(
+  options: CreateTerminalCloseHandlerOptions,
+): CommandHandler {
+  return async (context) => {
+    assertTerminalCloseCommand(context);
+    throwIfAborted(context.signal);
+    const snapshot = options.core.getSnapshot();
+    const resolved = resolveTerminalTargetOrThrow({
+      snapshot,
+      payload: context.command.payload,
+      providerId: options.terminal.id,
+    });
+    assertTerminalCloseAllowed(
+      resolved.row,
+      resolved.session,
+      context.command.payload.force === true,
+    );
+    throwIfAborted(context.signal);
+    await closeTerminalTarget({
+      terminal: options.terminal,
+      targetId: resolved.targetId,
+      context,
+      clock: options.clock,
+      commandTimeoutMs: options.commandTimeoutMs,
+    });
+    throwIfAborted(context.signal);
+
+    const nextSnapshot = await reconcileAndPublish({
+      core: options.core,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      reason: "command:terminal.close",
+      trace: context.trace,
+    });
+    if (options.persistence !== undefined) {
+      await publishRemovedSessionIfAbsent({
+        previousSessionId: resolved.session?.id ?? resolved.row?.agent?.sessionId,
+        nextSessionIds: new Set(nextSnapshot.sessions.map((session) => session.id)),
+        persistence: options.persistence,
+        eventBus: options.eventBus,
+        context,
+        clock: options.clock,
+      });
+    }
   };
 }
 
@@ -58,23 +125,6 @@ function resolveTerminalFocusTargetId(input: {
   });
 }
 
-function terminalTargetMissingError(
-  provider: string,
-  context: {
-    worktreeId?: string;
-    sessionId?: string;
-  },
-) {
-  return {
-    tag: "TerminalProviderError",
-    code: "TERMINAL_TARGET_MISSING",
-    message: "No terminal is open for this worktree.",
-    hint: "Start an agent or open this worktree from wosm before focusing it.",
-    provider,
-    ...context,
-  };
-}
-
 function assertTerminalFocusCommand(
   context: CommandHandlerContext,
 ): asserts context is CommandHandlerContext & {
@@ -82,6 +132,16 @@ function assertTerminalFocusCommand(
 } {
   if (context.command.type !== "terminal.focus") {
     throw new Error(`Expected terminal.focus command, received ${context.command.type}.`);
+  }
+}
+
+function assertTerminalCloseCommand(
+  context: CommandHandlerContext,
+): asserts context is CommandHandlerContext & {
+  command: Extract<CommandHandlerContext["command"], { type: "terminal.close" }>;
+} {
+  if (context.command.type !== "terminal.close") {
+    throw new Error(`Expected terminal.close command, received ${context.command.type}.`);
   }
 }
 

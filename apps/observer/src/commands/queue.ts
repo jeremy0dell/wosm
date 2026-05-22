@@ -381,6 +381,9 @@ function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
 
 // Prefer the narrowest scope so commands touching the same session, worktree, or project serialize.
 function commandScope(command: WosmCommand): string {
+  if ("targetId" in command.payload && typeof command.payload.targetId === "string") {
+    return `terminal-target:${command.payload.targetId}`;
+  }
   if ("sessionId" in command.payload && typeof command.payload.sessionId === "string") {
     return `session:${command.payload.sessionId}`;
   }

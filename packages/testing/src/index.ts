@@ -303,6 +303,7 @@ export class FakeWorktreeProvider implements WorktreeProvider {
 
   readonly #now: FakeProviderClock | undefined;
   readonly #worktrees: WorktreeObservation[];
+  readonly #removed: RemoveWorktreeRequest[] = [];
   readonly #createPath: ((request: CreateWorktreeRequest) => string) | undefined;
   readonly #health: Partial<ProviderHealth> | undefined;
   readonly #capabilities: WorktreeCapabilities;
@@ -359,6 +360,12 @@ export class FakeWorktreeProvider implements WorktreeProvider {
 
   async removeWorktree(request: RemoveWorktreeRequest): Promise<RemoveWorktreeResult> {
     maybeThrow(this.#failures, "removeWorktree");
+    const recorded: RemoveWorktreeRequest = {
+      worktreeId: request.worktreeId,
+    };
+    if (request.projectId !== undefined) recorded.projectId = request.projectId;
+    if (request.force !== undefined) recorded.force = request.force;
+    this.#removed.push(recorded);
     const index = this.#worktrees.findIndex((worktree) => worktree.id === request.worktreeId);
     if (index >= 0) {
       this.#worktrees.splice(index, 1);
@@ -384,9 +391,10 @@ export class FakeWorktreeProvider implements WorktreeProvider {
     );
   }
 
-  snapshot(): { worktrees: WorktreeObservation[] } {
+  snapshot(): { worktrees: WorktreeObservation[]; removed: RemoveWorktreeRequest[] } {
     return {
       worktrees: [...this.#worktrees],
+      removed: this.#removed.map((request) => ({ ...request })),
     };
   }
 }
@@ -398,6 +406,7 @@ export class FakeTerminalProvider implements TerminalProvider {
   readonly #targets: TerminalTargetObservation[];
   readonly #launches: TerminalLaunchProcessRequest[] = [];
   readonly #focused: TerminalTargetId[] = [];
+  readonly #closed: TerminalTargetId[] = [];
   readonly #health: Partial<ProviderHealth> | undefined;
   readonly #capabilities: TerminalCapabilities;
   readonly #failures: FakeProviderFailures<FakeTerminalProviderMethod> | undefined;
@@ -480,6 +489,7 @@ export class FakeTerminalProvider implements TerminalProvider {
 
   async closeTarget(targetId: TerminalTargetId): Promise<void> {
     maybeThrow(this.#failures, "closeTarget");
+    this.#closed.push(targetId);
     const index = this.#targets.findIndex((target) => target.id === targetId);
     if (index >= 0) {
       this.#targets.splice(index, 1);
@@ -503,11 +513,13 @@ export class FakeTerminalProvider implements TerminalProvider {
     targets: TerminalTargetObservation[];
     launches: TerminalLaunchProcessRequest[];
     focused: TerminalTargetId[];
+    closed: TerminalTargetId[];
   } {
     return {
       targets: [...this.#targets],
       launches: [...this.#launches],
       focused: [...this.#focused],
+      closed: [...this.#closed],
     };
   }
 }
@@ -517,6 +529,7 @@ export class FakeHarnessProvider implements HarnessProvider {
 
   readonly #now: FakeProviderClock | undefined;
   readonly #runs: HarnessRunObservation[];
+  readonly #stopped: HarnessStopRequest[] = [];
   readonly #health: Partial<ProviderHealth> | undefined;
   readonly #capabilities: HarnessCapabilities;
   readonly #failures: FakeProviderFailures<FakeHarnessProviderMethod> | undefined;
@@ -626,9 +639,32 @@ export class FakeHarnessProvider implements HarnessProvider {
 
   async stop(request: HarnessStopRequest): Promise<HarnessStopResult> {
     maybeThrow(this.#failures, "stop");
+    const recorded: HarnessStopRequest = {
+      runId: request.runId,
+    };
+    if (request.sessionId !== undefined) recorded.sessionId = request.sessionId;
+    if (request.force !== undefined) recorded.force = request.force;
+    this.#stopped.push(recorded);
+    const index = this.#runs.findIndex((run) => run.id === request.runId);
+    const run = this.#runs[index];
+    if (run !== undefined) {
+      const exited: HarnessRunObservation = {
+        id: run.id,
+        provider: run.provider,
+        state: "exited",
+        confidence: "high",
+        reason: "Fake harness run was stopped.",
+        observedAt: resolveNow(this.#now),
+      };
+      if (run.projectId !== undefined) exited.projectId = run.projectId;
+      if (run.worktreeId !== undefined) exited.worktreeId = run.worktreeId;
+      if (run.sessionId !== undefined) exited.sessionId = run.sessionId;
+      if (run.providerData !== undefined) exited.providerData = run.providerData;
+      this.#runs[index] = exited;
+    }
     return {
       runId: request.runId,
-      stopped: this.#runs.some((run) => run.id === request.runId),
+      stopped: run !== undefined,
     };
   }
 
@@ -636,9 +672,10 @@ export class FakeHarnessProvider implements HarnessProvider {
     this.#runs.push(run);
   }
 
-  snapshot(): { runs: HarnessRunObservation[] } {
+  snapshot(): { runs: HarnessRunObservation[]; stopped: HarnessStopRequest[] } {
     return {
       runs: [...this.#runs],
+      stopped: this.#stopped.map((request) => ({ ...request })),
     };
   }
 }

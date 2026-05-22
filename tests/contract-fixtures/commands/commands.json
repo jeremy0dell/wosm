@@ -68,11 +68,19 @@
       "targetId": "term_api_cache_agent"
     }
   },
+  "terminalClose": {
+    "type": "terminal.close",
+    "payload": {
+      "targetId": "term_api_cache_agent",
+      "force": true
+    }
+  },
   "sessionClose": {
     "type": "session.close",
     "payload": {
       "sessionId": "ses_api_cache",
-      "mode": "all"
+      "mode": "all",
+      "force": true
     }
   },
   "sessionRemove": {

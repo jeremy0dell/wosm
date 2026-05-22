@@ -7,10 +7,13 @@ import type { ObserverCore } from "../reconcile/core.js";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
 import type { CommandQueue } from "./queue.js";
 import { createObserverReconcileHandler } from "./reconcile.js";
+import { createSessionCloseHandler } from "./session/close.js";
 import { createSessionCreateHandler } from "./session/create.js";
+import { createSessionRemoveHandler } from "./session/remove.js";
 import type { SessionCommandIdFactory } from "./session/shared.js";
 import { createSessionStartAgentHandler } from "./session/startAgent.js";
-import { createTerminalFocusHandler } from "./terminal.js";
+import { createTerminalCloseHandler, createTerminalFocusHandler } from "./terminal.js";
+import { createWorktreeRemoveHandler } from "./worktree/remove.js";
 
 export type RegisterObserverCommandHandlersOptions = {
   queue: CommandQueue;
@@ -41,6 +44,17 @@ export function registerObserverCommandHandlers(
     createTerminalFocusHandler({ core: options.core, terminal: options.providers.terminal }),
   );
   options.queue.registerHandler(
+    "terminal.close",
+    createTerminalCloseHandler({
+      core: options.core,
+      terminal: options.providers.terminal,
+      persistence: options.persistence,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      commandTimeoutMs: options.commandTimeoutMs,
+    }),
+  );
+  options.queue.registerHandler(
     "session.create",
     createSessionCreateHandler({
       projects: options.projects,
@@ -66,8 +80,52 @@ export function registerObserverCommandHandlers(
       commandTimeoutMs: options.commandTimeoutMs,
     }),
   );
+  options.queue.registerHandler(
+    "session.close",
+    createSessionCloseHandler({
+      projects: options.projects,
+      providers: options.providers,
+      core: options.core,
+      persistence: options.persistence,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      commandTimeoutMs: options.commandTimeoutMs,
+    }),
+  );
+  options.queue.registerHandler(
+    "session.remove",
+    createSessionRemoveHandler({
+      projects: options.projects,
+      providers: options.providers,
+      core: options.core,
+      persistence: options.persistence,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      commandTimeoutMs: options.commandTimeoutMs,
+    }),
+  );
+  options.queue.registerHandler(
+    "worktree.remove",
+    createWorktreeRemoveHandler({
+      providers: options.providers,
+      core: options.core,
+      persistence: options.persistence,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      commandTimeoutMs: options.commandTimeoutMs,
+    }),
+  );
 
   void options.logger?.info("Observer command handlers registered.", {
-    commandTypes: ["observer.reconcile", "terminal.focus", "session.create", "session.startAgent"],
+    commandTypes: [
+      "observer.reconcile",
+      "terminal.focus",
+      "terminal.close",
+      "session.create",
+      "session.startAgent",
+      "session.close",
+      "session.remove",
+      "worktree.remove",
+    ],
   });
 }

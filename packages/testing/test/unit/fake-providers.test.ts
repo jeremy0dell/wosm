@@ -169,4 +169,72 @@ describe("fake providers", () => {
     });
     expect(provider.snapshot().targets).toHaveLength(1);
   });
+
+  it("records worktree remove, terminal close, and harness stop mutations", async () => {
+    const worktree = new FakeWorktreeProvider({
+      now,
+      worktrees: [
+        createFakeWorktree({
+          id: "wt_web_cleanup",
+          projectId: "web",
+          branch: "cleanup",
+          now,
+        }),
+      ],
+    });
+    const terminal = new FakeTerminalProvider({
+      now,
+      targets: [
+        createFakeTerminalTarget({
+          id: "term_web_cleanup",
+          projectId: "web",
+          worktreeId: "wt_web_cleanup",
+          sessionId: "ses_web_cleanup",
+          harnessRunId: "run_web_cleanup",
+          now,
+        }),
+      ],
+    });
+    const harness = new FakeHarnessProvider({
+      now,
+      runs: [
+        createFakeHarnessRun({
+          id: "run_web_cleanup",
+          projectId: "web",
+          worktreeId: "wt_web_cleanup",
+          sessionId: "ses_web_cleanup",
+          state: "working",
+          now,
+        }),
+      ],
+    });
+
+    await expect(
+      harness.stop?.({ runId: "run_web_cleanup", sessionId: "ses_web_cleanup", force: true }),
+    ).resolves.toMatchObject({ runId: "run_web_cleanup", stopped: true });
+    await expect(terminal.closeTarget("term_web_cleanup")).resolves.toBeUndefined();
+    await expect(
+      worktree.removeWorktree({
+        projectId: "web",
+        worktreeId: "wt_web_cleanup",
+        force: true,
+      }),
+    ).resolves.toEqual({ worktreeId: "wt_web_cleanup", removed: true });
+
+    expect(harness.snapshot().stopped).toEqual([
+      { runId: "run_web_cleanup", sessionId: "ses_web_cleanup", force: true },
+    ]);
+    expect(harness.snapshot().runs).toEqual([
+      expect.objectContaining({
+        id: "run_web_cleanup",
+        state: "exited",
+      }),
+    ]);
+    expect(terminal.snapshot().closed).toEqual(["term_web_cleanup"]);
+    expect(terminal.snapshot().targets).toEqual([]);
+    expect(worktree.snapshot().removed).toEqual([
+      { projectId: "web", worktreeId: "wt_web_cleanup", force: true },
+    ]);
+    expect(worktree.snapshot().worktrees).toEqual([]);
+  });
 });

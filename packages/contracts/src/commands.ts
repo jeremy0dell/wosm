@@ -98,10 +98,26 @@ export const TerminalFocusPayloadSchema = z
 
 export type TerminalFocusPayload = z.infer<typeof TerminalFocusPayloadSchema>;
 
+export const TerminalClosePayloadSchema = z
+  .object({
+    targetId: TerminalTargetIdSchema.optional(),
+    sessionId: SessionIdSchema.optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    force: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (payload) => payload.targetId ?? payload.sessionId ?? payload.worktreeId,
+    "terminal.close requires targetId, sessionId, or worktreeId",
+  );
+
+export type TerminalClosePayload = z.infer<typeof TerminalClosePayloadSchema>;
+
 export const CloseSessionPayloadSchema = z
   .object({
     sessionId: SessionIdSchema,
     mode: z.enum(["harness", "terminal", "all"]),
+    force: z.boolean().optional(),
   })
   .strict();
 
@@ -149,6 +165,7 @@ export const WosmCommandTypeSchema = z.enum([
   "session.create",
   "session.startAgent",
   "terminal.focus",
+  "terminal.close",
   "session.close",
   "session.remove",
   "session.sendPrompt",
@@ -174,6 +191,10 @@ export const StartAgentCommandSchema = z
 
 export const TerminalFocusCommandSchema = z
   .object({ type: z.literal("terminal.focus"), payload: TerminalFocusPayloadSchema })
+  .strict();
+
+export const TerminalCloseCommandSchema = z
+  .object({ type: z.literal("terminal.close"), payload: TerminalClosePayloadSchema })
   .strict();
 
 export const CloseSessionCommandSchema = z
@@ -202,6 +223,7 @@ export const WosmCommandSchema = z.discriminatedUnion("type", [
   CreateSessionCommandSchema,
   StartAgentCommandSchema,
   TerminalFocusCommandSchema,
+  TerminalCloseCommandSchema,
   CloseSessionCommandSchema,
   RemoveSessionCommandSchema,
   SendPromptCommandSchema,

@@ -167,6 +167,31 @@ Expected basics:
 - `doctor` reports hook spool depth; it should remain zero for successful delivery.
 - `debug bundle` includes redacted hook log evidence from `logs/hooks.jsonl`.
 
+## Cleanup Smoke
+
+Exercise cleanup commands only against throwaway fake-provider state or an isolated temporary
+Worktrunk project. Do not manually test removal against an active repository or worktree that has
+uncommitted work you care about.
+
+For the fake-provider smoke config from [diagnostics.md](diagnostics.md), use the TUI cleanup keys on
+disposable rows only:
+
+```text
+a  close agent
+t  close terminal
+c  close all
+x  remove worktree
+```
+
+The observer should reject dirty or active-agent worktree removal unless the confirmed command carries
+`force = true`. After a cleanup failure, run:
+
+```bash
+wosm debug bundle
+```
+
+and check the bundle for the command id, trace id, `command.failed`, and cleanup-specific SafeError.
+
 ## Test-Only Fake Worktrunk
 
 The e2e smoke test uses `tests/support/fake-external-tools/worktrunk-bin.ts` to create a deterministic executable that behaves like the tiny subset of `wt` needed by the provider. That fixture is for tests and examples only. It is not on the production code path, and it does not replace the real Worktrunk provider.

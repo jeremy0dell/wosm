@@ -155,6 +155,64 @@ describe("TUI command UX", () => {
     expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
+
+  it("asks for cleanup confirmation before dispatching destructive commands", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("t");
+
+    await waitFor(() => instance.lastFrame()?.includes("confirm close terminal") === true);
+    expect(service.dispatched).toHaveLength(0);
+
+    instance.stdin.write("\r");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toEqual({
+      type: "terminal.close",
+      payload: {
+        targetId: "term_wt_web_idle_agent",
+        force: true,
+      },
+    });
+    instance.unmount();
+  });
+
+  it("cancels cleanup confirmation with escape", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("c");
+    await waitFor(() => instance.lastFrame()?.includes("confirm close all") === true);
+    instance.stdin.write("\u001B");
+
+    await waitFor(() => instance.lastFrame()?.includes("confirm close all") === false);
+    expect(service.dispatched).toHaveLength(0);
+    instance.unmount();
+  });
+
+  it("confirms dirty active worktree removal with force", async () => {
+    const snapshot = createCommandSnapshot("idle", { dirty: true });
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("x");
+    await waitFor(() => instance.lastFrame()?.includes("confirm remove worktree") === true);
+    instance.stdin.write("\r");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toEqual({
+      type: "worktree.remove",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_idle",
+        force: true,
+      },
+    });
+    instance.unmount();
+  });
 });
 
 async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void> {

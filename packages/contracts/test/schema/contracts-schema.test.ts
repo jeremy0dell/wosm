@@ -123,6 +123,7 @@ describe("Phase 1 contract schemas", () => {
       "session.remove",
       "session.sendPrompt",
       "session.startAgent",
+      "terminal.close",
       "terminal.focus",
       "worktree.create",
       "worktree.remove",

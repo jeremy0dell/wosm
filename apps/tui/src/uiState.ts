@@ -1,11 +1,23 @@
 import type { WorktreeId } from "@wosm/contracts";
+import type { CleanupActionKind } from "./actions.js";
 
-export type PromptMode = "new-session" | "search";
+export type PromptMode = "new-session" | "search" | "confirm-cleanup";
 
-export type TuiPromptState = {
-  mode: PromptMode;
+export type TuiTextPromptState = {
+  mode: "new-session" | "search";
   value: string;
 };
+
+export type TuiCleanupPromptState = {
+  mode: "confirm-cleanup";
+  value: "";
+  action: CleanupActionKind;
+  rowId: WorktreeId;
+  forceRequired: boolean;
+  label: string;
+};
+
+export type TuiPromptState = TuiTextPromptState | TuiCleanupPromptState;
 
 export type TuiUiState = {
   searchQuery: string;
@@ -78,6 +90,9 @@ export function selectWorktree(state: TuiUiState, selectedWorktreeId: WorktreeId
 }
 
 export function openPrompt(state: TuiUiState, mode: PromptMode): TuiUiState {
+  if (mode === "confirm-cleanup") {
+    return state;
+  }
   const next: TuiUiState = {
     ...state,
     prompt: { mode, value: "" },
@@ -88,8 +103,32 @@ export function openPrompt(state: TuiUiState, mode: PromptMode): TuiUiState {
   return next;
 }
 
+export function openCleanupPrompt(
+  state: TuiUiState,
+  prompt: Omit<TuiCleanupPromptState, "mode" | "value">,
+): TuiUiState {
+  const next: TuiUiState = {
+    ...state,
+    prompt: {
+      mode: "confirm-cleanup",
+      value: "",
+      action: prompt.action,
+      rowId: prompt.rowId,
+      forceRequired: prompt.forceRequired,
+      label: prompt.label,
+    },
+  };
+  if (state.selectedWorktreeId !== undefined) {
+    next.selectedWorktreeId = state.selectedWorktreeId;
+  }
+  return next;
+}
+
 export function updatePromptValue(state: TuiUiState, value: string): TuiUiState {
   if (state.prompt === undefined) {
+    return state;
+  }
+  if (state.prompt.mode === "confirm-cleanup") {
     return state;
   }
   const next: TuiUiState = {

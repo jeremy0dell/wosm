@@ -1,0 +1,128 @@
+import type { ProviderProjectConfig } from "@wosm/contracts";
+import type { RuntimeClock } from "@wosm/runtime";
+import type { ObserverPersistence } from "../../persistence/index.js";
+import type { ProviderRegistry } from "../../providers/registry.js";
+import type { ObserverCore } from "../../reconcile/core.js";
+import type { ObserverEventBus } from "../../runtime/eventBus.js";
+import {
+  assertSessionCloseAllowed,
+  assertWorktreeRemovalAllowed,
+  closeSessionResources,
+  closeTerminalForWorktree,
+  publishRemovedSessionIfAbsent,
+  publishWorktreeRemoved,
+  removeWorktreeThroughProvider,
+  resolveRowForSession,
+  resolveSessionOrThrow,
+  stopHarnessForWorktree,
+  worktreeMissingError,
+} from "../cleanup/index.js";
+import type { CommandHandler, CommandHandlerContext } from "../queue.js";
+import { reconcileAndPublish } from "../reconcile.js";
+import { throwIfAborted } from "./shared.js";
+
+export type CreateSessionRemoveHandlerOptions = {
+  projects: readonly ProviderProjectConfig[];
+  providers: ProviderRegistry;
+  core: ObserverCore;
+  persistence: ObserverPersistence;
+  eventBus?: ObserverEventBus | undefined;
+  clock?: RuntimeClock | undefined;
+  commandTimeoutMs?: number | undefined;
+};
+
+export function createSessionRemoveHandler(
+  options: CreateSessionRemoveHandlerOptions,
+): CommandHandler {
+  return async (context) => {
+    assertSessionRemoveCommand(context);
+    throwIfAborted(context.signal);
+
+    const payload = context.command.payload;
+    const snapshot = options.core.getSnapshot();
+    const session = resolveSessionOrThrow(snapshot, payload.sessionId);
+    const row = resolveRowForSession(snapshot, session);
+    assertSessionCloseAllowed(session, row, payload.force === true);
+    if (payload.removeWorktree && row === undefined) {
+      throw worktreeMissingError(session.worktreeId, session.projectId);
+    }
+    if (payload.removeWorktree && row !== undefined) {
+      assertWorktreeRemovalAllowed(row, payload.force === true);
+    }
+
+    if (payload.removeWorktree && row !== undefined) {
+      await stopHarnessForWorktree({
+        providers: options.providers,
+        row,
+        force: payload.force === true,
+        context,
+        clock: options.clock,
+        commandTimeoutMs: options.commandTimeoutMs,
+      });
+      throwIfAborted(context.signal);
+      await closeTerminalForWorktree({
+        terminal: options.providers.terminal,
+        row,
+        context,
+        clock: options.clock,
+        commandTimeoutMs: options.commandTimeoutMs,
+      });
+      throwIfAborted(context.signal);
+      await removeWorktreeThroughProvider({
+        providers: options.providers,
+        row,
+        force: payload.force === true,
+        context,
+        clock: options.clock,
+        commandTimeoutMs: options.commandTimeoutMs,
+      });
+    } else {
+      await closeSessionResources({
+        providers: options.providers,
+        session,
+        row,
+        mode: "all",
+        force: payload.force === true,
+        context,
+        clock: options.clock,
+        commandTimeoutMs: options.commandTimeoutMs,
+      });
+    }
+    throwIfAborted(context.signal);
+
+    const nextSnapshot = await reconcileAndPublish({
+      core: options.core,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      reason: "command:session.remove",
+      trace: context.trace,
+    });
+    await publishRemovedSessionIfAbsent({
+      previousSessionId: session.id,
+      nextSessionIds: new Set(nextSnapshot.sessions.map((candidate) => candidate.id)),
+      persistence: options.persistence,
+      eventBus: options.eventBus,
+      context,
+      clock: options.clock,
+    });
+    if (payload.removeWorktree && row !== undefined) {
+      await publishWorktreeRemoved({
+        worktreeId: row.id,
+        persistence: options.persistence,
+        eventBus: options.eventBus,
+        context,
+        clock: options.clock,
+      });
+    }
+  };
+}
+
+function assertSessionRemoveCommand(
+  context: CommandHandlerContext,
+): asserts context is CommandHandlerContext & {
+  command: Extract<CommandHandlerContext["command"], { type: "session.remove" }>;
+} {
+  if (context.command.type !== "session.remove") {
+    throw new Error(`Expected session.remove command, received ${context.command.type}.`);
+  }
+}

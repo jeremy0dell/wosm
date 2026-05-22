@@ -9,6 +9,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   createObserverCore,
+  createTerminalCloseHandler,
   createTerminalFocusHandler,
   ProviderRegistry,
 } from "../../src/internal";
@@ -110,21 +111,133 @@ describe("observer terminal commands", () => {
       worktreeId: "wt_missing",
     });
   });
+
+  it("closes a target resolved from worktreeId through the terminal provider contract", async () => {
+    const closed: string[] = [];
+    const terminal = new RecordingTerminalProvider({
+      id: "tmux",
+      now,
+      targets: [
+        createFakeTerminalTarget({
+          id: "tmux:wosm:@1:%2",
+          provider: "tmux",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          now,
+        }),
+      ],
+      focused: [],
+      closed,
+    });
+    const core = createObserverCore({
+      config,
+      providers: new ProviderRegistry({
+        worktree: new FakeWorktreeProvider({
+          now,
+          worktrees: [
+            createFakeWorktree({
+              id: "wt_web_feature",
+              projectId: "web",
+              branch: "feature",
+              now,
+            }),
+          ],
+        }),
+        terminal,
+        harnesses: [new FakeHarnessProvider({ now })],
+      }),
+      clock: { now: () => new Date(now) },
+    });
+
+    await core.reconcile("terminal-close-test");
+    const handler = createTerminalCloseHandler({ core, terminal });
+
+    await handler({
+      commandId: "cmd_1",
+      trace: { traceId: "trc_1", spanId: "spn_1", operation: "command.terminal.close" },
+      command: {
+        type: "terminal.close",
+        payload: {
+          worktreeId: "wt_web_feature",
+        },
+      },
+      signal: new AbortController().signal,
+    });
+
+    expect(closed).toEqual(["tmux:wosm:@1:%2"]);
+  });
+
+  it("preserves stale target close provider errors as SafeErrors", async () => {
+    const terminal = new RecordingTerminalProvider({
+      id: "tmux",
+      now,
+      targets: [],
+      focused: [],
+      closed: [],
+      failures: {
+        closeTarget: {
+          tag: "TerminalProviderError",
+          code: "TERMINAL_TARGET_MISSING",
+          message: "The terminal target no longer exists.",
+          hint: "Refresh the dashboard or reopen the worktree.",
+          provider: "tmux",
+        },
+      },
+    });
+    const core = createObserverCore({
+      config,
+      providers: new ProviderRegistry({
+        worktree: new FakeWorktreeProvider({ now }),
+        terminal,
+        harnesses: [new FakeHarnessProvider({ now })],
+      }),
+      clock: { now: () => new Date(now) },
+    });
+    const handler = createTerminalCloseHandler({ core, terminal });
+
+    await expect(
+      handler({
+        commandId: "cmd_1",
+        trace: { traceId: "trc_1", spanId: "spn_1", operation: "command.terminal.close" },
+        command: {
+          type: "terminal.close",
+          payload: {
+            targetId: "tmux:wosm:@missing:%missing",
+          },
+        },
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({
+      tag: "TerminalProviderError",
+      code: "TERMINAL_TARGET_MISSING",
+      provider: "tmux",
+    });
+  });
 });
 
 class RecordingTerminalProvider extends FakeTerminalProvider implements TerminalProvider {
   readonly #focused: string[];
+  readonly #closed: string[];
 
   constructor(
-    options: ConstructorParameters<typeof FakeTerminalProvider>[0] & { focused: string[] },
+    options: ConstructorParameters<typeof FakeTerminalProvider>[0] & {
+      focused: string[];
+      closed?: string[];
+    },
   ) {
     super(options);
     this.#focused = options.focused;
+    this.#closed = options.closed ?? [];
   }
 
   override async focusTarget(targetId: string): Promise<void> {
     await super.focusTarget(targetId);
     this.#focused.push(targetId);
+  }
+
+  override async closeTarget(targetId: string): Promise<void> {
+    await super.closeTarget(targetId);
+    this.#closed.push(targetId);
   }
 }
 

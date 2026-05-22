@@ -1,7 +1,7 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useInput } from "ink";
 import { useRef } from "react";
-import { buildCreateSessionCommand } from "./actions.js";
+import { buildCleanupCommand, buildCreateSessionCommand } from "./actions.js";
 import { CommandPrompt } from "./components/CommandPrompt.js";
 import { Dashboard } from "./components/Dashboard.js";
 import { ToastStack } from "./components/ToastStack.js";
@@ -13,6 +13,7 @@ import type { TuiObserverService } from "./services/types.js";
 import {
   closePrompt,
   createInitialUiState,
+  openCleanupPrompt,
   openPrompt,
   type PromptMode,
   setSearchQuery,
@@ -72,6 +73,19 @@ export function App({ service, initialSnapshot, initialUiState, onExit }: AppPro
       promptValueRef.current = "";
       promptModeRef.current = "new-session";
       dashboard.setUiState((current) => openPrompt(current, "new-session"));
+      return;
+    }
+    if (intent.type === "open-cleanup-prompt") {
+      promptValueRef.current = "";
+      promptModeRef.current = "confirm-cleanup";
+      dashboard.setUiState((current) =>
+        openCleanupPrompt(current, {
+          action: intent.action,
+          rowId: intent.rowId,
+          forceRequired: intent.forceRequired,
+          label: intent.label,
+        }),
+      );
       return;
     }
     if (intent.type === "command") {
@@ -142,15 +156,39 @@ function handlePromptInput({
       promptModeRef.current = undefined;
       return;
     }
+    if (mode === "confirm-cleanup") {
+      submitCleanupPrompt(dashboard);
+      promptValueRef.current = "";
+      promptModeRef.current = undefined;
+      return;
+    }
     submitNewSessionPrompt(dashboard, promptValueRef.current.trim());
     promptValueRef.current = "";
     promptModeRef.current = undefined;
+    return;
+  }
+  if (mode === "confirm-cleanup") {
     return;
   }
   if (input.length > 0) {
     promptValueRef.current = `${promptValueRef.current}${input}`;
     dashboard.setUiState((current) => updatePromptValue(current, promptValueRef.current));
   }
+}
+
+function submitCleanupPrompt(dashboard: ReturnType<typeof useObserverDashboard>): void {
+  const prompt = dashboard.uiState.prompt;
+  if (prompt?.mode !== "confirm-cleanup" || dashboard.snapshot === undefined) {
+    dashboard.setUiState((current) => closePrompt(current));
+    return;
+  }
+  const row = dashboard.snapshot.rows.find((candidate) => candidate.id === prompt.rowId);
+  if (row === undefined) {
+    dashboard.setUiState((current) => closePrompt(current));
+    return;
+  }
+  void dashboard.dispatchCommand(buildCleanupCommand(row, prompt.action, prompt.forceRequired));
+  dashboard.setUiState((current) => closePrompt(current));
 }
 
 function submitNewSessionPrompt(

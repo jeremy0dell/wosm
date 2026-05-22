@@ -1,4 +1,5 @@
 import type {
+  AgentState,
   ProjectView,
   SessionView,
   WorktreeRow,
@@ -9,6 +10,12 @@ import type {
 type TerminalLayout = NonNullable<
   Extract<WosmCommand, { type: "session.create" }>["payload"]["terminal"]["layout"]
 >;
+
+export type CleanupActionKind =
+  | "close-harness"
+  | "close-terminal"
+  | "close-all"
+  | "remove-worktree";
 
 export type CreateSessionCommandInput = {
   project: ProjectView;
@@ -48,6 +55,31 @@ export function buildStartAgentCommand(row: WorktreeRow, project: ProjectView): 
       },
     },
   };
+}
+
+export function cleanupForceRequired(row: WorktreeRow, action: CleanupActionKind): boolean {
+  const running = isRunningAgentState(row.agent?.state);
+  if (action === "remove-worktree") {
+    return row.worktree.dirty === true || running;
+  }
+  return running;
+}
+
+export function buildCleanupCommand(
+  row: WorktreeRow,
+  action: CleanupActionKind,
+  force: boolean,
+): WosmCommand {
+  if (action === "close-harness") {
+    return buildSessionCloseCommand(row, "harness", force);
+  }
+  if (action === "close-terminal") {
+    return buildTerminalCloseCommand(row, force);
+  }
+  if (action === "close-all") {
+    return buildSessionCloseCommand(row, "all", force);
+  }
+  return buildWorktreeRemoveCommand(row, force);
 }
 
 export function buildCreateSessionCommand(input: CreateSessionCommandInput): WosmCommand {
@@ -127,4 +159,70 @@ export function buildSendPromptCommand(
       delivery: "harness-native",
     },
   };
+}
+
+function buildSessionCloseCommand(
+  row: WorktreeRow,
+  mode: Extract<WosmCommand, { type: "session.close" }>["payload"]["mode"],
+  force: boolean,
+): WosmCommand {
+  const sessionId = row.agent?.sessionId;
+  if (sessionId === undefined) {
+    throw new Error("The selected row has no session.");
+  }
+  const payload: Extract<WosmCommand, { type: "session.close" }>["payload"] = {
+    sessionId,
+    mode,
+  };
+  if (force) {
+    payload.force = true;
+  }
+  return {
+    type: "session.close",
+    payload,
+  };
+}
+
+function buildTerminalCloseCommand(row: WorktreeRow, force: boolean): WosmCommand {
+  const payload: Extract<WosmCommand, { type: "terminal.close" }>["payload"] = {};
+  const targetId = row.terminal?.primaryAgentTargetId ?? row.terminal?.workspaceTargetId;
+  if (targetId !== undefined) {
+    payload.targetId = targetId;
+  } else if (row.agent?.sessionId !== undefined) {
+    payload.sessionId = row.agent.sessionId;
+  } else {
+    payload.worktreeId = row.id;
+  }
+  if (force) {
+    payload.force = true;
+  }
+  return {
+    type: "terminal.close",
+    payload,
+  };
+}
+
+function buildWorktreeRemoveCommand(row: WorktreeRow, force: boolean): WosmCommand {
+  const payload: Extract<WosmCommand, { type: "worktree.remove" }>["payload"] = {
+    projectId: row.projectId,
+    worktreeId: row.id,
+  };
+  if (force) {
+    payload.force = true;
+  }
+  return {
+    type: "worktree.remove",
+    payload,
+  };
+}
+
+function isRunningAgentState(state: AgentState | undefined): boolean {
+  return (
+    state === "starting" ||
+    state === "idle" ||
+    state === "working" ||
+    state === "needs_attention" ||
+    state === "stuck" ||
+    state === "unknown"
+  );
 }

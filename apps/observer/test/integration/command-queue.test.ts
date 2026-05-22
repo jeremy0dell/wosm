@@ -58,6 +58,13 @@ const sendPromptCommand: WosmCommand = {
   },
 };
 
+const closeTerminalCommand: WosmCommand = {
+  type: "terminal.close",
+  payload: {
+    targetId: "term_web_main",
+  },
+};
+
 describe("observer command queue", () => {
   it("records accepted, started, and succeeded lifecycle events", async () => {
     const { sqlite, persistence, queue } = createPersistenceAndQueue();
@@ -196,6 +203,38 @@ describe("observer command queue", () => {
 
     const first = queue.dispatch(sendPromptCommand);
     const second = queue.dispatch(sendPromptCommand);
+    await Promise.all([first, second]);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(starts).toEqual(["cmd_1"]);
+
+    releaseFirst();
+    await queue.drain();
+
+    expect(starts).toEqual(["cmd_1", "cmd_2"]);
+    expect(finishes).toEqual(["cmd_1", "cmd_2"]);
+    sqlite.close();
+  });
+
+  it("serializes terminal close execution by target scope", async () => {
+    const { sqlite, queue } = createPersistenceAndQueue();
+    const starts: string[] = [];
+    const finishes: string[] = [];
+    let releaseFirst = () => {};
+    const firstBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+
+    queue.registerHandler("terminal.close", async ({ commandId }) => {
+      starts.push(commandId);
+      if (commandId === "cmd_1") {
+        await firstBlocked;
+      }
+      finishes.push(commandId);
+    });
+
+    const first = queue.dispatch(closeTerminalCommand);
+    const second = queue.dispatch(closeTerminalCommand);
     await Promise.all([first, second]);
     await new Promise((resolve) => setImmediate(resolve));
 

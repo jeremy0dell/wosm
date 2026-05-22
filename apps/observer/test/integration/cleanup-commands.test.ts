@@ -1,0 +1,293 @@
+import type { WosmConfig } from "@wosm/config";
+import {
+  createFakeHarnessRun,
+  createFakeTerminalTarget,
+  createFakeWorktree,
+  FakeHarnessProvider,
+  FakeTerminalProvider,
+  FakeWorktreeProvider,
+} from "@wosm/testing";
+import { describe, expect, it } from "vitest";
+import {
+  createCommandQueue,
+  createObserverCore,
+  createObserverEventBus,
+  createObserverPersistence,
+  openObserverSqlite,
+  ProviderRegistry,
+  registerObserverCommandHandlers,
+} from "../../src/internal";
+
+const now = "2026-05-21T12:00:00.000Z";
+
+describe("cleanup command handlers", () => {
+  it("closes an active harness only after force and leaves the terminal open", async () => {
+    const fixture = createFixture({ state: "working" });
+    await fixture.core.reconcile("pre-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.close",
+      payload: {
+        sessionId: "ses_web_cleanup",
+        mode: "harness",
+        force: true,
+      },
+    });
+    await fixture.queue.drain();
+
+    expect(fixture.harness.snapshot().stopped).toEqual([
+      { runId: "run_web_cleanup", sessionId: "ses_web_cleanup", force: true },
+    ]);
+    expect(fixture.terminal.snapshot().closed).toEqual([]);
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(fixture.core.getSnapshot().rows[0]?.agent).toMatchObject({ state: "exited" });
+    fixture.sqlite.close();
+  });
+
+  it("rejects terminal close for an active agent without force", async () => {
+    const fixture = createFixture({ state: "working" });
+    await fixture.core.reconcile("pre-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "terminal.close",
+      payload: {
+        worktreeId: "wt_web_cleanup",
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "failed",
+      error: {
+        tag: "CommandValidationError",
+        code: "TERMINAL_CLOSE_AGENT_ACTIVE_REQUIRES_FORCE",
+        worktreeId: "wt_web_cleanup",
+        sessionId: "ses_web_cleanup",
+      },
+    });
+    expect(fixture.terminal.snapshot().closed).toEqual([]);
+    fixture.sqlite.close();
+  });
+
+  it("closes a forced terminal target and records session removal evidence", async () => {
+    const fixture = createFixture({ state: "working" });
+    await fixture.core.reconcile("pre-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "terminal.close",
+      payload: {
+        worktreeId: "wt_web_cleanup",
+        force: true,
+      },
+    });
+    await fixture.queue.drain();
+
+    expect(fixture.terminal.snapshot().closed).toEqual(["term_web_cleanup"]);
+    expect(await fixture.persistence.listEvents({ commandId: receipt.commandId })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "session.removed",
+          event: { type: "session.removed", sessionId: "ses_web_cleanup" },
+        }),
+      ]),
+    );
+    expect(fixture.core.getSnapshot().sessions).toEqual([]);
+    fixture.sqlite.close();
+  });
+
+  it("rejects dirty worktree removal without force", async () => {
+    const fixture = createFixture({ dirty: true, state: "none" });
+    await fixture.core.reconcile("pre-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "worktree.remove",
+      payload: {
+        worktreeId: "wt_web_cleanup",
+        projectId: "web",
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "failed",
+      error: {
+        tag: "CommandValidationError",
+        code: "WORKTREE_DIRTY_REQUIRES_FORCE",
+        worktreeId: "wt_web_cleanup",
+      },
+    });
+    expect(fixture.worktree.snapshot().worktrees).toHaveLength(1);
+    fixture.sqlite.close();
+  });
+
+  it("force-removes an active worktree after stopping harness and closing terminal", async () => {
+    const fixture = createFixture({ dirty: true, state: "working" });
+    await fixture.core.reconcile("pre-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "worktree.remove",
+      payload: {
+        worktreeId: "wt_web_cleanup",
+        projectId: "web",
+        force: true,
+      },
+    });
+    await fixture.queue.drain();
+
+    expect(fixture.harness.snapshot().stopped).toEqual([
+      { runId: "run_web_cleanup", sessionId: "ses_web_cleanup", force: true },
+    ]);
+    expect(fixture.terminal.snapshot().closed).toEqual(["term_web_cleanup"]);
+    expect(fixture.worktree.snapshot().removed).toEqual([
+      { projectId: "web", worktreeId: "wt_web_cleanup", force: true },
+    ]);
+    expect(await fixture.persistence.listEvents({ commandId: receipt.commandId })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "session.removed",
+          event: { type: "session.removed", sessionId: "ses_web_cleanup" },
+        }),
+        expect.objectContaining({
+          type: "worktree.removed",
+          event: { type: "worktree.removed", worktreeId: "wt_web_cleanup" },
+        }),
+      ]),
+    );
+    expect(fixture.core.getSnapshot().rows).toEqual([]);
+    fixture.sqlite.close();
+  });
+
+  it("implements session.remove as close-all plus optional worktree removal", async () => {
+    const fixture = createFixture({ state: "working" });
+    await fixture.core.reconcile("pre-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.remove",
+      payload: {
+        sessionId: "ses_web_cleanup",
+        removeWorktree: true,
+        force: true,
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(fixture.terminal.snapshot().closed).toEqual(["term_web_cleanup"]);
+    expect(fixture.worktree.snapshot().worktrees).toEqual([]);
+    expect(fixture.core.getSnapshot().sessions).toEqual([]);
+    fixture.sqlite.close();
+  });
+});
+
+function createFixture(input: { dirty?: boolean; state: "none" | "working" }) {
+  const clock = { now: () => new Date(now) };
+  const sqlite = openObserverSqlite({ clock });
+  const ids = observerIds();
+  const persistence = createObserverPersistence({ sqlite, clock, idFactory: ids });
+  const eventBus = createObserverEventBus();
+  const queue = createCommandQueue({ persistence, clock, idFactory: ids, eventBus });
+  const worktree = new FakeWorktreeProvider({
+    now,
+    worktrees: [
+      createFakeWorktree({
+        id: "wt_web_cleanup",
+        projectId: "web",
+        branch: "cleanup",
+        dirty: input.dirty ?? false,
+        now,
+      }),
+    ],
+  });
+  const terminal = new FakeTerminalProvider({
+    now,
+    targets:
+      input.state === "none"
+        ? []
+        : [
+            createFakeTerminalTarget({
+              id: "term_web_cleanup",
+              projectId: "web",
+              worktreeId: "wt_web_cleanup",
+              sessionId: "ses_web_cleanup",
+              harnessRunId: "run_web_cleanup",
+              now,
+            }),
+          ],
+  });
+  const harness = new FakeHarnessProvider({
+    now,
+    runs:
+      input.state === "none"
+        ? []
+        : [
+            createFakeHarnessRun({
+              id: "run_web_cleanup",
+              projectId: "web",
+              worktreeId: "wt_web_cleanup",
+              sessionId: "ses_web_cleanup",
+              state: "working",
+              now,
+            }),
+          ],
+  });
+  const providers = new ProviderRegistry({
+    worktree,
+    terminal,
+    harnesses: [harness],
+  });
+  const core = createObserverCore({ config, providers, persistence, sqlite, clock });
+  registerObserverCommandHandlers({
+    queue,
+    core,
+    providers,
+    projects: config.projects,
+    persistence,
+    eventBus,
+    clock,
+  });
+  return { sqlite, persistence, eventBus, queue, providers, core, worktree, terminal, harness };
+}
+
+const config: WosmConfig = {
+  schemaVersion: 1,
+  defaults: {
+    worktreeProvider: "fake-worktree",
+    terminal: "fake-terminal",
+    harness: "fake-harness",
+    layout: "agent-shell",
+  },
+  projects: [
+    {
+      id: "web",
+      label: "web",
+      root: "/tmp/wosm/web",
+      defaults: {
+        harness: "fake-harness",
+        terminal: "fake-terminal",
+        layout: "agent-shell",
+      },
+      worktrunk: {
+        enabled: true,
+      },
+    },
+  ],
+};
+
+function observerIds() {
+  let command = 0;
+  let event = 0;
+  let error = 0;
+  let observation = 0;
+  let breadcrumb = 0;
+  return {
+    commandId: () => `cmd_${++command}`,
+    eventId: () => `evt_${++event}`,
+    errorId: () => `err_${++error}`,
+    observationId: () => `obs_${++observation}`,
+    breadcrumbId: () => `crumb_${++breadcrumb}`,
+  };
+}

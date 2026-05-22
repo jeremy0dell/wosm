@@ -40,13 +40,17 @@ export function createDashboardSnapshot(): WosmSnapshot {
   ]);
 }
 
-export function createCommandSnapshot(state: "none" | "idle" = "idle"): WosmSnapshot {
+export function createCommandSnapshot(
+  state: "none" | "idle" = "idle",
+  options: { dirty?: boolean } = {},
+): WosmSnapshot {
   return snapshotFromRows([
     row({
       id: state === "none" ? "wt_web_no_agent" : "wt_web_idle",
       projectId: "web",
       branch: state === "none" ? "feature-start" : "fix-nav-mobile",
       state,
+      ...(options.dirty === undefined ? {} : { dirty: options.dirty }),
     }),
   ]);
 }
@@ -81,6 +85,7 @@ export function row(input: {
   projectId: "web" | "api";
   branch: string;
   state: WorktreeRow["agent"] extends { state: infer T } ? T | "none" : never;
+  dirty?: boolean;
 }): WorktreeRow {
   const display = displayForState(input.state);
   const built: WorktreeRow = {
@@ -92,7 +97,7 @@ export function row(input: {
     worktree: {
       state: "exists",
       source: "worktrunk",
-      dirty: false,
+      dirty: input.dirty ?? false,
       ahead: 0,
       behind: 0,
     },
