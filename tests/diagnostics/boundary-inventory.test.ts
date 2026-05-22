@@ -9,6 +9,10 @@ const setTimeoutAllowlist = new Map([
     "apps/observer/src/runtime/main.ts",
     "One-tick deferral lets observer.stop flush its protocol response before shutdown closes the server.",
   ],
+  [
+    "apps/tui/src/hooks/useObserverDashboard.ts",
+    "Short reconnect backoff is the TUI observer-client subscription boundary, kept out of React presentation components.",
+  ],
 ]);
 
 describe("boundary inventory guard", () => {

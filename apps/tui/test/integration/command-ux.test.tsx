@@ -67,6 +67,59 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
+  it("labels accepted command receipts as queued work", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("n");
+    instance.stdin.write("feature/tui-new");
+    instance.stdin.write("\r");
+
+    await waitFor(() => instance.lastFrame()?.includes("session.create queued") === true);
+    expect(instance.lastFrame()).not.toContain("session.create accepted");
+    instance.unmount();
+  });
+
+  it("refreshes the snapshot directly when r is pressed", async () => {
+    const staleSnapshot = createCommandSnapshot("none");
+    const refreshedSnapshot = createCommandSnapshot("idle");
+    const service = new FakeTuiObserverService(staleSnapshot);
+    const instance = render(<App initialSnapshot={staleSnapshot} service={service} />);
+
+    expect(instance.lastFrame()).toContain("feature-start");
+    service.setSnapshot(refreshedSnapshot);
+    instance.stdin.write("r");
+
+    await waitFor(
+      () =>
+        service.reconcileReasons.includes("tui-refresh") &&
+        instance.lastFrame()?.includes("fix-nav-mobile") === true,
+    );
+    expect(instance.lastFrame()).toContain("idle");
+    instance.unmount();
+  });
+
+  it("reconnects the event stream and reloads a snapshot when the stream ends", async () => {
+    const staleSnapshot = createCommandSnapshot("none");
+    const refreshedSnapshot = createCommandSnapshot("idle");
+    const service = new FakeTuiObserverService(staleSnapshot);
+    const instance = render(<App initialSnapshot={staleSnapshot} service={service} />);
+
+    await waitFor(() => service.subscribeCount === 1);
+    service.setSnapshot(refreshedSnapshot);
+    service.endSubscriptions();
+
+    await waitFor(
+      () =>
+        service.subscribeCount >= 2 &&
+        service.loadCount >= 1 &&
+        instance.lastFrame()?.includes("fix-nav-mobile") === true,
+      1000,
+    );
+    instance.unmount();
+  });
+
   it("blocks the new-session prompt when the worktree provider is unavailable", async () => {
     const snapshot = createDashboardSnapshot();
     const unavailable = {

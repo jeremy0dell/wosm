@@ -1,9 +1,11 @@
-import type { WosmCommand, WosmSnapshot } from "@wosm/contracts";
+import type { WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { applyWosmEvent } from "../eventReducer.js";
 import { safeErrorToToast, toSafeError } from "../services/errors.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { createInitialUiState, type TuiUiState } from "../uiState.js";
+
+const EVENT_STREAM_RECONNECT_DELAY_MS = 100;
 
 export type UseObserverDashboardOptions = {
   service: TuiObserverService;
@@ -19,6 +21,7 @@ export type ObserverDashboardState = {
   setUiState(next: TuiUiState | ((current: TuiUiState) => TuiUiState)): void;
   addToast(toast: TuiToast): void;
   dispatchCommand(command: WosmCommand): Promise<void>;
+  reconcile(reason?: string): Promise<void>;
   dismissToasts(): void;
 };
 
@@ -56,47 +59,78 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
 
   useEffect(() => {
     let active = true;
-    const iterator = options.service.subscribeEvents()[Symbol.asyncIterator]();
+    let currentIterator: AsyncIterator<WosmEvent> | undefined;
+    let reportedSubscriptionError = false;
 
-    async function consumeEvents() {
+    const refreshSnapshot = async () => {
       try {
-        for (;;) {
-          const next = await iterator.next();
-          if (!active || next.done) {
-            return;
-          }
-          setSnapshot((current) => {
-            if (current === undefined) {
-              return current;
-            }
-            const result = applyWosmEvent(current, next.value);
-            if (result.toasts.length > 0) {
-              setToasts((toastState) => [...toastState, ...result.toasts]);
-            }
-            if (result.needsSnapshotRefresh) {
-              void options.service
-                .loadSnapshot()
-                .then((loaded) => {
-                  if (active) setSnapshot(loaded);
-                })
-                .catch((error: unknown) => {
-                  if (!active) return;
-                  setToasts((toastState) => [...toastState, safeErrorToToast(toSafeError(error))]);
-                });
-            }
-            return result.snapshot;
-          });
-        }
+        const loaded = await options.service.loadSnapshot();
+        if (!active) return;
+        setSnapshot(loaded);
+        setLoading(false);
       } catch (error: unknown) {
         if (!active) return;
-        setToasts((current) => [...current, safeErrorToToast(toSafeError(error))]);
+        setToasts((toastState) => [...toastState, safeErrorToToast(toSafeError(error))]);
+        setLoading(false);
+      }
+    };
+
+    const handleEvent = (event: WosmEvent) => {
+      reportedSubscriptionError = false;
+      setSnapshot((current) => {
+        if (current === undefined) {
+          return current;
+        }
+        const result = applyWosmEvent(current, event);
+        if (result.toasts.length > 0) {
+          setToasts((toastState) => [...toastState, ...result.toasts]);
+        }
+        if (result.needsSnapshotRefresh) {
+          void refreshSnapshot();
+        }
+        return result.snapshot;
+      });
+    };
+
+    async function consumeEvents() {
+      while (active) {
+        try {
+          currentIterator = options.service.subscribeEvents()[Symbol.asyncIterator]();
+          for (;;) {
+            const next = await currentIterator.next();
+            if (!active) {
+              return;
+            }
+            if (next.done) {
+              await refreshSnapshot();
+              break;
+            }
+            handleEvent(next.value);
+          }
+        } catch (error: unknown) {
+          if (!active) return;
+          if (!reportedSubscriptionError) {
+            setToasts((current) => [...current, safeErrorToToast(toSafeError(error))]);
+            reportedSubscriptionError = true;
+          }
+          await refreshSnapshot();
+        } finally {
+          const iterator = currentIterator;
+          currentIterator = undefined;
+          void iterator?.return?.();
+        }
+        if (active) {
+          await delay(EVENT_STREAM_RECONNECT_DELAY_MS);
+        }
       }
     }
 
     void consumeEvents();
     return () => {
       active = false;
-      void iterator.return?.();
+      const iterator = currentIterator;
+      currentIterator = undefined;
+      void iterator?.return?.();
     };
   }, [options.service]);
 
@@ -113,13 +147,34 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
           ...current,
           {
             kind: "success",
-            message: `${command.type} accepted`,
+            message: `${command.type} queued`,
             commandId: receipt.commandId,
             ...(receipt.traceId === undefined ? {} : { traceId: receipt.traceId }),
           },
         ]);
       } catch (error: unknown) {
         setToasts((current) => [...current, safeErrorToToast(toSafeError(error))]);
+      }
+    },
+    [options.service],
+  );
+
+  const reconcile = useCallback(
+    async (reason?: string) => {
+      try {
+        const loaded = await options.service.reconcile(reason);
+        setSnapshot(loaded);
+        setLoading(false);
+        setToasts((current) => [
+          ...current,
+          {
+            kind: "success",
+            message: "observer.reconcile refreshed",
+          },
+        ]);
+      } catch (error: unknown) {
+        setToasts((current) => [...current, safeErrorToToast(toSafeError(error))]);
+        setLoading(false);
       }
     },
     [options.service],
@@ -140,8 +195,13 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
       setUiState,
       addToast,
       dispatchCommand,
+      reconcile,
       dismissToasts,
     }),
-    [addToast, dismissToasts, dispatchCommand, loading, snapshot, toasts, uiState],
+    [addToast, dismissToasts, dispatchCommand, loading, reconcile, snapshot, toasts, uiState],
   );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

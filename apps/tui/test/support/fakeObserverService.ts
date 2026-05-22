@@ -4,7 +4,10 @@ import type { TuiObserverService } from "../../src/services/types.js";
 export class FakeTuiObserverService implements TuiObserverService {
   readonly dispatched: WosmCommand[] = [];
   readonly events: WosmEvent[] = [];
+  readonly reconcileReasons: Array<string | undefined> = [];
   cleanupCount = 0;
+  loadCount = 0;
+  subscribeCount = 0;
   nextReceipt: CommandReceipt = {
     commandId: "cmd_tui_1",
     accepted: true,
@@ -16,10 +19,12 @@ export class FakeTuiObserverService implements TuiObserverService {
   constructor(private snapshot: WosmSnapshot) {}
 
   async loadSnapshot(): Promise<WosmSnapshot> {
+    this.loadCount += 1;
     return this.snapshot;
   }
 
   subscribeEvents(): AsyncIterable<WosmEvent> {
+    this.subscribeCount += 1;
     const subscriber: Subscriber = {
       queue: [],
       waiters: [],
@@ -47,6 +52,7 @@ export class FakeTuiObserverService implements TuiObserverService {
   }
 
   async reconcile(reason?: string): Promise<WosmSnapshot> {
+    this.reconcileReasons.push(reason);
     const command: WosmCommand = {
       type: "observer.reconcile",
       payload: reason === undefined ? {} : { reason },
@@ -71,11 +77,30 @@ export class FakeTuiObserverService implements TuiObserverService {
   setSnapshot(snapshot: WosmSnapshot): void {
     this.snapshot = snapshot;
   }
+
+  endSubscriptions(): void {
+    for (const subscriber of this.subscribers) {
+      subscriber.active = false;
+      this.subscribers.delete(subscriber);
+      flushSubscriber(subscriber);
+    }
+  }
+
+  failSubscriptions(error: Error): void {
+    for (const subscriber of this.subscribers) {
+      subscriber.active = false;
+      this.subscribers.delete(subscriber);
+      rejectSubscriber(subscriber, error);
+    }
+  }
 }
 
 type Subscriber = {
   queue: WosmEvent[];
-  waiters: Array<(result: IteratorResult<WosmEvent>) => void>;
+  waiters: Array<{
+    resolve(result: IteratorResult<WosmEvent>): void;
+    reject(error: Error): void;
+  }>;
   active: boolean;
 };
 
@@ -87,8 +112,11 @@ async function nextEvent(subscriber: Subscriber): Promise<IteratorResult<WosmEve
   if (!subscriber.active) {
     return { done: true, value: undefined };
   }
-  return new Promise((resolve) => {
-    subscriber.waiters.push(resolve);
+  return new Promise((resolve, reject) => {
+    subscriber.waiters.push({
+      resolve,
+      reject,
+    });
   });
 }
 
@@ -96,6 +124,14 @@ function flushSubscriber(subscriber: Subscriber): void {
   for (;;) {
     const waiter = subscriber.waiters.shift();
     if (waiter === undefined) return;
-    waiter({ done: true, value: undefined });
+    waiter.resolve({ done: true, value: undefined });
+  }
+}
+
+function rejectSubscriber(subscriber: Subscriber, error: Error): void {
+  for (;;) {
+    const waiter = subscriber.waiters.shift();
+    if (waiter === undefined) return;
+    waiter.reject(error);
   }
 }

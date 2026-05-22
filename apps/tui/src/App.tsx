@@ -1,7 +1,7 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useInput } from "ink";
 import { useRef } from "react";
-import { buildCreateSessionCommand, buildReconcileCommand } from "./actions.js";
+import { buildCreateSessionCommand } from "./actions.js";
 import { CommandPrompt } from "./components/CommandPrompt.js";
 import { Dashboard } from "./components/Dashboard.js";
 import { ToastStack } from "./components/ToastStack.js";
@@ -56,7 +56,7 @@ export function App({ service, initialSnapshot, initialUiState, onExit }: AppPro
       return;
     }
     if (input === "r") {
-      void dashboard.dispatchCommand(buildReconcileCommand("tui-refresh"));
+      void dashboard.reconcile("tui-refresh");
       return;
     }
     if (dashboard.snapshot === undefined) {
