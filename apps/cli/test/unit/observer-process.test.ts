@@ -111,6 +111,7 @@ describe("CLI observer process helpers", () => {
   it("returns a safe startup error when health does not arrive before timeout", async () => {
     const fixture = await createTempState();
     let spawned = false;
+    let killed = false;
 
     const result = await startObserver(
       {
@@ -121,7 +122,14 @@ describe("CLI observer process helpers", () => {
         clock: { now: () => new Date(now) },
         spawnObserver: async (): Promise<ChildProcessLike> => {
           spawned = true;
-          return { pid: 1234, unref: () => undefined };
+          return {
+            pid: 1234,
+            unref: () => undefined,
+            kill: () => {
+              killed = true;
+              return true;
+            },
+          };
         },
         clientFactory: () =>
           ({
@@ -134,6 +142,7 @@ describe("CLI observer process helpers", () => {
     );
 
     expect(spawned).toBe(true);
+    expect(killed).toBe(true);
     expect(result).toMatchObject({
       status: "unhealthy",
       error: {

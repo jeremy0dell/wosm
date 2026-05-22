@@ -10,6 +10,7 @@ describe("CLI tui command", () => {
     const configPath = await writeConfigToml(fixture.root, fixture.config);
     const sockets: string[] = [];
     let running = false;
+    const reconciles: string[] = [];
 
     const result = await runCli(["--config", configPath, "tui"], {
       observerDeps: {
@@ -29,6 +30,33 @@ describe("CLI tui command", () => {
                 version: "0.0.0",
               };
             },
+            reconcile: async (reason: string) => {
+              reconciles.push(reason);
+              return {
+                schemaVersion: "0.3.0",
+                reason,
+                reconciledAt: now,
+                snapshot: {
+                  schemaVersion: "0.3.0",
+                  generatedAt: now,
+                  observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
+                  providerHealth: {},
+                  projects: [],
+                  rows: [],
+                  sessions: [],
+                  counts: {
+                    projects: 0,
+                    worktrees: 0,
+                    agents: 0,
+                    working: 0,
+                    idle: 0,
+                    attention: 0,
+                    unknown: 0,
+                  },
+                  alerts: [],
+                },
+              };
+            },
           }) as never,
         sleep: async () => undefined,
       },
@@ -45,6 +73,7 @@ describe("CLI tui command", () => {
       output: { status: "exited", code: 0 },
     });
     expect(sockets).toEqual([fixture.socketPath]);
+    expect(reconciles).toEqual(["tui-startup"]);
   });
 
   it("returns a nonzero result when observer startup is unavailable", async () => {

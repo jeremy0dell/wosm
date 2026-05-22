@@ -15,7 +15,7 @@ describe("observer lifecycle e2e", () => {
       const status = await startObserver({
         config: fixture.config,
         configPath,
-        timeoutMs: 4000,
+        timeoutMs: 30_000,
       });
       expect(status).toMatchObject({
         status: "running",

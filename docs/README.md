@@ -13,3 +13,7 @@ Use `planning/light_commenting_audit.md` when adding sparse comments to non-obvi
 Phase 0 work must specifically follow the Phase 0 section of the phased development plan.
 
 Use `diagnostics.md` for the Phase 6 runtime doctor, debug bundle, redaction, and retention surface.
+
+Use `system-dependencies.md` for external provider dependencies such as the real Worktrunk `wt` binary, install checks, and dependency diagnostics.
+
+Use `manual-smoke.md` for the Phase 11.5 runnable CLI, real Worktrunk smoke loop, and current manual TUI startup procedure.

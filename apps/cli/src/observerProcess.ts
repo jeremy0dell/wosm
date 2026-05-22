@@ -37,7 +37,9 @@ export type SpawnObserverInput = {
   configPath?: string;
 };
 
-export type ChildProcessLike = Pick<ChildProcess, "pid" | "unref">;
+export type ChildProcessLike = Pick<ChildProcess, "pid" | "unref"> & {
+  kill?: ChildProcess["kill"];
+};
 
 export type ObserverProcessOptions = {
   config?: WosmConfig | undefined;
@@ -80,7 +82,7 @@ export async function startObserver(
   deps: ObserverProcessDeps = {},
 ): Promise<ObserverStatus> {
   const paths = options.paths ?? resolveObserverPaths(options.config);
-  const timeoutMs = options.timeoutMs ?? 2000;
+  const timeoutMs = options.timeoutMs ?? 30_000;
   const clock = deps.clock ?? systemClock;
   const existing = await getObserverStatus({ ...options, paths }, deps);
   if (existing.status === "running") {
@@ -91,6 +93,7 @@ export async function startObserver(
   }
 
   // Spawning only starts the daemon; report running only after the socket health check succeeds.
+  let child: ChildProcessLike | undefined;
   const result = await runRuntimeBoundaryWithTimeout(
     {
       operation: "cli.observer.start",
@@ -110,7 +113,7 @@ export async function startObserver(
     async () => {
       await mkdir(paths.stateDir, { recursive: true, mode: 0o700 });
       await mkdir(dirname(paths.socketPath), { recursive: true, mode: 0o700 });
-      const child = await (deps.spawnObserver ?? defaultSpawnObserver)({
+      child = await (deps.spawnObserver ?? defaultSpawnObserver)({
         paths,
         ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
       });
@@ -127,6 +130,7 @@ export async function startObserver(
     };
   }
 
+  child?.kill?.();
   return {
     status: "unhealthy",
     paths,

@@ -1,4 +1,5 @@
 import type { WosmConfig } from "@wosm/config";
+import { createObserverClient } from "@wosm/protocol";
 import { type RunTuiOptions, runTui, type TuiRunResult } from "@wosm/tui";
 import {
   type ObserverProcessDeps,
@@ -51,31 +52,54 @@ export async function runTuiCommand(
     };
   }
 
+  await reconcileBeforeTui({
+    paths: observer.paths,
+    deps: deps.observer,
+    timeoutMs: parsed.timeoutMs,
+  });
   return (deps.runTui ?? runTui)({ socketPath: observer.paths.socketPath });
 }
 
+async function reconcileBeforeTui(input: {
+  paths: ObserverPaths;
+  deps?: ObserverProcessDeps | undefined;
+  timeoutMs?: number | undefined;
+}): Promise<void> {
+  const client =
+    input.deps?.clientFactory?.(input.paths.socketPath) ??
+    createObserverClient({
+      socketPath: input.paths.socketPath,
+      timeoutMs: input.timeoutMs ?? 30_000,
+    });
+  await client.reconcile("tui-startup");
+}
+
 function parseTuiArgs(args: string[], timeoutMs: number | undefined): { timeoutMs?: number } {
-  let parsedTimeoutMs = timeoutMs;
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === "--popup") {
-      continue;
-    }
-    if (arg === "--timeout-ms") {
-      const value = args[index + 1];
-      if (value === undefined) {
-        throw new Error("--timeout-ms requires a value.");
-      }
-      parsedTimeoutMs = Number(value);
-      index += 1;
-      continue;
-    }
-    throw new Error(`Unknown tui option: ${arg ?? ""}`);
+  const parsed = takeTimeoutOption(args, timeoutMs);
+  const unknown = parsed.args.find((arg) => arg !== "--popup");
+  if (unknown !== undefined) {
+    throw new Error(`Unknown tui option: ${unknown}`);
   }
 
   const result: { timeoutMs?: number } = {};
-  if (parsedTimeoutMs !== undefined) {
-    result.timeoutMs = parsedTimeoutMs;
-  }
+  if (parsed.timeoutMs !== undefined) result.timeoutMs = parsed.timeoutMs;
   return result;
+}
+
+function takeTimeoutOption(
+  args: string[],
+  fallback: number | undefined,
+): { args: string[]; timeoutMs?: number } {
+  const index = args.indexOf("--timeout-ms");
+  if (index === -1) {
+    return fallback === undefined ? { args } : { args, timeoutMs: fallback };
+  }
+  const value = args[index + 1];
+  if (value === undefined) {
+    throw new Error("--timeout-ms requires a value.");
+  }
+  return {
+    args: [...args.slice(0, index), ...args.slice(index + 2)],
+    timeoutMs: Number(value),
+  };
 }

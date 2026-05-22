@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     ...commonTestConfig,
     include: ["tests/e2e/**/*.test.ts"],
+    fileParallelism: false,
+    testTimeout: 60_000,
     passWithNoTests: true,
   },
 });

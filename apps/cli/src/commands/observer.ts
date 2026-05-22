@@ -30,18 +30,24 @@ export async function runObserverCommand(
   options: ObserverCommandOptions = {},
   deps: ObserverProcessDeps = {},
 ): Promise<ObserverCommandResult> {
-  const action = args[0] ?? "status";
+  const parsed = parseObserverArgs(args, options.timeoutMs);
+  const action = parsed.action;
   const paths = resolveObserverPaths(options.config);
+  const runtimeOptions = {
+    ...options,
+    paths,
+    ...(parsed.timeoutMs === undefined ? {} : { timeoutMs: parsed.timeoutMs }),
+  };
 
   switch (action) {
     case "status":
-      return getObserverStatus({ ...options, paths }, deps);
+      return getObserverStatus(runtimeOptions, deps);
     case "start":
-      return startObserver({ ...options, paths }, deps);
+      return startObserver(runtimeOptions, deps);
     case "stop":
-      return stopObserver({ ...options, paths }, deps);
+      return stopObserver(runtimeOptions, deps);
     case "restart":
-      return restartObserver({ ...options, paths }, deps);
+      return restartObserver(runtimeOptions, deps);
     case "run": {
       const { runObserverMain } = await import("@wosm/observer");
       const code = await runObserverMain([
@@ -60,6 +66,44 @@ export async function runObserverCommand(
     default:
       throw new Error(`Unknown observer command: ${action}`);
   }
+}
+
+function parseObserverArgs(
+  args: string[],
+  timeoutMs: number | undefined,
+): { action: string; timeoutMs?: number } {
+  const parsed = takeTimeoutOption(args, timeoutMs);
+  const flag = parsed.args.find((arg) => arg.startsWith("--"));
+  if (flag !== undefined) {
+    throw new Error(`Unknown observer option: ${flag}`);
+  }
+  if (parsed.args.length > 1) {
+    throw new Error(`Unknown observer option: ${parsed.args[1] ?? ""}`);
+  }
+
+  const result: { action: string; timeoutMs?: number } = {
+    action: parsed.args[0] ?? "status",
+  };
+  if (parsed.timeoutMs !== undefined) result.timeoutMs = parsed.timeoutMs;
+  return result;
+}
+
+function takeTimeoutOption(
+  args: string[],
+  fallback: number | undefined,
+): { args: string[]; timeoutMs?: number } {
+  const index = args.indexOf("--timeout-ms");
+  if (index === -1) {
+    return fallback === undefined ? { args } : { args, timeoutMs: fallback };
+  }
+  const value = args[index + 1];
+  if (value === undefined) {
+    throw new Error("--timeout-ms requires a value.");
+  }
+  return {
+    args: [...args.slice(0, index), ...args.slice(index + 2)],
+    timeoutMs: Number(value),
+  };
 }
 
 export function observerCommandSummary(result: ObserverCommandResult): unknown {

@@ -1,5 +1,5 @@
 import type { WosmConfig } from "@wosm/config";
-import type { DoctorOptions, DoctorReport } from "@wosm/contracts";
+import type { WosmSnapshot } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
 import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import {
@@ -9,18 +9,18 @@ import {
 } from "../observerProcess.js";
 import { resolveObserverPaths } from "../paths.js";
 
-export type DoctorCommandOptions = {
+export type SnapshotCommandOptions = {
   config?: WosmConfig | undefined;
   configPath?: string | undefined;
   timeoutMs?: number | undefined;
 };
 
-export async function runDoctorCommand(
+export async function runSnapshotCommand(
   args: string[],
-  options: DoctorCommandOptions = {},
+  options: SnapshotCommandOptions = {},
   deps: ObserverProcessDeps = {},
-): Promise<DoctorReport> {
-  const doctorOptions = parseDoctorOptions(args);
+): Promise<WosmSnapshot> {
+  const parsed = parseSnapshotArgs(args);
   const timeoutMs = options.timeoutMs ?? 30_000;
   const paths = resolveObserverPaths(options.config);
   const status = await startObserver({ ...options, paths, timeoutMs }, deps);
@@ -30,20 +30,20 @@ export async function runDoctorCommand(
     createObserverClient({ socketPath: paths.socketPath, timeoutMs });
   const result = await runRuntimeBoundaryWithTimeout(
     {
-      operation: "cli.doctor.run",
+      operation: "cli.snapshot.get",
       timeoutMs,
       error: {
-        tag: "DoctorCommandError",
-        code: "DOCTOR_RPC_FAILED",
-        message: "Doctor command could not collect observer diagnostics.",
+        tag: "SnapshotCommandError",
+        code: "SNAPSHOT_RPC_FAILED",
+        message: "Snapshot command could not load the observer snapshot.",
       },
       timeoutError: {
         tag: "TimeoutError",
-        code: "DOCTOR_RPC_TIMEOUT",
-        message: "Doctor command timed out while contacting the observer.",
+        code: "SNAPSHOT_RPC_TIMEOUT",
+        message: "Snapshot command timed out while contacting the observer.",
       },
     },
-    async () => client.runDoctor(doctorOptions),
+    async () => client.getSnapshot(parsed.includeDebug ? { includeDebug: true } : undefined),
   );
   if (!result.ok) {
     throw result.error;
@@ -51,24 +51,12 @@ export async function runDoctorCommand(
   return result.value;
 }
 
-function parseDoctorOptions(args: string[]): DoctorOptions {
-  const result: NonNullable<DoctorOptions> = {};
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === "--deep") {
-      result.deep = true;
-      continue;
-    }
-    if (arg === "--project" && args[index + 1] !== undefined) {
-      result.projectId = args[index + 1];
-      index += 1;
-      continue;
-    }
-    if (arg !== undefined) {
-      throw new Error(`Unknown doctor option: ${arg}`);
-    }
+function parseSnapshotArgs(args: string[]): { includeDebug: boolean } {
+  const unknown = args.find((arg) => arg !== "--json" && arg !== "--include-debug");
+  if (unknown !== undefined) {
+    throw new Error(`Unknown snapshot option: ${unknown}`);
   }
-  return Object.keys(result).length === 0 ? undefined : result;
+  return { includeDebug: args.includes("--include-debug") };
 }
 
 function assertRunning(
