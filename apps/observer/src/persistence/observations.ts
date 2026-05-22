@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ProviderId } from "@wosm/contracts";
 import {
+  HarnessEventObservationSchema,
   HarnessRunObservationSchema,
   TerminalTargetObservationSchema,
   WorktreeObservationSchema,
@@ -93,6 +94,9 @@ function validateProviderObservationPayload(
   }
   if (kind === "harness_run") {
     return HarnessRunObservationSchema.parse(payload);
+  }
+  if (kind === "harness_event") {
+    return HarnessEventObservationSchema.parse(payload);
   }
   return payload;
 }

@@ -7,9 +7,11 @@ import type {
   ProviderHealth,
   ProviderId,
   ProviderProjectConfig,
+  RawWorktreeEvent,
   RemoveWorktreeRequest,
   RemoveWorktreeResult,
   WorktreeCapabilities,
+  WorktreeEventContext,
   WorktreeObservation,
   WorktreeProvider,
 } from "@wosm/contracts";
@@ -145,6 +147,13 @@ export class WorktrunkProvider implements WorktreeProvider {
         },
       ];
     }
+  }
+
+  async ingestEvent(
+    _event: RawWorktreeEvent,
+    _context: WorktreeEventContext,
+  ): Promise<WorktreeObservation[]> {
+    return [];
   }
 
   async listWorktrees(project: ProviderProjectConfig): Promise<WorktreeObservation[]> {

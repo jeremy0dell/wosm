@@ -144,6 +144,16 @@ export type GetWorktreeRequest = {
   path?: string;
 };
 
+export type RawWorktreeEvent = {
+  provider: ProviderId;
+  event: unknown;
+  observedAt?: string;
+};
+
+export type WorktreeEventContext = {
+  projects: ProviderProjectConfig[];
+};
+
 export type ProviderDoctorCheck = {
   name: string;
   status: "ok" | "warn" | "error";
@@ -167,6 +177,17 @@ export type OpenWorkspaceResult = {
   target: TerminalIdentityBinding;
   agentEndpointId: string;
   providerData?: unknown;
+};
+
+export type RawTerminalEvent = {
+  provider: ProviderId;
+  event: unknown;
+  observedAt?: string;
+};
+
+export type TerminalEventContext = {
+  projects: ProviderProjectConfig[];
+  worktrees: WorktreeObservation[];
 };
 
 export type TerminalCapture = {
@@ -260,6 +281,10 @@ export interface WorktreeProvider {
   capabilities(): WorktreeCapabilities;
   health(): Promise<ProviderHealth>;
   doctorChecks?(context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]>;
+  ingestEvent?(
+    event: RawWorktreeEvent,
+    context: WorktreeEventContext,
+  ): Promise<WorktreeObservation[]>;
   listWorktrees(project: ProviderProjectConfig): Promise<WorktreeObservation[]>;
   createWorktree(request: CreateWorktreeRequest): Promise<WorktreeObservation>;
   removeWorktree(request: RemoveWorktreeRequest): Promise<RemoveWorktreeResult>;
@@ -271,6 +296,10 @@ export interface TerminalProvider {
   capabilities(): TerminalCapabilities;
   health(): Promise<ProviderHealth>;
   doctorChecks?(context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]>;
+  ingestEvent?(
+    event: RawTerminalEvent,
+    context: TerminalEventContext,
+  ): Promise<TerminalTargetObservation[]>;
   listTargets(): Promise<TerminalTargetObservation[]>;
   openWorkspace(request: OpenWorkspaceRequest): Promise<OpenWorkspaceResult>;
   launchProcess?(request: TerminalLaunchProcessRequest): Promise<TerminalLaunchProcessResult>;

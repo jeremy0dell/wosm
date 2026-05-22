@@ -31,7 +31,7 @@ import { createHookIngestion, type HookIngestion } from "../hooks/ingestion.js";
 import { drainHookSpool, hookSpoolDepth } from "../hooks/spool.js";
 import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
 import type { ProviderRegistry } from "../providers/registry.js";
-import type { ObserverCore } from "../reconcile/core.js";
+import { type ObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
 import type { ObserverEventBus } from "./eventBus.js";
 
 export type CreateObserverApiOptions = {
@@ -64,6 +64,8 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     options.hookIngestion ??
     createHookIngestion({
       persistence: options.persistence,
+      ...(options.providers === undefined ? {} : { providers: options.providers }),
+      projects: providerProjectsFromConfig(options.config ?? emptyConfig()),
       eventBus: options.eventBus,
       clock,
       reconcile: (reason) => api.reconcile(reason),

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { receiveHookEvent } from "@wosm/cli";
 import type { HookReceipt } from "@wosm/contracts";
+import { componentLogPath, readJsonlLog } from "@wosm/observability";
 import { describe, expect, it } from "vitest";
 import { fileMode, listHookSpoolFiles, readHookSpoolRecord } from "../../../../tests/support/spool";
 import { createTempState } from "../../../../tests/support/temp-projects";
@@ -43,6 +44,7 @@ describe("CLI hook receiver", () => {
     const fixture = await createTempState();
     let attempts = 0;
     let started = false;
+    const hookIds: string[] = [];
 
     const receipt = await receiveHookEvent(
       {
@@ -73,12 +75,13 @@ describe("CLI hook receiver", () => {
             },
             ingestHookEvent: async (event): Promise<HookReceipt> => {
               attempts += 1;
+              hookIds.push(event.hookId ?? "");
               if (attempts === 1) {
                 throw new Error("offline");
               }
               return {
                 schemaVersion: "0.3.0",
-                hookId: "hook_1",
+                hookId: event.hookId ?? "missing_hook_id",
                 provider: event.provider,
                 event: event.event,
                 accepted: true,
@@ -89,12 +92,14 @@ describe("CLI hook receiver", () => {
             },
           }) as never,
         sleep: async () => undefined,
+        hookId: () => "hook_stable_retry",
       },
     );
 
     expect(started).toBe(true);
     expect(receipt.status).toBe("ingested");
     expect(attempts).toBe(2);
+    expect(hookIds).toEqual(["hook_stable_retry", "hook_stable_retry"]);
   });
 
   it("spools with a safe error when online delivery times out", async () => {
@@ -211,6 +216,55 @@ describe("CLI hook receiver", () => {
         event: "worktree.created",
       },
     });
+  });
+
+  it("records redacted hook delivery diagnostics in the hook log", async () => {
+    const fixture = await createTempState();
+    const secret = "sk-hooksecret000000000";
+
+    const receipt = await receiveHookEvent(
+      {
+        provider: "worktrunk",
+        event: "worktree.created",
+        payload: { token: secret, branch: "feature/secret" },
+        config: {
+          ...fixture.config,
+          observer: {
+            ...fixture.config.observer,
+            autoStartFromHooks: false,
+          },
+        },
+      },
+      {
+        clock: { now: () => new Date(now) },
+        hookId: () => "hook_logged_1",
+        clientFactory: () =>
+          ({
+            ingestHookEvent: async () => {
+              throw new Error(`offline ${secret}`);
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt.status).toBe("spooled");
+    const logs = await readJsonlLog(componentLogPath(fixture.stateDir, "hook"));
+    expect(logs).toEqual([
+      expect.objectContaining({
+        component: "hook",
+        level: "warn",
+        provider: "worktrunk",
+        attributes: expect.objectContaining({
+          hookId: "hook_logged_1",
+          status: "spooled",
+          payload: expect.objectContaining({
+            token: "[REDACTED]",
+            branch: "feature/secret",
+          }),
+        }),
+      }),
+    ]);
+    expect(JSON.stringify(logs)).not.toContain(secret);
   });
 
   it("rate-limits repeated auto-start attempts and spools without spawning again", async () => {

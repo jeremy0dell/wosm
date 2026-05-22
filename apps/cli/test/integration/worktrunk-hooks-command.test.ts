@@ -79,6 +79,46 @@ describe("CLI Worktrunk hook commands", () => {
       },
     });
   });
+
+  it("plans and doctors through generic hooks aliases", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-cli-wt-hooks-"));
+    const configPath = await writeConfig(root);
+    const worktrunkConfigPath = join(root, "worktrunk", "config.toml");
+
+    const planned = await runCli([
+      "--config",
+      configPath,
+      "hooks",
+      "plan",
+      "worktrunk",
+      "--worktrunk-config",
+      worktrunkConfigPath,
+    ]);
+    const doctored = await runCli([
+      "--config",
+      configPath,
+      "hooks",
+      "doctor",
+      "worktrunk",
+      "--worktrunk-config",
+      worktrunkConfigPath,
+    ]);
+
+    expect(planned).toMatchObject({
+      code: 0,
+      output: {
+        provider: "worktrunk",
+        changed: true,
+      },
+    });
+    expect(doctored).toMatchObject({
+      code: 1,
+      output: {
+        provider: "worktrunk",
+        status: "warn",
+      },
+    });
+  });
 });
 
 async function writeConfig(root: string): Promise<string> {

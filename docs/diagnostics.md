@@ -13,6 +13,8 @@ wosm debug bundle
 
 `wosm debug bundle` asks the observer for a diagnostic snapshot, then writes a redacted bundle under the configured state directory.
 
+Provider hooks are diagnosed as delivery hints, not runtime truth. The hook receiver assigns a stable hook id, tries bounded delivery to the observer, attempts bounded observer auto-start when enabled, and writes a spool record only when startup or delivery fails. Hook delivery decisions are written to `logs/hooks.jsonl`; hook payload attributes are redacted before they appear in logs or debug bundles.
+
 When `defaults.worktree_provider = "worktrunk"`, doctor also validates Worktrunk binary availability and lifecycle hook setup. Missing `wt` degrades provider health with `WORKTRUNK_UNAVAILABLE`, the attempted command, any resolved path, version output when available, and an install hint. Missing, disabled, or untrusted Worktrunk hooks degrade the report with a `worktrunk-hooks` check. Provider command failures from `wt` are recorded through provider health and appear in doctor output, logs, and debug bundle provider-health evidence.
 
 For the current direct terminal smoke loop, see [manual-smoke.md](manual-smoke.md).
@@ -120,6 +122,15 @@ wosm --config /path/to/config.toml worktrunk hooks uninstall --yes
 ```
 
 The generated hook bodies only call `wosm hook worktrunk <event>` with the resolved wosm config path. They do not contain lifecycle logic. The installer backs up the Worktrunk config, preserves unrelated hook commands, and removes only generated wosm hook entries on uninstall.
+
+Generic aliases are also available for the Worktrunk hook setup surface:
+
+```bash
+wosm --config /path/to/config.toml hooks plan worktrunk
+wosm --config /path/to/config.toml hooks doctor worktrunk
+wosm --config /path/to/config.toml hooks install worktrunk --yes
+wosm --config /path/to/config.toml hooks uninstall worktrunk --yes
+```
 
 Real Worktrunk E2E coverage is opt-in:
 

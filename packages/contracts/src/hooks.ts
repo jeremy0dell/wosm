@@ -15,6 +15,7 @@ export const ProviderHookKindSchema = z.enum(["worktree", "terminal", "harness",
 export const ProviderHookEventSchema = z
   .object({
     schemaVersion: SchemaVersionSchema,
+    hookId: nonEmptyStringSchema.optional(),
     provider: ProviderIdSchema,
     kind: ProviderHookKindSchema,
     event: nonEmptyStringSchema,
@@ -39,6 +40,7 @@ export const HookReceiptSchema = z
     receivedAt: TimestampSchema,
     reconciled: z.boolean().optional(),
     spooled: z.boolean().optional(),
+    deduped: z.boolean().optional(),
     error: SafeErrorSchema.optional(),
   })
   .strict();

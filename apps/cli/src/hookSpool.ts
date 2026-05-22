@@ -56,7 +56,7 @@ export async function writeHookSpoolRecord(
 
   return HookReceiptSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
-    hookId: spoolId,
+    hookId: options.event.hookId ?? spoolId,
     provider: options.event.provider,
     event: options.event.event,
     accepted: true,

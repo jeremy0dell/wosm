@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import type { WosmConfig } from "@wosm/config";
 import type { HookReceipt, ProviderHookEvent, SafeError } from "@wosm/contracts";
 import { ProviderHookEventSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { componentLogPath, createJsonlLogger, type JsonlLogger } from "@wosm/observability";
 import { createObserverClient } from "@wosm/protocol";
 import {
   type RuntimeClock,
@@ -17,6 +19,7 @@ import { type ObserverPaths, resolveObserverPaths } from "./paths.js";
 export type HookReceiverInput = {
   provider: string;
   event: string;
+  hookId?: string | undefined;
   kind?: ProviderHookEvent["kind"];
   payload?: unknown;
   config?: WosmConfig | undefined;
@@ -31,10 +34,13 @@ export type HookReceiverDeps = ObserverProcessDeps & {
   clientFactory?: (socketPath: string) => ReturnType<typeof createObserverClient>;
   clock?: RuntimeClock;
   writeSpool?: typeof writeHookSpoolRecord;
+  hookId?: () => string;
+  logger?: JsonlLogger;
 };
 
 // Rate-limit auto-starts per state dir so concurrent hooks from one install do not fork storms.
 const lastStartByStateDir = new Map<string, number>();
+const defaultHookId = () => `hook_${Date.now()}_${randomUUID()}`;
 
 export async function receiveHookEvent(
   input: HookReceiverInput,
@@ -42,8 +48,10 @@ export async function receiveHookEvent(
 ): Promise<HookReceipt> {
   const clock = deps.clock ?? systemClock;
   const paths = input.paths ?? resolveObserverPaths(input.config);
+  const hookId = input.hookId ?? deps.hookId?.() ?? defaultHookId();
   const event = ProviderHookEventSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
+    hookId,
     provider: input.provider,
     kind: input.kind ?? inferHookKind(input.provider),
     event:
@@ -60,7 +68,7 @@ export async function receiveHookEvent(
   // start it once, then spool the event for later replay.
   const onlineDelivery = await deliverHook(paths, event, deliveryTimeoutMs, deps);
   if (onlineDelivery.ok && onlineDelivery.value.status === "ingested") {
-    return onlineDelivery.value;
+    return logAndReturn(paths, event, onlineDelivery.value, deps);
   }
 
   const deliveryError = onlineDelivery.ok ? onlineDelivery.value.error : onlineDelivery.error;
@@ -76,19 +84,16 @@ export async function receiveHookEvent(
     if (startResult.ok) {
       const retryDelivery = await deliverHook(paths, event, deliveryTimeoutMs, deps);
       if (retryDelivery.ok && retryDelivery.value.status === "ingested") {
-        return retryDelivery.value;
+        return logAndReturn(paths, event, retryDelivery.value, deps);
       }
-      return spool(
-        paths,
-        event,
-        retryDelivery.ok ? retryDelivery.value.error : retryDelivery.error,
-        deps,
-      );
+      const retryError = retryDelivery.ok ? retryDelivery.value.error : retryDelivery.error;
+      const spooled = await spool(paths, event, retryError, deps);
+      return logAndReturn(paths, event, spooled, deps);
     }
-    return spool(paths, event, startResult.error, deps);
+    return logAndReturn(paths, event, await spool(paths, event, startResult.error, deps), deps);
   }
 
-  return spool(paths, event, deliveryError, deps);
+  return logAndReturn(paths, event, await spool(paths, event, deliveryError, deps), deps);
 }
 
 async function deliverHook(
@@ -190,6 +195,46 @@ async function spool(
     ...(error === undefined ? {} : { error }),
     ...(deps.clock === undefined ? {} : { clock: deps.clock }),
   });
+}
+
+async function logAndReturn(
+  paths: ObserverPaths,
+  event: ProviderHookEvent,
+  receipt: HookReceipt,
+  deps: HookReceiverDeps,
+): Promise<HookReceipt> {
+  const logger =
+    deps.logger ??
+    createJsonlLogger({
+      component: "hook",
+      path: componentLogPath(paths.stateDir, "hook"),
+      ...(deps.clock === undefined ? {} : { clock: deps.clock }),
+    });
+  try {
+    const level =
+      receipt.status === "ingested" ? "info" : receipt.status === "spooled" ? "warn" : "error";
+    await logger.log({
+      level,
+      message:
+        receipt.status === "ingested"
+          ? "Hook event delivered to observer."
+          : receipt.status === "spooled"
+            ? "Hook event spooled for later delivery."
+            : "Hook event rejected.",
+      provider: event.provider,
+      attributes: {
+        hookId: receipt.hookId,
+        status: receipt.status,
+        event: event.event,
+        kind: event.kind,
+        payload: event.payload,
+        ...(receipt.error === undefined ? {} : { error: receipt.error }),
+      },
+    });
+  } catch {
+    // Hook logging must never block provider hook completion.
+  }
+  return receipt;
 }
 
 function defaultClientFactory(socketPath: string) {

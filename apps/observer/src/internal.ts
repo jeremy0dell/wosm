@@ -7,6 +7,7 @@ export * from "./diagnostics/collector.js";
 export * from "./diagnostics/errors.js";
 export * from "./hooks/breadcrumbs.js";
 export * from "./hooks/ingestion.js";
+export * from "./hooks/providerIngest.js";
 export * from "./hooks/spool.js";
 export * from "./migrations/index.js";
 export * from "./persistence/index.js";

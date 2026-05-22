@@ -1,8 +1,13 @@
-import { readdir, readFile, unlink } from "node:fs/promises";
+import { readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { HookReceipt, HookSpoolRecord, ProviderHookEvent, WosmEvent } from "@wosm/contracts";
 import { HookSpoolRecordSchema } from "@wosm/contracts";
-import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
+import {
+  type RuntimeClock,
+  safeErrorFromUnknown,
+  systemClock,
+  toIsoTimestamp,
+} from "@wosm/runtime";
 import type { ObserverPersistence } from "../persistence/index.js";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
 
@@ -94,9 +99,20 @@ export async function drainHookSpool(
         await unlink(path);
         drained += 1;
       } else {
+        await updateFailedSpoolRecord(path, record, receipt.error);
         failed += 1;
       }
-    } catch {
+    } catch (error) {
+      await updateFailedSpoolRecord(
+        path,
+        record,
+        safeErrorFromUnknown(error, {
+          tag: "HookIngestionError",
+          code: "HOOK_SPOOL_DRAIN_FAILED",
+          message: "Hook spool record could not be delivered.",
+          provider: record.event.provider,
+        }),
+      );
       failed += 1;
     }
   }
@@ -120,4 +136,21 @@ export async function drainHookSpool(
     drained,
     failed,
   };
+}
+
+async function updateFailedSpoolRecord(
+  path: string,
+  record: HookSpoolRecord,
+  error: HookSpoolRecord["lastError"] | undefined,
+): Promise<void> {
+  const updated: HookSpoolRecord = {
+    ...record,
+    attempts: record.attempts + 1,
+  };
+  if (error !== undefined) {
+    updated.lastError = error;
+  }
+  await writeFile(path, JSON.stringify(HookSpoolRecordSchema.parse(updated), null, 2), {
+    mode: 0o600,
+  });
 }

@@ -64,6 +64,7 @@ export type ProviderObservationKind =
   | "worktree"
   | "terminal_target"
   | "harness_run"
+  | "harness_event"
   | "provider_health";
 
 export type ProviderObservationType = "worktree" | "terminal" | "harness" | "observer";

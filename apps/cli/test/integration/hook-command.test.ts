@@ -82,6 +82,38 @@ describe("CLI hook command", () => {
     expect(observedPayload).toEqual({ branch: "feature/run-cli" });
   });
 
+  it("rejects malformed JSON stdin without delivering or spooling arbitrary text", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let delivered = false;
+
+    const result = await runCli(["--config", configPath, "hook", "worktrunk", "worktree.created"], {
+      stdin: "{ invalid json",
+      hookDeps: {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            ingestHookEvent: async (): Promise<HookReceipt> => {
+              delivered = true;
+              throw new Error("should not deliver invalid hook payload");
+            },
+          }) as never,
+      },
+    });
+
+    expect(result).toMatchObject({
+      code: 1,
+      output: {
+        status: "rejected",
+        error: {
+          code: "HOOK_PAYLOAD_INVALID",
+        },
+      },
+    });
+    expect(delivered).toBe(false);
+    await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
+  });
+
   it("returns exit code 1 when the hook receiver returns a rejected receipt", async () => {
     const fixture = await createTempState();
     const config = {

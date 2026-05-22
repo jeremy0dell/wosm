@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../tests/support/sockets";
 import {
   fileExists,
+  readHookSpoolRecord,
   writeHookSpoolRecordFixture,
   writeInvalidHookSpoolFile,
 } from "../../../../tests/support/spool";
@@ -115,6 +116,12 @@ describe("observer hook spool drain", () => {
     expect(result).toEqual({ scanned: 2, drained: 1, failed: 1 });
     await expect(fileExists(successPath)).resolves.toBe(false);
     await expect(fileExists(rejectedPath)).resolves.toBe(true);
+    await expect(readHookSpoolRecord(spoolDir, "spool_rejected.json")).resolves.toMatchObject({
+      attempts: 1,
+      lastError: {
+        code: "HOOK_INGESTION_FAILED",
+      },
+    });
     await expect(nextDrainEvent).resolves.toMatchObject({
       done: false,
       value: {

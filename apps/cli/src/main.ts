@@ -116,15 +116,20 @@ export async function runCli(
     return { code: "status" in result && result.status === "warn" ? 1 : 0, output: result };
   }
 
-  if (command === "hooks" && (commandArgs[0] === "install" || commandArgs[0] === "uninstall")) {
+  const hookAction = commandArgs[0];
+  if (
+    command === "hooks" &&
+    hookAction !== undefined &&
+    ["plan", "install", "uninstall", "doctor"].includes(hookAction)
+  ) {
     if (commandArgs[1] !== "worktrunk") {
       throw new Error(`Unknown hook provider: ${commandArgs[1] ?? ""}`);
     }
-    const result = await runWorktrunkHooksCommand([commandArgs[0], ...commandArgs.slice(2)], {
+    const result = await runWorktrunkHooksCommand([hookAction, ...commandArgs.slice(2)], {
       config,
       configPath: resolvedConfigPath,
     });
-    return { code: 0, output: result };
+    return { code: "status" in result && result.status === "warn" ? 1 : 0, output: result };
   }
 
   throw new Error(`Unknown command: ${command ?? ""}`);

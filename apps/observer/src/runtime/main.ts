@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { type LoadedWosmConfig, loadConfig, type WosmConfig } from "@wosm/config";
+import { componentLogPath } from "@wosm/observability";
 import { systemClock } from "@wosm/runtime";
 import { createCommandQueue } from "../commands/queue.js";
 import { registerObserverCommandHandlers } from "../commands/router.js";
@@ -90,7 +91,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     socketPath,
     stateDir,
     diagnosticsDir: join(stateDir, "diagnostics"),
-    logPaths: [logger.path],
+    logPaths: [logger.path, componentLogPath(stateDir, "hook")],
     config,
     ...(options.configPath === undefined ? {} : { configPath: loadedConfig.configPath }),
     configDiagnostics: loadedConfig.diagnostics,

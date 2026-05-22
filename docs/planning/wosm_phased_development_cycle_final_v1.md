@@ -1698,7 +1698,102 @@ Mitigation: Keep standard CI on fake/scripted providers. Real lanes are opt-in, 
 
 ---
 
-## 21. Phase 17 - Second harness provider
+## 21. Phase 16.5 - Tmux popup navigation UX
+
+### Goal
+
+Harden the dogfood navigation UX where the TUI runs as a tmux popup overlay, row activation focuses the underlying workbench window and primary agent pane, then the popup exits so the user lands directly in the real agent session.
+
+This phase makes the intended user experience explicit:
+
+```text
+real agent pane is in the tmux workbench
+  -> wosm popup opens as dashboard overlay
+  -> user selects a worktree/session row
+  -> TUI dispatches terminal.focus
+  -> tmux focuses the selected worktree window and primary agent pane behind the popup
+  -> popup exits on success
+  -> user sees and types in the real agent pane
+```
+
+### Non-goals
+
+```text
+No embedded pane preview inside the TUI.
+No TUI inspect/debug panel.
+No prompt sending or paste-and-focus behavior.
+No multi-pane picker for support panes.
+No multiple primary agents per worktree.
+```
+
+### Build scope
+
+```text
+popup-mode TUI activation behavior
+focus-and-close command flow for row activation
+SafeError toast when focus fails
+tmux popup close behavior after successful focus
+underlying workbench client focus verification
+manual dogfood UX documentation
+real tmux popup navigation smoke lane
+```
+
+### Test pack
+
+```text
+popup-mode row activation dispatches terminal.focus
+successful popup-mode focus exits the TUI process
+failed popup-mode focus keeps popup open and shows SafeError toast
+non-popup mode can focus without forcing process exit
+slot mapping and Enter activation both support focus-and-close in popup mode
+real tmux smoke opens popup over one worktree and selects another
+real tmux smoke verifies the selected worktree window and primary agent pane are focused after popup exit
+TUI still does not import tmux or provider packages
+```
+
+### Red-first expectations
+
+Tests fail because Phase 11 row focus dispatch exists, but popup-mode focus-and-close behavior and real tmux popup navigation are not yet specified or proven.
+
+### Acceptance criteria
+
+```text
+wosm popup behaves as a dashboard overlay for the real tmux workbench.
+Selecting a row in popup mode lands the user in that row's real primary agent pane.
+Focus failure is visible and does not close the popup.
+The TUI does not render captured pane previews or inspect providerData.
+The tmux-specific popup/focus mechanics remain inside the terminal provider and CLI/TUI shell boundary.
+The behavior is covered by deterministic TUI tests and an opt-in real tmux smoke lane.
+```
+
+### Exit artifacts
+
+```text
+apps/tui popup-mode focus-and-close tests
+apps/tui row activation behavior updates
+apps/cli popup command tests if CLI process behavior changes
+integrations/terminal/tmux real popup/focus smoke tests
+docs/manual-smoke.md popup navigation instructions
+dogfood checklist entry for popup navigation
+```
+
+### Risks
+
+Risk: Popup exits before the focus command actually takes effect.
+
+Mitigation: Close the popup only after the observer returns command success, and prove the real tmux client focus in the smoke lane.
+
+Risk: TUI starts depending on tmux details to implement the UX.
+
+Mitigation: TUI dispatches provider-neutral `terminal.focus`; tmux-specific popup/focus mechanics stay in the tmux provider and CLI popup launcher.
+
+Risk: Failed focus strands the user in a closing popup.
+
+Mitigation: Keep the popup open on failed focus and show a SafeError toast with diagnostic context.
+
+---
+
+## 22. Phase 17 - Second harness provider
 
 ### Goal
 
@@ -1763,7 +1858,7 @@ Mitigation: Adjust contracts only if the need is provider-neutral. Do not add pr
 
 ---
 
-## 22. Phase 18 - Release hardening
+## 23. Phase 18 - Release hardening
 
 ### Goal
 

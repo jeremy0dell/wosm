@@ -1,6 +1,7 @@
 {
   "worktrunkWorktreeCreated": {
     "schemaVersion": "0.3.0",
+    "hookId": "hook_worktrunk_1",
     "provider": "worktrunk",
     "kind": "worktree",
     "event": "worktree.created",
@@ -13,6 +14,7 @@
   },
   "codexRunUpdated": {
     "schemaVersion": "0.3.0",
+    "hookId": "hook_codex_1",
     "provider": "codex",
     "kind": "harness",
     "event": "run.updated",

@@ -151,6 +151,22 @@ Stop the background observer when done:
 wosm observer stop
 ```
 
+## Hook Smoke
+
+With the fake-provider config above, hook delivery can be checked without touching real Worktrunk state:
+
+```bash
+wosm hook worktrunk post-create <<< '{"branch":"feature/manual-hook"}'
+wosm doctor
+wosm debug bundle
+```
+
+Expected basics:
+
+- The hook command reports `ingested` when the observer is reachable or can be auto-started.
+- `doctor` reports hook spool depth; it should remain zero for successful delivery.
+- `debug bundle` includes redacted hook log evidence from `logs/hooks.jsonl`.
+
 ## Test-Only Fake Worktrunk
 
 The e2e smoke test uses `tests/support/fake-external-tools/worktrunk-bin.ts` to create a deterministic executable that behaves like the tiny subset of `wt` needed by the provider. That fixture is for tests and examples only. It is not on the production code path, and it does not replace the real Worktrunk provider.

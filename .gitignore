@@ -4,6 +4,7 @@ coverage/
 .turbo/
 .pnpm-store/
 .DS_Store
+.worktrees/
 *.tsbuildinfo
 .env
 .env.*
