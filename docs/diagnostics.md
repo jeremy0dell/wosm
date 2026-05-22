@@ -13,7 +13,9 @@ wosm debug bundle
 
 `wosm debug bundle` asks the observer for a diagnostic snapshot, then writes a redacted bundle under the configured state directory.
 
-When `defaults.worktree_provider = "worktrunk"`, doctor also validates Worktrunk lifecycle hook setup. Missing, disabled, or untrusted Worktrunk hooks degrade the report with a `worktrunk-hooks` check. Provider command failures from `wt` are recorded through provider health and appear in doctor output, logs, and debug bundle provider-health evidence.
+When `defaults.worktree_provider = "worktrunk"`, doctor also validates Worktrunk binary availability and lifecycle hook setup. Missing `wt` degrades provider health with `WORKTRUNK_UNAVAILABLE`, the attempted command, any resolved path, version output when available, and an install hint. Missing, disabled, or untrusted Worktrunk hooks degrade the report with a `worktrunk-hooks` check. Provider command failures from `wt` are recorded through provider health and appear in doctor output, logs, and debug bundle provider-health evidence.
+
+For the current direct terminal smoke loop, see [manual-smoke.md](manual-smoke.md).
 
 ## Manual Smoke
 

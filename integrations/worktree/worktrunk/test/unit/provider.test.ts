@@ -7,6 +7,7 @@ const project = {
   id: "web",
   label: "web",
   root: "/tmp/wosm/web",
+  defaultBranch: "main",
   defaults: {
     harness: "codex",
     terminal: "tmux",
@@ -48,6 +49,74 @@ describe("WorktrunkProvider", () => {
         cwd: "/tmp/wosm/web",
       }),
     ]);
+  });
+
+  it("filters listed worktrees to the managed root when external worktrees are disabled", async () => {
+    const managedProject = {
+      ...project,
+      worktrunk: {
+        ...project.worktrunk,
+        managedRoot: ".worktrees",
+        includeMain: false,
+        includeExternal: false,
+      },
+    };
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async (input) =>
+        result(
+          input,
+          JSON.stringify([
+            { path: "/tmp/wosm/web", branch: "main" },
+            { path: "/tmp/wosm/web/.worktrees/feature", branch: "feature" },
+            { path: "/tmp/wosm/web.sibling", branch: "sibling" },
+            { path: "/tmp/codex/worktrees/abcd/web", commit: { short_sha: "9dd15ba" } },
+          ]),
+        ),
+    });
+
+    await expect(provider.listWorktrees(managedProject)).resolves.toEqual([
+      expect.objectContaining({
+        id: "wt_web_feature",
+        branch: "feature",
+        path: "/tmp/wosm/web/.worktrees/feature",
+      }),
+    ]);
+  });
+
+  it("directs created worktrees into the managed root through Worktrunk config env", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const managedProject = {
+      ...project,
+      worktrunk: {
+        ...project.worktrunk,
+        managedRoot: ".worktrees",
+        includeMain: false,
+        includeExternal: false,
+      },
+    };
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        calls.push(input);
+        return result(
+          input,
+          JSON.stringify([{ path: "/tmp/wosm/web/.worktrees/feature", branch: "feature" }]),
+        );
+      },
+    });
+
+    await expect(
+      provider.createWorktree({ project: managedProject, branch: "feature" }),
+    ).resolves.toMatchObject({
+      id: "wt_web_feature",
+      path: "/tmp/wosm/web/.worktrees/feature",
+    });
+    expect(calls[0]?.env).toEqual({
+      WORKTRUNK_WORKTREE_PATH: "/tmp/wosm/web/.worktrees/{{ branch | sanitize }}",
+    });
   });
 
   it("creates and removes worktrees using Worktrunk lifecycle commands", async () => {
@@ -97,6 +166,11 @@ describe("WorktrunkProvider", () => {
       lastError: {
         tag: "ProviderUnavailableError",
         code: "WORKTRUNK_UNAVAILABLE",
+        hint: expect.stringContaining("brew install worktrunk"),
+      },
+      diagnostics: {
+        attemptedCommand: "missing-wt",
+        installHint: expect.stringContaining("brew install worktrunk"),
       },
     });
   });

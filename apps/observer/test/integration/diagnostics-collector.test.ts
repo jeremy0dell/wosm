@@ -19,8 +19,15 @@ describe("observer diagnostics collector", () => {
   it("collects doctor and diagnostic snapshot data from fake providers", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-diag-"));
     const clock = { now: () => new Date(now) };
-    const sqlite = openObserverSqlite({ path: join(stateDir, "observer.sqlite"), clock });
-    const persistence = createObserverPersistence({ sqlite, clock, idFactory: ids() });
+    const sqlite = openObserverSqlite({
+      path: join(stateDir, "observer.sqlite"),
+      clock,
+    });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
     const providers = new ProviderRegistry({
       worktree: new ProviderDiagnosticWorktreeProvider({ now }),
       terminal: new FakeTerminalProvider({ now }),

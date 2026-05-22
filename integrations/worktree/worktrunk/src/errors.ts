@@ -38,10 +38,12 @@ export class ProviderUnavailableError extends Error implements SafeError {
   readonly provider = "worktrunk";
   readonly code = "WORKTRUNK_UNAVAILABLE";
   readonly hint?: string;
+  readonly command?: string;
+  readonly installHint?: string;
 
   constructor(
     message = "Worktrunk is not available.",
-    options: { hint?: string; cause?: unknown } = {},
+    options: { hint?: string; command?: string; installHint?: string; cause?: unknown } = {},
   ) {
     super(message, { cause: options.cause });
     Object.defineProperty(this, "name", {
@@ -51,6 +53,12 @@ export class ProviderUnavailableError extends Error implements SafeError {
     });
     if (options.hint !== undefined) {
       this.hint = options.hint;
+    }
+    if (options.command !== undefined) {
+      this.command = options.command;
+    }
+    if (options.installHint !== undefined) {
+      this.installHint = options.installHint;
     }
   }
 }

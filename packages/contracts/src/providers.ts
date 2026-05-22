@@ -32,6 +32,7 @@ export const ProviderHealthSchema = z
     lastError: SafeErrorSchema.optional(),
     latencyMs: z.number().nonnegative().optional(),
     capabilities: z.record(nonEmptyStringSchema, z.boolean()).optional(),
+    diagnostics: z.record(nonEmptyStringSchema, z.string()).optional(),
   })
   .strict();
 
@@ -91,6 +92,9 @@ export const ProviderProjectWorktrunkConfigSchema = z
   .object({
     enabled: z.boolean(),
     base: nonEmptyStringSchema.optional(),
+    managedRoot: nonEmptyStringSchema.optional(),
+    includeMain: z.boolean().optional(),
+    includeExternal: z.boolean().optional(),
   })
   .strict();
 
@@ -106,6 +110,7 @@ export const ProviderProjectConfigSchema = z
     id: ProjectIdSchema,
     label: nonEmptyStringSchema,
     root: nonEmptyStringSchema,
+    defaultBranch: nonEmptyStringSchema.optional(),
     defaults: ProviderProjectDefaultsSchema,
     worktrunk: ProviderProjectWorktrunkConfigSchema,
     recoveryBreadcrumbs: ProviderProjectRecoveryBreadcrumbsSchema.optional(),

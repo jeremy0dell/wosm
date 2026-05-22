@@ -27,6 +27,9 @@ export const ProjectWorktrunkConfigSchema = z
   .object({
     enabled: z.boolean(),
     base: nonEmptyStringSchema.optional(),
+    managedRoot: nonEmptyStringSchema.optional(),
+    includeMain: z.boolean().optional(),
+    includeExternal: z.boolean().optional(),
   })
   .strict();
 

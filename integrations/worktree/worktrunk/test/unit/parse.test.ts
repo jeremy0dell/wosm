@@ -64,6 +64,49 @@ describe("Worktrunk list parser", () => {
     ).toThrow(WorktrunkProviderError);
   });
 
+  it("keeps detached worktree IDs unique when display labels collide", () => {
+    const observations = parseWorktrunkListJson(
+      JSON.stringify([
+        {
+          branch: null,
+          path: "/Users/example/.codex/worktrees/408d/wosm",
+          commit: {
+            sha: "9dd15ba750ce5308f9173f33388d1789be102afb",
+            short_sha: "9dd15ba",
+          },
+          worktree: {
+            detached: true,
+          },
+        },
+        {
+          branch: null,
+          path: "/Users/example/.codex/worktrees/ee4f/wosm",
+          commit: {
+            sha: "9dd15ba750ce5308f9173f33388d1789be102afb",
+            short_sha: "9dd15ba",
+          },
+          worktree: {
+            detached: true,
+          },
+        },
+      ]),
+      {
+        project,
+        observedAt: now,
+      },
+    );
+
+    expect(observations.map((observation) => observation.branch)).toEqual([
+      "detached:9dd15ba",
+      "detached:9dd15ba",
+    ]);
+    expect(new Set(observations.map((observation) => observation.id)).size).toBe(2);
+    expect(observations.map((observation) => observation.id)).toEqual([
+      expect.stringMatching(/^wt_web_detached:9dd15ba_/),
+      expect.stringMatching(/^wt_web_detached:9dd15ba_/),
+    ]);
+  });
+
   it("rejects non-JSON output with a typed provider error", () => {
     expect(() =>
       parseWorktrunkListJson("not-json", {

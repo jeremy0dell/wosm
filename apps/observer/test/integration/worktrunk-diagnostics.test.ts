@@ -53,6 +53,14 @@ describe("Worktrunk diagnostics", () => {
     expect(report.status).toBe("degraded");
     expect(report.providers.worktrunk).toMatchObject({
       status: "unavailable",
+      lastError: {
+        code: "WORKTRUNK_UNAVAILABLE",
+        hint: expect.stringContaining("brew install worktrunk"),
+      },
+      diagnostics: {
+        attemptedCommand: "missing-wt",
+        installHint: expect.stringContaining("brew install worktrunk"),
+      },
     });
     expect(report.checks).toEqual(
       expect.arrayContaining([

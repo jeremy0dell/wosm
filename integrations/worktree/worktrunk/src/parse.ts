@@ -127,12 +127,16 @@ function branchFromItem(item: WorktrunkListItem): string {
 
   // Detached worktrees may not expose a branch; prefer a short SHA, then path basename.
   const git = recordField(item, "git");
+  const commit = recordField(item, "commit");
   const detached =
     stringField(git, "short_sha") ??
     stringField(git, "shortSha") ??
+    stringField(commit, "short_sha") ??
+    stringField(commit, "shortSha") ??
     stringField(item, "short_sha") ??
     stringField(item, "shortSha") ??
     stringField(git, "sha")?.slice(0, 12) ??
+    stringField(commit, "sha")?.slice(0, 12) ??
     stringField(item, "sha")?.slice(0, 12);
 
   if (detached !== undefined) {
@@ -210,7 +214,10 @@ function hasWorktreePath(item: unknown): item is WorktrunkListItem {
 }
 
 function worktreeId(projectId: string, branch: string, path: string): string {
-  return `wt_${sanitizeId(projectId)}_${sanitizeId(branch || path)}`;
+  const stableName = branch.startsWith("detached:")
+    ? `${branch}_${stablePathFingerprint(path)}`
+    : branch || path;
+  return `wt_${sanitizeId(projectId)}_${sanitizeId(stableName)}`;
 }
 
 function sanitizeId(value: string): string {
@@ -219,6 +226,15 @@ function sanitizeId(value: string): string {
 
 function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? "unknown";
+}
+
+function stablePathFingerprint(path: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < path.length; index += 1) {
+    hash ^= path.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

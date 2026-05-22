@@ -1,3 +1,4 @@
+import { isAbsolute, normalize, relative, resolve } from "node:path";
 import type {
   CreateWorktreeRequest,
   GetWorktreeRequest,
@@ -21,6 +22,12 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
+import {
+  type CheckWorktrunkDependencyOptions,
+  checkWorktrunkDependency,
+  type WorktrunkDependencyStatus,
+  worktrunkInstallHint,
+} from "./dependency.js";
 import {
   ProviderUnavailableError,
   providerErrorFromUnknown,
@@ -73,30 +80,32 @@ export class WorktrunkProvider implements WorktreeProvider {
 
   async health(): Promise<ProviderHealth> {
     const checkedAt = toIsoTimestamp(this.#clock.now());
-    try {
-      await this.#run(["--version"], undefined, undefined, { retries: 1 });
+    const dependencyOptions: CheckWorktrunkDependencyOptions = {
+      command: this.#command,
+      timeoutMs: this.#timeoutMs,
+    };
+    if (this.#runner !== undefined) dependencyOptions.runner = this.#runner;
+    const dependency = await checkWorktrunkDependency(dependencyOptions);
+    if (dependency.status === "available") {
       return {
         providerId: this.id,
         providerType: "worktree",
         status: "healthy",
         lastCheckedAt: checkedAt,
         capabilities: this.capabilities(),
-      };
-    } catch (cause) {
-      const error = providerErrorFromUnknown(cause, {
-        code: "WORKTRUNK_UNAVAILABLE",
-        message: "Worktrunk is not available.",
-        hint: "Install the wt binary or set worktree.worktrunk.command.",
-      });
-      return {
-        providerId: this.id,
-        providerType: "worktree",
-        status: "unavailable",
-        lastCheckedAt: checkedAt,
-        lastError: error,
-        capabilities: this.capabilities(),
+        diagnostics: dependencyDiagnostics(dependency),
       };
     }
+
+    return {
+      providerId: this.id,
+      providerType: "worktree",
+      status: "unavailable",
+      lastCheckedAt: checkedAt,
+      lastError: dependency.error,
+      capabilities: this.capabilities(),
+      diagnostics: dependencyDiagnostics(dependency),
+    };
   }
 
   async doctorChecks(context: ProviderDoctorContext = {}): Promise<ProviderDoctorCheck[]> {
@@ -157,8 +166,13 @@ export class WorktrunkProvider implements WorktreeProvider {
       providerId: this.id,
       observedAt: toIsoTimestamp(this.#clock.now()),
     });
+    const managedObservations = observations.filter((observation) =>
+      isManagedWorktreeObservation(project, observation),
+    );
     const withBreadcrumbs = await Promise.all(
-      observations.map((observation) => applyRecoveryBreadcrumbMetadata(observation, project)),
+      managedObservations.map((observation) =>
+        applyRecoveryBreadcrumbMetadata(observation, project),
+      ),
     );
     for (const observation of withBreadcrumbs) {
       this.#observations.set(observation.id, observation);
@@ -182,13 +196,15 @@ export class WorktrunkProvider implements WorktreeProvider {
         code: "WORKTRUNK_COMMAND_FAILED",
         message: "Worktrunk failed to create a worktree.",
       },
+      {},
+      worktreePathEnv(request.project),
     );
 
     const observations = parseCommandObservation(output.stdout, {
       project: request.project,
       providerId: this.id,
       observedAt: toIsoTimestamp(this.#clock.now()),
-    });
+    }).filter((observation) => isManagedWorktreeObservation(request.project, observation));
     const found =
       observations.find((observation) => observation.branch === request.branch) ??
       observations.find((observation) => observation.path === request.path) ??
@@ -264,6 +280,7 @@ export class WorktrunkProvider implements WorktreeProvider {
       message: "Worktrunk is not available.",
     },
     policy: { retries?: number } = {},
+    env?: Record<string, string>,
   ) {
     const result = await runRuntimeBoundaryWithRetryAndTimeout(
       {
@@ -298,6 +315,7 @@ export class WorktrunkProvider implements WorktreeProvider {
             command: this.#command,
             args,
             ...(cwd === undefined ? {} : { cwd }),
+            ...(env === undefined ? {} : { env }),
             signal,
             maxOutputChars: 512 * 1024,
           },
@@ -314,7 +332,9 @@ export class WorktrunkProvider implements WorktreeProvider {
     } catch (cause) {
       if (isMissingBinary(cause)) {
         throw new ProviderUnavailableError("Worktrunk is not available.", {
-          hint: "Install the wt binary or set worktree.worktrunk.command.",
+          hint: worktrunkInstallHint(this.#command),
+          command: this.#command,
+          installHint: worktrunkInstallHint(this.#command),
           cause,
         });
       }
@@ -338,6 +358,19 @@ export class WorktrunkProvider implements WorktreeProvider {
       });
     }
   }
+}
+
+function dependencyDiagnostics(status: WorktrunkDependencyStatus): Record<string, string> {
+  const diagnostics: Record<string, string> = {
+    attemptedCommand: status.attemptedCommand,
+    installHint: status.installHint,
+  };
+  if (status.resolvedPath !== undefined) diagnostics.resolvedPath = status.resolvedPath;
+  if (status.status === "available") {
+    if (status.version !== undefined) diagnostics.version = status.version;
+    if (status.rawVersion !== undefined) diagnostics.rawVersion = status.rawVersion;
+  }
+  return diagnostics;
 }
 
 function parseCommandObservation(
@@ -369,6 +402,57 @@ function parseCommandObservation(
 
 function removeTarget(observation: WorktreeObservation): string {
   return observation.branch.startsWith("detached:") ? observation.path : observation.branch;
+}
+
+function isManagedWorktreeObservation(
+  project: ProviderProjectConfig,
+  observation: WorktreeObservation,
+): boolean {
+  if (isMainWorktree(project, observation)) {
+    return project.worktrunk.includeMain !== false;
+  }
+
+  const managedRoot = resolveManagedRoot(project);
+  if (managedRoot === undefined || project.worktrunk.includeExternal !== false) {
+    return true;
+  }
+
+  return isPathInside(observation.path, managedRoot);
+}
+
+function isMainWorktree(project: ProviderProjectConfig, observation: WorktreeObservation): boolean {
+  const defaultBranch = project.defaultBranch ?? project.worktrunk.base;
+  return (
+    samePath(observation.path, project.root) ||
+    (defaultBranch !== undefined && observation.branch === defaultBranch)
+  );
+}
+
+function worktreePathEnv(project: ProviderProjectConfig): Record<string, string> | undefined {
+  const managedRoot = resolveManagedRoot(project);
+  if (managedRoot === undefined) {
+    return undefined;
+  }
+  return {
+    WORKTRUNK_WORKTREE_PATH: `${managedRoot}/{{ branch | sanitize }}`,
+  };
+}
+
+function resolveManagedRoot(project: ProviderProjectConfig): string | undefined {
+  const configured = project.worktrunk.managedRoot;
+  if (configured === undefined) {
+    return undefined;
+  }
+  return normalize(isAbsolute(configured) ? configured : resolve(project.root, configured));
+}
+
+function isPathInside(path: string, root: string): boolean {
+  const fromRoot = relative(normalize(root), normalize(path));
+  return fromRoot === "" || (!fromRoot.startsWith("..") && !isAbsolute(fromRoot));
+}
+
+function samePath(left: string, right: string): boolean {
+  return normalize(left) === normalize(right);
 }
 
 function isMissingBinary(error: unknown): boolean {

@@ -118,6 +118,7 @@ export function providerProjectsFromConfig(config: WosmConfig): ProviderProjectC
       id: project.id,
       label: project.label,
       root: project.root,
+      ...(project.defaultBranch === undefined ? {} : { defaultBranch: project.defaultBranch }),
       defaults: project.defaults,
       worktrunk: {
         enabled: project.worktrunk.enabled,
@@ -125,6 +126,15 @@ export function providerProjectsFromConfig(config: WosmConfig): ProviderProjectC
     };
     if (project.worktrunk.base !== undefined) {
       providerProject.worktrunk.base = project.worktrunk.base;
+    }
+    if (project.worktrunk.managedRoot !== undefined) {
+      providerProject.worktrunk.managedRoot = project.worktrunk.managedRoot;
+    }
+    if (project.worktrunk.includeMain !== undefined) {
+      providerProject.worktrunk.includeMain = project.worktrunk.includeMain;
+    }
+    if (project.worktrunk.includeExternal !== undefined) {
+      providerProject.worktrunk.includeExternal = project.worktrunk.includeExternal;
     }
     if (project.recoveryBreadcrumbs !== undefined) {
       providerProject.recoveryBreadcrumbs = {

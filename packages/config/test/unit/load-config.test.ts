@@ -45,6 +45,7 @@ function projectToml(
     commands?: string;
     recoveryBreadcrumbs?: string;
     label?: string;
+    worktrunk?: string;
   } = {},
 ): string {
   const aliases =
@@ -63,6 +64,7 @@ default_branch = "main"
 [projects.worktrunk]
 enabled = true
 base = "main"
+${options.worktrunk ?? ""}
 
 ${options.defaults ?? ""}
 ${options.commands ?? ""}
@@ -123,6 +125,32 @@ ${projectToml("wosm", roots.wosm)}
       layout: "agent-shell",
     });
     expect(loaded.diagnostics).toEqual([]);
+  });
+
+  it("normalizes managed Worktrunk root policy for a project", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      baseToml(
+        projectToml("web", root, {
+          worktrunk: `
+managed_root = ".worktrees"
+include_main = false
+include_external = false
+`,
+        }),
+      ),
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.projects[0]?.worktrunk).toEqual({
+      enabled: true,
+      base: "main",
+      managedRoot: ".worktrees",
+      includeMain: false,
+      includeExternal: false,
+    });
   });
 
   it("rejects duplicate project IDs", async () => {
