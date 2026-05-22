@@ -7,6 +7,8 @@ import { Dashboard } from "./components/Dashboard.js";
 import { ToastStack } from "./components/ToastStack.js";
 import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
 import { intentForDashboardKey } from "./keymap.js";
+import { selectNewSessionAvailability } from "./selectors.js";
+import { safeErrorToToast } from "./services/errors.js";
 import type { TuiObserverService } from "./services/types.js";
 import {
   closePrompt,
@@ -62,6 +64,11 @@ export function App({ service, initialSnapshot, initialUiState, onExit }: AppPro
     }
     const intent = intentForDashboardKey(input, dashboard.snapshot, dashboard.uiState);
     if (intent.type === "open-new-session-prompt") {
+      const availability = selectNewSessionAvailability(dashboard.snapshot, dashboard.uiState);
+      if (!availability.available) {
+        dashboard.addToast(safeErrorToToast(availability.error));
+        return;
+      }
       promptValueRef.current = "";
       promptModeRef.current = "new-session";
       dashboard.setUiState((current) => openPrompt(current, "new-session"));
@@ -154,11 +161,14 @@ function submitNewSessionPrompt(
     dashboard.setUiState((current) => closePrompt(current));
     return;
   }
-  const project = dashboard.snapshot.projects[0];
-  if (project === undefined) {
+  const availability = selectNewSessionAvailability(dashboard.snapshot, dashboard.uiState);
+  if (!availability.available) {
+    dashboard.addToast(safeErrorToToast(availability.error));
     dashboard.setUiState((current) => closePrompt(current));
     return;
   }
-  void dashboard.dispatchCommand(buildCreateSessionCommand({ project, branch }));
+  void dashboard.dispatchCommand(
+    buildCreateSessionCommand({ project: availability.project, branch }),
+  );
   dashboard.setUiState((current) => closePrompt(current));
 }

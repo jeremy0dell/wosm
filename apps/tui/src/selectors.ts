@@ -1,4 +1,4 @@
-import type { ProjectView, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
+import type { ProjectView, SafeError, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
 import type { TuiUiState } from "./uiState.js";
 
 export type ProjectGroup = {
@@ -6,6 +6,17 @@ export type ProjectGroup = {
   rows: WorktreeRow[];
   collapsed: boolean;
 };
+
+export type NewSessionAvailability =
+  | {
+      available: true;
+      project: ProjectView;
+    }
+  | {
+      available: false;
+      project?: ProjectView;
+      error: SafeError;
+    };
 
 export function selectProjectGroups(snapshot: WosmSnapshot, state: TuiUiState): ProjectGroup[] {
   const query = normalizeSearch(state.searchQuery);
@@ -51,6 +62,54 @@ export function selectSelectedRow(
     }
   }
   return visibleRows[0];
+}
+
+export function selectNewSessionAvailability(
+  snapshot: WosmSnapshot,
+  state: TuiUiState,
+): NewSessionAvailability {
+  const project = selectNewSessionProject(snapshot, state);
+  if (project === undefined) {
+    return {
+      available: false,
+      error: {
+        tag: "CommandValidationError",
+        code: "PROJECT_NOT_CONFIGURED",
+        message: "No project is configured for a new session.",
+        hint: "Add a project to config.toml and run wosm reconcile.",
+      },
+    };
+  }
+
+  if (project.health.status === "unavailable") {
+    return {
+      available: false,
+      project,
+      error:
+        project.health.lastError ??
+        ({
+          tag: "ProviderUnavailableError",
+          code: "WORKTREE_PROVIDER_UNAVAILABLE",
+          message: "The worktree provider is unavailable.",
+          hint: "Run wosm doctor for provider diagnostics.",
+          provider: project.health.providerId,
+        } satisfies SafeError),
+    };
+  }
+
+  return { available: true, project };
+}
+
+function selectNewSessionProject(
+  snapshot: WosmSnapshot,
+  state: TuiUiState,
+): ProjectView | undefined {
+  const selected = selectSelectedRow(snapshot, state);
+  const selectedProject =
+    selected === undefined
+      ? undefined
+      : snapshot.projects.find((project) => project.id === selected.projectId);
+  return selectedProject ?? snapshot.projects[0];
 }
 
 function compareRows(left: WorktreeRow, right: WorktreeRow): number {

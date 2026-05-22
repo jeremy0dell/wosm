@@ -17,6 +17,7 @@ export type ObserverDashboardState = {
   loading: boolean;
   toasts: TuiToast[];
   setUiState(next: TuiUiState | ((current: TuiUiState) => TuiUiState)): void;
+  addToast(toast: TuiToast): void;
   dispatchCommand(command: WosmCommand): Promise<void>;
   dismissToasts(): void;
 };
@@ -124,6 +125,10 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
     [options.service],
   );
 
+  const addToast = useCallback((toast: TuiToast) => {
+    setToasts((current) => [...current, toast]);
+  }, []);
+
   const dismissToasts = useCallback(() => setToasts([]), []);
 
   return useMemo(
@@ -133,9 +138,10 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
       loading,
       toasts,
       setUiState,
+      addToast,
       dispatchCommand,
       dismissToasts,
     }),
-    [dismissToasts, dispatchCommand, loading, snapshot, toasts, uiState],
+    [addToast, dismissToasts, dispatchCommand, loading, snapshot, toasts, uiState],
   );
 }

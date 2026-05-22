@@ -104,6 +104,8 @@ describe("observer terminal commands", () => {
     ).rejects.toMatchObject({
       tag: "TerminalProviderError",
       code: "TERMINAL_TARGET_MISSING",
+      message: "No terminal is open for this worktree.",
+      hint: "Start an agent or open this worktree from wosm before focusing it.",
       provider: "tmux",
       worktreeId: "wt_missing",
     });

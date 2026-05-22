@@ -68,8 +68,8 @@ function terminalTargetMissingError(
   return {
     tag: "TerminalProviderError",
     code: "TERMINAL_TARGET_MISSING",
-    message: "The terminal target for this worktree no longer exists.",
-    hint: "Refresh the dashboard or reopen the worktree.",
+    message: "No terminal is open for this worktree.",
+    hint: "Start an agent or open this worktree from wosm before focusing it.",
     provider,
     ...context,
   };

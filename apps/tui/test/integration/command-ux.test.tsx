@@ -66,6 +66,42 @@ describe("TUI command UX", () => {
     });
     instance.unmount();
   });
+
+  it("blocks the new-session prompt when the worktree provider is unavailable", async () => {
+    const snapshot = createDashboardSnapshot();
+    const unavailable = {
+      providerId: "worktrunk",
+      providerType: "worktree" as const,
+      status: "unavailable" as const,
+      lastCheckedAt: snapshot.generatedAt,
+      lastError: {
+        tag: "ProviderUnavailableError",
+        code: "WORKTRUNK_UNAVAILABLE",
+        message: "Worktrunk is not available.",
+        hint: "Install Worktrunk with brew install worktrunk.",
+        provider: "worktrunk",
+      },
+    };
+    const blockedSnapshot = {
+      ...snapshot,
+      providerHealth: {
+        ...snapshot.providerHealth,
+        worktrunk: unavailable,
+      },
+      projects: snapshot.projects.map((project, index) =>
+        index === 0 ? { ...project, health: unavailable } : project,
+      ),
+    };
+    const service = new FakeTuiObserverService(blockedSnapshot);
+    const instance = render(<App initialSnapshot={blockedSnapshot} service={service} />);
+
+    instance.stdin.write("n");
+
+    await waitFor(() => instance.lastFrame()?.includes("Worktrunk is not available.") === true);
+    expect(instance.lastFrame()).not.toContain("new branch:");
+    expect(service.dispatched).toHaveLength(0);
+    instance.unmount();
+  });
 });
 
 async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void> {
