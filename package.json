@@ -26,8 +26,9 @@
     "test:diagnostics": "vitest run --config vitest.diagnostics.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:e2e:worktrunk:real": "vitest run --config vitest.worktrunk-real.config.ts",
+    "test:e2e:codex:real": "vitest run --config vitest.codex-real.config.ts",
     "test:agent:scripted": "vitest run --config vitest.agent-scripted.config.ts",
-    "test:agent:real": "echo \"Real-agent tests are opt-in and not implemented in Phase 0.\"",
+    "test:agent:real": "pnpm test:e2e:codex:real",
     "test:all": "pnpm build && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:contracts && pnpm test:integration && pnpm test:diagnostics && pnpm test:agent:scripted"
   },
   "devDependencies": {

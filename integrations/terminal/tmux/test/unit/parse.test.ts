@@ -15,6 +15,7 @@ describe("tmux target parser", () => {
           "1",
           "/tmp/wosm/web/feature",
           "12345",
+          "codex",
           "web-feature",
           "ses_web_feature",
           "web",
@@ -46,6 +47,7 @@ describe("tmux target parser", () => {
         paneId: "%2",
         role: "main-agent",
         harness: "codex",
+        currentCommand: "codex",
         attached: true,
       },
     });
@@ -53,7 +55,7 @@ describe("tmux target parser", () => {
 
   it("keeps unbound panes low-confidence and provider-specific", () => {
     const targets = parseTmuxTargetLines(
-      ["wosm", "@1", "%3", "0", "/tmp/random", "", "scratch", "", "", "", "", ""].join("\t"),
+      ["wosm", "@1", "%3", "0", "/tmp/random", "", "zsh", "scratch", "", "", "", "", ""].join("\t"),
       { observedAt: now },
     );
 
@@ -67,6 +69,7 @@ describe("tmux target parser", () => {
           sessionId: "wosm",
           windowId: "@1",
           paneId: "%3",
+          currentCommand: "zsh",
           attached: false,
         }),
       }),

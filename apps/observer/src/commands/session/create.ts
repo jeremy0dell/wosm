@@ -15,6 +15,7 @@ import {
   resolveTerminalProviderOrThrow,
   runProviderMutation,
   type SessionCommandIdFactory,
+  terminalTargetObservationFromBinding,
   throwIfAborted,
 } from "./shared.js";
 
@@ -94,6 +95,11 @@ export function createSessionCreateHandler(
         }),
     );
     throwIfAborted(context.signal);
+    const terminalTarget = terminalTargetObservationFromBinding({
+      binding: opened.target,
+      worktree,
+      observedAt: now(options.clock),
+    });
 
     const launchPlan = await runProviderMutation(
       {
@@ -110,6 +116,7 @@ export function createSessionCreateHandler(
         harness.buildLaunch({
           project,
           worktree,
+          terminalTarget,
           sessionId,
           ...(payload.harness.mode === undefined ? {} : { mode: payload.harness.mode }),
           ...(payload.initialPrompt === undefined ? {} : { initialPrompt: payload.initialPrompt }),
@@ -187,6 +194,10 @@ async function focusTerminalTarget(input: {
     },
     () => input.terminal.focusTarget(input.targetId),
   );
+}
+
+function now(clock: RuntimeClock | undefined): string {
+  return (clock?.now() ?? new Date()).toISOString();
 }
 
 function assertSessionCreateCommand(

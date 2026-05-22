@@ -170,3 +170,17 @@ Expected basics:
 ## Test-Only Fake Worktrunk
 
 The e2e smoke test uses `tests/support/fake-external-tools/worktrunk-bin.ts` to create a deterministic executable that behaves like the tiny subset of `wt` needed by the provider. That fixture is for tests and examples only. It is not on the production code path, and it does not replace the real Worktrunk provider.
+
+## Real Codex Smoke
+
+The real Codex lane is opt-in and isolated from normal CI. It requires installed `tmux`, installed `codex`, and `codex login status` returning success.
+
+```bash
+codex login status
+WOSM_REAL_CODEX=1 \
+WOSM_CODEX_BIN="$(command -v codex)" \
+WOSM_TMUX_BIN="$(command -v tmux)" \
+pnpm test:e2e:codex:real
+```
+
+The test uses a temporary project/worktree plus a temporary Codex shim that records argv and then executes the real Codex binary. The expected observer result is a normalized Codex harness run with conservative `unknown` low-confidence status.

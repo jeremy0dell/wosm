@@ -1,4 +1,5 @@
 import type { WosmConfig } from "@wosm/config";
+import type { BuildHarnessLaunchRequest, HarnessLaunchPlan } from "@wosm/contracts";
 import {
   createFakeHarnessRun,
   createFakeWorktree,
@@ -90,6 +91,42 @@ describe("session command vertical slice", () => {
         }),
       }),
     ]);
+    fixture.sqlite.close();
+  });
+
+  it("passes the opened terminal target into harness launch construction", async () => {
+    const harness = new CapturingHarnessProvider({ now });
+    const fixture = createFixture({
+      terminal: new FakeTerminalProvider({ now }),
+      harness,
+      sessionIds: ["ses_web_feature"],
+    });
+
+    await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "feature",
+        harness: {
+          provider: "fake-harness",
+          mode: "interactive",
+        },
+        terminal: {
+          provider: "fake-terminal",
+          layout: "agent-build-shell",
+        },
+      },
+    });
+    await fixture.queue.drain();
+
+    expect(harness.lastBuildRequest?.terminalTarget).toMatchObject({
+      id: "term_fake",
+      provider: "fake-terminal",
+      projectId: "web",
+      worktreeId: "wt_web_feature",
+      sessionId: "ses_web_feature",
+      state: "open",
+    });
     fixture.sqlite.close();
   });
 
@@ -380,4 +417,13 @@ function observerIds() {
     observationId: () => `obs_${++observation}`,
     breadcrumbId: () => `crumb_${++breadcrumb}`,
   };
+}
+
+class CapturingHarnessProvider extends FakeHarnessProvider {
+  lastBuildRequest: BuildHarnessLaunchRequest | undefined;
+
+  override async buildLaunch(request: BuildHarnessLaunchRequest): Promise<HarnessLaunchPlan> {
+    this.lastBuildRequest = request;
+    return super.buildLaunch(request);
+  }
 }

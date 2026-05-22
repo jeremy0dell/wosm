@@ -121,6 +121,7 @@ describe("TmuxProvider", () => {
             "1",
             "/tmp/wosm/web/feature",
             "12345",
+            "codex",
             "web-feature",
             "ses_web_feature",
             "web",
@@ -144,6 +145,12 @@ describe("TmuxProvider", () => {
       "-a",
       "-F",
       expect.stringContaining("#{session_name}"),
+    ]);
+    expect(calls[0]?.args).toEqual([
+      "list-panes",
+      "-a",
+      "-F",
+      expect.stringContaining("#{pane_current_command}"),
     ]);
   });
 

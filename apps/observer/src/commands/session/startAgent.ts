@@ -16,6 +16,7 @@ import {
   resolveTerminalProviderOrThrow,
   runProviderMutation,
   type SessionCommandIdFactory,
+  terminalTargetObservationFromBinding,
   throwIfAborted,
   worktreeObservationFromRow,
 } from "./shared.js";
@@ -92,6 +93,11 @@ export function createSessionStartAgentHandler(
         }),
     );
     throwIfAborted(context.signal);
+    const terminalTarget = terminalTargetObservationFromBinding({
+      binding: opened.target,
+      worktree,
+      observedAt: now(options.clock),
+    });
 
     const launchPlan = await runProviderMutation(
       {
@@ -108,6 +114,7 @@ export function createSessionStartAgentHandler(
         harness.buildLaunch({
           project,
           worktree,
+          terminalTarget,
           sessionId,
           ...(payload.harness.mode === undefined ? {} : { mode: payload.harness.mode }),
           ...(payload.initialPrompt === undefined ? {} : { initialPrompt: payload.initialPrompt }),

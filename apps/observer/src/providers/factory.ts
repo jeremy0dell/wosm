@@ -80,6 +80,15 @@ function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider 
       ...(config.harness?.codex?.command === undefined
         ? {}
         : { command: config.harness.codex.command }),
+      ...(config.harness?.codex?.profile === undefined
+        ? {}
+        : { profile: config.harness.codex.profile }),
+      ...(config.harness?.codex?.approvalPolicy === undefined
+        ? {}
+        : { approvalPolicy: config.harness.codex.approvalPolicy }),
+      ...(config.harness?.codex?.sandboxMode === undefined
+        ? {}
+        : { sandboxMode: config.harness.codex.sandboxMode }),
     });
   }
 

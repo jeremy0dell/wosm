@@ -8,6 +8,7 @@ export const tmuxListTargetsFormat = [
   "#{session_attached}",
   "#{pane_current_path}",
   "#{pane_pid}",
+  "#{pane_current_command}",
   "#{window_name}",
   "#{@wosm.session_id}",
   "#{@wosm.project_id}",
@@ -43,6 +44,7 @@ function parseTmuxTargetLine(
     attached = "0",
     cwd = "",
     pid = "",
+    currentCommand = "",
     title = "",
     wosmSessionId = "",
     projectId = "",
@@ -52,6 +54,17 @@ function parseTmuxTargetLine(
   ] = line.split("\t");
   const hasBinding = projectId.length > 0 && worktreeId.length > 0 && role === "main-agent";
   const parsedPid = parsePositiveInteger(pid);
+  const providerData: Record<string, unknown> = {
+    sessionId,
+    windowId,
+    paneId,
+    role,
+    harness,
+    attached: attached === "1",
+  };
+  if (currentCommand.length > 0) {
+    providerData.currentCommand = currentCommand;
+  }
 
   return {
     id: buildTmuxTargetId({ sessionId, windowId, paneId }),
@@ -68,14 +81,7 @@ function parseTmuxTargetLine(
       ? "tmux pane has wosm identity binding."
       : "tmux pane is missing wosm identity binding.",
     observedAt: options.observedAt,
-    providerData: {
-      sessionId,
-      windowId,
-      paneId,
-      role,
-      harness,
-      attached: attached === "1",
-    },
+    providerData,
   };
 }
 
