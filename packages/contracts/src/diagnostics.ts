@@ -4,11 +4,15 @@ import { ErrorEnvelopeSchema, SafeErrorSchema } from "./errors.js";
 import { WosmEventSchema } from "./events.js";
 import {
   CommandIdSchema,
+  HarnessRunIdSchema,
   ProjectIdSchema,
   ProviderIdSchema,
   SchemaVersionSchema,
+  SessionIdSchema,
+  TerminalTargetIdSchema,
   TimestampSchema,
   WOSM_SCHEMA_VERSION,
+  WorktreeIdSchema,
 } from "./ids.js";
 import { ObserverHealthSchema, ObserverSqliteHealthSummarySchema } from "./observer.js";
 import { ProviderHealthSchema } from "./providers.js";
@@ -198,6 +202,116 @@ export const DiagnosticSnapshotSchema = z
   .strict();
 
 export type DiagnosticSnapshot = z.infer<typeof DiagnosticSnapshotSchema>;
+
+export const DiagnosticEvidenceCategorySchema = z.enum([
+  "config",
+  "observer",
+  "sqlite",
+  "provider",
+  "command",
+  "event",
+  "error",
+  "log",
+  "hook_spool",
+  "snapshot",
+  "row",
+  "session",
+  "local_state",
+  "retention",
+]);
+
+export const DiagnosticEvidenceSeveritySchema = z.enum(["debug", "info", "warn", "error", "fatal"]);
+
+export const DiagnosticRootCauseCodeSchema = z.enum([
+  "INVALID_CONFIG",
+  "MISSING_WORKTRUNK_BINARY",
+  "STALE_TERMINAL_TARGET",
+  "HOOK_SPOOL_FALLBACK",
+  "PROVIDER_TIMEOUT",
+  "HARNESS_UNEXPECTED_EXIT",
+  "SQLITE_WRITE_FAILURE",
+  "COMMAND_FAILED",
+  "PROVIDER_UNAVAILABLE",
+]);
+
+export type DiagnosticRootCauseCode = z.infer<typeof DiagnosticRootCauseCodeSchema>;
+
+export const DiagnosticEvidenceItemSchema = z
+  .object({
+    id: nonEmptyStringSchema,
+    category: DiagnosticEvidenceCategorySchema,
+    severity: DiagnosticEvidenceSeveritySchema,
+    code: nonEmptyStringSchema.optional(),
+    message: nonEmptyStringSchema,
+    provider: ProviderIdSchema.optional(),
+    commandId: CommandIdSchema.optional(),
+    traceId: TraceIdSchema.optional(),
+    spanId: SpanIdSchema.optional(),
+    projectId: ProjectIdSchema.optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    sessionId: SessionIdSchema.optional(),
+    targetId: TerminalTargetIdSchema.optional(),
+    runId: HarnessRunIdSchema.optional(),
+    diagnosticId: nonEmptyStringSchema.optional(),
+    evidence: z.record(nonEmptyStringSchema, z.unknown()).optional(),
+  })
+  .strict();
+
+export type DiagnosticEvidenceItem = z.infer<typeof DiagnosticEvidenceItemSchema>;
+
+export const DiagnosticRootCauseSchema = z
+  .object({
+    code: DiagnosticRootCauseCodeSchema,
+    confidence: z.enum(["high", "medium", "low"]),
+    summary: nonEmptyStringSchema,
+    itemIds: z.array(nonEmptyStringSchema),
+    provider: ProviderIdSchema.optional(),
+    commandId: CommandIdSchema.optional(),
+    diagnosticId: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
+export type DiagnosticRootCause = z.infer<typeof DiagnosticRootCauseSchema>;
+
+export const DiagnosticQuestionSchema = z
+  .object({
+    id: nonEmptyStringSchema,
+    question: nonEmptyStringSchema,
+    answer: nonEmptyStringSchema,
+    itemIds: z.array(nonEmptyStringSchema),
+  })
+  .strict();
+
+export type DiagnosticQuestion = z.infer<typeof DiagnosticQuestionSchema>;
+
+export const DiagnosticEvidenceIndexSchema = z
+  .object({
+    schemaVersion: SchemaVersionSchema,
+    generatedAt: TimestampSchema,
+    source: z
+      .object({
+        collectedAt: TimestampSchema.optional(),
+        bundleId: nonEmptyStringSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    summary: z
+      .object({
+        status: z.enum(["healthy", "degraded", "unavailable"]),
+        rootCauseCodes: z.array(DiagnosticRootCauseCodeSchema),
+        providers: z.array(ProviderIdSchema),
+        commandIds: z.array(CommandIdSchema),
+        diagnosticIds: z.array(nonEmptyStringSchema),
+        redaction: z.enum(["redacted", "unknown"]),
+      })
+      .strict(),
+    items: z.array(DiagnosticEvidenceItemSchema),
+    rootCauses: z.array(DiagnosticRootCauseSchema),
+    questions: z.array(DiagnosticQuestionSchema),
+  })
+  .strict();
+
+export type DiagnosticEvidenceIndex = z.infer<typeof DiagnosticEvidenceIndexSchema>;
 
 export const DoctorCheckSchema = z
   .object({

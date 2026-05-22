@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import {
   DebugBundleManifestSchema,
+  DiagnosticEvidenceIndexSchema,
   DiagnosticSnapshotSchema,
   DoctorReportSchema,
   LogRecordSchema,
@@ -123,6 +124,14 @@ describe("Phase 6 diagnostics schemas", () => {
         logs: [],
       },
       "diagnostic snapshot",
+    );
+  });
+
+  it("parses the Phase 15 diagnostic evidence index fixture", async () => {
+    expectParses(
+      DiagnosticEvidenceIndexSchema,
+      await loadJson("diagnostic-evidence-index.json"),
+      "diagnostic evidence index",
     );
   });
 });

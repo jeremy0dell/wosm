@@ -1,6 +1,6 @@
 # wosm Diagnostics
 
-Phase 6 establishes the local diagnostic surface for fake-provider observer runs before real Worktrunk, tmux, Codex, or OpenCode integrations ship.
+Phase 6 established the local diagnostic surface for fake-provider observer runs before real Worktrunk, tmux, Codex, or OpenCode integrations shipped. Phase 15 adds a derived, agent-readable evidence index and injected-failure tests for common local failures.
 
 ## Commands
 
@@ -9,9 +9,9 @@ wosm doctor
 wosm debug bundle
 ```
 
-`wosm doctor` connects to the observer, asks the observer for runtime health, and reports config, SQLite, provider health, hook spool, snapshot, logs, local state usage, and retention status.
+`wosm doctor` connects to the observer, asks the observer for runtime health, and reports config, SQLite, provider health, hook spool, snapshot, logs, local state usage, and retention status. If the config cannot be loaded, `doctor` does not start the observer; it returns a local SafeError report with diagnostic id `config-load`.
 
-`wosm debug bundle` asks the observer for a diagnostic snapshot, then writes a redacted bundle under the configured state directory.
+`wosm debug bundle` asks the observer for a diagnostic snapshot, then writes a redacted bundle under the configured state directory. If the config cannot be loaded, it writes a local invalid-config bundle next to the failing config instead of contacting the observer.
 
 Provider hooks are diagnosed as delivery hints, not runtime truth. The hook receiver assigns a stable hook id, tries bounded delivery to the observer, attempts bounded observer auto-start when enabled, and writes a spool record only when startup or delivery fails. Hook delivery decisions are written to `logs/hooks.jsonl`; hook payload attributes are redacted before they appear in logs or debug bundles.
 
@@ -75,6 +75,7 @@ config-summary.json
 observer-health.json
 snapshot.json
 provider-health.json
+diagnostic-index.json
 commands.jsonl
 events.jsonl
 errors.jsonl
@@ -87,6 +88,14 @@ README.txt
 ```
 
 Command records, events, logs, and error envelopes carry `commandId`, `traceId`, and `spanId` where available.
+
+`diagnostic-index.json` is derived evidence, not runtime truth. It correlates config diagnostics, SQLite health, provider health, command failures, events, error envelopes, hook spool state, logs, and row/session facts into:
+
+- root cause codes such as `INVALID_CONFIG`, `MISSING_WORKTRUNK_BINARY`, `STALE_TERMINAL_TARGET`, `HOOK_SPOOL_FALLBACK`, `PROVIDER_TIMEOUT`, `HARNESS_UNEXPECTED_EXIT`, and `SQLITE_WRITE_FAILURE`
+- evidence items with provider, command, trace, diagnostic, row, target, and run identifiers when available
+- row-level provider questions so common debugging can be answered from CLI JSON and bundle files without a TUI inspect panel
+
+The deterministic diagnosis oracle fixtures live under `tests/agent/scenarios/diagnosis/`. They validate evidence-index classification without invoking a real agent.
 
 ## Retention Defaults
 

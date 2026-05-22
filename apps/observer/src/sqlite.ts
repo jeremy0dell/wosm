@@ -31,6 +31,7 @@ export type ObserverSqliteHealth = {
 export type ObserverSqliteHandle = {
   database: DatabaseSync;
   health(): ObserverSqliteHealth;
+  recordFailure(error: SafeError): void;
   close(): void;
 };
 
@@ -61,6 +62,9 @@ export function openObserverSqlite(options: OpenObserverSqliteOptions = {}): Obs
 
   return {
     database,
+    recordFailure: (error) => {
+      lastError = error;
+    },
     health: () => ({
       path,
       open,
@@ -96,12 +100,15 @@ export function runSqliteTransactionEffect<T>(
         throw error;
       }
     },
-    catch: (error) =>
-      safeErrorFromUnknown(error, {
+    catch: (error) => {
+      const safeError = safeErrorFromUnknown(error, {
         tag: "PersistenceError",
         code: "PERSISTENCE_TRANSACTION_FAILED",
         message: "Observer SQLite transaction failed.",
-      }),
+      });
+      sqlite.recordFailure(safeError);
+      return safeError;
+    },
   });
 }
 

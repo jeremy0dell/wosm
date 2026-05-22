@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { DiagnosticSnapshot } from "@wosm/contracts";
+import type { DiagnosticEvidenceIndex, DiagnosticSnapshot } from "@wosm/contracts";
 import {
   createErrorEnvelope,
   createJsonlLogger,
@@ -105,9 +105,14 @@ describe("observability helpers", () => {
     });
 
     expect(manifest.sections).toContain("manifest.json");
+    expect(manifest.sections).toContain("diagnostic-index.json");
     expect(manifest.traceIds).toEqual(["trc_1"]);
     const bundleText = await readFile(join(manifest.bundlePath, "errors.jsonl"), "utf8");
     expect(bundleText).not.toContain("sk-secret");
+    const index = JSON.parse(
+      await readFile(join(manifest.bundlePath, "diagnostic-index.json"), "utf8"),
+    ) as DiagnosticEvidenceIndex;
+    expect(index.rootCauses.map((cause) => cause.code)).toContain("COMMAND_FAILED");
   });
 });
 

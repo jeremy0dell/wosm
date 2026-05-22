@@ -7,6 +7,7 @@ import {
   type RedactionReport,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
+import { buildDiagnosticEvidenceIndex } from "./evidence.js";
 import { mergeRedactionReports, REDACTION_POLICY_VERSION, redact } from "./redaction.js";
 
 export type WriteDebugBundleInput = {
@@ -34,6 +35,7 @@ export async function writeDebugBundle(input: WriteDebugBundleInput): Promise<De
     "observer-health.json",
     "snapshot.json",
     "provider-health.json",
+    "diagnostic-index.json",
     "commands.jsonl",
     "events.jsonl",
     "errors.jsonl",
@@ -48,6 +50,14 @@ export async function writeDebugBundle(input: WriteDebugBundleInput): Promise<De
   await writeJson(join(bundlePath, "observer-health.json"), diagnostics.observerHealth);
   await writeJson(join(bundlePath, "snapshot.json"), diagnostics.snapshot);
   await writeJson(join(bundlePath, "provider-health.json"), diagnostics.providerHealth);
+  const evidenceIndex = buildDiagnosticEvidenceIndex(diagnostics, {
+    generatedAt: now,
+    bundleId,
+    redaction: "redacted",
+  });
+  const redactedEvidenceIndex = redact(evidenceIndex, now);
+  reports.push(redactedEvidenceIndex.report);
+  await writeJson(join(bundlePath, "diagnostic-index.json"), redactedEvidenceIndex.value);
   await writeJson(join(bundlePath, "spool-summary.json"), diagnostics.hookSpool ?? {});
   await writeJson(join(bundlePath, "local-state.json"), diagnostics.localState ?? {});
   await writeJson(join(bundlePath, "retention.json"), diagnostics.retention ?? {});
@@ -60,7 +70,7 @@ export async function writeDebugBundle(input: WriteDebugBundleInput): Promise<De
     [
       "wosm debug bundle",
       "",
-      "Start with observer-health.json, provider-health.json, commands.jsonl, errors.jsonl, and logs/observer.jsonl.",
+      "Start with diagnostic-index.json, observer-health.json, provider-health.json, commands.jsonl, errors.jsonl, and logs/observer.jsonl.",
       "All sections are redacted diagnostic evidence, not runtime truth.",
       "",
     ].join("\n"),

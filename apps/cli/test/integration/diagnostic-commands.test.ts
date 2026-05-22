@@ -1,7 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "@wosm/cli";
-import type { DiagnosticSnapshot, DoctorReport } from "@wosm/contracts";
+import type { DiagnosticEvidenceIndex, DiagnosticSnapshot, DoctorReport } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
 
@@ -72,6 +73,87 @@ describe("CLI diagnostic commands", () => {
     });
     const bundlePath = (result.output as { bundlePath: string }).bundlePath;
     await expect(readFile(join(bundlePath, "manifest.json"), "utf8")).resolves.toContain("diag_");
+  });
+
+  it("returns doctor diagnostics for an invalid config without starting the observer", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-invalid-config-"));
+    const configPath = join(root, "config.toml");
+    await writeFile(
+      configPath,
+      [
+        "schema_version = 1",
+        "projects = []",
+        "",
+        "[defaults]",
+        "worktree_provider = 42",
+        'terminal = "fake-terminal"',
+        'harness = "fake-harness"',
+        'layout = "agent-shell"',
+        "",
+      ].join("\n"),
+    );
+
+    const result = await runCli(["--config", configPath, "doctor"], {
+      observerDeps: {
+        spawnObserver: async () => {
+          throw new Error("observer should not start for invalid config doctor");
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      code: 1,
+      output: {
+        status: "unavailable",
+        config: {
+          configPath,
+          diagnostics: [
+            expect.objectContaining({
+              code: "CONFIG_VALIDATION_FAILED",
+              diagnosticId: "config-load",
+            }),
+          ],
+        },
+      },
+    });
+  });
+
+  it("writes a debug bundle for an invalid config without observer RPC", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-invalid-debug-"));
+    const stateDir = join(root, "state");
+    const configPath = join(root, "config.toml");
+    await writeFile(
+      configPath,
+      [
+        "schema_version = 1",
+        "projects = []",
+        "",
+        "[observer]",
+        `state_dir = ${JSON.stringify(stateDir)}`,
+        "",
+        "[defaults]",
+        'worktree_provider = "fake-worktree"',
+        "terminal = false",
+        'harness = "fake-harness"',
+        'layout = "agent-shell"',
+        "",
+      ].join("\n"),
+    );
+
+    const result = await runCli(["--config", configPath, "debug", "bundle"], {
+      observerDeps: {
+        clientFactory: () => {
+          throw new Error("observer RPC should not be used for invalid config debug bundle");
+        },
+      },
+    });
+
+    expect(result.code).toBe(0);
+    const bundlePath = (result.output as { bundlePath: string }).bundlePath;
+    const index = JSON.parse(
+      await readFile(join(bundlePath, "diagnostic-index.json"), "utf8"),
+    ) as DiagnosticEvidenceIndex;
+    expect(index.summary.rootCauseCodes).toContain("INVALID_CONFIG");
   });
 });
 

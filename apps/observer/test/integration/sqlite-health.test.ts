@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { openObserverSqlite } from "../../src/sqlite";
+import { createObserverPersistence, openObserverSqlite } from "../../src/internal";
 
 const now = "2026-05-20T12:00:00.000Z";
 
@@ -29,6 +29,37 @@ describe("observer SQLite health", () => {
       status: "closed",
       schemaVersion: 3,
       lastCheckedAt: now,
+    });
+  });
+
+  it("retains the last SQLite transaction failure in health", async () => {
+    const sqlite = openObserverSqlite({
+      path: ":memory:",
+      clock: {
+        now: () => new Date(now),
+      },
+    });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+    });
+
+    sqlite.close();
+
+    await expect(
+      persistence.recordEvent(
+        {
+          type: "observer.started",
+          at: now,
+        },
+        { createdAt: now },
+      ),
+    ).rejects.toThrow("PERSISTENCE_TRANSACTION_FAILED");
+    expect(sqlite.health()).toMatchObject({
+      status: "closed",
+      lastError: {
+        code: "PERSISTENCE_TRANSACTION_FAILED",
+      },
     });
   });
 });

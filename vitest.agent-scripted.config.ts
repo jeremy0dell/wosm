@@ -5,6 +5,6 @@ export default defineConfig({
   ...commonResolveConfig,
   test: {
     ...commonTestConfig,
-    include: ["tests/agent/scripted/**/*.test.ts"],
+    include: ["tests/agent/scripted/**/*.test.ts", "tests/agent/scenarios/**/*.test.ts"],
   },
 });

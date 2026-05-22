@@ -81,6 +81,29 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
+  it("shows diagnostic IDs from rejected command receipts", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    service.nextReceipt = {
+      commandId: "cmd_rejected_1",
+      accepted: false,
+      status: "rejected",
+      error: {
+        tag: "TerminalProviderError",
+        code: "TERMINAL_TARGET_STALE",
+        message: "The terminal target is stale.",
+        diagnosticId: "diag_terminal_stale",
+      },
+    };
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("4");
+
+    await waitFor(() => instance.lastFrame()?.includes("diagnostic diag_terminal_stale") === true);
+    expect(instance.lastFrame()).toContain("The terminal target is stale.");
+    instance.unmount();
+  });
+
   it("refreshes the snapshot directly when r is pressed", async () => {
     const staleSnapshot = createCommandSnapshot("none");
     const refreshedSnapshot = createCommandSnapshot("idle");

@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 import { loadConfig } from "@wosm/config";
+import {
+  isConfigError,
+  runInvalidConfigDebugBundle,
+  runInvalidConfigDoctor,
+} from "./commands/configDiagnostics.js";
 import { runDebugBundleCommand } from "./commands/debugBundle.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runHookCommand } from "./commands/hook.js";
@@ -32,11 +37,30 @@ export async function runCli(
   const { args, configPath } = parseGlobalOptions(argv);
   const command = args[0] ?? "tui";
   const commandArgs = args[0] === undefined ? [] : args.slice(1);
-  const loaded = commandRequiresConfig(command, commandArgs)
-    ? configPath === undefined
-      ? await loadConfig()
-      : await loadConfig(configPath)
-    : undefined;
+  let loaded: Awaited<ReturnType<typeof loadConfig>> | undefined;
+  try {
+    loaded = commandRequiresConfig(command, commandArgs)
+      ? configPath === undefined
+        ? await loadConfig()
+        : await loadConfig(configPath)
+      : undefined;
+  } catch (error) {
+    if (isConfigError(error) && command === "doctor") {
+      const result = await runInvalidConfigDoctor({
+        error,
+        configPath: error.configPath,
+      });
+      return { code: 1, output: result };
+    }
+    if (isConfigError(error) && command === "debug" && commandArgs[0] === "bundle") {
+      const result = await runInvalidConfigDebugBundle({
+        error,
+        configPath: error.configPath,
+      });
+      return { code: 0, output: result };
+    }
+    throw error;
+  }
   const config = loaded?.config;
   const resolvedConfigPath = loaded?.configPath;
 
