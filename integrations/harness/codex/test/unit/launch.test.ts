@@ -121,10 +121,9 @@ describe("buildCodexLaunchPlan", () => {
       "team-default",
       "--sandbox",
       "workspace-write",
-      "--ask-for-approval",
-      "never",
       "Summarize the worktree.",
     ]);
+    expect(plan.args).not.toContain("--ask-for-approval");
     expect(plan.args).not.toContain("--no-alt-screen");
   });
 });

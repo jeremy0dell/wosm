@@ -19,7 +19,7 @@ export function buildCodexLaunchPlan(
   const args = mode === "exec" ? execArgs(request) : interactiveArgs(request);
   appendCodexOptions(args, {
     profile,
-    approvalPolicy,
+    approvalPolicy: mode === "exec" ? undefined : approvalPolicy,
     sandboxMode,
     noAltScreen: mode === "interactive" ? options.noAltScreen : undefined,
   });

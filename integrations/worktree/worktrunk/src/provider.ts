@@ -456,12 +456,20 @@ function resolveManagedRoot(project: ProviderProjectConfig): string | undefined 
 }
 
 function isPathInside(path: string, root: string): boolean {
-  const fromRoot = relative(normalize(root), normalize(path));
+  const fromRoot = relative(canonicalPathForComparison(root), canonicalPathForComparison(path));
   return fromRoot === "" || (!fromRoot.startsWith("..") && !isAbsolute(fromRoot));
 }
 
 function samePath(left: string, right: string): boolean {
-  return normalize(left) === normalize(right);
+  return canonicalPathForComparison(left) === canonicalPathForComparison(right);
+}
+
+function canonicalPathForComparison(path: string): string {
+  const normalized = normalize(path);
+  if (process.platform === "darwin" && normalized.startsWith("/private/var/")) {
+    return normalized.slice("/private".length);
+  }
+  return normalized;
 }
 
 function isMissingBinary(error: unknown): boolean {

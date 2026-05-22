@@ -85,6 +85,40 @@ describe("WorktrunkProvider", () => {
     ]);
   });
 
+  it("matches macOS /private/var Worktrunk paths to /var managed roots", async () => {
+    const managedProject = {
+      ...project,
+      root: "/var/folders/test/wosm/repo",
+      worktrunk: {
+        ...project.worktrunk,
+        managedRoot: ".wosm-dogfood/worktrees",
+        includeMain: false,
+        includeExternal: false,
+      },
+    };
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async (input) =>
+        result(
+          input,
+          JSON.stringify([
+            {
+              path: "/private/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+              branch: "feature",
+            },
+          ]),
+        ),
+    });
+
+    await expect(provider.listWorktrees(managedProject)).resolves.toEqual([
+      expect.objectContaining({
+        id: "wt_web_feature",
+        branch: "feature",
+      }),
+    ]);
+  });
+
   it("directs created worktrees into the managed root through Worktrunk config env", async () => {
     const calls: ExternalCommandInput[] = [];
     const managedProject = {
