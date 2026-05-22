@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { loadConfig } from "@wosm/config";
+import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
 import {
   isConfigError,
   runInvalidConfigDebugBundle,
@@ -95,6 +96,18 @@ export async function runCli(
     const stdin = options.stdin ?? (await readStdinIfAvailable());
     const result = await runHookCommand(commandArgs, { config, stdin }, options.hookDeps);
     return { code: result.status === "rejected" ? 1 : 0, output: result };
+  }
+
+  if (command === "command") {
+    const stdin = commandArgs.includes("--stdin")
+      ? (options.stdin ?? (await readStdinIfAvailable()))
+      : options.stdin;
+    const result = await runCommandCommand(
+      commandArgs,
+      { config, configPath: resolvedConfigPath, stdin },
+      options.observerDeps,
+    );
+    return { code: commandCommandExitCode(result), output: result };
   }
 
   if (command === "popup") {
@@ -211,6 +224,7 @@ function commandRequiresConfig(command: string, args: string[]): boolean {
     "doctor",
     "hook",
     "hooks",
+    "command",
     "observer",
     "popup",
     "reconcile",

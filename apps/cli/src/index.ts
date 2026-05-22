@@ -1,3 +1,4 @@
+export * from "./commands/command.js";
 export * from "./commands/configDiagnostics.js";
 export * from "./commands/debugBundle.js";
 export * from "./commands/doctor.js";
