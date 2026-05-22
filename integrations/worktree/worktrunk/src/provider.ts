@@ -466,7 +466,7 @@ function samePath(left: string, right: string): boolean {
 
 function canonicalPathForComparison(path: string): string {
   const normalized = normalize(path);
-  if (process.platform === "darwin" && normalized.startsWith("/private/var/")) {
+  if (normalized.startsWith("/private/var/")) {
     return normalized.slice("/private".length);
   }
   return normalized;
