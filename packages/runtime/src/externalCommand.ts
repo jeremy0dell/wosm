@@ -114,7 +114,7 @@ export function createFakeExternalCommandRunner(
 
 export function externalCommandErrorFromUnknown(
   error: unknown,
-  input: Pick<ExternalCommandInput, "command" | "args">,
+  input: Pick<ExternalCommandInput, "command" | "args" | "cwd">,
 ): ExternalCommandError {
   const fallback = externalCommandFallback("EXTERNAL_COMMAND_FAILED", "External command failed.");
   const safeError = safeErrorFromUnknown(error, fallback);
@@ -127,6 +127,10 @@ export function externalCommandErrorFromUnknown(
   };
 
   copySafeErrorContext(normalized, safeError);
+
+  if (input.cwd !== undefined) {
+    normalized.cwd = input.cwd;
+  }
 
   const exitCode = numericField(cause, "exitCode") ?? numericField(cause, "code");
   if (exitCode !== undefined) {
@@ -147,6 +151,8 @@ export function externalCommandErrorFromUnknown(
   if (stderrSnippet !== undefined) {
     normalized.stderrSnippet = stderrSnippet;
   }
+
+  normalized.diagnosticDetails = [externalCommandDiagnosticDetail(normalized)];
 
   return normalized;
 }
@@ -210,9 +216,11 @@ function outputSnippet(
   snippetKey: "stdoutSnippet" | "stderrSnippet",
 ): string | undefined {
   const value = stringField(cause, rawKey) ?? stringField(cause, snippetKey);
-  return value === undefined
-    ? undefined
-    : redactCommandOutput(value).slice(0, outputSnippetMaxChars);
+  if (value === undefined) {
+    return undefined;
+  }
+  const redacted = redactCommandOutput(value).slice(0, outputSnippetMaxChars);
+  return redacted.length === 0 ? undefined : redacted;
 }
 
 function copySafeErrorContext(target: ExternalCommandError, safeError: RuntimeSafeError): void {
@@ -224,6 +232,21 @@ function copySafeErrorContext(target: ExternalCommandError, safeError: RuntimeSa
   if (safeError.provider !== undefined) target.provider = safeError.provider;
   if (safeError.traceId !== undefined) target.traceId = safeError.traceId;
   if (safeError.diagnosticId !== undefined) target.diagnosticId = safeError.diagnosticId;
+}
+
+function externalCommandDiagnosticDetail(error: ExternalCommandError) {
+  const detail: NonNullable<RuntimeSafeError["diagnosticDetails"]>[number] = {
+    type: "external_command",
+    operation: `externalCommand.${error.command.split(" ")[0] ?? "command"}`,
+    command: error.command,
+  };
+  if (error.provider !== undefined) detail.provider = error.provider;
+  if (error.cwd !== undefined) detail.cwd = error.cwd;
+  if (error.exitCode !== undefined) detail.exitCode = error.exitCode;
+  if (error.signal !== undefined) detail.signal = error.signal;
+  if (error.stdoutSnippet !== undefined) detail.stdoutSnippet = error.stdoutSnippet;
+  if (error.stderrSnippet !== undefined) detail.stderrSnippet = error.stderrSnippet;
+  return detail;
 }
 
 function redactCommandPart(value: string): string {

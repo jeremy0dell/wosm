@@ -10,7 +10,23 @@ export type RuntimeSafeError = {
   provider?: string;
   traceId?: string;
   diagnosticId?: string;
+  diagnosticDetails?: RuntimeDiagnosticDetail[];
 };
+
+export type RuntimeExternalCommandDiagnosticDetail = {
+  type: "external_command";
+  provider?: string;
+  operation: string;
+  command: string;
+  cwd?: string;
+  exitCode?: number;
+  signal?: string;
+  stdoutSnippet?: string;
+  stderrSnippet?: string;
+  durationMs?: number;
+};
+
+export type RuntimeDiagnosticDetail = RuntimeExternalCommandDiagnosticDetail;
 
 export type RuntimeSafeErrorFallback = {
   tag: string;
@@ -32,6 +48,7 @@ export type RuntimeCancellationError = RuntimeSafeError & {
 export type ExternalCommandError = RuntimeSafeError & {
   tag: "ExternalCommandError";
   command: string;
+  cwd?: string;
   exitCode?: number;
   signal?: string;
   stdoutSnippet?: string;
@@ -99,10 +116,14 @@ function copySafeError(input: RuntimeSafeError): RuntimeSafeError {
   if (input.provider !== undefined) safeError.provider = input.provider;
   if (input.traceId !== undefined) safeError.traceId = input.traceId;
   if (input.diagnosticId !== undefined) safeError.diagnosticId = input.diagnosticId;
+  if (input.diagnosticDetails !== undefined) {
+    safeError.diagnosticDetails = input.diagnosticDetails.map(copyDiagnosticDetail);
+  }
   if (input.tag === "ExternalCommandError") {
     const source = input as Partial<ExternalCommandError>;
     const target = safeError as ExternalCommandError;
     if (typeof source.command === "string") target.command = source.command;
+    if (typeof source.cwd === "string") target.cwd = source.cwd;
     if (typeof source.exitCode === "number") target.exitCode = source.exitCode;
     if (typeof source.signal === "string") target.signal = source.signal;
     if (typeof source.stdoutSnippet === "string") target.stdoutSnippet = source.stdoutSnippet;
@@ -121,4 +142,20 @@ function safeErrorCause(error: unknown, seen = new Set<unknown>()): RuntimeSafeE
     return cause;
   }
   return safeErrorCause(cause, seen);
+}
+
+function copyDiagnosticDetail(detail: RuntimeDiagnosticDetail): RuntimeDiagnosticDetail {
+  const copied: RuntimeExternalCommandDiagnosticDetail = {
+    type: "external_command",
+    operation: detail.operation,
+    command: detail.command,
+  };
+  if (detail.provider !== undefined) copied.provider = detail.provider;
+  if (detail.cwd !== undefined) copied.cwd = detail.cwd;
+  if (detail.exitCode !== undefined) copied.exitCode = detail.exitCode;
+  if (detail.signal !== undefined) copied.signal = detail.signal;
+  if (detail.stdoutSnippet !== undefined) copied.stdoutSnippet = detail.stdoutSnippet;
+  if (detail.stderrSnippet !== undefined) copied.stderrSnippet = detail.stderrSnippet;
+  if (detail.durationMs !== undefined) copied.durationMs = detail.durationMs;
+  return copied;
 }

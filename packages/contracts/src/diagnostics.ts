@@ -147,6 +147,8 @@ export const DiagnosticCollectionOptionsSchema = z
     since: TimestampSchema.optional(),
     projectId: ProjectIdSchema.optional(),
     commandId: CommandIdSchema.optional(),
+    traceId: TraceIdSchema.optional(),
+    latestFailure: z.boolean().optional(),
     includeLogs: z.boolean().optional(),
     maxLogRecords: z.number().int().positive().optional(),
   })
@@ -232,6 +234,8 @@ export const DiagnosticRootCauseCodeSchema = z.enum([
   "SQLITE_WRITE_FAILURE",
   "COMMAND_FAILED",
   "PROVIDER_UNAVAILABLE",
+  "WORKTRUNK_BRANCH_EXISTS",
+  "WORKTRUNK_WORKTREE_EXISTS",
 ]);
 
 export type DiagnosticRootCauseCode = z.infer<typeof DiagnosticRootCauseCodeSchema>;

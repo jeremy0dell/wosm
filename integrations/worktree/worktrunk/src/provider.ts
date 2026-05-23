@@ -1,6 +1,8 @@
 import { isAbsolute, normalize, relative, resolve } from "node:path";
 import type {
   CreateWorktreeRequest,
+  DiagnosticDetail,
+  ExternalCommandDiagnosticDetail,
   GetWorktreeRequest,
   ProviderDoctorCheck,
   ProviderDoctorContext,
@@ -15,6 +17,7 @@ import type {
   WorktreeObservation,
   WorktreeProvider,
 } from "@wosm/contracts";
+import { ExternalCommandDiagnosticDetailSchema } from "@wosm/contracts";
 import {
   type ExternalCommandRunner,
   type RuntimeClock,
@@ -34,6 +37,7 @@ import {
   ProviderUnavailableError,
   providerErrorFromUnknown,
   WorktrunkProviderError,
+  type WorktrunkProviderErrorCode,
 } from "./errors.js";
 import { doctorWorktrunkHooks } from "./hooks.js";
 import { applyRecoveryBreadcrumbMetadata } from "./metadata.js";
@@ -291,9 +295,10 @@ export class WorktrunkProvider implements WorktreeProvider {
     policy: { retries?: number } = {},
     env?: Record<string, string>,
   ) {
+    const operation = `provider.worktrunk.${args[0] ?? "command"}`;
     const result = await runRuntimeBoundaryWithRetryAndTimeout(
       {
-        operation: `provider.worktrunk.${args[0] ?? "command"}`,
+        operation,
         clock: this.#clock,
         timeoutMs: this.#timeoutMs,
         error: {
@@ -339,17 +344,28 @@ export class WorktrunkProvider implements WorktreeProvider {
     try {
       throw result.error;
     } catch (cause) {
+      const diagnosticDetails = worktrunkCommandDiagnostics({
+        error: cause,
+        provider: this.id,
+        operation,
+        command: this.#command,
+        args,
+        cwd,
+        durationMs: result.timing.durationMs,
+      });
       if (isMissingBinary(cause)) {
         throw new ProviderUnavailableError("Worktrunk is not available.", {
           hint: worktrunkInstallHint(this.#command),
           command: this.#command,
           installHint: worktrunkInstallHint(this.#command),
           cause,
+          diagnosticDetails,
         });
       }
       if (isTimeout(cause)) {
         throw new WorktrunkProviderError("WORKTRUNK_TIMEOUT", "Worktrunk command timed out.", {
           cause,
+          diagnosticDetails,
         });
       }
       if (isAbort(cause)) {
@@ -358,13 +374,18 @@ export class WorktrunkProvider implements WorktreeProvider {
           "Worktrunk command was cancelled.",
           {
             cause,
+            diagnosticDetails,
           },
         );
       }
-      throw providerErrorFromUnknown(cause, {
-        code: fallback.code,
-        message: fallback.message,
-      });
+      throw providerErrorFromUnknown(
+        cause,
+        classifyWorktrunkFailure(cause, {
+          code: fallback.code,
+          message: fallback.message,
+        }),
+        { diagnosticDetails },
+      );
     }
   }
 }
@@ -380,6 +401,109 @@ function dependencyDiagnostics(status: WorktrunkDependencyStatus): Record<string
     if (status.rawVersion !== undefined) diagnostics.rawVersion = status.rawVersion;
   }
   return diagnostics;
+}
+
+function worktrunkCommandDiagnostics(input: {
+  error: unknown;
+  provider: ProviderId;
+  operation: string;
+  command: string;
+  args: readonly string[];
+  cwd?: string | undefined;
+  durationMs: number;
+}): DiagnosticDetail[] {
+  const detail: ExternalCommandDiagnosticDetail = {
+    type: "external_command",
+    provider: input.provider,
+    operation: input.operation,
+    command: stringFieldDeep(input.error, "command") ?? formatCommand(input.command, input.args),
+  };
+  const cwd = stringFieldDeep(input.error, "cwd") ?? input.cwd;
+  if (cwd !== undefined) detail.cwd = cwd;
+  const exitCode = numberFieldDeep(input.error, "exitCode");
+  if (exitCode !== undefined) detail.exitCode = exitCode;
+  const signal = stringFieldDeep(input.error, "signal");
+  if (signal !== undefined) detail.signal = signal;
+  const stdoutSnippet = stringFieldDeep(input.error, "stdoutSnippet");
+  if (stdoutSnippet !== undefined && stdoutSnippet.length > 0) {
+    detail.stdoutSnippet = stdoutSnippet;
+  }
+  const stderrSnippet = stringFieldDeep(input.error, "stderrSnippet");
+  if (stderrSnippet !== undefined && stderrSnippet.length > 0) {
+    detail.stderrSnippet = stderrSnippet;
+  }
+  detail.durationMs = input.durationMs;
+  const parsed = ExternalCommandDiagnosticDetailSchema.safeParse(detail);
+  return parsed.success ? [parsed.data] : [];
+}
+
+function classifyWorktrunkFailure(
+  error: unknown,
+  fallback: {
+    code: "WORKTRUNK_COMMAND_FAILED" | "WORKTRUNK_UNAVAILABLE";
+    message: string;
+  },
+): { code: WorktrunkProviderErrorCode; message: string; hint?: string } {
+  if (fallback.code !== "WORKTRUNK_COMMAND_FAILED") {
+    return fallback;
+  }
+
+  const text = diagnosticText(error).toLowerCase();
+  if (isDuplicateBranchText(text)) {
+    return {
+      code: "WORKTRUNK_BRANCH_EXISTS",
+      message: "Worktrunk could not create the worktree because the branch already exists.",
+      hint: "Choose a different branch name or start/focus the existing worktree.",
+    };
+  }
+
+  if (isDuplicateWorktreeText(text)) {
+    return {
+      code: "WORKTRUNK_WORKTREE_EXISTS",
+      message: "Worktrunk could not create the worktree because the worktree path already exists.",
+      hint: "Choose a different branch/path or remove the stale worktree path.",
+    };
+  }
+
+  return fallback;
+}
+
+function isDuplicateBranchText(text: string): boolean {
+  return (
+    /branch\b.*\balready exists/.test(text) ||
+    /\balready exists\b.*\bbranch\b/.test(text) ||
+    /refs\/heads\/[^\s]+.*\balready exists/.test(text)
+  );
+}
+
+function isDuplicateWorktreeText(text: string): boolean {
+  return (
+    /worktree\b.*\balready exists/.test(text) ||
+    /\balready exists\b.*\bworktree\b/.test(text) ||
+    /\bpath\b.*\balready exists/.test(text) ||
+    /\bdestination\b.*\balready exists/.test(text)
+  );
+}
+
+function diagnosticText(error: unknown, seen = new Set<unknown>()): string {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return "";
+  }
+  seen.add(error);
+  const record = error as Record<string, unknown>;
+  const parts: string[] = [];
+  for (const key of ["message", "stdoutSnippet", "stderrSnippet", "command"]) {
+    const value = record[key];
+    if (typeof value === "string") {
+      parts.push(value);
+    }
+  }
+  parts.push(diagnosticText(record.cause, seen));
+  return parts.join("\n");
+}
+
+function formatCommand(command: string, args: readonly string[]): string {
+  return [command, ...args].join(" ");
 }
 
 function parseCommandObservation(
@@ -478,6 +602,40 @@ function isMissingBinary(error: unknown): boolean {
   }
   const cause = error as { code?: unknown; cause?: unknown };
   return cause.code === "ENOENT" || isMissingBinary(cause.cause);
+}
+
+function stringFieldDeep(
+  error: unknown,
+  key: "command" | "cwd" | "signal" | "stdoutSnippet" | "stderrSnippet",
+  seen = new Set<unknown>(),
+): string | undefined {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return undefined;
+  }
+  seen.add(error);
+  const record = error as Record<string, unknown>;
+  const value = record[key];
+  if (typeof value === "string") {
+    return value;
+  }
+  return stringFieldDeep(record.cause, key, seen);
+}
+
+function numberFieldDeep(
+  error: unknown,
+  key: "exitCode",
+  seen = new Set<unknown>(),
+): number | undefined {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return undefined;
+  }
+  seen.add(error);
+  const record = error as Record<string, unknown>;
+  const value = record[key];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  return numberFieldDeep(record.cause, key, seen);
 }
 
 function isTimeout(error: unknown): boolean {

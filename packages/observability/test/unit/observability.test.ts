@@ -10,6 +10,7 @@ import {
   readJsonlLog,
   redact,
   scanLocalStateUsage,
+  toSafeError,
   writeDebugBundle,
 } from "@wosm/observability";
 import { describe, expect, it } from "vitest";
@@ -60,9 +61,35 @@ describe("observability helpers", () => {
   });
 
   it("keeps SafeError output safe while storing redacted internal envelopes", () => {
+    const externalCommandError = {
+      tag: "ExternalCommandError",
+      code: "EXTERNAL_COMMAND_FAILED",
+      message: "External command failed.",
+      command: "wt switch --create feature --api-key [REDACTED]",
+      cwd: "/tmp/wosm/web",
+      exitCode: 128,
+      stderrSnippet: "fatal: branch already exists sk-secret000000000000",
+      diagnosticDetails: [
+        {
+          type: "external_command",
+          provider: "worktrunk",
+          operation: "provider.worktrunk.switch",
+          command: "wt switch --create feature --api-key [REDACTED]",
+          cwd: "/tmp/wosm/web",
+          exitCode: 128,
+          stderrSnippet: "fatal: branch already exists sk-secret000000000000",
+          durationMs: 12,
+        },
+      ],
+    };
+    const safeError = toSafeError(externalCommandError, {
+      tag: "ProviderUnavailableError",
+      code: "PROVIDER_FAILED",
+      message: "Provider failed.",
+    });
     const envelope = createErrorEnvelope({
       id: "err_1",
-      error: new Error("provider leaked sk-secret000000000000"),
+      error: externalCommandError,
       fallback: {
         tag: "ProviderUnavailableError",
         code: "PROVIDER_FAILED",
@@ -77,6 +104,19 @@ describe("observability helpers", () => {
     });
 
     expect(envelope.traceId).toBe("trc_1");
+    expect(JSON.stringify(safeError)).not.toContain("diagnosticDetails");
+    expect(envelope.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "external_command",
+          provider: "worktrunk",
+          operation: "provider.worktrunk.switch",
+          cwd: "/tmp/wosm/web",
+          exitCode: 128,
+          durationMs: 12,
+        }),
+      ]),
+    );
     expect(JSON.stringify(envelope)).not.toContain("sk-secret");
     expect(envelope.redacted).toBe(true);
   });

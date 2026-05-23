@@ -85,6 +85,40 @@ describe("WorktrunkProvider", () => {
     ]);
   });
 
+  it("filters listed worktrees to a home-level managed project root", async () => {
+    const managedProject = {
+      ...project,
+      worktrunk: {
+        ...project.worktrunk,
+        managedRoot: "/tmp/home/.worktrees/web",
+        includeMain: false,
+        includeExternal: false,
+      },
+    };
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async (input) =>
+        result(
+          input,
+          JSON.stringify([
+            { path: "/tmp/wosm/web", branch: "main" },
+            { path: "/tmp/home/.worktrees/web/feature", branch: "feature" },
+            { path: "/tmp/home/.worktrees/api/feature", branch: "feature" },
+            { path: "/tmp/wosm/web.sibling", branch: "sibling" },
+          ]),
+        ),
+    });
+
+    await expect(provider.listWorktrees(managedProject)).resolves.toEqual([
+      expect.objectContaining({
+        id: "wt_web_feature",
+        branch: "feature",
+        path: "/tmp/home/.worktrees/web/feature",
+      }),
+    ]);
+  });
+
   it("matches macOS /private/var Worktrunk paths to /var managed roots", async () => {
     const managedProject = {
       ...project,
@@ -153,6 +187,40 @@ describe("WorktrunkProvider", () => {
     });
   });
 
+  it("directs created worktrees into a home-level managed project root", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const managedProject = {
+      ...project,
+      worktrunk: {
+        ...project.worktrunk,
+        managedRoot: "/tmp/home/.worktrees/web",
+        includeMain: false,
+        includeExternal: false,
+      },
+    };
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        calls.push(input);
+        return result(
+          input,
+          JSON.stringify([{ path: "/tmp/home/.worktrees/web/feature", branch: "feature" }]),
+        );
+      },
+    });
+
+    await expect(
+      provider.createWorktree({ project: managedProject, branch: "feature" }),
+    ).resolves.toMatchObject({
+      id: "wt_web_feature",
+      path: "/tmp/home/.worktrees/web/feature",
+    });
+    expect(calls[0]?.env).toEqual({
+      WORKTRUNK_WORKTREE_PATH: "/tmp/home/.worktrees/web/{{ branch | sanitize }}",
+    });
+  });
+
   it("creates and removes worktrees using Worktrunk lifecycle commands", async () => {
     const calls: ExternalCommandInput[] = [];
     const provider = new WorktrunkProvider({
@@ -184,6 +252,56 @@ describe("WorktrunkProvider", () => {
       ["switch", "--create", "feature", "--base", "main", "--no-cd", "--format=json"],
       ["remove", "feature", "--foreground", "--format=json"],
     ]);
+  });
+
+  it("classifies duplicate branch failures and preserves external command diagnostics", async () => {
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async () => {
+        throw Object.assign(new Error("wt failed"), {
+          code: 128,
+          stderr: "fatal: a branch named 'feature' already exists",
+          stdout: "checked refs",
+        });
+      },
+    });
+
+    await expect(provider.createWorktree({ project, branch: "feature" })).rejects.toMatchObject({
+      tag: "WorktreeProviderError",
+      code: "WORKTRUNK_BRANCH_EXISTS",
+      hint: expect.stringContaining("different branch"),
+      diagnosticDetails: [
+        expect.objectContaining({
+          type: "external_command",
+          provider: "worktrunk",
+          operation: "provider.worktrunk.switch",
+          command: "wt switch --create feature --base main --no-cd --format=json",
+          cwd: "/tmp/wosm/web",
+          exitCode: 128,
+          stderrSnippet: "fatal: a branch named 'feature' already exists",
+        }),
+      ],
+    });
+  });
+
+  it("classifies duplicate worktree path failures", async () => {
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async () => {
+        throw Object.assign(new Error("wt failed"), {
+          code: 128,
+          stderr: "destination path '/tmp/wosm/web/feature' already exists",
+        });
+      },
+    });
+
+    await expect(provider.createWorktree({ project, branch: "feature" })).rejects.toMatchObject({
+      tag: "WorktreeProviderError",
+      code: "WORKTRUNK_WORKTREE_EXISTS",
+      hint: expect.stringContaining("stale worktree"),
+    });
   });
 
   it("reports unavailable health when the wt binary is missing", async () => {

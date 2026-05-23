@@ -1,4 +1,6 @@
 import {
+  type DiagnosticDetail,
+  DiagnosticDetailSchema,
   type ErrorEnvelope,
   ErrorEnvelopeSchema,
   type SafeError,
@@ -80,6 +82,7 @@ export function createErrorEnvelope(input: ErrorEnvelopeInput): ErrorEnvelope {
   const redactedStack =
     errorObject?.stack === undefined ? undefined : redact(errorObject.stack).value;
   const redactedRaw = input.raw === undefined ? undefined : redact(input.raw).value;
+  const redactedDiagnostics = diagnosticsFromUnknown(input.error);
 
   const envelope: ErrorEnvelope = {
     id: input.id,
@@ -100,6 +103,7 @@ export function createErrorEnvelope(input: ErrorEnvelopeInput): ErrorEnvelope {
   if (redactedCause !== undefined) envelope.cause = redactedCause;
   if (redactedStack !== undefined) envelope.stack = redactedStack;
   if (redactedRaw !== undefined) envelope.raw = redactedRaw;
+  if (redactedDiagnostics.length > 0) envelope.diagnostics = redactedDiagnostics;
 
   return ErrorEnvelopeSchema.parse(envelope);
 }
@@ -126,6 +130,78 @@ function safeErrorCause(error: unknown, seen = new Set<unknown>()): SafeError | 
     return cause;
   }
   return safeErrorCause(cause, seen);
+}
+
+function diagnosticsFromUnknown(error: unknown, seen = new Set<unknown>()): DiagnosticDetail[] {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return [];
+  }
+  seen.add(error);
+  const diagnostics: DiagnosticDetail[] = [];
+  const record = error as {
+    diagnosticDetails?: unknown;
+    cause?: unknown;
+  };
+
+  if (Array.isArray(record.diagnosticDetails)) {
+    for (const detail of record.diagnosticDetails) {
+      const redacted = redact(detail).value;
+      const parsed = DiagnosticDetailSchema.safeParse(redacted);
+      if (parsed.success) {
+        diagnostics.push(parsed.data);
+      }
+    }
+  }
+
+  const externalDetail = externalCommandDiagnosticFromUnknown(error);
+  if (externalDetail !== undefined) {
+    diagnostics.push(externalDetail);
+  }
+
+  diagnostics.push(...diagnosticsFromUnknown(record.cause, seen));
+  return dedupeDiagnostics(diagnostics);
+}
+
+function externalCommandDiagnosticFromUnknown(error: unknown): DiagnosticDetail | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+  const record = error as Record<string, unknown>;
+  if (record.tag !== "ExternalCommandError" || typeof record.command !== "string") {
+    return undefined;
+  }
+
+  const detail: DiagnosticDetail = {
+    type: "external_command",
+    operation: `externalCommand.${record.command.split(" ")[0] ?? "command"}`,
+    command: record.command,
+  };
+  if (typeof record.provider === "string") detail.provider = record.provider;
+  if (typeof record.cwd === "string") detail.cwd = record.cwd;
+  if (typeof record.exitCode === "number") detail.exitCode = record.exitCode;
+  if (typeof record.signal === "string") detail.signal = record.signal;
+  if (typeof record.stdoutSnippet === "string" && record.stdoutSnippet.length > 0) {
+    detail.stdoutSnippet = record.stdoutSnippet;
+  }
+  if (typeof record.stderrSnippet === "string" && record.stderrSnippet.length > 0) {
+    detail.stderrSnippet = record.stderrSnippet;
+  }
+  const parsed = DiagnosticDetailSchema.safeParse(redact(detail).value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function dedupeDiagnostics(diagnostics: readonly DiagnosticDetail[]): DiagnosticDetail[] {
+  const seen = new Set<string>();
+  const deduped: DiagnosticDetail[] = [];
+  for (const diagnostic of diagnostics) {
+    const key = JSON.stringify(diagnostic);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(diagnostic);
+  }
+  return deduped;
 }
 
 function applySafeErrorContext(

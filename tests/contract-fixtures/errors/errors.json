@@ -32,6 +32,18 @@
     "raw": {
       "stderr": "target not found: %45"
     },
+    "diagnostics": [
+      {
+        "type": "external_command",
+        "provider": "tmux",
+        "operation": "provider.tmux.focusTarget",
+        "command": "tmux select-pane -t %45",
+        "cwd": "/tmp/wosm/web",
+        "exitCode": 1,
+        "stderrSnippet": "target not found: %45",
+        "durationMs": 12
+      }
+    ],
     "redacted": true,
     "createdAt": "2026-05-20T12:00:00.000Z"
   }

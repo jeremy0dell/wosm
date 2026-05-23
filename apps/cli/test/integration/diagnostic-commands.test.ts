@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "@wosm/cli";
@@ -73,6 +73,137 @@ describe("CLI diagnostic commands", () => {
     });
     const bundlePath = (result.output as { bundlePath: string }).bundlePath;
     await expect(readFile(join(bundlePath, "manifest.json"), "utf8")).resolves.toContain("diag_");
+  });
+
+  it("passes trace and latest-failure filters to debug bundle collection", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let collectedOptions: unknown;
+    const deps = {
+      clientFactory: () =>
+        ({
+          health: async () => ({
+            schemaVersion: "0.3.0",
+            status: "healthy",
+            pid: 1234,
+            startedAt: now,
+            version: "0.0.0",
+          }),
+          collectDiagnostics: async (options: unknown) => {
+            collectedOptions = options;
+            return diagnosticSnapshot();
+          },
+        }) as never,
+      sleep: async () => undefined,
+    };
+
+    await runCli(["--config", configPath, "debug", "bundle", "--trace", "trc_1"], {
+      observerDeps: deps,
+    });
+    expect(collectedOptions).toMatchObject({ traceId: "trc_1" });
+
+    await runCli(["--config", configPath, "debug", "bundle", "--latest-failure"], {
+      observerDeps: deps,
+    });
+    expect(collectedOptions).toMatchObject({ latestFailure: true });
+  });
+
+  it("resolves debug trace IDs from existing bundles without observer RPC", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const deps = {
+      clientFactory: () =>
+        ({
+          health: async () => ({
+            schemaVersion: "0.3.0",
+            status: "healthy",
+            pid: 1234,
+            startedAt: now,
+            version: "0.0.0",
+          }),
+          collectDiagnostics: async () => diagnosticSnapshot(),
+        }) as never,
+      sleep: async () => undefined,
+    };
+
+    await runCli(["--config", configPath, "debug", "bundle"], {
+      observerDeps: deps,
+    });
+    const traced = await runCli(["--config", configPath, "debug", "trace", "trc_1"], {
+      observerDeps: {
+        clientFactory: () => {
+          throw new Error("debug trace should not contact observer");
+        },
+      },
+    });
+
+    expect(traced).toMatchObject({
+      code: 0,
+      output: {
+        matched: true,
+        source: "bundle",
+        matchedIdType: "traceId",
+        command: { id: "cmd_1" },
+      },
+    });
+  });
+
+  it("resolves latest debug trace failure from live logs without observer RPC", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    await mkdir(join(fixture.stateDir, "logs"), { recursive: true });
+    await writeFile(
+      join(fixture.stateDir, "logs", "observer.jsonl"),
+      `${[
+        JSON.stringify({
+          timestamp: "2026-05-20T12:00:00.000Z",
+          level: "error",
+          component: "observer",
+          message: "Command failed.",
+          attributes: {
+            commandId: "cmd_old",
+            commandType: "session.create",
+            traceId: "trc_old",
+            error: { code: "OLD", message: "Old failure." },
+          },
+        }),
+        JSON.stringify({
+          timestamp: "2026-05-20T12:01:00.000Z",
+          level: "error",
+          component: "observer",
+          message: "Command failed.",
+          attributes: {
+            commandId: "cmd_new",
+            commandType: "session.create",
+            traceId: "trc_new",
+            error: { code: "WORKTRUNK_BRANCH_EXISTS", message: "Branch exists." },
+          },
+        }),
+      ].join("\n")}\n`,
+    );
+
+    const traced = await runCli(["--config", configPath, "debug", "trace", "--latest-failure"], {
+      observerDeps: {
+        clientFactory: () => {
+          throw new Error("debug trace should not contact observer");
+        },
+      },
+    });
+
+    expect(traced).toMatchObject({
+      code: 0,
+      output: {
+        matched: true,
+        source: "log",
+        command: {
+          id: "cmd_new",
+          traceId: "trc_new",
+        },
+        error: {
+          code: "WORKTRUNK_BRANCH_EXISTS",
+        },
+      },
+    });
   });
 
   it("returns doctor diagnostics for an invalid config without starting the observer", async () => {

@@ -229,6 +229,7 @@ class EvidenceIndexBuilder {
         traceId: error.traceId,
         spanId: error.spanId,
         diagnosticId: error.id,
+        evidence: error.diagnostics === undefined ? undefined : { diagnostics: error.diagnostics },
       });
       this.#classifyAndAddRootCause(error, item, "error");
     }
@@ -538,6 +539,18 @@ function classifyCode(
     return {
       code: "MISSING_WORKTRUNK_BINARY",
       summary: "Worktrunk binary is missing or not executable.",
+    };
+  }
+  if (code === "WORKTRUNK_BRANCH_EXISTS") {
+    return {
+      code: "WORKTRUNK_BRANCH_EXISTS",
+      summary: "Worktrunk could not create the worktree because the branch already exists.",
+    };
+  }
+  if (code === "WORKTRUNK_WORKTREE_EXISTS") {
+    return {
+      code: "WORKTRUNK_WORKTREE_EXISTS",
+      summary: "Worktrunk could not create the worktree because the worktree already exists.",
     };
   }
   if (

@@ -26,7 +26,12 @@ import {
 } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
 import { runRuntimeBoundaryWithTimeout, systemClock, toIsoTimestamp } from "@wosm/runtime";
-import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
+import type {
+  ObserverPersistence,
+  PersistedCommand,
+  PersistedCommandError,
+  PersistedEvent,
+} from "../persistence/index.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverCore } from "../reconcile/core.js";
 
@@ -68,25 +73,43 @@ export async function collectDiagnosticSnapshot(
   }
   const snapshot = deps.core.getSnapshot();
   const commands = await deps.persistence.listCommands();
-  const filteredCommands =
-    options?.commandId === undefined
-      ? commands
-      : commands.filter((command) => command.id === options.commandId);
-  const eventFilter: { commandId?: string } = {};
-  if (options?.commandId !== undefined) {
-    eventFilter.commandId = options.commandId;
+  const latestFailure = options?.latestFailure === true ? latestFailedCommand(commands) : undefined;
+  const commandIdFilter = options?.commandId ?? latestFailure?.id;
+  const traceIdFilter = options?.traceId ?? latestFailure?.traceId;
+  const filteredCommands = filterCommands(commands, {
+    commandId: commandIdFilter,
+    traceId: traceIdFilter,
+  });
+  const commandIds = new Set<string>();
+  if (commandIdFilter !== undefined) commandIds.add(commandIdFilter);
+  for (const command of filteredCommands) {
+    commandIds.add(command.id);
   }
-  const events = await deps.persistence.listEvents(eventFilter);
-  const commandErrors = await deps.persistence.listCommandErrors(options?.commandId);
+  const traceIds = new Set<string>();
+  if (traceIdFilter !== undefined) traceIds.add(traceIdFilter);
+  for (const command of filteredCommands) {
+    if (command.traceId !== undefined) traceIds.add(command.traceId);
+  }
+  const eventFilter: { commandId?: string } = {};
+  if (commandIdFilter !== undefined) {
+    eventFilter.commandId = commandIdFilter;
+  }
+  const events = (await deps.persistence.listEvents(eventFilter)).filter((event) =>
+    persistedEventMatches(event, { commandIds, traceIds }),
+  );
+  const commandErrors = (await deps.persistence.listCommandErrors(commandIdFilter)).filter(
+    (error) => commandErrorMatches(error, { commandIds, traceIds }),
+  );
   const policy = mergeRetentionPolicy(deps.config.observability?.retention);
   const localState = await scanLocalStateUsage(deps.paths.stateDir, policy);
-  const logs =
+  const rawLogs =
     options?.includeLogs === false
       ? []
       : await readLogs(
           deps.paths.logPaths ?? [componentLogPath(deps.paths.stateDir, "observer")],
           options?.maxLogRecords ?? 500,
         );
+  const logs = prioritizeLogs(rawLogs, { commandIds, traceIds }, options?.maxLogRecords ?? 500);
   const hookSpool =
     deps.paths.hookSpoolDir === undefined
       ? undefined
@@ -203,6 +226,91 @@ export async function runDoctor(
 async function readLogs(paths: readonly string[], maxRecords: number): Promise<LogRecord[]> {
   const logs = await Promise.all(paths.map((path) => readJsonlLog(path, maxRecords)));
   return logs.flat().slice(-maxRecords);
+}
+
+function latestFailedCommand(commands: readonly PersistedCommand[]): PersistedCommand | undefined {
+  return [...commands].reverse().find((command) => command.status === "failed");
+}
+
+function filterCommands(
+  commands: readonly PersistedCommand[],
+  filter: { commandId?: string | undefined; traceId?: string | undefined },
+): PersistedCommand[] {
+  return commands.filter((command) => {
+    if (filter.commandId !== undefined && command.id !== filter.commandId) {
+      return false;
+    }
+    if (filter.traceId !== undefined && command.traceId !== filter.traceId) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function persistedEventMatches(
+  event: PersistedEvent,
+  filter: { commandIds: ReadonlySet<string>; traceIds: ReadonlySet<string> },
+): boolean {
+  if (filter.commandIds.size === 0 && filter.traceIds.size === 0) {
+    return true;
+  }
+  return (
+    (event.commandId !== undefined && filter.commandIds.has(event.commandId)) ||
+    (event.traceId !== undefined && filter.traceIds.has(event.traceId))
+  );
+}
+
+function commandErrorMatches(
+  error: PersistedCommandError,
+  filter: { commandIds: ReadonlySet<string>; traceIds: ReadonlySet<string> },
+): boolean {
+  if (filter.commandIds.size === 0 && filter.traceIds.size === 0) {
+    return true;
+  }
+  return (
+    filter.commandIds.has(error.commandId) ||
+    (error.envelope.traceId !== undefined && filter.traceIds.has(error.envelope.traceId))
+  );
+}
+
+function prioritizeLogs(
+  logs: readonly LogRecord[],
+  filter: { commandIds: ReadonlySet<string>; traceIds: ReadonlySet<string> },
+  maxRecords: number,
+): LogRecord[] {
+  if (filter.commandIds.size === 0 && filter.traceIds.size === 0) {
+    return logs.slice(-maxRecords);
+  }
+
+  const matching = logs.filter((log) => logMatches(log, filter));
+  if (matching.length >= maxRecords) {
+    return matching.slice(-maxRecords);
+  }
+  const contextLimit = Math.min(50, maxRecords - matching.length);
+  const context = logs.filter((log) => !logMatches(log, filter)).slice(-contextLimit);
+  return [...matching, ...context];
+}
+
+function logMatches(
+  log: LogRecord,
+  filter: { commandIds: ReadonlySet<string>; traceIds: ReadonlySet<string> },
+): boolean {
+  const attributeCommandId = stringAttribute(log.attributes, "commandId");
+  const attributeTraceId = stringAttribute(log.attributes, "traceId");
+  return (
+    (log.commandId !== undefined && filter.commandIds.has(log.commandId)) ||
+    (attributeCommandId !== undefined && filter.commandIds.has(attributeCommandId)) ||
+    (log.traceId !== undefined && filter.traceIds.has(log.traceId)) ||
+    (attributeTraceId !== undefined && filter.traceIds.has(attributeTraceId))
+  );
+}
+
+function stringAttribute(
+  attributes: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = attributes?.[key];
+  return typeof value === "string" ? value : undefined;
 }
 
 function commandRecord(command: PersistedCommand): CommandRecord {

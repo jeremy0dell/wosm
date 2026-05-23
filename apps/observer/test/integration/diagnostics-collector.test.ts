@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
@@ -72,6 +72,101 @@ describe("observer diagnostics collector", () => {
         available: true,
       },
     });
+    sqlite.close();
+  });
+
+  it("filters command-specific diagnostics and prioritizes matching logs", async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-diag-filter-"));
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({
+      path: join(stateDir, "observer.sqlite"),
+      clock,
+    });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const providers = new ProviderRegistry({
+      worktree: new ProviderDiagnosticWorktreeProvider({ now }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
+    const core = createObserverCore({
+      config,
+      providers,
+      persistence,
+      sqlite,
+      clock,
+    });
+    await persistence.recordCommandAccepted({
+      commandId: "cmd_match",
+      command: { type: "observer.reconcile", payload: { reason: "match" } },
+      createdAt: now,
+      traceId: "trc_match",
+      spanId: "spn_match",
+    });
+    await persistence.markCommandFailed({
+      commandId: "cmd_match",
+      safeError: {
+        tag: "WorktreeProviderError",
+        code: "WORKTRUNK_BRANCH_EXISTS",
+        message: "Branch exists.",
+        provider: "worktrunk",
+        commandId: "cmd_match",
+        traceId: "trc_match",
+      },
+      envelope: {
+        id: "err_match",
+        tag: "WorktreeProviderError",
+        code: "WORKTRUNK_BRANCH_EXISTS",
+        message: "Branch exists.",
+        severity: "error",
+        commandId: "cmd_match",
+        traceId: "trc_match",
+        spanId: "spn_match",
+        provider: "worktrunk",
+        redacted: true,
+        createdAt: now,
+      },
+      finishedAt: now,
+    });
+    const logPath = join(stateDir, "observer.jsonl");
+    await writeFile(
+      logPath,
+      `${[
+        JSON.stringify({
+          timestamp: now,
+          level: "error",
+          component: "observer",
+          message: "Command failed.",
+          attributes: { commandId: "cmd_other", traceId: "trc_other" },
+        }),
+        JSON.stringify({
+          timestamp: now,
+          level: "error",
+          component: "observer",
+          message: "Command failed.",
+          attributes: { commandId: "cmd_match", traceId: "trc_match" },
+        }),
+      ].join("\n")}\n`,
+    );
+
+    const snapshot = await collectDiagnosticSnapshot(
+      {
+        config,
+        core,
+        persistence,
+        providers,
+        paths: { stateDir, logPaths: [logPath] },
+        clock,
+      },
+      { commandId: "cmd_match" },
+    );
+
+    expect(snapshot.commands.map((command) => command.id)).toEqual(["cmd_match"]);
+    expect(snapshot.errors.map((error) => error.id)).toEqual(["err_match"]);
+    expect(snapshot.logs[0]?.attributes).toMatchObject({ commandId: "cmd_match" });
     sqlite.close();
   });
 });

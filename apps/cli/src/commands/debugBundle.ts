@@ -80,18 +80,33 @@ function parseDebugBundleOptions(args: string[]): DiagnosticCollectionOptions {
   const result: NonNullable<DiagnosticCollectionOptions> = {};
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--project" && args[index + 1] !== undefined) {
-      result.projectId = args[index + 1];
+    const next = args[index + 1];
+    if (arg === "--project" && next !== undefined) {
+      result.projectId = next;
       index += 1;
       continue;
     }
-    if (arg === "--command" && args[index + 1] !== undefined) {
-      result.commandId = args[index + 1];
+    if (arg === "--command" && next !== undefined) {
+      result.commandId = next;
       index += 1;
       continue;
     }
-    if (arg === "--since" && args[index + 1] !== undefined) {
-      result.since = args[index + 1];
+    if (arg === "--trace" && next !== undefined) {
+      result.traceId = next;
+      index += 1;
+      continue;
+    }
+    if (arg === "--latest-failure") {
+      result.latestFailure = true;
+      continue;
+    }
+    if (arg === "--last" && next !== undefined) {
+      result.since = sinceFromDuration(next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--since" && next !== undefined) {
+      result.since = next;
       index += 1;
       continue;
     }
@@ -100,6 +115,24 @@ function parseDebugBundleOptions(args: string[]): DiagnosticCollectionOptions {
     }
   }
   return Object.keys(result).length === 0 ? undefined : result;
+}
+
+function sinceFromDuration(input: string): string {
+  const match = input.match(/^(\d+)(s|m|h|d)$/);
+  if (match === null) {
+    throw new Error("Expected --last duration like 30m, 2h, or 1d.");
+  }
+  const amount = Number(match[1]);
+  const unit = match[2];
+  const unitMs =
+    unit === "s"
+      ? 1000
+      : unit === "m"
+        ? 60 * 1000
+        : unit === "h"
+          ? 60 * 60 * 1000
+          : 24 * 60 * 60 * 1000;
+  return new Date(Date.now() - amount * unitMs).toISOString();
 }
 
 function assertRunning(

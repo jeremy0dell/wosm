@@ -8,6 +8,7 @@ import {
   runInvalidConfigDoctor,
 } from "./commands/configDiagnostics.js";
 import { runDebugBundleCommand } from "./commands/debugBundle.js";
+import { runDebugTraceCommand } from "./commands/debugTrace.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runHookCommand } from "./commands/hook.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
@@ -92,6 +93,13 @@ export async function runCli(
       options.observerDeps,
     );
     return { code: 0, output: result };
+  }
+
+  if (command === "debug" && commandArgs[0] === "trace") {
+    const result = await runDebugTraceCommand(commandArgs.slice(1), {
+      config,
+    });
+    return { code: result.matched ? 0 : 1, output: result };
   }
 
   if (command === "hook") {
@@ -267,7 +275,7 @@ function parseGlobalOptions(argv: string[]): { args: string[]; configPath?: stri
 
 function commandRequiresConfig(command: string, args: string[]): boolean {
   if (command === "debug") {
-    return args[0] === "bundle";
+    return args[0] === "bundle" || args[0] === "trace";
   }
   return [
     "doctor",

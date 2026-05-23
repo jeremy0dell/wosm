@@ -29,6 +29,27 @@ export const SafeErrorSchema = z
 
 export type SafeError = z.infer<typeof SafeErrorSchema>;
 
+export const ExternalCommandDiagnosticDetailSchema = z
+  .object({
+    type: z.literal("external_command"),
+    provider: ProviderIdSchema.optional(),
+    operation: nonEmptyStringSchema,
+    command: nonEmptyStringSchema,
+    cwd: nonEmptyStringSchema.optional(),
+    exitCode: z.number().int().optional(),
+    signal: nonEmptyStringSchema.optional(),
+    stdoutSnippet: nonEmptyStringSchema.optional(),
+    stderrSnippet: nonEmptyStringSchema.optional(),
+    durationMs: z.number().nonnegative().optional(),
+  })
+  .strict();
+
+export type ExternalCommandDiagnosticDetail = z.infer<typeof ExternalCommandDiagnosticDetailSchema>;
+
+export const DiagnosticDetailSchema = ExternalCommandDiagnosticDetailSchema;
+
+export type DiagnosticDetail = z.infer<typeof DiagnosticDetailSchema>;
+
 export const ErrorEnvelopeSchema = z
   .object({
     id: nonEmptyStringSchema,
@@ -46,6 +67,7 @@ export const ErrorEnvelopeSchema = z
     cause: z.unknown().optional(),
     stack: z.string().optional(),
     raw: z.unknown().optional(),
+    diagnostics: z.array(DiagnosticDetailSchema).optional(),
     redacted: z.boolean(),
     createdAt: TimestampSchema,
   })
