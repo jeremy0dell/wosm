@@ -22,7 +22,7 @@ describe("CodexHarnessProvider", () => {
       canResume: false,
       canStop: false,
       canRunNonInteractive: true,
-      canExposeApprovalState: false,
+      canExposeApprovalState: true,
     });
   });
 

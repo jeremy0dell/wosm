@@ -23,38 +23,47 @@ const commonFields = {
   permission_mode: permissionModeSchema,
 };
 
+const optionalSubagentFields = {
+  agent_id: nonEmptyStringSchema.optional(),
+  agent_type: nonEmptyStringSchema.optional(),
+};
+
+const turnFields = {
+  ...commonFields,
+  turn_id: nonEmptyStringSchema,
+  ...optionalSubagentFields,
+};
+
 const SessionStartEventSchema = z
   .object({
     ...commonFields,
     hook_event_name: z.literal("SessionStart"),
-    source: z.enum(["startup", "resume", "clear"]),
+    source: z.enum(["startup", "resume", "clear", "compact"]),
   })
   .strict();
 
 const UserPromptSubmitEventSchema = z
   .object({
-    ...commonFields,
+    ...turnFields,
     hook_event_name: z.literal("UserPromptSubmit"),
-    turn_id: nonEmptyStringSchema,
     prompt: nonEmptyStringSchema,
   })
   .strict();
 
 const PreToolUseEventSchema = z
   .object({
-    ...commonFields,
+    ...turnFields,
     hook_event_name: z.literal("PreToolUse"),
-    turn_id: nonEmptyStringSchema,
     tool_name: nonEmptyStringSchema,
     tool_input: z.unknown(),
+    tool_use_id: nonEmptyStringSchema,
   })
   .strict();
 
 const PermissionRequestEventSchema = z
   .object({
-    ...commonFields,
+    ...turnFields,
     hook_event_name: z.literal("PermissionRequest"),
-    turn_id: nonEmptyStringSchema,
     tool_name: nonEmptyStringSchema,
     tool_input: z.unknown(),
   })
@@ -62,13 +71,51 @@ const PermissionRequestEventSchema = z
 
 const PostToolUseEventSchema = z
   .object({
-    ...commonFields,
+    ...turnFields,
     hook_event_name: z.literal("PostToolUse"),
-    turn_id: nonEmptyStringSchema,
     tool_name: nonEmptyStringSchema,
     tool_use_id: nonEmptyStringSchema,
     tool_input: z.unknown(),
     tool_response: z.unknown(),
+  })
+  .strict();
+
+const PreCompactEventSchema = z
+  .object({
+    ...turnFields,
+    hook_event_name: z.literal("PreCompact"),
+    trigger: z.enum(["manual", "auto"]),
+  })
+  .strict();
+
+const PostCompactEventSchema = z
+  .object({
+    ...turnFields,
+    hook_event_name: z.literal("PostCompact"),
+    trigger: z.enum(["manual", "auto"]),
+  })
+  .strict();
+
+const SubagentStartEventSchema = z
+  .object({
+    ...commonFields,
+    hook_event_name: z.literal("SubagentStart"),
+    turn_id: nonEmptyStringSchema,
+    agent_id: nonEmptyStringSchema,
+    agent_type: nonEmptyStringSchema,
+  })
+  .strict();
+
+const SubagentStopEventSchema = z
+  .object({
+    ...commonFields,
+    hook_event_name: z.literal("SubagentStop"),
+    turn_id: nonEmptyStringSchema,
+    agent_transcript_path: nullableStringSchema,
+    agent_id: nonEmptyStringSchema,
+    agent_type: nonEmptyStringSchema,
+    stop_hook_active: z.boolean(),
+    last_assistant_message: nullableStringSchema,
   })
   .strict();
 
@@ -88,6 +135,10 @@ export const CodexHookEventSchema = z.discriminatedUnion("hook_event_name", [
   PreToolUseEventSchema,
   PermissionRequestEventSchema,
   PostToolUseEventSchema,
+  PreCompactEventSchema,
+  PostCompactEventSchema,
+  SubagentStartEventSchema,
+  SubagentStopEventSchema,
   StopEventSchema,
 ]);
 
@@ -162,11 +213,47 @@ export function statusFromCodexHookEvent(
       updatedAt: observedAt,
     };
   }
+  if (event.hook_event_name === "SubagentStop") {
+    return {
+      value: "working",
+      confidence: "medium",
+      reason: `Codex subagent ${event.agent_type} stopped.`,
+      source: "harness_hook",
+      updatedAt: observedAt,
+    };
+  }
   if (event.hook_event_name === "PostToolUse") {
     return {
       value: "working",
       confidence: "medium",
       reason: `Codex completed ${event.tool_name}.`,
+      source: "harness_hook",
+      updatedAt: observedAt,
+    };
+  }
+  if (event.hook_event_name === "PreCompact") {
+    return {
+      value: "working",
+      confidence: "medium",
+      reason: `Codex is about to compact the conversation (${event.trigger}).`,
+      source: "harness_hook",
+      updatedAt: observedAt,
+    };
+  }
+  if (event.hook_event_name === "PostCompact") {
+    return {
+      value: "working",
+      confidence: "medium",
+      reason: `Codex compacted the conversation (${event.trigger}).`,
+      source: "harness_hook",
+      updatedAt: observedAt,
+    };
+  }
+  if (event.hook_event_name === "SubagentStart") {
+    return {
+      value: "working",
+      confidence: "medium",
+      reason: `Codex started subagent ${event.agent_type}.`,
       source: "harness_hook",
       updatedAt: observedAt,
     };
@@ -210,6 +297,18 @@ function providerDataFromCodexEvent(event: CodexHookEvent): Record<string, unkno
   }
   if ("tool_use_id" in event) {
     providerData.toolUseId = event.tool_use_id;
+  }
+  if ("agent_id" in event && event.agent_id !== undefined) {
+    providerData.agentId = event.agent_id;
+  }
+  if ("agent_type" in event && event.agent_type !== undefined) {
+    providerData.agentType = event.agent_type;
+  }
+  if ("agent_transcript_path" in event) {
+    providerData.agentTranscriptPath = event.agent_transcript_path;
+  }
+  if ("trigger" in event) {
+    providerData.trigger = event.trigger;
   }
   return providerData;
 }

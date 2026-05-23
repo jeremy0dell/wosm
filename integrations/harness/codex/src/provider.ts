@@ -47,7 +47,7 @@ const capabilities: HarnessCapabilities = {
   canResume: false,
   canStop: false,
   canRunNonInteractive: true,
-  canExposeApprovalState: false,
+  canExposeApprovalState: true,
 };
 
 export class CodexHarnessProvider implements HarnessProvider {

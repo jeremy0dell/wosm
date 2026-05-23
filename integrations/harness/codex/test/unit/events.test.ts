@@ -82,6 +82,80 @@ describe("Codex hook event parsing", () => {
     expect(JSON.stringify(observations[0]?.providerData)).not.toContain("rm -rf");
   });
 
+  it("accepts current Codex lifecycle hook input shapes", () => {
+    const common = {
+      session_id: "codex_session_123",
+      transcript_path: null,
+      cwd: "/tmp/wosm/web/task",
+      model: "gpt-5.5",
+      permission_mode: "default",
+    };
+    const turn = {
+      ...common,
+      turn_id: "turn_1",
+    };
+
+    const payloads = [
+      {
+        ...common,
+        hook_event_name: "SessionStart",
+        source: "compact",
+      },
+      {
+        ...turn,
+        hook_event_name: "PreToolUse",
+        tool_name: "Bash",
+        tool_input: { command: "pnpm test:all" },
+        tool_use_id: "call_test",
+      },
+      {
+        ...turn,
+        hook_event_name: "PostToolUse",
+        tool_name: "Bash",
+        tool_input: { command: "pwd" },
+        tool_response: "/tmp/wosm/web/task\n",
+        tool_use_id: "call_test",
+      },
+      {
+        ...turn,
+        hook_event_name: "PreCompact",
+        trigger: "manual",
+        agent_id: "agent_1",
+        agent_type: "reviewer",
+      },
+      {
+        ...turn,
+        hook_event_name: "PostCompact",
+        trigger: "auto",
+      },
+      {
+        ...turn,
+        hook_event_name: "SubagentStart",
+        agent_id: "agent_1",
+        agent_type: "reviewer",
+      },
+      {
+        ...turn,
+        hook_event_name: "SubagentStop",
+        agent_transcript_path: null,
+        agent_id: "agent_1",
+        agent_type: "reviewer",
+        stop_hook_active: false,
+        last_assistant_message: "Reviewed.",
+      },
+    ];
+
+    expect(payloads.map((payload) => parseCodexHookEvent(payload).hook_event_name)).toEqual([
+      "SessionStart",
+      "PreToolUse",
+      "PostToolUse",
+      "PreCompact",
+      "PostCompact",
+      "SubagentStart",
+      "SubagentStop",
+    ]);
+  });
+
   it("keeps Stop as unknown low confidence instead of inventing idle", () => {
     const observations = normalizeCodexRawEvent(
       {

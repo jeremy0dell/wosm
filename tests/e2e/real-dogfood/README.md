@@ -55,4 +55,4 @@ On lifecycle failures, tests attempt to write `wosm debug bundle` under the test
 
 Real Codex can be slow or model-dependent. The prompts are bounded and target only sentinel files under `.wosm-dogfood/sentinels/` in the temp clone.
 
-The Codex hook lane also writes raw hook payloads and hook delivery output into the test temp root. Use those alongside `events.jsonl` to confirm that `SessionStart` and `PostToolUse` came from the real Codex process and were ingested as `hook.ingested` events for provider `codex`.
+The Codex hook lane also writes raw hook payloads and hook delivery output into the test temp root. Use those alongside `events.jsonl` to confirm that Codex lifecycle hooks such as `SessionStart`, tool-use events, compaction events, subagent events, and `Stop` came from the real Codex process and were ingested as `hook.ingested` events for provider `codex`.

@@ -204,11 +204,15 @@ function codexHookInlineToml(command: string): string {
 
 function codexHookConfigArgs(command: string): string[] {
   return [
-    hookConfigToml("SessionStart", command, "startup|resume|clear"),
+    hookConfigToml("SessionStart", command, "startup|resume|clear|compact"),
     hookConfigToml("UserPromptSubmit", command),
     hookConfigToml("PreToolUse", command, ".*"),
     hookConfigToml("PermissionRequest", command, ".*"),
     hookConfigToml("PostToolUse", command, ".*"),
+    hookConfigToml("PreCompact", command, "manual|auto"),
+    hookConfigToml("PostCompact", command, "manual|auto"),
+    hookConfigToml("SubagentStart", command, ".*"),
+    hookConfigToml("SubagentStop", command, ".*"),
     hookConfigToml("Stop", command),
   ];
 }
