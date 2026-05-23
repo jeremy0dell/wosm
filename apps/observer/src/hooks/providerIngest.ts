@@ -6,9 +6,11 @@ import type {
   TerminalTargetObservation,
   WorktreeObservation,
 } from "@wosm/contracts";
+import { TerminalTargetObservationSchema, WorktreeObservationSchema } from "@wosm/contracts";
 import { type RuntimeClock, runRuntimeBoundaryWithTimeout, systemClock } from "@wosm/runtime";
 import type {
   ObserverPersistence,
+  PersistedProviderObservation,
   ProviderObservationKind,
   ProviderObservationType,
 } from "../persistence/index.js";
@@ -132,14 +134,49 @@ async function ingestHarnessHook(
   if (provider?.ingestEvent === undefined) {
     return [];
   }
-  const observations = await provider.ingestEvent(rawEvent(options.event), {
-    projects: options.projects,
-    worktrees: [],
-    terminalTargets: [],
-  });
+  const context = await harnessEventContext(options);
+  const observations = await provider.ingestEvent(rawEvent(options.event), context);
   return observations.map((observation) =>
     harnessEventObservationRecord(options.event, observation),
   );
+}
+
+async function harnessEventContext(options: IngestProviderHookEventOptions): Promise<{
+  projects: ProviderProjectConfig[];
+  worktrees: WorktreeObservation[];
+  terminalTargets: TerminalTargetObservation[];
+}> {
+  const persisted = await options.persistence.listProviderObservations({
+    now: options.event.receivedAt,
+  });
+  return {
+    projects: options.projects,
+    worktrees: latestObservationPayloads(persisted, "worktree", WorktreeObservationSchema),
+    terminalTargets: latestObservationPayloads(
+      persisted,
+      "terminal_target",
+      TerminalTargetObservationSchema,
+    ),
+  };
+}
+
+function latestObservationPayloads<T>(
+  observations: PersistedProviderObservation[],
+  kind: ProviderObservationKind,
+  schema: { safeParse(input: unknown): { success: true; data: T } | { success: false } },
+): T[] {
+  const latest = new Map<string, T>();
+  for (const observation of observations) {
+    if (observation.entityKind !== kind) {
+      continue;
+    }
+    const result = schema.safeParse(observation.payload);
+    if (!result.success) {
+      continue;
+    }
+    latest.set(observation.entityKey, result.data);
+  }
+  return [...latest.values()];
 }
 
 function rawEvent(event: ProviderHookEvent): {

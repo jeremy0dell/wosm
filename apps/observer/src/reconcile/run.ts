@@ -1,5 +1,6 @@
 import type {
   HarnessCapabilities,
+  HarnessEventObservation,
   HarnessProvider,
   HarnessRunObservation,
   HarnessStatusObservation,
@@ -11,6 +12,7 @@ import type {
   WorktreeObservation,
   WosmSnapshot,
 } from "@wosm/contracts";
+import { HarnessEventObservationSchema } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import {
   durationMs,
@@ -102,6 +104,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     read: input.read,
     providerHealth,
     errors,
+    ...(input.persistence === undefined ? {} : { persistence: input.persistence }),
   });
 
   const finishedAt = toIsoTimestamp(input.read.clock.now());
@@ -291,12 +294,15 @@ async function readHarnessObservations(input: {
   read: ProviderReadOptions;
   providerHealth: Record<string, ProviderHealth>;
   errors: SafeError[];
+  persistence?: ObserverPersistence;
 }): Promise<{
   harnessRuns: HarnessRunObservation[];
   harnessCapabilities: Record<string, HarnessCapabilities>;
 }> {
   const harnessRuns: HarnessRunObservation[] = [];
   const harnessCapabilities: Record<string, HarnessCapabilities> = {};
+  const hookEvents =
+    input.persistence === undefined ? [] : await latestHarnessEventObservations(input.persistence);
 
   for (const provider of input.providers.harnesses.values()) {
     const capabilities = provider.capabilities();
@@ -345,7 +351,7 @@ async function readHarnessObservations(input: {
         providerHealth: input.providerHealth,
         errors: input.errors,
       });
-      harnessRuns.push(...classifiedRuns);
+      harnessRuns.push(...runsWithLatestHarnessEvents(classifiedRuns, hookEvents));
       continue;
     }
 
@@ -366,6 +372,124 @@ async function readHarnessObservations(input: {
   }
 
   return { harnessRuns, harnessCapabilities };
+}
+
+async function latestHarnessEventObservations(
+  persistence: ObserverPersistence,
+): Promise<HarnessEventObservation[]> {
+  const observations = await persistence.listProviderObservations();
+  const events: HarnessEventObservation[] = [];
+  for (const observation of observations) {
+    if (observation.entityKind !== "harness_event") {
+      continue;
+    }
+    const result = HarnessEventObservationSchema.safeParse(observation.payload);
+    if (!result.success || result.data.status === undefined) {
+      continue;
+    }
+    events.push(result.data);
+  }
+  return events;
+}
+
+function runsWithLatestHarnessEvents(
+  runs: HarnessRunObservation[],
+  events: HarnessEventObservation[],
+): HarnessRunObservation[] {
+  return runs.map((run) => {
+    const event = latestEventForRun(run, events);
+    return event === undefined ? run : runWithHarnessEvent(run, event);
+  });
+}
+
+function latestEventForRun(
+  run: HarnessRunObservation,
+  events: HarnessEventObservation[],
+): HarnessEventObservation | undefined {
+  let latest: HarnessEventObservation | undefined;
+  for (const event of events) {
+    if (!eventMatchesRun(event, run)) {
+      continue;
+    }
+    if (latest === undefined || Date.parse(event.observedAt) >= Date.parse(latest.observedAt)) {
+      latest = event;
+    }
+  }
+  return latest;
+}
+
+function eventMatchesRun(event: HarnessEventObservation, run: HarnessRunObservation): boolean {
+  if (event.provider !== run.provider) {
+    return false;
+  }
+  if (event.harnessRunId !== undefined && event.harnessRunId === run.id) {
+    return true;
+  }
+  if (
+    event.sessionId !== undefined &&
+    run.sessionId !== undefined &&
+    event.sessionId === run.sessionId
+  ) {
+    return true;
+  }
+  if (
+    event.worktreeId !== undefined &&
+    run.worktreeId !== undefined &&
+    event.worktreeId === run.worktreeId
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function runWithHarnessEvent(
+  run: HarnessRunObservation,
+  event: HarnessEventObservation,
+): HarnessRunObservation {
+  const status = event.status;
+  if (status === undefined) {
+    return run;
+  }
+
+  const updated: HarnessRunObservation = {
+    ...run,
+    state: status.value,
+    confidence: status.confidence,
+    reason: status.reason,
+    observedAt: status.updatedAt,
+    providerData: providerDataWithLatestEvent(run.providerData, event),
+  };
+  if (event.worktreeId !== undefined) {
+    updated.worktreeId = event.worktreeId;
+  }
+  if (event.sessionId !== undefined) {
+    updated.sessionId = event.sessionId;
+  }
+  return updated;
+}
+
+function providerDataWithLatestEvent(
+  existing: unknown,
+  event: HarnessEventObservation,
+): Record<string, unknown> {
+  const providerData: Record<string, unknown> =
+    typeof existing === "object" && existing !== null && !Array.isArray(existing)
+      ? { ...(existing as Record<string, unknown>) }
+      : {};
+  const latestEvent: Record<string, unknown> = {
+    observedAt: event.observedAt,
+  };
+  if (event.rawEventType !== undefined) {
+    latestEvent.rawEventType = event.rawEventType;
+  }
+  if (event.status !== undefined) {
+    latestEvent.status = event.status;
+  }
+  if (event.providerData !== undefined) {
+    latestEvent.providerData = event.providerData;
+  }
+  providerData.latestEvent = latestEvent;
+  return providerData;
 }
 
 async function classifyHarnessRuns(input: {

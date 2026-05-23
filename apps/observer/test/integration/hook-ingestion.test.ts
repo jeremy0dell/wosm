@@ -2,6 +2,8 @@ import type { WosmConfig } from "@wosm/config";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
   createFakeHarnessRun,
+  createFakeTerminalTarget,
+  createFakeWorktree,
   FakeHarnessProvider,
   FakeTerminalProvider,
   FakeWorktreeProvider,
@@ -191,6 +193,83 @@ describe("observer hook ingestion", () => {
     );
     sqlite.close();
   });
+
+  it("passes persisted worktree and terminal context to harness hook ingest", async () => {
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({ clock });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const eventBus = createObserverEventBus();
+    const worktree = createFakeWorktree({
+      id: "wt_web_feature_auth",
+      projectId: "web",
+      branch: "feature/auth",
+      path: "/tmp/wosm/web/feature-auth",
+      now,
+    });
+    const terminal = createFakeTerminalTarget({
+      id: "term_web_feature_auth",
+      projectId: "web",
+      worktreeId: "wt_web_feature_auth",
+      sessionId: "ses_web_feature_auth",
+      harnessRunId: "run_hook_1",
+      now,
+      providerData: {
+        harness: "fake-harness",
+        role: "main-agent",
+      },
+    });
+    await persistence.persistReconcileResult({
+      projects: providerProjects,
+      worktrees: [worktree],
+      terminalTargets: [terminal],
+      harnessRuns: [],
+      observedAt: now,
+    });
+
+    const harness = new ContextRecordingHarnessProvider({ now });
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({ now }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [harness],
+    });
+    const core = createObserverCore({
+      config: projectConfig,
+      providers,
+      persistence,
+      sqlite,
+      clock,
+    });
+    const api = createObserverApi({
+      core,
+      providers,
+      persistence,
+      commandQueue: createCommandQueue({ persistence, clock, idFactory: ids(), eventBus }),
+      eventBus,
+      clock,
+      config: projectConfig,
+    });
+
+    await api.ingestHookEvent({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      hookId: "hook_context_1",
+      provider: "fake-harness",
+      kind: "harness",
+      event: "run.updated",
+      receivedAt: now,
+      payload: { state: "needs_attention" },
+    });
+
+    expect(harness.lastContext).toMatchObject({
+      projects: [{ id: "web" }],
+      worktrees: [{ id: "wt_web_feature_auth" }],
+      terminalTargets: [{ id: "term_web_feature_auth" }],
+    });
+    sqlite.close();
+  });
 });
 
 const config: WosmConfig = {
@@ -202,6 +281,27 @@ const config: WosmConfig = {
     layout: "agent-shell",
   },
   projects: [],
+};
+
+const providerProjects = [
+  {
+    id: "web",
+    label: "web",
+    root: "/tmp/wosm/web",
+    defaults: {
+      harness: "fake-harness",
+      terminal: "fake-terminal",
+      layout: "agent-shell",
+    },
+    worktrunk: {
+      enabled: true,
+    },
+  },
+];
+
+const projectConfig: WosmConfig = {
+  ...config,
+  projects: providerProjects,
 };
 
 function ids() {
@@ -254,5 +354,17 @@ class RecordingHarnessProvider extends FakeHarnessProvider {
         observedAt: now,
       },
     ];
+  }
+}
+
+class ContextRecordingHarnessProvider extends FakeHarnessProvider {
+  lastContext: Parameters<NonNullable<FakeHarnessProvider["ingestEvent"]>>[1] | undefined;
+
+  override async ingestEvent(
+    event: Parameters<NonNullable<FakeHarnessProvider["ingestEvent"]>>[0],
+    context: Parameters<NonNullable<FakeHarnessProvider["ingestEvent"]>>[1],
+  ) {
+    this.lastContext = context;
+    return super.ingestEvent(event, context);
   }
 }

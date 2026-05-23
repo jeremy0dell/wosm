@@ -191,4 +191,56 @@ describe("observer reconcile persistence", () => {
     expect(snapshot.rows).toEqual([]);
     sqlite.close();
   });
+
+  it("applies the latest correlated harness hook observation to discovered runs", async () => {
+    const dbPath = await tempDbPath();
+    const sqlite = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    await persistence.recordProviderObservation({
+      provider: "fake-harness",
+      providerType: "harness",
+      entityKind: "harness_event",
+      entityKey: "run_web_main",
+      observedAt: "2026-05-20T12:00:01.000Z",
+      payload: {
+        provider: "fake-harness",
+        harnessRunId: "run_web_main",
+        worktreeId: "wt_web_main",
+        sessionId: "ses_web_main",
+        rawEventType: "PermissionRequest",
+        status: {
+          value: "needs_attention",
+          confidence: "high",
+          reason: "Codex requested permission for Bash.",
+          source: "harness_hook",
+          updatedAt: "2026-05-20T12:00:01.000Z",
+        },
+        observedAt: "2026-05-20T12:00:01.000Z",
+      },
+    });
+    const core = createObserverCore({
+      config,
+      providers: providersWithOneSession(),
+      persistence,
+      sqlite,
+      clock: { now: () => new Date(now) },
+    });
+
+    const snapshot = await core.reconcile("hook-overlay");
+
+    expect(snapshot.rows[0]?.agent).toMatchObject({
+      state: "needs_attention",
+      confidence: "high",
+      reason: "Codex requested permission for Bash.",
+    });
+    expect(snapshot.projects[0]?.counts).toMatchObject({
+      attention: 1,
+      unknown: 0,
+    });
+    sqlite.close();
+  });
 });
