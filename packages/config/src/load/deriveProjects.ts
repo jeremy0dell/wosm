@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { z } from "zod";
 import { ConfigDefaultsSchema, ProjectDefaultsSchema } from "../schema.js";
 import type { MutableRecord } from "./common.js";
@@ -39,13 +40,14 @@ export function deriveProjectConfig(
   const worktree = isRecord(normalizedConfig.worktree)
     ? expandWorktreePaths(normalizedConfig.worktree, options)
     : normalizedConfig.worktree;
+  const globalWorktrunkManagedRoot = globalManagedRoot(worktree);
 
   return {
     ...normalizedConfig,
     observer,
     worktree,
     projects: rawProjects.map((project) =>
-      deriveSingleProject(project, defaultsResult.data, options),
+      deriveSingleProject(project, defaultsResult.data, globalWorktrunkManagedRoot, options),
     ),
   };
 }
@@ -53,6 +55,7 @@ export function deriveProjectConfig(
 function deriveSingleProject(
   rawProject: unknown,
   globalDefaults: z.infer<typeof ConfigDefaultsSchema>,
+  globalWorktrunkManagedRoot: string | undefined,
   options: DeriveProjectOptions,
 ): unknown {
   if (!isRecord(rawProject)) {
@@ -67,21 +70,62 @@ function deriveSingleProject(
     throw validationError(options.configPath, projectDefaultsResult.error, projectId);
   }
 
-  const derivedProject: MutableRecord = {
-    ...rawProject,
-    defaults: {
-      harness: projectDefaultsResult.data.harness ?? globalDefaults.harness,
-      terminal: projectDefaultsResult.data.terminal ?? globalDefaults.terminal,
-      layout: projectDefaultsResult.data.layout ?? globalDefaults.layout,
-    },
-    worktrunk: rawProject.worktrunk ?? { enabled: true },
-  };
+  const resolvedRoot =
+    typeof rawProject.root === "string"
+      ? resolveConfigPath(rawProject.root, options.homeDir, options.configDir)
+      : undefined;
 
-  if (typeof rawProject.root === "string") {
-    derivedProject.root = resolveConfigPath(rawProject.root, options.homeDir, options.configDir);
+  const derivedProject: MutableRecord = { ...rawProject };
+  derivedProject.defaults = {
+    harness: projectDefaultsResult.data.harness ?? globalDefaults.harness,
+    terminal: projectDefaultsResult.data.terminal ?? globalDefaults.terminal,
+    layout: projectDefaultsResult.data.layout ?? globalDefaults.layout,
+  };
+  derivedProject.worktrunk = deriveProjectWorktrunk(
+    rawProject.worktrunk,
+    resolvedRoot,
+    projectId,
+    globalWorktrunkManagedRoot,
+    options,
+  );
+
+  if (resolvedRoot !== undefined) {
+    derivedProject.root = resolvedRoot;
   }
 
   return derivedProject;
+}
+
+function deriveProjectWorktrunk(
+  rawWorktrunk: unknown,
+  projectRoot: string | undefined,
+  projectId: string | undefined,
+  globalWorktrunkManagedRoot: string | undefined,
+  options: DeriveProjectOptions,
+): unknown {
+  if (rawWorktrunk !== undefined && !isRecord(rawWorktrunk)) {
+    return rawWorktrunk;
+  }
+
+  const worktrunk: MutableRecord =
+    rawWorktrunk === undefined ? { enabled: true } : { ...rawWorktrunk };
+
+  if (typeof worktrunk.managedRoot === "string") {
+    if (projectRoot !== undefined) {
+      worktrunk.managedRoot = resolveConfigPath(
+        worktrunk.managedRoot,
+        options.homeDir,
+        projectRoot,
+      );
+    }
+    return worktrunk;
+  }
+
+  if (globalWorktrunkManagedRoot !== undefined && projectId !== undefined) {
+    worktrunk.managedRoot = join(globalWorktrunkManagedRoot, projectManagedRootSegment(projectId));
+  }
+
+  return worktrunk;
 }
 
 function expandObserverPaths(
@@ -127,12 +171,37 @@ function expandWorktrunkPaths(
   worktrunk: MutableRecord,
   options: { configDir: string; homeDir: string },
 ): MutableRecord {
-  if (typeof worktrunk.configPath !== "string") {
-    return worktrunk;
+  const expandedWorktrunk = { ...worktrunk };
+
+  if (typeof worktrunk.configPath === "string") {
+    expandedWorktrunk.configPath = resolveConfigPath(
+      worktrunk.configPath,
+      options.homeDir,
+      options.configDir,
+    );
   }
 
-  return {
-    ...worktrunk,
-    configPath: resolveConfigPath(worktrunk.configPath, options.homeDir, options.configDir),
-  };
+  if (typeof worktrunk.managedRoot === "string") {
+    expandedWorktrunk.managedRoot = resolveConfigPath(
+      worktrunk.managedRoot,
+      options.homeDir,
+      options.configDir,
+    );
+  }
+
+  return expandedWorktrunk;
+}
+
+function globalManagedRoot(worktree: unknown): string | undefined {
+  if (!isRecord(worktree) || !isRecord(worktree.worktrunk)) {
+    return undefined;
+  }
+
+  return typeof worktree.worktrunk.managedRoot === "string"
+    ? worktree.worktrunk.managedRoot
+    : undefined;
+}
+
+function projectManagedRootSegment(projectId: string): string {
+  return projectId.replaceAll(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "project";
 }

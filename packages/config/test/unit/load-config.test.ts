@@ -147,9 +147,126 @@ include_external = false
     expect(loaded.config.projects[0]?.worktrunk).toEqual({
       enabled: true,
       base: "main",
-      managedRoot: ".worktrees",
+      managedRoot: join(root, ".worktrees"),
       includeMain: false,
       includeExternal: false,
+    });
+  });
+
+  it("derives project Worktrunk roots from a global managed root", async () => {
+    const tempDir = await makeTempDir();
+    const webRoot = await makeProjectRoot(tempDir, "web");
+    const apiRoot = await makeProjectRoot(tempDir, "api-service");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[worktree.worktrunk]
+managed_root = "~/.worktrees"
+
+${projectToml("web", webRoot, {
+  worktrunk: `
+include_main = false
+include_external = false
+`,
+})}
+${projectToml("api/service", apiRoot)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.worktree?.worktrunk?.managedRoot).toBe(join(tempDir, ".worktrees"));
+    expect(loaded.config.projects.find((project) => project.id === "web")?.worktrunk).toEqual({
+      enabled: true,
+      base: "main",
+      managedRoot: join(tempDir, ".worktrees", "web"),
+      includeMain: false,
+      includeExternal: false,
+    });
+    expect(
+      loaded.config.projects.find((project) => project.id === "api/service")?.worktrunk.managedRoot,
+    ).toBe(join(tempDir, ".worktrees", "api_service"));
+  });
+
+  it("lets project Worktrunk roots override the global managed root", async () => {
+    const tempDir = await makeTempDir();
+    const webRoot = await makeProjectRoot(tempDir, "web");
+    const apiRoot = await makeProjectRoot(tempDir, "api");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[worktree.worktrunk]
+managed_root = "~/.worktrees"
+
+${projectToml("web", webRoot, {
+  worktrunk: `
+managed_root = "~/custom-web"
+`,
+})}
+${projectToml("api", apiRoot, {
+  worktrunk: `
+managed_root = "/var/tmp/wosm-api"
+`,
+})}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.projects.find((project) => project.id === "web")?.worktrunk).toEqual({
+      enabled: true,
+      base: "main",
+      managedRoot: join(tempDir, "custom-web"),
+    });
+    expect(loaded.config.projects.find((project) => project.id === "api")?.worktrunk).toEqual({
+      enabled: true,
+      base: "main",
+      managedRoot: "/var/tmp/wosm-api",
+    });
+  });
+
+  it("rejects duplicate effective Worktrunk managed roots", async () => {
+    const tempDir = await makeTempDir();
+    const apiSlashRoot = await makeProjectRoot(tempDir, "api-slash");
+    const apiUnderscoreRoot = await makeProjectRoot(tempDir, "api-underscore");
+
+    await expect(
+      loadConfigFromToml(
+        `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[worktree.worktrunk]
+managed_root = "~/.worktrees"
+
+${projectToml("api/service", apiSlashRoot)}
+${projectToml("api_service", apiUnderscoreRoot)}
+`,
+        { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+      ),
+    ).rejects.toMatchObject({
+      tag: "ConfigError",
+      code: "CONFIG_DUPLICATE_WORKTREE_MANAGED_ROOT",
+      projectId: "api_service",
     });
   });
 

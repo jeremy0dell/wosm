@@ -16,6 +16,7 @@ layout = "agent-shell"
 
 [worktree.worktrunk]
 command = "wt"
+managed_root = "~/.worktrees"
 use_lifecycle_hooks = true
 hook_mode = "required-for-mvp"
 breadcrumb_location = "external"
@@ -33,7 +34,6 @@ popup_position = "C"
 [harness.codex]
 enabled = true
 command = "codex"
-profile = "default"
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 install_hooks = true
@@ -52,7 +52,6 @@ layout = "agent-shell"
 [projects.worktrunk]
 enabled = true
 base = "main"
-managed_root = ".worktrees"
 include_main = false
 include_external = false
 

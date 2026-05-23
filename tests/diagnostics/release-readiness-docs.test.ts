@@ -46,8 +46,9 @@ describe("Phase 18 release readiness docs", () => {
     expect(systemDependencies).toContain("tmux");
     expect(systemDependencies).toContain("pnpm setup:system:check");
     expect(testsReadme).toContain("release-hardening-smoke");
-    expect(dogfoodConfig).toContain('managed_root = ".worktrees"');
+    expect(dogfoodConfig).toContain('managed_root = "~/.worktrees"');
     expect(dogfoodConfig).toContain("include_external = false");
+    expect(dogfoodConfig).not.toContain('profile = "default"');
   });
 });
 

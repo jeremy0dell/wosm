@@ -111,6 +111,7 @@ export const WorktreeWorktrunkConfigSchema = z
   .object({
     command: nonEmptyStringSchema.optional(),
     configPath: nonEmptyStringSchema.optional(),
+    managedRoot: nonEmptyStringSchema.optional(),
     useLifecycleHooks: z.boolean().optional(),
     hookMode: z.enum(["required-for-mvp", "disabled"]).optional(),
     breadcrumbLocation: z.enum(["external", "worktree", "provider-native", "disabled"]).optional(),

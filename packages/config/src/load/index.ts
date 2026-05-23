@@ -13,7 +13,11 @@ import {
   normalizeConfigPath,
   resolveProjectLocalConfigPath,
 } from "./paths.js";
-import { validateProjectIdentifiers, validateProjectRoots } from "./validate.js";
+import {
+  validateProjectIdentifiers,
+  validateProjectRoots,
+  validateUniqueWorktreeManagedRoots,
+} from "./validate.js";
 
 export type {
   ConfigDiagnostic,
@@ -74,6 +78,7 @@ export async function loadConfigFromToml(
   const parsedConfig = parseWosmConfig(derivedConfig, configPath);
 
   validateProjectIdentifiers(parsedConfig.projects, configPath);
+  validateUniqueWorktreeManagedRoots(parsedConfig.projects, configPath);
   await validateProjectRoots(parsedConfig.projects, configPath);
 
   const configWithResolvedLocalPaths = {

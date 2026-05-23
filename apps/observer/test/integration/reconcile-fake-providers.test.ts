@@ -197,6 +197,49 @@ describe("observer reconcile with fake providers", () => {
     expect(health.lastReconcile?.durationMs).toBeGreaterThanOrEqual(0);
   });
 
+  it("keeps same-branch home-level worktrees separated by configured project", async () => {
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: "wt_web_feature",
+            projectId: "web",
+            branch: "feature",
+            path: "/tmp/home/.worktrees/web/feature",
+            now,
+          }),
+          createFakeWorktree({
+            id: "wt_api_feature",
+            projectId: "api",
+            branch: "feature",
+            path: "/tmp/home/.worktrees/api/feature",
+            now,
+          }),
+        ],
+      }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
+
+    const core = createObserverCore({
+      config,
+      providers,
+      clock: {
+        now: () => new Date(now),
+      },
+    });
+
+    const snapshot = await core.reconcile("home-level-worktrees");
+
+    expect(snapshot.projects.find((project) => project.id === "web")?.counts.worktrees).toBe(1);
+    expect(snapshot.projects.find((project) => project.id === "api")?.counts.worktrees).toBe(1);
+    expect(snapshot.rows.map((row) => [row.projectId, row.branch, row.path])).toEqual([
+      ["web", "feature", "/tmp/home/.worktrees/web/feature"],
+      ["api", "feature", "/tmp/home/.worktrees/api/feature"],
+    ]);
+  });
+
   it("maps provider failures into health and keeps a valid snapshot", async () => {
     const providers = new ProviderRegistry({
       worktree: new FakeWorktreeProvider({

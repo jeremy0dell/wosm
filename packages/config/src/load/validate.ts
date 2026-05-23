@@ -1,4 +1,5 @@
 import { stat } from "node:fs/promises";
+import { normalize } from "node:path";
 import type { ProjectConfig } from "../schema.js";
 import { ConfigError } from "./errors.js";
 
@@ -77,5 +78,32 @@ export function validateProjectIdentifiers(
 
       aliases.set(alias, project.id);
     }
+  }
+}
+
+export function validateUniqueWorktreeManagedRoots(
+  projects: readonly ProjectConfig[],
+  configPath: string,
+): void {
+  const managedRoots = new Map<string, string>();
+
+  for (const project of projects) {
+    const managedRoot = project.worktrunk.managedRoot;
+    if (managedRoot === undefined) {
+      continue;
+    }
+
+    const normalizedRoot = normalize(managedRoot);
+    const previousProjectId = managedRoots.get(normalizedRoot);
+    if (previousProjectId !== undefined) {
+      throw new ConfigError({
+        code: "CONFIG_DUPLICATE_WORKTREE_MANAGED_ROOT",
+        message: `Projects "${previousProjectId}" and "${project.id}" resolve to the same Worktrunk managed root.`,
+        configPath,
+        projectId: project.id,
+      });
+    }
+
+    managedRoots.set(normalizedRoot, project.id);
   }
 }

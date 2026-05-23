@@ -17,6 +17,7 @@ layout = "agent-build-shell"
 [worktree.worktrunk]
 command = "wt"
 config_path = "~/.config/worktrunk/config.toml"
+managed_root = "~/.worktrees"
 use_lifecycle_hooks = true
 hook_mode = "required-for-mvp"
 breadcrumb_location = "external"
@@ -34,7 +35,6 @@ popup_position = "C"
 [harness.codex]
 enabled = true
 command = "codex"
-profile = "default"
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 install_hooks = true
@@ -42,7 +42,6 @@ install_hooks = true
 [harness.opencode]
 enabled = true
 command = "opencode"
-profile = "default"
 install_hooks = true
 
 [[projects]]

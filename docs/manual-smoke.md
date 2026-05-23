@@ -61,18 +61,20 @@ and it uses `worktree.worktrunk.command`, `WOSM_WORKTRUNK_BIN`, or `wt` in that 
 
 If `wt` is missing, `wosm doctor` reports `WORKTRUNK_UNAVAILABLE` with the attempted command and install hint. The TUI blocks the new-session prompt while the selected project's worktree provider is unavailable, so `n` should fail before it dispatches `session.create`.
 
-wosm can restrict each project to a managed Worktrunk directory. This keeps `main`, Codex temporary worktrees, and sibling worktrees out of the main TUI rows while still letting diagnostics report orphaned terminal targets:
+wosm can restrict each project to a managed Worktrunk directory under a shared root. This keeps `main`, Codex temporary worktrees, and sibling worktrees out of the main TUI rows while still letting diagnostics report orphaned terminal targets:
 
 ```toml
+[worktree.worktrunk]
+managed_root = "~/.worktrees"
+
 [projects.worktrunk]
 enabled = true
 base = "main"
-managed_root = ".worktrees"
 include_main = false
 include_external = false
 ```
 
-With this policy, wosm-created worktrees are directed to `PROJECT_ROOT/.worktrees/{{ branch | sanitize }}` through Worktrunk's `WORKTRUNK_WORKTREE_PATH` setting.
+With this policy, wosm-created worktrees are directed to `~/.worktrees/<project-id>/{{ branch | sanitize }}` through Worktrunk's `WORKTRUNK_WORKTREE_PATH` setting.
 
 A minimal config for the current manual test target is:
 
@@ -91,6 +93,7 @@ layout = "agent-shell"
 
 [worktree.worktrunk]
 command = "wt"
+managed_root = "~/.worktrees"
 use_lifecycle_hooks = false
 hook_mode = "disabled"
 
@@ -115,12 +118,14 @@ layout = "agent-shell"
 [projects.worktrunk]
 enabled = true
 base = "main"
-managed_root = ".worktrees"
 include_main = false
 include_external = false
 ```
 
 Place it at `~/.config/wosm/config.toml`, or pass it explicitly with `--config /path/to/config.toml`.
+
+Codex profiles are optional. Leave `profile` unset unless the named profile already exists in your
+Codex config; `profile = "default"` is not portable and can make launch fail before the agent starts.
 
 ## Smoke Loop
 
@@ -145,6 +150,41 @@ wosm
 ```
 
 Outside tmux, no subcommand defaults to the full TUI. `wosm tui` always opens the full TUI explicitly. TUI startup performs one observer reconcile with reason `tui-startup` before rendering, so the first screen is based on a fresh snapshot.
+
+Background-first create/start should keep the dashboard as the cockpit:
+
+```text
+n  enter a branch name  Enter
+```
+
+Expected behavior:
+
+- The TUI remains visible and shows the command as queued or completed through observer events.
+- A Worktrunk worktree is created under `~/.worktrees/<project-id>/<branch>`.
+- A tmux workbench window opens in the background for that worktree.
+- The primary pane runs Codex from the worktree path; wosm should not visibly type a
+  `cd ... && env ... codex ...` command into a shell.
+- Press the row slot number or Enter only when you explicitly want to focus that agent pane.
+
+To reset stale local workbench state during manual smoke, clear the tmux workbench deliberately:
+
+```bash
+tmux kill-session -t wosm 2>/dev/null || true
+```
+
+For repeated agent-driven dogfood work, prefer the repo helper so cleanup remains scoped and
+repeatable:
+
+```bash
+pnpm agent:cleanup
+pnpm agent:cleanup:run
+pnpm agent:reset
+pnpm agent:reset -- --yes --force-worktrees --fix-config
+```
+
+`agent:cleanup` targets stale wosm tmux sessions, the local wosm observer, and temp real-dogfood
+processes. `agent:reset` also targets managed worktree directories under `PROJECT/.worktrees` and
+`~/.worktrees/wosm`. Both scripts dry-run by default unless `--run` or `--yes` is supplied.
 
 From inside the tmux workbench, popup navigation should behave like an overlay:
 
