@@ -32,7 +32,7 @@ export async function runPopupCommand(
   }
 
   const runner = options.runner ?? deps.runner;
-  const enterWorkbench = options.enterWorkbench ?? deps.enterWorkbench ?? true;
+  const enterWorkbench = options.enterWorkbench ?? deps.enterWorkbench ?? false;
   const env = options.env ?? deps.env;
   const tuiCommand = options.tuiCommand ?? deps.tuiCommand;
   return openTmuxPopup({

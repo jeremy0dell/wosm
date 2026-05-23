@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { runCli, runPopupCommand } from "@wosm/cli";
+import { runCli, runPopupCommand, shouldSuppressCliProcessOutput } from "@wosm/cli";
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
@@ -37,9 +37,9 @@ describe("CLI popup command", () => {
         "-c",
         "client_1",
         "-w",
-        "95%",
+        "50%",
         "-h",
-        "85%",
+        "50%",
         "-E",
         expect.stringContaining("WOSM_FOCUS_CLIENT_ID=client_1"),
       ]),
@@ -122,9 +122,9 @@ describe("CLI popup command", () => {
     expect(popupCall?.args).toEqual([
       "display-popup",
       "-w",
-      "95%",
+      "50%",
       "-h",
-      "85%",
+      "50%",
       "-E",
       [
         "env",
@@ -165,6 +165,40 @@ describe("CLI popup command", () => {
     });
 
     expect(calls.some((call) => call.args?.[0] === "display-popup")).toBe(true);
+  });
+
+  it("opens the popup without changing the session behind the active client", async () => {
+    const calls: ExternalCommandInput[] = [];
+
+    await expect(
+      runPopupCommand([], {
+        env: {
+          WOSM_FOCUS_CLIENT_ID: "client_behind_agent",
+        },
+        runner: async (input) => {
+          calls.push(input);
+          return result(input);
+        },
+      }),
+    ).resolves.toEqual({ opened: true });
+
+    expect(calls.map((call) => call.args)).toEqual([
+      ["show-options", "-sqv", "@wosm_popup_client"],
+      ["set-option", "-sq", "@wosm_popup_client", "client_behind_agent"],
+      expect.arrayContaining(["display-popup", "-c", "client_behind_agent"]),
+    ]);
+    expect(calls.some((call) => call.args?.[0] === "switch-client")).toBe(false);
+    expect(calls.some((call) => call.args?.[0] === "new-session")).toBe(false);
+    expect(calls.some((call) => call.args?.[0] === "select-window")).toBe(false);
+    expect(calls.some((call) => call.args?.[0] === "select-pane")).toBe(false);
+  });
+
+  it("suppresses explicit popup command JSON in the interactive CLI process", () => {
+    expect(shouldSuppressCliProcessOutput(["popup"])).toBe(true);
+    expect(shouldSuppressCliProcessOutput(["popup", "--config", "/tmp/config.toml"])).toBe(true);
+    expect(shouldSuppressCliProcessOutput([])).toBe(true);
+    expect(shouldSuppressCliProcessOutput(["tui"])).toBe(true);
+    expect(shouldSuppressCliProcessOutput(["doctor"])).toBe(false);
   });
 });
 

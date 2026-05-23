@@ -204,7 +204,7 @@ function shellQuote(value: string): string {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const invoked = parseGlobalOptions(process.argv.slice(2)).args;
-  const suppressOutput = invoked[0] === undefined || invoked[0] === "tui";
+  const suppressOutput = shouldSuppressCliProcessOutput(invoked);
   runCli()
     .then((result) => {
       if (!suppressOutput && result.output !== undefined) {
@@ -222,6 +222,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       process.stderr.write(`${formatCliError(error)}\n`);
       process.exitCode = 1;
     });
+}
+
+export function shouldSuppressCliProcessOutput(invoked: readonly string[]): boolean {
+  const command = invoked[0];
+  return command === undefined || command === "tui" || command === "popup";
 }
 
 function formatCliError(error: unknown): string {
