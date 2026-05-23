@@ -76,6 +76,152 @@ describe("CLI tui command", () => {
     expect(reconciles).toEqual(["tui-startup"]);
   });
 
+  it("defaults bare wosm to the full TUI outside tmux", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const runOptions: unknown[] = [];
+    let running = false;
+
+    const result = await runCli(["--config", configPath], {
+      env: {},
+      observerDeps: {
+        spawnObserver: async () => {
+          running = true;
+          return { pid: 1234, unref: () => undefined };
+        },
+        clientFactory: () =>
+          ({
+            health: async () => {
+              if (!running) throw new Error("stopped");
+              return {
+                schemaVersion: "0.3.0",
+                status: "healthy",
+                pid: 1234,
+                startedAt: now,
+                version: "0.0.0",
+              };
+            },
+            reconcile: async (reason: string) => ({
+              schemaVersion: "0.3.0",
+              reason,
+              reconciledAt: now,
+              snapshot: {
+                schemaVersion: "0.3.0",
+                generatedAt: now,
+                observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
+                providerHealth: {},
+                projects: [],
+                rows: [],
+                sessions: [],
+                counts: {
+                  projects: 0,
+                  worktrees: 0,
+                  agents: 0,
+                  working: 0,
+                  idle: 0,
+                  attention: 0,
+                  unknown: 0,
+                },
+                alerts: [],
+              },
+            }),
+          }) as never,
+        sleep: async () => undefined,
+      },
+      tuiDeps: {
+        runTui: async (options) => {
+          runOptions.push(options);
+          return { status: "exited", code: 0 };
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      code: 0,
+      output: { status: "exited", code: 0 },
+    });
+    expect(runOptions).toEqual([{ socketPath: fixture.socketPath }]);
+  });
+
+  it("maps --popup to transient focus-and-close mode with focus origin", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const runOptions: unknown[] = [];
+    let running = false;
+
+    const result = await runCli(["--config", configPath, "tui", "--popup"], {
+      observerDeps: {
+        spawnObserver: async () => {
+          running = true;
+          return { pid: 1234, unref: () => undefined };
+        },
+        clientFactory: () =>
+          ({
+            health: async () => {
+              if (!running) throw new Error("stopped");
+              return {
+                schemaVersion: "0.3.0",
+                status: "healthy",
+                pid: 1234,
+                startedAt: now,
+                version: "0.0.0",
+              };
+            },
+            reconcile: async (reason: string) => ({
+              schemaVersion: "0.3.0",
+              reason,
+              reconciledAt: now,
+              snapshot: {
+                schemaVersion: "0.3.0",
+                generatedAt: now,
+                observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
+                providerHealth: {},
+                projects: [],
+                rows: [],
+                sessions: [],
+                counts: {
+                  projects: 0,
+                  worktrees: 0,
+                  agents: 0,
+                  working: 0,
+                  idle: 0,
+                  attention: 0,
+                  unknown: 0,
+                },
+                alerts: [],
+              },
+            }),
+          }) as never,
+        sleep: async () => undefined,
+      },
+      tuiDeps: {
+        env: {
+          WOSM_FOCUS_PROVIDER: "tmux",
+          WOSM_FOCUS_CLIENT_ID: "client_1",
+        },
+        runTui: async (options) => {
+          runOptions.push(options);
+          return { status: "exited", code: 0 };
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      code: 0,
+      output: { status: "exited", code: 0 },
+    });
+    expect(runOptions).toEqual([
+      {
+        socketPath: fixture.socketPath,
+        exitOnFocusSuccess: true,
+        focusOrigin: {
+          provider: "tmux",
+          clientId: "client_1",
+        },
+      },
+    ]);
+  });
+
   it("returns a nonzero result when observer startup is unavailable", async () => {
     const fixture = await createTempState();
     const result = await runTuiCommand(

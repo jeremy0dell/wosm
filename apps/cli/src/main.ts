@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
 import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
 import {
@@ -25,6 +26,7 @@ export type CliRunResult = {
 
 export type CliRunOptions = {
   stdin?: string | undefined;
+  env?: Record<string, string | undefined> | undefined;
   hookDeps?: HookReceiverDeps | undefined;
   observerDeps?: ObserverProcessDeps | undefined;
   popupDeps?: PopupCommandDeps | undefined;
@@ -36,7 +38,7 @@ export async function runCli(
   options: CliRunOptions = {},
 ): Promise<CliRunResult> {
   const { args, configPath } = parseGlobalOptions(argv);
-  const command = args[0] ?? "tui";
+  const command = args[0] ?? defaultCommand(defaultCommandEnv(options));
   const commandArgs = args[0] === undefined ? [] : args.slice(1);
   let loaded: Awaited<ReturnType<typeof loadConfig>> | undefined;
   try {
@@ -111,7 +113,17 @@ export async function runCli(
   }
 
   if (command === "popup") {
-    const result = await runPopupCommand(args.slice(1), { config }, options.popupDeps);
+    const popupEnv = options.popupDeps?.env ?? options.env;
+    const tuiCommand = options.popupDeps?.tuiCommand ?? defaultPopupTuiCommand();
+    const result = await runPopupCommand(
+      args.slice(1),
+      {
+        config,
+        tuiCommand,
+        ...(popupEnv === undefined ? {} : { env: popupEnv }),
+      },
+      options.popupDeps,
+    );
     return { code: 0, output: result };
   }
 
@@ -119,6 +131,8 @@ export async function runCli(
     const tuiDeps: TuiCommandDeps = {};
     if (options.observerDeps !== undefined) tuiDeps.observer = options.observerDeps;
     if (options.tuiDeps?.runTui !== undefined) tuiDeps.runTui = options.tuiDeps.runTui;
+    const tuiEnv = options.tuiDeps?.env ?? options.env;
+    if (tuiEnv !== undefined) tuiDeps.env = tuiEnv;
     const result = await runTuiCommand(
       commandArgs,
       { config, configPath: resolvedConfigPath },
@@ -172,6 +186,22 @@ export async function runCli(
   throw new Error(`Unknown command: ${command ?? ""}`);
 }
 
+function defaultCommand(env: Record<string, string | undefined>): "popup" | "tui" {
+  return env.TMUX === undefined || env.TMUX.length === 0 ? "tui" : "popup";
+}
+
+function defaultCommandEnv(options: CliRunOptions): Record<string, string | undefined> {
+  return options.env ?? options.popupDeps?.env ?? options.tuiDeps?.env ?? process.env;
+}
+
+function defaultPopupTuiCommand(): string {
+  return `${shellQuote(process.execPath)} ${shellQuote(fileURLToPath(import.meta.url))} tui --popup`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const invoked = parseGlobalOptions(process.argv.slice(2)).args;
   const suppressOutput = invoked[0] === undefined || invoked[0] === "tui";
@@ -189,9 +219,23 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       process.exitCode = result.code;
     })
     .catch((error) => {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      process.stderr.write(`${formatCliError(error)}\n`);
       process.exitCode = 1;
     });
+}
+
+function formatCliError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "object" && error !== null) {
+    try {
+      return JSON.stringify(error, null, 2);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error);
 }
 
 function parseGlobalOptions(argv: string[]): { args: string[]; configPath?: string } {

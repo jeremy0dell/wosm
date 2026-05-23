@@ -1,11 +1,17 @@
-import type { WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
+import type {
+  CommandId,
+  CommandRecord,
+  WosmCommand,
+  WosmEvent,
+  WosmSnapshot,
+} from "@wosm/contracts";
 import type { ObserverClient } from "@wosm/protocol";
 import { createObserverClient } from "@wosm/protocol";
 import {
   runRuntimeBoundaryWithRetryAndTimeout,
   runRuntimeBoundaryWithTimeout,
 } from "@wosm/runtime";
-import type { TuiObserverService } from "./types.js";
+import type { TuiCommandCompletion, TuiObserverService } from "./types.js";
 
 export type CreateTuiObserverServiceOptions = {
   socketPath?: string;
@@ -71,6 +77,29 @@ export function createTuiObserverService(
       }
       return result.value;
     },
+    waitForCommandCompletion: async (commandId: CommandId): Promise<TuiCommandCompletion> => {
+      const result = await runRuntimeBoundaryWithTimeout(
+        {
+          operation: "tui.observer.command.wait",
+          timeoutMs,
+          error: {
+            tag: "TuiObserverError",
+            code: "TUI_COMMAND_WAIT_FAILED",
+            message: "The TUI could not observe command completion.",
+          },
+          timeoutError: {
+            tag: "TimeoutError",
+            code: "TUI_COMMAND_WAIT_TIMEOUT",
+            message: "The TUI timed out while waiting for command completion.",
+          },
+        },
+        ({ signal }) => waitForCommandCompletion(client, commandId, signal),
+      );
+      if (!result.ok) {
+        throw result.error;
+      }
+      return result.value;
+    },
     reconcile: async (reason?: string): Promise<WosmSnapshot> => {
       const result = await runRuntimeBoundaryWithTimeout(
         {
@@ -95,6 +124,101 @@ export function createTuiObserverService(
       return result.value.snapshot;
     },
   };
+}
+
+async function waitForCommandCompletion(
+  client: ObserverClient,
+  commandId: CommandId,
+  signal: AbortSignal,
+): Promise<TuiCommandCompletion> {
+  const events = client.subscribe({
+    type: ["command.succeeded", "command.failed"],
+    commandId,
+  });
+  const iterator = events[Symbol.asyncIterator]();
+  const cleanupOnAbort = () => {
+    void iterator.return?.();
+  };
+  if (signal.aborted) {
+    cleanupOnAbort();
+  } else {
+    signal.addEventListener("abort", cleanupOnAbort, { once: true });
+  }
+
+  try {
+    let nextEvent = iterator.next();
+    const existing = completionFromRecord(await client.getCommand(commandId));
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    for (;;) {
+      const next = await nextEvent;
+      if (next.done) {
+        const refreshed = completionFromRecord(await client.getCommand(commandId));
+        if (refreshed !== undefined) {
+          return refreshed;
+        }
+        throw {
+          tag: "TuiObserverError",
+          code: "TUI_COMMAND_EVENT_STREAM_CLOSED",
+          message: "The observer event stream closed before command completion.",
+        };
+      }
+
+      const completion = completionFromEvent(next.value, commandId);
+      if (completion !== undefined) {
+        return completion;
+      }
+      nextEvent = iterator.next();
+    }
+  } finally {
+    signal.removeEventListener("abort", cleanupOnAbort);
+    await iterator.return?.();
+  }
+}
+
+function completionFromRecord(record: CommandRecord | undefined): TuiCommandCompletion | undefined {
+  if (record?.status === "succeeded") {
+    return {
+      status: "succeeded",
+      commandId: record.id,
+    };
+  }
+  if (record?.status === "failed" && record.error !== undefined) {
+    return {
+      status: "failed",
+      commandId: record.id,
+      error: record.error,
+    };
+  }
+  return undefined;
+}
+
+function completionFromEvent(
+  event: WosmEvent,
+  commandId: CommandId,
+): TuiCommandCompletion | undefined {
+  if (event.type !== "command.succeeded" && event.type !== "command.failed") {
+    return undefined;
+  }
+  if (event.commandId !== commandId) {
+    return undefined;
+  }
+  if (event.type === "command.succeeded") {
+    return {
+      status: "succeeded",
+      commandId,
+    };
+  }
+  if (event.type === "command.failed") {
+    return {
+      status: "failed",
+      commandId,
+      error: event.error,
+    };
+  }
+  return undefined;
 }
 
 function createClient(options: CreateTuiObserverServiceOptions, timeoutMs: number): ObserverClient {

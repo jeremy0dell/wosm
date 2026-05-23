@@ -1,4 +1,5 @@
 import type { WosmConfig } from "@wosm/config";
+import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
 import { type RunTuiOptions, runTui, type TuiRunResult } from "@wosm/tui";
 import {
@@ -11,6 +12,7 @@ import { type ObserverPaths, resolveObserverPaths } from "../paths.js";
 export type TuiCommandDeps = {
   observer?: ObserverProcessDeps;
   runTui?: (options: RunTuiOptions) => Promise<TuiRunResult>;
+  env?: Record<string, string | undefined>;
 };
 
 export type TuiCommandOptions = {
@@ -57,7 +59,15 @@ export async function runTuiCommand(
     deps: deps.observer,
     timeoutMs: parsed.timeoutMs,
   });
-  return (deps.runTui ?? runTui)({ socketPath: observer.paths.socketPath });
+  const runOptions: RunTuiOptions = { socketPath: observer.paths.socketPath };
+  if (parsed.popupMode) {
+    runOptions.exitOnFocusSuccess = true;
+  }
+  const focusOrigin = focusOriginFromEnv(deps.env ?? process.env);
+  if (focusOrigin !== undefined) {
+    runOptions.focusOrigin = focusOrigin;
+  }
+  return (deps.runTui ?? runTui)(runOptions);
 }
 
 async function reconcileBeforeTui(input: {
@@ -74,16 +84,38 @@ async function reconcileBeforeTui(input: {
   await client.reconcile("tui-startup");
 }
 
-function parseTuiArgs(args: string[], timeoutMs: number | undefined): { timeoutMs?: number } {
+function parseTuiArgs(
+  args: string[],
+  timeoutMs: number | undefined,
+): { timeoutMs?: number; popupMode: boolean } {
   const parsed = takeTimeoutOption(args, timeoutMs);
   const unknown = parsed.args.find((arg) => arg !== "--popup");
   if (unknown !== undefined) {
     throw new Error(`Unknown tui option: ${unknown}`);
   }
 
-  const result: { timeoutMs?: number } = {};
+  const result: { timeoutMs?: number; popupMode: boolean } = {
+    popupMode: parsed.args.includes("--popup"),
+  };
   if (parsed.timeoutMs !== undefined) result.timeoutMs = parsed.timeoutMs;
   return result;
+}
+
+function focusOriginFromEnv(
+  env: Record<string, string | undefined>,
+): TerminalFocusOrigin | undefined {
+  const provider = env.WOSM_FOCUS_PROVIDER;
+  if (provider === undefined || provider.length === 0) {
+    return undefined;
+  }
+  const origin: TerminalFocusOrigin = {
+    provider,
+  };
+  const clientId = env.WOSM_FOCUS_CLIENT_ID;
+  if (clientId !== undefined && clientId.length > 0) {
+    origin.clientId = clientId;
+  }
+  return origin;
 }
 
 function takeTimeoutOption(

@@ -1,10 +1,11 @@
 import type { CommandReceipt, WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
-import type { TuiObserverService } from "../../src/services/types.js";
+import type { TuiCommandCompletion, TuiObserverService } from "../../src/services/types.js";
 
 export class FakeTuiObserverService implements TuiObserverService {
   readonly dispatched: WosmCommand[] = [];
   readonly events: WosmEvent[] = [];
   readonly reconcileReasons: Array<string | undefined> = [];
+  readonly waitedForCommandIds: string[] = [];
   cleanupCount = 0;
   loadCount = 0;
   subscribeCount = 0;
@@ -12,6 +13,10 @@ export class FakeTuiObserverService implements TuiObserverService {
     commandId: "cmd_tui_1",
     accepted: true,
     status: "accepted",
+  };
+  nextCompletion: TuiCommandCompletion = {
+    status: "succeeded",
+    commandId: "cmd_tui_1",
   };
 
   private readonly subscribers = new Set<Subscriber>();
@@ -49,6 +54,11 @@ export class FakeTuiObserverService implements TuiObserverService {
   async dispatch(command: WosmCommand): Promise<CommandReceipt> {
     this.dispatched.push(command);
     return this.nextReceipt;
+  }
+
+  async waitForCommandCompletion(commandId: string): Promise<TuiCommandCompletion> {
+    this.waitedForCommandIds.push(commandId);
+    return this.nextCompletion;
   }
 
   async reconcile(reason?: string): Promise<WosmSnapshot> {

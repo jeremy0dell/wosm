@@ -1,4 +1,6 @@
+import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { render } from "ink";
+import type { ComponentProps } from "react";
 import { App } from "./App.js";
 import { createTuiObserverService } from "./services/observerService.js";
 import type { TuiObserverService, TuiRunResult } from "./services/types.js";
@@ -6,6 +8,8 @@ import type { TuiObserverService, TuiRunResult } from "./services/types.js";
 export type RunTuiOptions = {
   socketPath: string;
   service?: TuiObserverService;
+  exitOnFocusSuccess?: boolean;
+  focusOrigin?: TerminalFocusOrigin;
 };
 
 export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
@@ -13,16 +17,20 @@ export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
 
   return new Promise<TuiRunResult>((resolve) => {
     let resolved = false;
-    const instance = render(
-      <App
-        service={service}
-        onExit={(code) => {
-          if (resolved) return;
-          resolved = true;
-          instance.unmount();
-          resolve({ status: "exited", code });
-        }}
-      />,
-    );
+    let instance: ReturnType<typeof render> | undefined;
+    const appProps: ComponentProps<typeof App> = {
+      service,
+      exitOnFocusSuccess: options.exitOnFocusSuccess === true,
+      onExit: (code) => {
+        if (resolved) return;
+        resolved = true;
+        instance?.unmount();
+        resolve({ status: "exited", code });
+      },
+    };
+    if (options.focusOrigin !== undefined) {
+      appProps.focusOrigin = options.focusOrigin;
+    }
+    instance = render(<App {...appProps} />);
   });
 }

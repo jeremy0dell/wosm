@@ -1,4 +1,4 @@
-import type { WosmSnapshot } from "@wosm/contracts";
+import type { TerminalFocusOrigin, WosmCommand, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useInput } from "ink";
 import { useRef } from "react";
 import { buildCleanupCommand, buildCreateSessionCommand } from "./actions.js";
@@ -25,10 +25,19 @@ export type AppProps = {
   service: TuiObserverService;
   initialSnapshot?: WosmSnapshot;
   initialUiState?: TuiUiState;
+  exitOnFocusSuccess?: boolean;
+  focusOrigin?: TerminalFocusOrigin;
   onExit?: (code: number) => void;
 };
 
-export function App({ service, initialSnapshot, initialUiState, onExit }: AppProps) {
+export function App({
+  service,
+  initialSnapshot,
+  initialUiState,
+  exitOnFocusSuccess = false,
+  focusOrigin,
+  onExit,
+}: AppProps) {
   const promptValueRef = useRef("");
   const promptModeRef = useRef<PromptMode | undefined>(undefined);
   const dashboard = useObserverDashboard({
@@ -63,7 +72,13 @@ export function App({ service, initialSnapshot, initialUiState, onExit }: AppPro
     if (dashboard.snapshot === undefined) {
       return;
     }
-    const intent = intentForDashboardKey(input, dashboard.snapshot, dashboard.uiState);
+    const dashboardKey = key.return === true || input === "\r" || input === "\n" ? "enter" : input;
+    const intent = intentForDashboardKey(
+      dashboardKey,
+      dashboard.snapshot,
+      dashboard.uiState,
+      dashboardKeyOptions(focusOrigin),
+    );
     if (intent.type === "open-new-session-prompt") {
       const availability = selectNewSessionAvailability(dashboard.snapshot, dashboard.uiState);
       if (!availability.available) {
@@ -89,6 +104,10 @@ export function App({ service, initialSnapshot, initialUiState, onExit }: AppPro
       return;
     }
     if (intent.type === "command") {
+      if (exitOnFocusSuccess && intent.command.type === "terminal.focus") {
+        void dispatchFocusAndExitOnSuccess(intent.command, dashboard, onExit);
+        return;
+      }
       void dashboard.dispatchCommand(intent.command);
     }
   });
@@ -110,6 +129,27 @@ export function App({ service, initialSnapshot, initialUiState, onExit }: AppPro
       <ToastStack toasts={dashboard.toasts} />
     </Box>
   );
+}
+
+function dashboardKeyOptions(focusOrigin: TerminalFocusOrigin | undefined): {
+  focusOrigin?: TerminalFocusOrigin;
+} {
+  const options: { focusOrigin?: TerminalFocusOrigin } = {};
+  if (focusOrigin !== undefined) {
+    options.focusOrigin = focusOrigin;
+  }
+  return options;
+}
+
+async function dispatchFocusAndExitOnSuccess(
+  command: WosmCommand,
+  dashboard: ReturnType<typeof useObserverDashboard>,
+  onExit: ((code: number) => void) | undefined,
+): Promise<void> {
+  const succeeded = await dashboard.dispatchCommandAndWaitForCompletion(command);
+  if (succeeded) {
+    onExit?.(0);
+  }
 }
 
 type PromptInputContext = {

@@ -2,6 +2,7 @@ import type {
   AgentState,
   ProjectView,
   SessionView,
+  TerminalFocusOrigin,
   WorktreeRow,
   WosmCommand,
   WosmSnapshot,
@@ -23,7 +24,14 @@ export type CreateSessionCommandInput = {
   initialPrompt?: string;
 };
 
-export function buildFocusCommand(row: WorktreeRow): WosmCommand {
+export type BuildFocusCommandOptions = {
+  origin?: TerminalFocusOrigin;
+};
+
+export function buildFocusCommand(
+  row: WorktreeRow,
+  options: BuildFocusCommandOptions = {},
+): WosmCommand {
   const payload: Extract<WosmCommand, { type: "terminal.focus" }>["payload"] = {};
   const targetId = row.terminal?.primaryAgentTargetId ?? row.terminal?.workspaceTargetId;
   if (targetId !== undefined) {
@@ -32,6 +40,9 @@ export function buildFocusCommand(row: WorktreeRow): WosmCommand {
     payload.sessionId = row.agent.sessionId;
   } else {
     payload.worktreeId = row.id;
+  }
+  if (options.origin !== undefined) {
+    payload.origin = options.origin;
   }
   return {
     type: "terminal.focus",

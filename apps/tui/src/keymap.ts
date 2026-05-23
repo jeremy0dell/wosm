@@ -1,5 +1,6 @@
-import type { WosmCommand, WosmSnapshot } from "@wosm/contracts";
+import type { TerminalFocusOrigin, WosmCommand, WosmSnapshot } from "@wosm/contracts";
 import {
+  type BuildFocusCommandOptions,
   buildFocusCommand,
   buildPrimaryCommandForRow,
   type CleanupActionKind,
@@ -20,16 +21,27 @@ export type TuiKeyIntent =
   | { type: "open-new-session-prompt" }
   | { type: "none" };
 
+export type DashboardKeyOptions = {
+  focusOrigin?: TerminalFocusOrigin;
+};
+
 export function intentForDashboardKey(
   input: string,
   snapshot: WosmSnapshot,
   state: TuiUiState,
+  options: DashboardKeyOptions = {},
 ): TuiKeyIntent {
   if (/^[1-9]$/.test(input)) {
     const row = selectKeySlots(snapshot, state).get(input);
     return row === undefined
       ? { type: "none" }
-      : { type: "command", command: buildFocusCommand(row) };
+      : { type: "command", command: buildFocusCommand(row, focusCommandOptions(options)) };
+  }
+  if (input === "enter") {
+    const selected = selectSelectedRow(snapshot, state);
+    return selected === undefined
+      ? { type: "none" }
+      : { type: "command", command: buildFocusCommand(selected, focusCommandOptions(options)) };
   }
   if (input === "s") {
     const selected = selectSelectedRow(snapshot, state);
@@ -70,4 +82,12 @@ function cleanupLabel(action: CleanupActionKind): string {
   if (action === "close-terminal") return "close terminal";
   if (action === "close-all") return "close all";
   return "remove worktree";
+}
+
+function focusCommandOptions(options: DashboardKeyOptions): BuildFocusCommandOptions {
+  const built: BuildFocusCommandOptions = {};
+  if (options.focusOrigin !== undefined) {
+    built.origin = options.focusOrigin;
+  }
+  return built;
 }

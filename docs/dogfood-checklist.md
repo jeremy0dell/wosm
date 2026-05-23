@@ -30,6 +30,7 @@ Confirm:
 - A real project-local Codex hook fires from the launched Codex process, calls `wosm hook codex ...`, and appears in observer `events.jsonl` as `hook.ingested` for provider `codex`.
 - `session.startAgent` works on an existing Worktrunk worktree.
 - `terminal.focus`, TUI numeric focus, close, and remove commands route through observer commands.
+- Popup navigation opens the real TUI in a tmux popup over a wosm-created Codex agent pane, then slot activation exits the popup onto that same agent pane.
 - Hooks deliver online, auto-start offline, spool when auto-start is disabled, and drain on startup.
 - SQLite deletion still allows partial graph recovery from real providers.
 - Stale tmux target failures leave command, provider-health, event, and debug-bundle evidence.
@@ -40,6 +41,7 @@ Confirm:
 - Run `wosm doctor`, `wosm reconcile --reason dogfood`, and `wosm snapshot --json`.
 - Launch `wosm tui`.
 - Create a branch/session, confirm the tmux workbench opens, and verify the agent appears in snapshots.
+- Launch bare `wosm` from inside the workbench, or the `Ctrl-b Space` binding if installed, and select the agent row; the popup should close only after focus succeeds.
 - Exercise focus and cleanup keys only on disposable rows.
 - Stop the observer with `wosm observer stop`.
 

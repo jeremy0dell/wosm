@@ -21,6 +21,7 @@ export type ObserverDashboardState = {
   setUiState(next: TuiUiState | ((current: TuiUiState) => TuiUiState)): void;
   addToast(toast: TuiToast): void;
   dispatchCommand(command: WosmCommand): Promise<void>;
+  dispatchCommandAndWaitForCompletion(command: WosmCommand): Promise<boolean>;
   reconcile(reason?: string): Promise<void>;
   dismissToasts(): void;
 };
@@ -159,6 +160,40 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
     [options.service],
   );
 
+  const dispatchCommandAndWaitForCompletion = useCallback(
+    async (command: WosmCommand): Promise<boolean> => {
+      try {
+        const receipt = await options.service.dispatch(command);
+        const receiptError = receipt.error;
+        if (!receipt.accepted && receiptError !== undefined) {
+          setToasts((current) => [...current, safeErrorToToast(receiptError)]);
+          return false;
+        }
+        if (!receipt.accepted) {
+          setToasts((current) => [
+            ...current,
+            {
+              kind: "error",
+              message: `${command.type} was rejected.`,
+            },
+          ]);
+          return false;
+        }
+
+        const completion = await options.service.waitForCommandCompletion(receipt.commandId);
+        if (completion.status === "succeeded") {
+          return true;
+        }
+        setToasts((current) => [...current, safeErrorToToast(completion.error)]);
+        return false;
+      } catch (error: unknown) {
+        setToasts((current) => [...current, safeErrorToToast(toSafeError(error))]);
+        return false;
+      }
+    },
+    [options.service],
+  );
+
   const reconcile = useCallback(
     async (reason?: string) => {
       try {
@@ -195,10 +230,21 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
       setUiState,
       addToast,
       dispatchCommand,
+      dispatchCommandAndWaitForCompletion,
       reconcile,
       dismissToasts,
     }),
-    [addToast, dismissToasts, dispatchCommand, loading, reconcile, snapshot, toasts, uiState],
+    [
+      addToast,
+      dismissToasts,
+      dispatchCommand,
+      dispatchCommandAndWaitForCompletion,
+      loading,
+      reconcile,
+      snapshot,
+      toasts,
+      uiState,
+    ],
   );
 }
 

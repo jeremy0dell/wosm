@@ -32,6 +32,8 @@ pnpm test:e2e:real:codex-hooks
 pnpm test:e2e:real:codex-hooks:keep-temp
 ```
 
+The popup navigation test is part of the local dogfood lane. It creates a real Worktrunk worktree, starts a real Codex agent in the tmux workbench, opens the wosm TUI in a real tmux popup over that agent pane, injects a numeric activation key through the popup TTY, and verifies tmux lands back on the same primary agent pane after the popup exits.
+
 ## Isolation
 
 Each test uses a temporary local clone of this repository, a temporary wosm config, a temporary Worktrunk config, a unique tmux workbench session, a unique observer socket, and a temporary SQLite state directory.

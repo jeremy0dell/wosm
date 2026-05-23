@@ -143,7 +143,27 @@ Then launch:
 wosm
 ```
 
-No subcommand defaults to the TUI. `wosm tui` is equivalent. TUI startup performs one observer reconcile with reason `tui-startup` before rendering, so the first screen is based on a fresh snapshot.
+Outside tmux, no subcommand defaults to the full TUI. `wosm tui` always opens the full TUI explicitly. TUI startup performs one observer reconcile with reason `tui-startup` before rendering, so the first screen is based on a fresh snapshot.
+
+From inside the tmux workbench, popup navigation should behave like an overlay:
+
+```bash
+wosm
+```
+
+Inside tmux, bare `wosm` defaults to the popup dashboard. `wosm popup` is the explicit form, and `wosm tui` remains the full TUI. Select a focusable row with its numeric slot or Enter. On success, the popup closes and tmux lands in the selected worktree window's primary agent pane. If focus fails, the popup stays open and shows the SafeError message plus any diagnostic ID.
+
+To make the old-style prefix binding call that same path, add a tmux binding and reload tmux:
+
+```tmux
+bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID="#{client_name}" wosm popup'
+```
+
+```bash
+tmux source-file ~/.tmux.conf
+```
+
+Pressing `Ctrl-b Space` while no wosm popup is active opens the dashboard overlay on the active tmux client. Pressing the same binding while that overlay is active closes it.
 
 Stop the background observer when done:
 
@@ -228,7 +248,7 @@ WOSM_CODEX_BIN="$(command -v codex)" \
 pnpm test:e2e:real
 ```
 
-The suite covers observer start/status/reconcile/snapshot/debug bundle, real Worktrunk worktree creation, tmux workbench focus, Codex launch with bounded sentinel prompts, real Codex hooks from an isolated temporary `CODEX_HOME` calling `wosm hook codex ...`, Worktrunk hook delivery/spool/drain, restart recovery, SQLite deletion recovery, and TUI key-driven control. Failed lifecycle tests attempt to write a debug bundle under that test's temp state directory.
+The suite covers observer start/status/reconcile/snapshot/debug bundle, real Worktrunk worktree creation, tmux workbench focus, Codex launch with bounded sentinel prompts, real Codex hooks from an isolated temporary `CODEX_HOME` calling `wosm hook codex ...`, Worktrunk hook delivery/spool/drain, restart recovery, SQLite deletion recovery, TUI key-driven control, and tmux popup navigation over a real wosm-created Codex agent pane. Failed lifecycle tests attempt to write a debug bundle under that test's temp state directory.
 
 From the repo root, local wrapper scripts set the required real flags and binary paths automatically:
 
