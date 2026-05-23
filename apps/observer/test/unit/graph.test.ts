@@ -276,4 +276,29 @@ describe("observer graph derivation", () => {
     });
     expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
   });
+
+  it("does not attach a terminal whose cwd is outside the claimed worktree", () => {
+    const snapshot = build({
+      worktrees: [worktree("wt_web_feature", "web", "feature")],
+      terminals: [
+        {
+          ...terminal("term_wrong_path", "wt_web_feature", "run_feature"),
+          cwd: "/tmp/wosm/web",
+          reason: "tmux pane has wosm identity binding but its cwd does not match.",
+        },
+      ],
+      harnessRuns: [harness("run_feature", "wt_web_feature", "unknown")],
+    });
+
+    expect(snapshot.rows[0]?.terminal).toBeUndefined();
+    expect(snapshot.orphans).toEqual([
+      expect.objectContaining({
+        kind: "terminal_target",
+        terminalTargetId: "term_wrong_path",
+        reason: "Terminal target path does not match the configured worktree.",
+        worktreeId: "wt_web_feature",
+      }),
+    ]);
+    expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
 });

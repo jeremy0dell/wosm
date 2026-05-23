@@ -23,6 +23,12 @@ export function discoverCodexRuns(context: HarnessDiscoveryContext): HarnessRunO
     if (providerData.data.harness !== "codex" || providerData.data.role !== "main-agent") {
       continue;
     }
+    if (isDefinitelyNotCodexCommand(providerData.data.currentCommand)) {
+      continue;
+    }
+    if (!targetMatchesKnownWorktree(target, context.worktrees)) {
+      continue;
+    }
 
     const run: HarnessRunObservation = {
       id: target.harnessRunId ?? `codex:${target.id}`,
@@ -51,6 +57,47 @@ export function discoverCodexRuns(context: HarnessDiscoveryContext): HarnessRunO
     runs.push(run);
   }
   return runs;
+}
+
+function isDefinitelyNotCodexCommand(command: string | undefined): boolean {
+  if (command === undefined) {
+    return false;
+  }
+  return new Set(["bash", "dash", "fish", "sh", "tmux", "zsh"]).has(command);
+}
+
+function targetMatchesKnownWorktree(
+  target: HarnessDiscoveryContext["terminalTargets"][number],
+  worktrees: HarnessDiscoveryContext["worktrees"],
+): boolean {
+  if (target.cwd === undefined || target.worktreeId === undefined) {
+    return true;
+  }
+  const worktree = worktrees.find((candidate) => candidate.id === target.worktreeId);
+  if (worktree === undefined) {
+    return true;
+  }
+  return pathIsSameOrInside(target.cwd, worktree.path);
+}
+
+function pathIsSameOrInside(candidate: string, root: string): boolean {
+  const normalizedCandidate = normalizeLocalPath(candidate);
+  const normalizedRoot = normalizeLocalPath(root);
+  if (normalizedCandidate === normalizedRoot) {
+    return true;
+  }
+  if (normalizedRoot === "/") {
+    return normalizedCandidate.startsWith("/");
+  }
+  return normalizedCandidate.startsWith(`${normalizedRoot}/`);
+}
+
+function normalizeLocalPath(value: string): string {
+  const trimmed = value.trim();
+  const withoutTrailingSlash = trimmed.length > 1 ? trimmed.replace(/\/+$/g, "") : trimmed;
+  return withoutTrailingSlash.startsWith("/private/var/")
+    ? `/var/${withoutTrailingSlash.slice("/private/var/".length)}`
+    : withoutTrailingSlash;
 }
 
 function runProviderData(

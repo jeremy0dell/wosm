@@ -331,8 +331,41 @@ function chooseTerminal(
   terminals: TerminalTargetObservation[],
 ): TerminalTargetObservation | undefined {
   return terminals
-    .filter((terminal) => terminal.worktreeId === worktree.id)
+    .filter(
+      (terminal) =>
+        terminal.worktreeId === worktree.id && terminalTargetMatchesWorktree(terminal, worktree),
+    )
     .sort(compareObservations)[0];
+}
+
+function terminalTargetMatchesWorktree(
+  terminal: TerminalTargetObservation,
+  worktree: WorktreeObservation,
+): boolean {
+  if (terminal.cwd === undefined || terminal.cwd.length === 0) {
+    return true;
+  }
+  return pathIsSameOrInside(terminal.cwd, worktree.path);
+}
+
+function pathIsSameOrInside(candidate: string, root: string): boolean {
+  const normalizedCandidate = normalizeLocalPath(candidate);
+  const normalizedRoot = normalizeLocalPath(root);
+  if (normalizedCandidate === normalizedRoot) {
+    return true;
+  }
+  if (normalizedRoot === "/") {
+    return normalizedCandidate.startsWith("/");
+  }
+  return normalizedCandidate.startsWith(`${normalizedRoot}/`);
+}
+
+function normalizeLocalPath(value: string): string {
+  const trimmed = value.trim();
+  const withoutTrailingSlash = trimmed.length > 1 ? trimmed.replace(/\/+$/g, "") : trimmed;
+  return withoutTrailingSlash.startsWith("/private/var/")
+    ? `/var/${withoutTrailingSlash.slice("/private/var/".length)}`
+    : withoutTrailingSlash;
 }
 
 function chooseHarnessRun(
@@ -488,17 +521,23 @@ function orphans(
 
   for (const terminal of input.terminalTargets) {
     const hasProject = terminal.projectId === undefined || projectsById.has(terminal.projectId);
-    const hasWorktree = terminal.worktreeId !== undefined && worktreesById.has(terminal.worktreeId);
+    const worktree =
+      terminal.worktreeId === undefined ? undefined : worktreesById.get(terminal.worktreeId);
+    const hasWorktree = worktree !== undefined;
     const hasHarness =
       terminal.harnessRunId === undefined || harnessRunsById.has(terminal.harnessRunId);
+    const pathMismatch =
+      worktree !== undefined && !terminalTargetMatchesWorktree(terminal, worktree);
 
-    if (!hasProject || !hasWorktree || !hasHarness) {
+    if (!hasProject || !hasWorktree || !hasHarness || pathMismatch) {
       const orphan: OrphanedRuntimeState = {
         id: `orphan_${terminal.id}`,
         kind: "terminal_target",
         provider: terminal.provider,
         terminalTargetId: terminal.id,
-        reason: "Terminal target has no matching configured project or worktree.",
+        reason: pathMismatch
+          ? "Terminal target path does not match the configured worktree."
+          : "Terminal target has no matching configured project or worktree.",
         observedAt: terminal.observedAt,
       };
       if (terminal.projectId !== undefined) orphan.projectId = terminal.projectId;

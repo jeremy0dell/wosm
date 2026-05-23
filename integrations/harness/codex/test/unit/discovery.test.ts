@@ -82,4 +82,60 @@ describe("discoverCodexRuns", () => {
 
     expect(runs).toEqual([]);
   });
+
+  it("ignores stale Codex bindings when the pane is a shell or outside the worktree", () => {
+    const worktree = {
+      id: "wt_web_task",
+      provider: "worktrunk",
+      projectId: "web",
+      branch: "task",
+      path: "/tmp/wosm/web/task",
+      state: "exists" as const,
+      source: "worktrunk" as const,
+      confidence: "high" as const,
+      reason: "Fixture worktree.",
+      observedAt: now,
+    };
+
+    const runs = discoverCodexRuns({
+      projects: [],
+      worktrees: [worktree],
+      terminalTargets: [
+        {
+          id: "tmux:wosm:@1:%2",
+          provider: "tmux",
+          projectId: "web",
+          worktreeId: "wt_web_task",
+          state: "open",
+          cwd: "/tmp/wosm/web/task",
+          confidence: "high",
+          reason: "tmux pane has wosm identity binding.",
+          observedAt: now,
+          providerData: {
+            role: "main-agent",
+            harness: "codex",
+            currentCommand: "zsh",
+          },
+        },
+        {
+          id: "tmux:wosm:@1:%3",
+          provider: "tmux",
+          projectId: "web",
+          worktreeId: "wt_web_task",
+          state: "open",
+          cwd: "/tmp/wosm/web",
+          confidence: "high",
+          reason: "tmux pane has wosm identity binding.",
+          observedAt: now,
+          providerData: {
+            role: "main-agent",
+            harness: "codex",
+            currentCommand: "node",
+          },
+        },
+      ],
+    });
+
+    expect(runs).toEqual([]);
+  });
 });
