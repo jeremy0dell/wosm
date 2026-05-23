@@ -2,7 +2,9 @@
 
 wosm ships Worktrunk, tmux, Codex, and OpenCode as external provider integrations. They are not npm packages bundled into the workspace. The repo depends on them through provider contracts, runtime preflights, `wosm doctor`, and opt-in real-provider test lanes.
 
-## Worktrunk
+The local checkout also expects Node.js 24.x and pnpm 11. `pnpm setup:system:check` verifies those versions before checking real provider tools.
+
+## Worktrunk And Tmux
 
 The Worktrunk provider shells out to `wt`. Install Worktrunk before using a config with:
 
@@ -11,14 +13,16 @@ The Worktrunk provider shells out to `wt`. Install Worktrunk before using a conf
 worktree_provider = "worktrunk"
 ```
 
-On macOS, the repo `Brewfile` declares the dependency:
+The tmux provider shells out to `tmux` for the workbench and popup dogfood path.
+
+On macOS, the repo `Brewfile` declares both dependencies:
 
 ```bash
 pnpm setup:system:check
 pnpm setup:system --yes
 ```
 
-The setup command runs `brew bundle install` from the repo `Brewfile`, verifies `wt --version`, and runs `wt config shell install`. Omit `--yes` if you want to answer Worktrunk's shell integration prompt yourself.
+The setup command runs `brew bundle install` from the repo `Brewfile`, verifies `node --version`, `pnpm --version`, `wt --version`, and `tmux -V`, then runs `wt config shell install`. Omit `--yes` if you want to answer Worktrunk's shell integration prompt yourself.
 
 The upstream Worktrunk install docs currently recommend:
 

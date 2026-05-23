@@ -5,6 +5,7 @@ Use this as the first dogfood/release gate.
 ## Deterministic Gate
 
 ```bash
+pnpm smoke:release
 pnpm build
 pnpm typecheck
 pnpm lint
@@ -38,10 +39,13 @@ Real failures must have enough evidence to triage from `doctor`, `snapshot --jso
 
 ## Documentation Gate
 
+- `docs/install.md` can take a fresh checkout through `pnpm install`, `pnpm build`, and `pnpm smoke:release`.
 - `docs/manual-smoke.md` matches the current CLI commands.
 - `docs/system-dependencies.md` names required external tools and override env vars.
 - `tests/e2e/real-dogfood/README.md` lists real-lane flags, cleanup behavior, and triage files.
 - `docs/dogfood-checklist.md` reflects the current manual dogfood loop.
+- `docs/known-issues.md` lists accepted Phase 18 limitations.
+- `docs/release-notes/phase-18-dogfood-milestone.md` records the dogfood checkpoint.
 
 ## Release Notes Gate
 
@@ -49,3 +53,4 @@ Real failures must have enough evidence to triage from `doctor`, `snapshot --jso
 - Debug-bundle redaction remains enabled.
 - Real E2E remains opt-in.
 - No active checkout mutation is part of any release smoke or dogfood command.
+- No public npm package is implied by the dogfood milestone.

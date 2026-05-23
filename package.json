@@ -33,6 +33,7 @@
     "test:e2e:codex:real": "vitest run --config vitest.codex-real.config.ts",
     "test:agent:scripted": "vitest run --config vitest.agent-scripted.config.ts",
     "test:agent:real": "pnpm test:e2e:codex:real",
+    "smoke:release": "node scripts/run-release-smoke.mjs",
     "test:all": "pnpm build && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:contracts && pnpm test:integration && pnpm test:diagnostics && pnpm test:agent:scripted"
   },
   "devDependencies": {

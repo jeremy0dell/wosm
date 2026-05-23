@@ -1,0 +1,70 @@
+schema_version = 1
+
+[observer]
+auto_start = true
+auto_start_from_hooks = true
+idle_shutdown_minutes = 30
+reconcile_interval_ms = 2000
+socket_path = "~/.local/state/wosm/observer.sock"
+state_dir = "~/.local/state/wosm"
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-shell"
+
+[worktree.worktrunk]
+command = "wt"
+use_lifecycle_hooks = true
+hook_mode = "required-for-mvp"
+breadcrumb_location = "external"
+
+[terminal.tmux]
+session_prefix = "wosm"
+topology = "workbench"
+workbench_session = "wosm"
+window_naming = "project-branch"
+primary_agent_pane = true
+popup_width = "50%"
+popup_height = "50%"
+popup_position = "C"
+
+[harness.codex]
+enabled = true
+command = "codex"
+profile = "default"
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+install_hooks = true
+
+[[projects]]
+id = "wosm"
+label = "wosm"
+root = "~/Developer/wosm"
+default_branch = "main"
+
+[projects.defaults]
+harness = "codex"
+terminal = "tmux"
+layout = "agent-shell"
+
+[projects.worktrunk]
+enabled = true
+base = "main"
+managed_root = ".worktrees"
+include_main = false
+include_external = false
+
+[projects.commands]
+test = "pnpm test"
+typecheck = "pnpm typecheck"
+lint = "pnpm lint"
+
+[projects.display]
+group = "dogfood"
+sort_order = 10
+
+[projects.local_config]
+enabled = false
+path = ".wosm/config.toml"

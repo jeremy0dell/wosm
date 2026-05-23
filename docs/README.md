@@ -16,6 +16,10 @@ Use `diagnostics.md` for the Phase 6 runtime doctor, debug bundle, redaction, an
 
 Use `system-dependencies.md` for external provider dependencies such as the real Worktrunk `wt` binary, install checks, and dependency diagnostics.
 
+Use `install.md` for the Phase 18 fresh-checkout dogfood install flow and deterministic `pnpm smoke:release` validation.
+
 Use `manual-smoke.md` for the Phase 11.5 runnable CLI, real Worktrunk smoke loop, and current manual TUI startup procedure.
 
 Use `dogfood-checklist.md` and `release-readiness.md` for the Phase 16 real dogfood and release gate checklists.
+
+Use `known-issues.md` and `release-notes/phase-18-dogfood-milestone.md` for the Phase 18 dogfood milestone caveats and release notes.

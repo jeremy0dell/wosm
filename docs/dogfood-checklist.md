@@ -5,9 +5,11 @@ Use this checklist before relying on wosm for day-to-day local agent work.
 ## Machine Readiness
 
 - `pnpm build` succeeds.
+- `pnpm smoke:release` succeeds against isolated fake/scripted state.
 - `pnpm setup:system:check` succeeds.
 - `codex login status` succeeds.
 - `wt --version`, `tmux -V`, and `bin/wosm doctor` succeed for the dogfood config.
+- `examples/dogfood-config.toml` has been copied and edited for the local dogfood project root.
 
 ## Real E2E Gate
 

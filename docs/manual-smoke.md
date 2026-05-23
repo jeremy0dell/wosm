@@ -9,6 +9,7 @@ From the repository root:
 ```bash
 pnpm install
 pnpm build
+pnpm smoke:release
 ```
 
 Install external provider dependencies before using the real Worktrunk path:
@@ -152,6 +153,8 @@ wosm
 ```
 
 Inside tmux, bare `wosm` defaults to the popup dashboard. `wosm popup` is the explicit form, and `wosm tui` remains the full TUI. Select a focusable row with its numeric slot or Enter. On success, the popup closes and tmux lands in the selected worktree window's primary agent pane. If focus fails, the popup stays open and shows the SafeError message plus any diagnostic ID.
+
+wosm-created tmux workbench sessions set `mouse on`, `history-limit 100000`, and `set-clipboard on` on the workbench session so scrolling, mouse selection, and copy behavior are closer to a normal Ghostty terminal without changing global tmux defaults.
 
 To make the old-style prefix binding call that same path, add a tmux binding and reload tmux:
 

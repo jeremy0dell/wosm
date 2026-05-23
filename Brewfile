@@ -1,1 +1,2 @@
 brew "worktrunk"
+brew "tmux"

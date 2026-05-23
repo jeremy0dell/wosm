@@ -8,10 +8,14 @@ import type {
   DoctorCheck,
   DoctorOptions,
   DoctorReport,
+  HarnessProvider,
   LogRecord,
   ProviderDoctorCheck,
   ProviderDoctorContext,
+  ProviderHealth,
   SafeError,
+  TerminalProvider,
+  WorktreeProvider,
 } from "@wosm/contracts";
 import { DiagnosticSnapshotSchema, DoctorReportSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
@@ -21,7 +25,7 @@ import {
   scanLocalStateUsage,
 } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
-import { safeErrorFromUnknown, systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { runRuntimeBoundaryWithTimeout, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverCore } from "../reconcile/core.js";
@@ -43,6 +47,7 @@ export type ObserverDiagnosticsDeps = {
   providers?: ProviderRegistry;
   paths: DiagnosticRuntimePaths;
   clock?: RuntimeClock;
+  providerDoctorTimeoutMs?: number;
 };
 
 export async function collectDiagnosticSnapshot(
@@ -118,6 +123,11 @@ export async function runDoctor(
     maxLogRecords: 50,
   });
   const doctorSnapshot = requireDoctorSnapshotState(snapshot);
+  const providerHealth = await collectProviderHealth(deps);
+  const providers = {
+    ...doctorSnapshot.providerHealth,
+    ...providerHealth,
+  };
   const providerChecks = await collectProviderDoctorChecks(deps);
   const sqliteCheck: DoctorCheck = {
     name: "sqlite",
@@ -142,8 +152,8 @@ export async function runDoctor(
     sqliteCheck,
     {
       name: "providers",
-      status: providerStatus(doctorSnapshot) === "healthy" ? "ok" : "warn",
-      message: `${Object.keys(doctorSnapshot.providerHealth).length} provider(s) reported health.`,
+      status: providerStatus(providers) === "healthy" ? "ok" : "warn",
+      message: `${Object.keys(providers).length} provider(s) reported health.`,
     },
     ...providerChecks,
     {
@@ -166,7 +176,7 @@ export async function runDoctor(
     checks,
     observer: doctorSnapshot.observerHealth,
     config: doctorSnapshot.configSummary,
-    providers: doctorSnapshot.providerHealth,
+    providers,
     snapshot: doctorSnapshot.snapshot,
     logs: {
       paths: deps.paths.logPaths ?? [componentLogPath(deps.paths.stateDir, "observer")],
@@ -270,8 +280,8 @@ async function listFileStats(path: string): Promise<Array<{ mtime: Date }>> {
   }
 }
 
-function providerStatus(snapshot: DiagnosticSnapshot): "healthy" | "degraded" {
-  return Object.values(snapshot.providerHealth).some(
+function providerStatus(providers: Record<string, ProviderHealth>): "healthy" | "degraded" {
+  return Object.values(providers).some(
     (health) => health.status === "degraded" || health.status === "unavailable",
   )
     ? "degraded"
@@ -333,34 +343,107 @@ async function collectProviderDoctorChecks(
   if (deps.configPath !== undefined) {
     context.wosmConfigPath = deps.configPath;
   }
-  const providers = [
-    deps.providers.worktree,
-    deps.providers.terminal,
-    ...deps.providers.harnesses.values(),
-  ];
+  const providers = providerEntries(deps.providers);
 
-  for (const provider of providers) {
+  for (const { provider } of providers) {
     if (provider.doctorChecks === undefined) {
       continue;
     }
-    try {
-      const providerChecks = await provider.doctorChecks(context);
-      checks.push(...providerChecks);
-    } catch (cause) {
-      const error = safeErrorFromUnknown(cause, {
-        tag: "ProviderDiagnosticError",
-        code: "PROVIDER_DOCTOR_CHECK_FAILED",
-        message: "Provider doctor checks failed.",
-        provider: provider.id,
-      });
+    const result = await runRuntimeBoundaryWithTimeout(
+      {
+        operation: `observer.doctor.providerChecks.${provider.id}`,
+        clock: deps.clock,
+        timeoutMs: deps.providerDoctorTimeoutMs ?? 5000,
+        error: {
+          tag: "ProviderDiagnosticError",
+          code: "PROVIDER_DOCTOR_CHECK_FAILED",
+          message: "Provider doctor checks failed.",
+          provider: provider.id,
+        },
+        timeoutError: {
+          tag: "TimeoutError",
+          code: "PROVIDER_DOCTOR_CHECK_TIMEOUT",
+          message: "Provider doctor checks timed out.",
+          provider: provider.id,
+        },
+      },
+      async () => provider.doctorChecks?.(context) ?? [],
+    );
+
+    if (result.ok) {
+      checks.push(...result.value);
+    } else {
       checks.push({
         name: `${provider.id}-diagnostics`,
         status: "error",
-        message: error.message,
-        error,
+        message: result.error.message,
+        error: result.error,
       });
     }
   }
 
   return checks;
+}
+
+async function collectProviderHealth(
+  deps: ObserverDiagnosticsDeps,
+): Promise<Record<string, ProviderHealth>> {
+  if (deps.providers === undefined) {
+    return {};
+  }
+
+  const clock = deps.clock ?? systemClock;
+  const health: Record<string, ProviderHealth> = {};
+  for (const { provider, providerType } of providerEntries(deps.providers)) {
+    const result = await runRuntimeBoundaryWithTimeout(
+      {
+        operation: `observer.doctor.providerHealth.${provider.id}`,
+        clock,
+        timeoutMs: deps.providerDoctorTimeoutMs ?? 5000,
+        error: {
+          tag: "ProviderDiagnosticError",
+          code: "PROVIDER_HEALTH_CHECK_FAILED",
+          message: "Provider health check failed.",
+          provider: provider.id,
+        },
+        timeoutError: {
+          tag: "TimeoutError",
+          code: "PROVIDER_HEALTH_CHECK_TIMEOUT",
+          message: "Provider health check timed out.",
+          provider: provider.id,
+        },
+      },
+      async () => provider.health(),
+    );
+
+    if (result.ok) {
+      health[provider.id] = result.value;
+    } else {
+      health[provider.id] = {
+        providerId: provider.id,
+        providerType,
+        status: "unavailable",
+        lastCheckedAt: toIsoTimestamp(clock.now()),
+        lastError: result.error,
+      };
+    }
+  }
+
+  return health;
+}
+
+type DoctorProviderEntry = {
+  provider: WorktreeProvider | TerminalProvider | HarnessProvider;
+  providerType: ProviderHealth["providerType"];
+};
+
+function providerEntries(providers: ProviderRegistry): DoctorProviderEntry[] {
+  return [
+    { provider: providers.worktree, providerType: "worktree" },
+    { provider: providers.terminal, providerType: "terminal" },
+    ...[...providers.harnesses.values()].map((provider) => ({
+      provider,
+      providerType: "harness" as const,
+    })),
+  ];
 }

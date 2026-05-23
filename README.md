@@ -114,6 +114,7 @@ pnpm install
 pnpm setup:system:check
 pnpm setup:system --yes
 pnpm build
+pnpm smoke:release
 pnpm wosm doctor
 ```
 
@@ -156,8 +157,12 @@ pnpm test:all
 
 ## Documentation
 
+- [Install](docs/install.md)
 - [Manual smoke testing](docs/manual-smoke.md)
 - [System dependencies](docs/system-dependencies.md)
 - [Diagnostics](docs/diagnostics.md)
 - [Example config](examples/config.toml)
+- [Dogfood config](examples/dogfood-config.toml)
+- [Known issues](docs/known-issues.md)
+- [Phase 18 release notes](docs/release-notes/phase-18-dogfood-milestone.md)
 - [Planning docs](docs/README.md)
