@@ -98,7 +98,7 @@ describe("full session lifecycle e2e", () => {
           projectId: "web",
           branch: "task",
           harness: { provider: "scripted", mode: "interactive" },
-          terminal: { provider: "fake-terminal", layout: "agent-build-shell", focus: true },
+          terminal: { provider: "fake-terminal", layout: "agent-build-shell", focus: false },
           initialPrompt: "Complete the file task.",
         },
       });
@@ -126,7 +126,7 @@ describe("full session lifecycle e2e", () => {
           },
         ],
       });
-      expect(terminal.snapshot().focused).toEqual(["term_fake"]);
+      expect(terminal.snapshot().focused).toEqual([]);
     } finally {
       await server.close();
       sqlite.close();

@@ -62,7 +62,7 @@ export function buildStartAgentCommand(row: WorktreeRow, project: ProjectView): 
       terminal: {
         provider: project.defaults.terminal,
         layout: commandLayout(project.defaults.layout),
-        focus: true,
+        focus: false,
       },
     },
   };
@@ -104,7 +104,7 @@ export function buildCreateSessionCommand(input: CreateSessionCommandInput): Wos
     terminal: {
       provider: input.project.defaults.terminal,
       layout: commandLayout(input.project.defaults.layout),
-      focus: true,
+      focus: false,
     },
   };
   if (input.initialPrompt !== undefined && input.initialPrompt.length > 0) {

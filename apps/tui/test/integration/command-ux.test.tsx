@@ -28,7 +28,15 @@ describe("TUI command UX", () => {
     instance.stdin.write("s");
 
     await waitFor(() => service.dispatched.length === 1);
-    expect(service.dispatched[0]?.type).toBe("session.startAgent");
+    expect(service.dispatched[0]).toEqual({
+      type: "session.startAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_no_agent",
+        harness: { provider: "codex" },
+        terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
+      },
+    });
     instance.unmount();
   });
 
@@ -62,6 +70,11 @@ describe("TUI command UX", () => {
       payload: {
         projectId: "web",
         branch: "feature/tui-new",
+        terminal: {
+          provider: "tmux",
+          layout: "agent-build-shell",
+          focus: false,
+        },
       },
     });
     instance.unmount();

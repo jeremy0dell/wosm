@@ -130,6 +130,55 @@ describe("session command vertical slice", () => {
     fixture.sqlite.close();
   });
 
+  it("creates a session in the background when terminal focus is false", async () => {
+    const harness = new FakeHarnessProvider({
+      now,
+      runs: [
+        createFakeHarnessRun({
+          id: "run_web_feature",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          sessionId: "ses_web_feature",
+          state: "idle",
+          now,
+        }),
+      ],
+    });
+    const terminal = new FakeTerminalProvider({ now });
+    const fixture = createFixture({
+      terminal,
+      harness,
+      sessionIds: ["ses_web_feature"],
+    });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "feature",
+        harness: {
+          provider: "fake-harness",
+          mode: "interactive",
+        },
+        terminal: {
+          provider: "fake-terminal",
+          layout: "agent-build-shell",
+          focus: false,
+        },
+      },
+    });
+    await fixture.queue.drain();
+
+    expect(receipt).toMatchObject({ accepted: true, status: "accepted" });
+    expect(terminal.snapshot().launches).toHaveLength(1);
+    expect(terminal.snapshot().focused).toEqual([]);
+    expect(fixture.core.getSnapshot().rows[0]?.agent).toMatchObject({
+      sessionId: "ses_web_feature",
+      state: "idle",
+    });
+    fixture.sqlite.close();
+  });
+
   it("maps session.create provider failure to SafeError and diagnostic envelope", async () => {
     const fixture = createFixture({
       worktree: new FakeWorktreeProvider({
@@ -226,6 +275,7 @@ describe("session command vertical slice", () => {
     await fixture.queue.drain();
 
     expect(terminal.snapshot().launches).toHaveLength(1);
+    expect(terminal.snapshot().focused).toEqual([]);
     expect(fixture.core.getSnapshot().rows[0]?.agent).toMatchObject({
       sessionId: "ses_existing",
       state: "working",

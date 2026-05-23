@@ -69,7 +69,7 @@ describeReal("real Codex session lifecycle dogfood", () => {
         terminal: {
           provider: "tmux",
           layout: "agent-build-shell",
-          focus: true,
+          focus: false,
         },
         initialPrompt: sentinel.prompt,
       },

@@ -31,7 +31,8 @@ export function Dashboard({ snapshot, uiState }: DashboardProps) {
       ))}
       <Box marginTop={1}>
         <Text color="gray">
-          n:new s:start/focus a:agent t:term c:close x:remove 1-9:focus /:search r:refresh q:quit
+          n:new bg s:start bg enter/1-9:focus a:agent t:term c:close x:remove /:search r:refresh
+          q:quit
         </Text>
       </Box>
     </Box>

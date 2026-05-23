@@ -61,7 +61,7 @@ describe("TUI command actions", () => {
         projectId: "web",
         worktreeId: "wt_web_no_agent",
         harness: { provider: "codex" },
-        terminal: { provider: "tmux", layout: "agent-build-shell", focus: true },
+        terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
       },
     });
   });
@@ -82,7 +82,7 @@ describe("TUI command actions", () => {
         projectId: "web",
         branch: "feature/new-dashboard",
         harness: { provider: "codex", mode: "interactive" },
-        terminal: { provider: "tmux", layout: "agent-build-shell", focus: true },
+        terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
         initialPrompt: "wire the dashboard",
       },
     });

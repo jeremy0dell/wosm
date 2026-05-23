@@ -85,7 +85,7 @@ describeReal("real existing Worktrunk worktree start-agent dogfood", () => {
         },
         terminal: {
           provider: "tmux",
-          focus: true,
+          focus: false,
         },
         initialPrompt: sentinel.prompt,
       },
