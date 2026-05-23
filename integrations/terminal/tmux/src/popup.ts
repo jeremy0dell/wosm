@@ -6,7 +6,11 @@ import {
   runRuntimeBoundaryWithRetryAndTimeout,
 } from "@wosm/runtime";
 import { tmuxProviderErrorFromUnknown } from "./errors.js";
-import { resolveTmuxWorkbenchConfig } from "./topology.js";
+import {
+  defaultTmuxWorkbenchSessionOptions,
+  resolveTmuxWorkbenchConfig,
+  tmuxSessionOptionArgs,
+} from "./topology.js";
 
 export type TmuxPopupOptions = {
   command?: string;
@@ -310,8 +314,11 @@ async function resolveWorkbenchTarget(
       message: "tmux failed to create the wosm workbench.",
       timeoutMessage: "tmux workbench creation timed out.",
     });
+    await configureWorkbenchSession(input, sessionId);
     return { sessionId };
   }
+
+  await configureWorkbenchSession(input, sessionId);
 
   const agentTarget = await firstLiveAgentPane(input, sessionId);
   if (agentTarget !== undefined) {
@@ -333,6 +340,20 @@ async function hasTmuxSession(input: TmuxPopupCommandInput, sessionId: string): 
     return true;
   } catch {
     return false;
+  }
+}
+
+async function configureWorkbenchSession(
+  input: TmuxPopupCommandInput,
+  sessionId: string,
+): Promise<void> {
+  for (const option of defaultTmuxWorkbenchSessionOptions) {
+    await runTmuxPopupCommand(input, {
+      args: tmuxSessionOptionArgs(sessionId, option),
+      operation: "provider.tmux.popup.configureWorkbench",
+      message: "tmux failed to configure the wosm workbench.",
+      timeoutMessage: "tmux workbench configuration timed out.",
+    });
   }
 }
 

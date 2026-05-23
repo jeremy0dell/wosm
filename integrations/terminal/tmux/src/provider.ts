@@ -27,9 +27,11 @@ import { parseTmuxTargetLines, tmuxListTargetsFormat } from "./parse.js";
 import {
   buildTmuxTargetId,
   buildWorkbenchWindowName,
+  defaultTmuxWorkbenchSessionOptions,
   parseTmuxTargetId,
   resolveTmuxWorkbenchConfig,
   tmuxPrimaryPaneTarget,
+  tmuxSessionOptionArgs,
   tmuxWindowTarget,
 } from "./topology.js";
 
@@ -161,6 +163,8 @@ export class TmuxProvider implements TerminalProvider {
         },
       );
     }
+
+    await this.#configureWorkbenchSession(sessionName);
 
     // Write identity into tmux options so listTargets can correlate panes back to wosm state.
     await this.#setWindowOption(windowTarget, "@wosm.session_id", request.sessionId ?? "");
@@ -345,6 +349,18 @@ export class TmuxProvider implements TerminalProvider {
         .includes(windowName);
     } catch {
       return false;
+    }
+  }
+
+  async #configureWorkbenchSession(sessionName: string): Promise<void> {
+    for (const option of defaultTmuxWorkbenchSessionOptions) {
+      await this.#run(tmuxSessionOptionArgs(sessionName, option), {
+        operation: "provider.tmux.configureWorkbench",
+        fallback: {
+          code: "TERMINAL_OPEN_FAILED",
+          message: "tmux failed to configure the workbench session.",
+        },
+      });
     }
   }
 

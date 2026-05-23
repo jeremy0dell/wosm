@@ -83,6 +83,9 @@ describe("TmuxProvider", () => {
     expect(calls.map((call) => call.args)).toEqual([
       ["has-session", "-t", "wosm"],
       ["new-session", "-d", "-s", "wosm", "-n", "web-feature-login", "-c", "/tmp/wosm/web/feature"],
+      ["set-option", "-t", "wosm", "mouse", "on"],
+      ["set-option", "-t", "wosm", "history-limit", "100000"],
+      ["set-option", "-t", "wosm", "set-clipboard", "on"],
       ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.session_id", "ses_web_feature"],
       ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.project_id", "web"],
       ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.worktree_id", "wt_web_feature"],

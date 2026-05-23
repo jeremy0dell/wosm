@@ -8,9 +8,9 @@ describe("tmux popup", () => {
     expect(buildTmuxPopupArgs()).toEqual([
       "display-popup",
       "-w",
-      "95%",
+      "50%",
       "-h",
-      "85%",
+      "50%",
       "-E",
       "env WOSM_TUI_POPUP=1 WOSM_FOCUS_PROVIDER=tmux wosm tui --popup",
     ]);
@@ -22,9 +22,9 @@ describe("tmux popup", () => {
       "-c",
       "client_1",
       "-w",
-      "95%",
+      "50%",
       "-h",
-      "85%",
+      "50%",
       "-E",
       "env WOSM_TUI_POPUP=1 WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID=client_1 wosm tui --popup",
     ]);
@@ -121,6 +121,9 @@ describe("tmux popup", () => {
       ["show-options", "-sqv", "@wosm_popup_client"],
       ["set-option", "-sq", "@wosm_popup_client", "client_from_binding"],
       ["has-session", "-t", "wosm"],
+      ["set-option", "-t", "wosm", "mouse", "on"],
+      ["set-option", "-t", "wosm", "history-limit", "100000"],
+      ["set-option", "-t", "wosm", "set-clipboard", "on"],
       [
         "list-panes",
         "-s",
@@ -163,6 +166,9 @@ describe("tmux popup", () => {
       ["show-options", "-sqv", "@wosm_popup_client"],
       ["set-option", "-sq", "@wosm_popup_client", "client_1"],
       ["has-session", "-t", "wosm"],
+      ["set-option", "-t", "wosm", "mouse", "on"],
+      ["set-option", "-t", "wosm", "history-limit", "100000"],
+      ["set-option", "-t", "wosm", "set-clipboard", "on"],
       [
         "list-panes",
         "-s",
@@ -209,6 +215,9 @@ describe("tmux popup", () => {
       ["set-option", "-sq", "@wosm_popup_client", "client_1"],
       ["has-session", "-t", "wosm"],
       ["new-session", "-d", "-s", "wosm", "-n", "wosm"],
+      ["set-option", "-t", "wosm", "mouse", "on"],
+      ["set-option", "-t", "wosm", "history-limit", "100000"],
+      ["set-option", "-t", "wosm", "set-clipboard", "on"],
       ["switch-client", "-c", "client_1", "-t", "wosm"],
       expect.arrayContaining(["display-popup", "-c", "client_1"]),
     ]);

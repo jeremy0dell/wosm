@@ -10,15 +10,26 @@ export type TmuxWorkbenchConfig = {
   popupPosition: string;
 };
 
+export type TmuxSessionOption = {
+  name: string;
+  value: string;
+};
+
 export const defaultTmuxWorkbenchConfig: TmuxWorkbenchConfig = {
   topology: "workbench",
   workbenchSession: "wosm",
   windowNaming: "project-branch",
   primaryAgentPane: true,
-  popupWidth: "95%",
-  popupHeight: "85%",
+  popupWidth: "50%",
+  popupHeight: "50%",
   popupPosition: "C",
 };
+
+export const defaultTmuxWorkbenchSessionOptions: readonly TmuxSessionOption[] = [
+  { name: "mouse", value: "on" },
+  { name: "history-limit", value: "100000" },
+  { name: "set-clipboard", value: "on" },
+];
 
 export function resolveTmuxWorkbenchConfig(config: TmuxConfig = {}): TmuxWorkbenchConfig {
   return {
@@ -30,6 +41,10 @@ export function resolveTmuxWorkbenchConfig(config: TmuxConfig = {}): TmuxWorkben
     popupHeight: config.popupHeight ?? defaultTmuxWorkbenchConfig.popupHeight,
     popupPosition: config.popupPosition ?? defaultTmuxWorkbenchConfig.popupPosition,
   };
+}
+
+export function tmuxSessionOptionArgs(sessionId: string, option: TmuxSessionOption): string[] {
+  return ["set-option", "-t", sessionId, option.name, option.value];
 }
 
 export function buildWorkbenchWindowName(input: { projectId: string; branch: string }): string {

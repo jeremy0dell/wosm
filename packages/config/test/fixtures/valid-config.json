@@ -30,8 +30,8 @@
       "workbenchSession": "wosm",
       "windowNaming": "project-branch",
       "primaryAgentPane": true,
-      "popupWidth": "95%",
-      "popupHeight": "85%",
+      "popupWidth": "50%",
+      "popupHeight": "50%",
       "popupPosition": "C"
     }
   },

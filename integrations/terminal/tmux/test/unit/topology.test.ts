@@ -3,7 +3,9 @@ import {
   buildTmuxTargetId,
   buildWorkbenchWindowName,
   defaultTmuxWorkbenchConfig,
+  defaultTmuxWorkbenchSessionOptions,
   parseTmuxTargetId,
+  tmuxSessionOptionArgs,
 } from "../../src/topology";
 
 describe("tmux workbench topology", () => {
@@ -13,10 +15,25 @@ describe("tmux workbench topology", () => {
       workbenchSession: "wosm",
       windowNaming: "project-branch",
       primaryAgentPane: true,
-      popupWidth: "95%",
-      popupHeight: "85%",
+      popupWidth: "50%",
+      popupHeight: "50%",
       popupPosition: "C",
     });
+  });
+
+  it("applies Ghostty-like session options to the wosm workbench only", () => {
+    expect(defaultTmuxWorkbenchSessionOptions).toEqual([
+      { name: "mouse", value: "on" },
+      { name: "history-limit", value: "100000" },
+      { name: "set-clipboard", value: "on" },
+    ]);
+    expect(tmuxSessionOptionArgs("wosm", defaultTmuxWorkbenchSessionOptions[0])).toEqual([
+      "set-option",
+      "-t",
+      "wosm",
+      "mouse",
+      "on",
+    ]);
   });
 
   it("builds stable safe window names from project and branch", () => {

@@ -1249,8 +1249,8 @@ topology = "workbench" # workbench in MVP
 workbench_session = "wosm"
 window_naming = "project-branch"
 primary_agent_pane = true
-popup_width = "95%"
-popup_height = "85%"
+popup_width = "50%"
+popup_height = "50%"
 popup_position = "C"
 
 [harness.codex]
@@ -2767,7 +2767,7 @@ MVP recommendation: direct TUI process per popup open, backed by warm observer. 
 Example tmux binding:
 
 ```tmux
-bind-key W display-popup -w 95% -h 85% -E "wosm tui --popup"
+bind-key W display-popup -w 50% -h 50% -E "wosm tui --popup"
 ```
 
 ### 11.5 Pane capture

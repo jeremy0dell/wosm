@@ -27,8 +27,8 @@ topology = "workbench"
 workbench_session = "wosm"
 window_naming = "project-branch"
 primary_agent_pane = true
-popup_width = "95%"
-popup_height = "85%"
+popup_width = "50%"
+popup_height = "50%"
 popup_position = "C"
 
 [harness.codex]
