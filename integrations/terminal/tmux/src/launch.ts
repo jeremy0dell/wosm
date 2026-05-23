@@ -7,13 +7,20 @@ export const TmuxLaunchPaneProviderDataSchema = z
   })
   .passthrough();
 
-export function renderHarnessLaunchCommand(plan: HarnessLaunchPlan): string {
-  const cwd = plan.cwd === undefined ? "" : `cd ${quoteArg(plan.cwd)} && `;
-  const env = Object.entries(plan.env ?? {});
-  const envPrefix =
-    env.length === 0 ? "" : `env ${env.map(([key, value]) => quoteEnv(key, value)).join(" ")} `;
-  const args = plan.args.map(quoteArg);
-  return [cwd + envPrefix + quoteCommand(plan.command), ...args].join(" ");
+export type BuildRespawnPaneLaunchArgsInput = {
+  paneTarget: string;
+  plan: HarnessLaunchPlan;
+  cwdFallback: string;
+};
+
+export function buildRespawnPaneLaunchArgs(input: BuildRespawnPaneLaunchArgsInput): string[] {
+  const cwd = input.plan.cwd ?? input.cwdFallback;
+  const args = ["respawn-pane", "-k", "-t", input.paneTarget, "-c", cwd];
+  for (const [key, value] of Object.entries(input.plan.env ?? {})) {
+    args.push("-e", `${key}=${value}`);
+  }
+  args.push(renderLaunchCommand(input.plan));
+  return args;
 }
 
 export function resolveLaunchPaneTarget(request: TerminalLaunchProcessRequest): string {
@@ -23,8 +30,9 @@ export function resolveLaunchPaneTarget(request: TerminalLaunchProcessRequest): 
   return providerData.success ? providerData.data.paneTarget : request.agentEndpointId;
 }
 
-function quoteEnv(key: string, value: string): string {
-  return shellQuote(`${key}=${value}`);
+function renderLaunchCommand(plan: HarnessLaunchPlan): string {
+  const args = plan.args.map(quoteArg);
+  return [quoteCommand(plan.command), ...args].join(" ");
 }
 
 // Commands and args have different safe character sets; keep command paths conservative.

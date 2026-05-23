@@ -5,6 +5,7 @@ import {
   defaultTmuxWorkbenchConfig,
   defaultTmuxWorkbenchSessionOptions,
   parseTmuxTargetId,
+  tmuxNewWindowTarget,
   tmuxSessionOptionArgs,
 } from "../../src/topology";
 
@@ -34,6 +35,10 @@ describe("tmux workbench topology", () => {
       "mouse",
       "on",
     ]);
+  });
+
+  it("targets an existing session explicitly when appending a new window", () => {
+    expect(tmuxNewWindowTarget("wosm")).toBe("wosm:");
   });
 
   it("builds stable safe window names from project and branch", () => {

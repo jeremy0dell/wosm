@@ -47,6 +47,10 @@ export function tmuxSessionOptionArgs(sessionId: string, option: TmuxSessionOpti
   return ["set-option", "-t", sessionId, option.name, option.value];
 }
 
+export function tmuxNewWindowTarget(sessionId: string): string {
+  return `${sessionId}:`;
+}
+
 export function buildWorkbenchWindowName(input: { projectId: string; branch: string }): string {
   const normalized = `${input.projectId}-${input.branch}`
     .toLowerCase()

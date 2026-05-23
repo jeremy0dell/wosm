@@ -22,7 +22,7 @@ import {
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { TmuxTerminalProviderError, tmuxProviderErrorFromUnknown } from "./errors.js";
-import { renderHarnessLaunchCommand, resolveLaunchPaneTarget } from "./launch.js";
+import { buildRespawnPaneLaunchArgs, resolveLaunchPaneTarget } from "./launch.js";
 import { parseTmuxTargetLines, tmuxListTargetsFormat } from "./parse.js";
 import {
   buildTmuxTargetId,
@@ -30,12 +30,18 @@ import {
   defaultTmuxWorkbenchSessionOptions,
   parseTmuxTargetId,
   resolveTmuxWorkbenchConfig,
+  tmuxNewWindowTarget,
   tmuxPrimaryPaneTarget,
   tmuxSessionOptionArgs,
   tmuxWindowTarget,
 } from "./topology.js";
 
 const tmuxPrimaryPaneIdentityFormat = ["#{session_name}", "#{window_id}", "#{pane_id}"].join("\t");
+const tmuxLaunchStatusFormat = [
+  "#{pane_dead}",
+  "#{pane_dead_status}",
+  "#{pane_current_command}",
+].join("\t");
 
 export type TmuxProviderOptions = {
   command?: string;
@@ -141,7 +147,16 @@ export class TmuxProvider implements TerminalProvider {
       const windowExists = await this.#hasWindow(sessionName, windowName);
       if (!windowExists) {
         await this.#run(
-          ["new-window", "-d", "-t", sessionName, "-n", windowName, "-c", request.worktree.path],
+          [
+            "new-window",
+            "-d",
+            "-t",
+            tmuxNewWindowTarget(sessionName),
+            "-n",
+            windowName,
+            "-c",
+            request.worktree.path,
+          ],
           {
             operation: "provider.tmux.openWorkspace",
             fallback: {
@@ -207,8 +222,19 @@ export class TmuxProvider implements TerminalProvider {
 
   async launchProcess(request: TerminalLaunchProcessRequest): Promise<TerminalLaunchProcessResult> {
     const paneTarget = resolveLaunchPaneTarget(request);
+    await this.#run(["set-option", "-p", "-t", paneTarget, "remain-on-exit", "on"], {
+      operation: "provider.tmux.launchProcess",
+      fallback: {
+        code: "TERMINAL_LAUNCH_FAILED",
+        message: "tmux failed to prepare the harness pane.",
+      },
+    });
     await this.#run(
-      ["send-keys", "-t", paneTarget, renderHarnessLaunchCommand(request.launchPlan), "C-m"],
+      buildRespawnPaneLaunchArgs({
+        paneTarget,
+        plan: request.launchPlan,
+        cwdFallback: request.worktree.path,
+      }),
       {
         operation: "provider.tmux.launchProcess",
         fallback: {
@@ -217,6 +243,7 @@ export class TmuxProvider implements TerminalProvider {
         },
       },
     );
+    await this.#assertLaunchRunning(request, paneTarget);
     return {
       terminalTargetId: request.terminalTarget.targetId,
       agentEndpointId: request.agentEndpointId,
@@ -225,6 +252,41 @@ export class TmuxProvider implements TerminalProvider {
         paneTarget,
       },
     };
+  }
+
+  async #assertLaunchRunning(
+    request: TerminalLaunchProcessRequest,
+    paneTarget: string,
+  ): Promise<void> {
+    const output = await this.#run(
+      ["display-message", "-p", "-t", paneTarget, tmuxLaunchStatusFormat],
+      {
+        operation: "provider.tmux.launchProcess",
+        fallback: {
+          code: "TERMINAL_LAUNCH_FAILED",
+          message: "tmux failed to inspect the launched harness pane.",
+        },
+        retries: 1,
+      },
+    );
+    const [paneDead = "", paneDeadStatus = "", paneCommand = ""] = output.stdout.trim().split("\t");
+    if (paneDead !== "1") {
+      return;
+    }
+
+    const options: ConstructorParameters<typeof TmuxTerminalProviderError>[2] = {
+      hint: launchExitedHint(paneCommand, paneDeadStatus),
+      projectId: request.project.id,
+      worktreeId: request.worktree.id,
+    };
+    if (request.terminalTarget.sessionId !== undefined) {
+      options.sessionId = request.terminalTarget.sessionId;
+    }
+    throw new TmuxTerminalProviderError(
+      "TERMINAL_LAUNCH_EXITED",
+      "The harness process exited immediately after launch.",
+      options,
+    );
   }
 
   async focusTarget(targetId: TerminalTargetId, context?: TerminalFocusContext): Promise<void> {
@@ -491,4 +553,10 @@ function parseTargetId(targetId: TerminalTargetId): {
       { cause },
     );
   }
+}
+
+function launchExitedHint(command: string, status: string): string {
+  const commandText = command.length === 0 ? "The harness command" : `The ${command} command`;
+  const statusText = status.length === 0 ? "" : ` with exit status ${status}`;
+  return `${commandText} exited${statusText}. Check the harness config, credentials, and pane output.`;
 }

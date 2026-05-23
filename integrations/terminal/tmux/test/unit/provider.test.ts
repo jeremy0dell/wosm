@@ -109,6 +109,66 @@ describe("TmuxProvider", () => {
     ]);
   });
 
+  it("appends new workbench windows to an existing tmux session", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const provider = new TmuxProvider({
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        calls.push(input);
+        if (input.args?.[0] === "list-windows") {
+          return result(input, "web-other-branch\n");
+        }
+        if (input.args?.[0] === "display-message") {
+          return result(input, "wosm\t@9\t%10");
+        }
+        return result(input, "");
+      },
+    });
+
+    await expect(
+      provider.openWorkspace({
+        project,
+        worktree,
+        harness: "codex",
+        layout: "agent-shell",
+        sessionId: "ses_web_feature",
+      }),
+    ).resolves.toMatchObject({
+      target: {
+        targetId: "tmux:wosm:@9:%10",
+      },
+    });
+
+    expect(calls.map((call) => call.args)).toEqual([
+      ["has-session", "-t", "wosm"],
+      ["list-windows", "-t", "wosm", "-F", "#{window_name}"],
+      ["new-window", "-d", "-t", "wosm:", "-n", "web-feature-login", "-c", "/tmp/wosm/web/feature"],
+      ["set-option", "-t", "wosm", "mouse", "on"],
+      ["set-option", "-t", "wosm", "history-limit", "100000"],
+      ["set-option", "-t", "wosm", "set-clipboard", "on"],
+      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.session_id", "ses_web_feature"],
+      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.project_id", "web"],
+      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.worktree_id", "wt_web_feature"],
+      [
+        "set-option",
+        "-w",
+        "-t",
+        "wosm:web-feature-login",
+        "@wosm.worktree_path",
+        "/tmp/wosm/web/feature",
+      ],
+      ["set-option", "-p", "-t", "wosm:web-feature-login.0", "@wosm.role", "main-agent"],
+      ["set-option", "-p", "-t", "wosm:web-feature-login.0", "@wosm.harness", "codex"],
+      [
+        "display-message",
+        "-p",
+        "-t",
+        "wosm:web-feature-login.0",
+        "#{session_name}\t#{window_id}\t#{pane_id}",
+      ],
+    ]);
+  });
+
   it("lists targets using an explicit tmux format", async () => {
     const calls: ExternalCommandInput[] = [];
     const provider = new TmuxProvider({
@@ -242,13 +302,82 @@ describe("TmuxProvider", () => {
     });
 
     expect(calls.map((call) => call.args)).toEqual([
+      ["set-option", "-p", "-t", "wosm:web-feature-login.0", "remain-on-exit", "on"],
       [
-        "send-keys",
+        "respawn-pane",
+        "-k",
         "-t",
         "wosm:web-feature-login.0",
-        "cd '/tmp/wosm/web/feature' && env 'WOSM_SESSION_ID=ses_web_feature' 'WOSM_TOKEN=value with spaces' codex --cd '/tmp/wosm/web/feature'",
-        "C-m",
+        "-c",
+        "/tmp/wosm/web/feature",
+        "-e",
+        "WOSM_SESSION_ID=ses_web_feature",
+        "-e",
+        "WOSM_TOKEN=value with spaces",
+        "codex --cd '/tmp/wosm/web/feature'",
       ],
+      [
+        "display-message",
+        "-p",
+        "-t",
+        "wosm:web-feature-login.0",
+        "#{pane_dead}\t#{pane_dead_status}\t#{pane_current_command}",
+      ],
+    ]);
+  });
+
+  it("maps an immediately exited harness process to a typed launch error", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const provider = new TmuxProvider({
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        calls.push(input);
+        if (input.args?.[0] === "display-message") {
+          return result(input, "1\t2\tcodex");
+        }
+        return result(input, "");
+      },
+    });
+
+    await expect(
+      provider.launchProcess?.({
+        project,
+        worktree,
+        terminalTarget: {
+          provider: "tmux",
+          targetId: "tmux:wosm:@web-feature-login:%web-feature-login-main",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          sessionId: "ses_web_feature",
+          confidence: "high",
+          reason: "Fixture binding.",
+          providerData: {
+            paneTarget: "wosm:web-feature-login.0",
+          },
+        },
+        agentEndpointId: "%web-feature-login-main",
+        launchPlan: {
+          provider: "codex",
+          command: "codex",
+          args: [],
+          cwd: "/tmp/wosm/web/feature",
+          mode: "interactive",
+        },
+      }),
+    ).rejects.toMatchObject({
+      tag: "TerminalProviderError",
+      code: "TERMINAL_LAUNCH_EXITED",
+      provider: "tmux",
+      projectId: "web",
+      worktreeId: "wt_web_feature",
+      sessionId: "ses_web_feature",
+      hint: expect.stringContaining("exit status 2"),
+    });
+
+    expect(calls.map((call) => call.args?.[0])).toEqual([
+      "set-option",
+      "respawn-pane",
+      "display-message",
     ]);
   });
 
