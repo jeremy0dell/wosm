@@ -1,4 +1,4 @@
-import type { TerminalProvider } from "@wosm/contracts";
+import type { TerminalFocusContext, TerminalProvider } from "@wosm/contracts";
 import {
   createFakeTerminalTarget,
   createFakeWorktree,
@@ -19,6 +19,7 @@ const now = "2026-05-21T12:00:00.000Z";
 describe("observer terminal commands", () => {
   it("focuses a target resolved from worktreeId without exposing tmux details", async () => {
     const focused: string[] = [];
+    const focusContexts: Array<TerminalFocusContext | undefined> = [];
     const terminal = new RecordingTerminalProvider({
       id: "tmux",
       now,
@@ -38,6 +39,7 @@ describe("observer terminal commands", () => {
         }),
       ],
       focused,
+      focusContexts,
     });
     const core = createObserverCore({
       config,
@@ -69,12 +71,24 @@ describe("observer terminal commands", () => {
         type: "terminal.focus",
         payload: {
           worktreeId: "wt_web_feature",
+          origin: {
+            provider: "tmux",
+            clientId: "client_1",
+          },
         },
       },
       signal: new AbortController().signal,
     });
 
     expect(focused).toEqual(["tmux:wosm:@1:%2"]);
+    expect(focusContexts).toEqual([
+      {
+        origin: {
+          provider: "tmux",
+          clientId: "client_1",
+        },
+      },
+    ]);
   });
 
   it("throws a safe terminal provider error when the target cannot be resolved", async () => {
@@ -217,22 +231,26 @@ describe("observer terminal commands", () => {
 
 class RecordingTerminalProvider extends FakeTerminalProvider implements TerminalProvider {
   readonly #focused: string[];
+  readonly #focusContexts: Array<TerminalFocusContext | undefined>;
   readonly #closed: string[];
 
   constructor(
     options: ConstructorParameters<typeof FakeTerminalProvider>[0] & {
       focused: string[];
+      focusContexts?: Array<TerminalFocusContext | undefined>;
       closed?: string[];
     },
   ) {
     super(options);
     this.#focused = options.focused;
+    this.#focusContexts = options.focusContexts ?? [];
     this.#closed = options.closed ?? [];
   }
 
-  override async focusTarget(targetId: string): Promise<void> {
+  override async focusTarget(targetId: string, context?: TerminalFocusContext): Promise<void> {
     await super.focusTarget(targetId);
     this.#focused.push(targetId);
+    this.#focusContexts.push(context);
   }
 
   override async closeTarget(targetId: string): Promise<void> {

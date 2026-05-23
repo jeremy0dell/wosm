@@ -25,6 +25,7 @@ import type {
   SafeError,
   TerminalCapabilities,
   TerminalCapture,
+  TerminalFocusContext,
   TerminalLaunchProcessRequest,
   TerminalLaunchProcessResult,
   TerminalProvider,
@@ -406,6 +407,7 @@ export class FakeTerminalProvider implements TerminalProvider {
   readonly #targets: TerminalTargetObservation[];
   readonly #launches: TerminalLaunchProcessRequest[] = [];
   readonly #focused: TerminalTargetId[] = [];
+  readonly #focusContexts: Array<TerminalFocusContext | undefined> = [];
   readonly #closed: TerminalTargetId[] = [];
   readonly #health: Partial<ProviderHealth> | undefined;
   readonly #capabilities: TerminalCapabilities;
@@ -482,9 +484,10 @@ export class FakeTerminalProvider implements TerminalProvider {
     };
   }
 
-  async focusTarget(_targetId: TerminalTargetId): Promise<void> {
+  async focusTarget(_targetId: TerminalTargetId, context?: TerminalFocusContext): Promise<void> {
     maybeThrow(this.#failures, "focusTarget");
     this.#focused.push(_targetId);
+    this.#focusContexts.push(context);
   }
 
   async closeTarget(targetId: TerminalTargetId): Promise<void> {
@@ -513,12 +516,14 @@ export class FakeTerminalProvider implements TerminalProvider {
     targets: TerminalTargetObservation[];
     launches: TerminalLaunchProcessRequest[];
     focused: TerminalTargetId[];
+    focusContexts: Array<TerminalFocusContext | undefined>;
     closed: TerminalTargetId[];
   } {
     return {
       targets: [...this.#targets],
       launches: [...this.#launches],
       focused: [...this.#focused],
+      focusContexts: [...this.#focusContexts],
       closed: [...this.#closed],
     };
   }

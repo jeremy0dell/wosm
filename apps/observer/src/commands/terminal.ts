@@ -1,4 +1,4 @@
-import type { TerminalProvider } from "@wosm/contracts";
+import type { TerminalFocusContext, TerminalFocusPayload, TerminalProvider } from "@wosm/contracts";
 import type { RuntimeClock } from "@wosm/runtime";
 import type { ObserverPersistence } from "../persistence/index.js";
 import type { ObserverCore } from "../reconcile/core.js";
@@ -39,7 +39,7 @@ export function createTerminalFocusHandler(
       providerId: options.terminal.id,
     });
     throwIfAborted(context.signal);
-    await options.terminal.focusTarget(targetId);
+    await options.terminal.focusTarget(targetId, focusContextFromPayload(context.command.payload));
     throwIfAborted(context.signal);
   };
 }
@@ -143,6 +143,15 @@ function assertTerminalCloseCommand(
   if (context.command.type !== "terminal.close") {
     throw new Error(`Expected terminal.close command, received ${context.command.type}.`);
   }
+}
+
+function focusContextFromPayload(payload: TerminalFocusPayload): TerminalFocusContext | undefined {
+  if (payload.origin === undefined) {
+    return undefined;
+  }
+  const context: TerminalFocusContext = {};
+  context.origin = payload.origin;
+  return context;
 }
 
 function throwIfAborted(signal: AbortSignal): void {

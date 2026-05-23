@@ -168,6 +168,31 @@ describe("TmuxProvider", () => {
     });
   });
 
+  it("focuses the originating tmux client before selecting the workbench window and pane", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const provider = new TmuxProvider({
+      runner: async (input) => {
+        calls.push(input);
+        return result(input, "");
+      },
+    });
+
+    await expect(
+      provider.focusTarget("tmux:wosm:@1:%2", {
+        origin: {
+          provider: "tmux",
+          clientId: "client_1",
+        },
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(calls.map((call) => call.args)).toEqual([
+      ["switch-client", "-c", "client_1", "-t", "wosm"],
+      ["select-window", "-t", "wosm:@1"],
+      ["select-pane", "-t", "%2"],
+    ]);
+  });
+
   it("launches a structured harness plan in the primary agent pane", async () => {
     const calls: ExternalCommandInput[] = [];
     const provider = new TmuxProvider({

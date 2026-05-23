@@ -6,6 +6,7 @@ import type {
   ProviderId,
   TerminalCapabilities,
   TerminalCapture,
+  TerminalFocusContext,
   TerminalLaunchProcessRequest,
   TerminalLaunchProcessResult,
   TerminalProvider,
@@ -222,8 +223,17 @@ export class TmuxProvider implements TerminalProvider {
     };
   }
 
-  async focusTarget(targetId: TerminalTargetId): Promise<void> {
+  async focusTarget(targetId: TerminalTargetId, context?: TerminalFocusContext): Promise<void> {
     const target = parseTargetId(targetId);
+    if (context?.origin?.provider === this.id && context.origin.clientId !== undefined) {
+      await this.#run(["switch-client", "-c", context.origin.clientId, "-t", target.sessionId], {
+        operation: "provider.tmux.focusTarget",
+        fallback: {
+          code: "TERMINAL_FOCUS_FAILED",
+          message: "tmux failed to focus the originating client.",
+        },
+      });
+    }
     await this.#run(
       [
         "select-window",

@@ -134,6 +134,37 @@ describe("Phase 1 contract schemas", () => {
       await loadJson("commands/invalid-command.json"),
       "invalid command fixture",
     );
+
+    expectParses(
+      WosmCommandSchema,
+      {
+        type: "terminal.focus",
+        payload: {
+          targetId: "tmux:wosm:@1:%2",
+          origin: {
+            provider: "tmux",
+            clientId: "client_1",
+          },
+        },
+      },
+      "terminal focus command with popup focus origin",
+    );
+
+    expectFails(
+      WosmCommandSchema,
+      {
+        type: "terminal.focus",
+        payload: {
+          targetId: "tmux:wosm:@1:%2",
+          origin: {
+            provider: "tmux",
+            clientId: "client_1",
+            tmuxSession: "wosm",
+          },
+        },
+      },
+      "terminal focus origin with provider-specific extra fields",
+    );
   });
 
   it("parses one event fixture for each event union member", async () => {

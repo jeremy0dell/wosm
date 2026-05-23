@@ -18,6 +18,7 @@ import type {
 } from "@wosm/contracts";
 import { SafeErrorSchema } from "@wosm/contracts";
 import { Effect, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
+import { ZodError } from "zod";
 import {
   CommandDispatchParamsSchema,
   CommandGetParamsSchema,
@@ -264,9 +265,17 @@ function errorResponse(id: string, message: string, error?: unknown) {
 
 function protocolSafeErrorFromUnknown(error: unknown) {
   const parsedSafeError = SafeErrorSchema.safeParse(error);
-  return parsedSafeError.success
-    ? parsedSafeError.data
-    : protocolSafeError({ message: "Observer protocol method failed." });
+  if (parsedSafeError.success) {
+    return parsedSafeError.data;
+  }
+  if (error instanceof ZodError) {
+    return protocolSafeError({
+      code: "PROTOCOL_VALIDATION_FAILED",
+      message: "Observer protocol payload failed validation.",
+      hint: "If wosm was just rebuilt, restart the observer so it loads the current schema.",
+    });
+  }
+  return protocolSafeError({ message: "Observer protocol method failed." });
 }
 
 function requestId(message: unknown): string {

@@ -113,8 +113,9 @@ describe("protocol client/server", () => {
         id: "bad_params",
         error: {
           tag: "ProtocolError",
-          code: "PROTOCOL_ERROR",
-          message: "Observer protocol method failed.",
+          code: "PROTOCOL_VALIDATION_FAILED",
+          message: "Observer protocol payload failed validation.",
+          hint: "If wosm was just rebuilt, restart the observer so it loads the current schema.",
         },
       });
       expect(JSON.stringify(response)).not.toContain("ZodError");

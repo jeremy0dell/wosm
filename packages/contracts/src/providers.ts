@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TerminalFocusOrigin } from "./commands.js";
 import type { SafeError } from "./errors.js";
 import { SafeErrorSchema } from "./errors.js";
 import type {
@@ -197,6 +198,10 @@ export type TerminalCapture = {
   providerData?: unknown;
 };
 
+export type TerminalFocusContext = {
+  origin?: TerminalFocusOrigin;
+};
+
 export type BuildHarnessLaunchRequest = {
   project: ProviderProjectConfig;
   worktree: WorktreeObservation;
@@ -303,7 +308,7 @@ export interface TerminalProvider {
   listTargets(): Promise<TerminalTargetObservation[]>;
   openWorkspace(request: OpenWorkspaceRequest): Promise<OpenWorkspaceResult>;
   launchProcess?(request: TerminalLaunchProcessRequest): Promise<TerminalLaunchProcessResult>;
-  focusTarget(targetId: TerminalTargetId): Promise<void>;
+  focusTarget(targetId: TerminalTargetId, context?: TerminalFocusContext): Promise<void>;
   closeTarget(targetId: TerminalTargetId): Promise<void>;
   captureTarget?(targetId: TerminalTargetId): Promise<TerminalCapture>;
   sendInput?(targetId: TerminalTargetId, input: string): Promise<void>;

@@ -84,11 +84,21 @@ export const StartAgentPayloadSchema = z
 
 export type StartAgentPayload = z.infer<typeof StartAgentPayloadSchema>;
 
+export const TerminalFocusOriginSchema = z
+  .object({
+    provider: ProviderIdSchema,
+    clientId: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
+export type TerminalFocusOrigin = z.infer<typeof TerminalFocusOriginSchema>;
+
 export const TerminalFocusPayloadSchema = z
   .object({
     targetId: TerminalTargetIdSchema.optional(),
     sessionId: SessionIdSchema.optional(),
     worktreeId: WorktreeIdSchema.optional(),
+    origin: TerminalFocusOriginSchema.optional(),
   })
   .strict()
   .refine(
