@@ -130,7 +130,11 @@ export function buildReconcileCommand(reason?: string): WosmCommand {
   };
 }
 
-export function buildPrimaryCommandForRow(row: WorktreeRow, snapshot: WosmSnapshot): WosmCommand {
+export function buildPrimaryCommandForRow(
+  row: WorktreeRow,
+  snapshot: WosmSnapshot,
+  options: BuildFocusCommandOptions = {},
+): WosmCommand {
   if (row.agent === undefined) {
     const project = snapshot.projects.find((candidate) => candidate.id === row.projectId);
     if (project === undefined) {
@@ -138,7 +142,7 @@ export function buildPrimaryCommandForRow(row: WorktreeRow, snapshot: WosmSnapsh
     }
     return buildStartAgentCommand(row, project);
   }
-  return buildFocusCommand(row);
+  return buildFocusCommand(row, options);
 }
 
 export function canSendPromptToRow(row: WorktreeRow, sessions: readonly SessionView[]): boolean {

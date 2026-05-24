@@ -1,7 +1,7 @@
 import type { TerminalFocusOrigin, WosmCommand, WosmSnapshot } from "@wosm/contracts";
 import {
   type BuildFocusCommandOptions,
-  buildFocusCommand,
+  buildPrimaryCommandForRow,
   type CleanupActionKind,
 } from "./actions.js";
 import { selectKeySlots } from "./selectors.js";
@@ -33,7 +33,10 @@ export function intentForDashboardKey(
     const row = selectKeySlots(snapshot, state).get(input);
     return row === undefined
       ? { type: "none" }
-      : { type: "command", command: buildFocusCommand(row, focusCommandOptions(options)) };
+      : {
+          type: "command",
+          command: buildPrimaryCommandForRow(row, snapshot, focusCommandOptions(options)),
+        };
   }
   if (input === "n") {
     return { type: "open-new-session-prompt" };

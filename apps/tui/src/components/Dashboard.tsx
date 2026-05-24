@@ -28,7 +28,7 @@ export function Dashboard({ snapshot, uiState }: DashboardProps) {
         />
       ))}
       <Box marginTop={1}>
-        <Text color="gray">n:new bg 1-9:focus /:search r:refresh q:quit</Text>
+        <Text color="gray">n:new bg 1-9:start/focus /:search r:refresh q:quit</Text>
       </Box>
     </Box>
   );

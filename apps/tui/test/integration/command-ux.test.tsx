@@ -17,6 +17,31 @@ describe("TUI command UX", () => {
       type: "terminal.focus",
       payload: { targetId: "term_wt_web_idle_agent" },
     });
+    expect(instance.lastFrame()).toContain("1-9:start/focus");
+    instance.unmount();
+  });
+
+  it("dispatches session.startAgent from numeric slot mappings for no-agent rows", async () => {
+    const snapshot = createCommandSnapshot("none");
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("1");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toEqual({
+      type: "session.startAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_no_agent",
+        harness: { provider: "codex" },
+        terminal: {
+          provider: "tmux",
+          layout: "agent-build-shell",
+          focus: false,
+        },
+      },
+    });
     instance.unmount();
   });
 
