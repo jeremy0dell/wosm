@@ -82,6 +82,119 @@ describe("observer hook ingestion", () => {
     sqlite.close();
   });
 
+  it("persists provider-neutral harness event reports and schedules reconciliation", async () => {
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({ clock });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const eventBus = createObserverEventBus();
+    const events = eventBus.subscribe({ type: "harness.eventReported" })[Symbol.asyncIterator]();
+    const reconciled = nextObserverReconciled(eventBus);
+    const core = createObserverCore({
+      config,
+      providers: new ProviderRegistry({
+        worktree: new FakeWorktreeProvider({ now }),
+        terminal: new FakeTerminalProvider({ now }),
+        harnesses: [new FakeHarnessProvider({ now })],
+      }),
+      persistence,
+      sqlite,
+      clock,
+    });
+    const api = createObserverApi({
+      core,
+      persistence,
+      commandQueue: createCommandQueue({ persistence, clock, idFactory: ids(), eventBus }),
+      eventBus,
+      clock,
+      hookReconcileDebounceMs: 0,
+    });
+
+    const receipt = await api.reportHarnessEvent({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      reportId: "report_codex_1",
+      provider: "codex",
+      kind: "harness",
+      eventType: "PreToolUse",
+      observedAt: now,
+      status: {
+        value: "working",
+        confidence: "medium",
+        reason: "Codex is about to use Bash.",
+        source: "harness_hook",
+        updatedAt: now,
+      },
+      correlation: {
+        worktreeId: "wt_web_task",
+        cwd: "/tmp/wosm/web/task",
+      },
+      diagnostics: {
+        rawEventType: "PreToolUse",
+        payloadBytes: 4096,
+        compactedBytes: 512,
+        compacted: true,
+        omittedFieldNames: ["tool_input"],
+      },
+      providerData: {
+        toolName: "Bash",
+      },
+    });
+
+    expect(receipt).toMatchObject({
+      accepted: true,
+      status: "accepted",
+      projected: false,
+      scheduledReconcile: true,
+    });
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: "harness.eventReported",
+        reportId: "report_codex_1",
+        provider: "codex",
+        eventType: "PreToolUse",
+      },
+    });
+    await expect(reconciled.next).resolves.toMatchObject({
+      value: { type: "observer.reconciled" },
+    });
+    await expect(persistence.listProviderObservations()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "codex",
+          providerType: "harness",
+          entityKind: "harness_event",
+          entityKey: "wt_web_task",
+          expiresAt: "2026-06-03T12:00:00.000Z",
+          payload: expect.objectContaining({
+            provider: "codex",
+            worktreeId: "wt_web_task",
+            rawEventType: "PreToolUse",
+            status: expect.objectContaining({
+              value: "working",
+              source: "harness_hook",
+            }),
+            providerData: expect.objectContaining({
+              diagnostics: expect.objectContaining({
+                compacted: true,
+              }),
+              eventType: "PreToolUse",
+              providerData: expect.objectContaining({
+                toolName: "Bash",
+              }),
+              reportId: "report_codex_1",
+            }),
+          }),
+        }),
+      ]),
+    );
+    await events.return?.();
+    await reconciled.close();
+    sqlite.close();
+  });
+
   it("deduplicates hook ids before provider dispatch and persistence", async () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ clock });

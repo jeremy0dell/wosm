@@ -1,20 +1,41 @@
 import { randomUUID } from "node:crypto";
 import type { ObservabilityRetentionConfig } from "@wosm/config";
 import type {
+  HarnessEventObservation,
+  HarnessEventReport,
+  HarnessEventReportReceipt,
   HookReceipt,
   ProviderHookEvent,
   ProviderProjectConfig,
   WosmEvent,
 } from "@wosm/contracts";
-import { HookReceiptSchema, ProviderHookEventSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import {
+  HarnessEventObservationSchema,
+  HarnessEventReportReceiptSchema,
+  HarnessEventReportSchema,
+  HookReceiptSchema,
+  ProviderHookEventSchema,
+  WOSM_SCHEMA_VERSION,
+} from "@wosm/contracts";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import type { ObserverPersistence } from "../persistence/index.js";
+import {
+  providerObservationExpiresAt,
+  providerObservationRetentionDays,
+} from "../persistence/retention.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
 import { ingestProviderHookEvent } from "./providerIngest.js";
 
 export type HookIngestion = {
   ingest(event: ProviderHookEvent, options?: HookIngestOptions): Promise<HookReceipt>;
+};
+
+export type HarnessEventReportIngestion = {
+  ingest(
+    report: HarnessEventReport,
+    options?: HookIngestOptions,
+  ): Promise<HarnessEventReportReceipt>;
 };
 
 export type HookIngestOptions = {
@@ -28,6 +49,14 @@ export type CreateHookIngestionOptions = {
   eventBus?: ObserverEventBus;
   clock?: RuntimeClock;
   hookId?: () => string;
+  requestReconcile?: (reason: string) => void;
+  retention?: ObservabilityRetentionConfig;
+};
+
+export type CreateHarnessEventReportIngestionOptions = {
+  persistence: ObserverPersistence;
+  eventBus?: ObserverEventBus;
+  clock?: RuntimeClock;
   requestReconcile?: (reason: string) => void;
   retention?: ObservabilityRetentionConfig;
 };
@@ -137,10 +166,180 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
   };
 }
 
+export function createHarnessEventReportIngestion(
+  options: CreateHarnessEventReportIngestionOptions,
+): HarnessEventReportIngestion {
+  const clock = options.clock ?? systemClock;
+
+  return {
+    ingest: async (inputReport, ingestOptions = {}) => {
+      const report = HarnessEventReportSchema.parse(inputReport);
+      const receivedAt = toIsoTimestamp(clock.now());
+      if (await hasReportedHarnessEvent(options.persistence, report.reportId)) {
+        return HarnessEventReportReceiptSchema.parse({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          reportId: report.reportId,
+          provider: report.provider,
+          eventType: report.eventType,
+          accepted: true,
+          status: "accepted",
+          receivedAt,
+          projected: false,
+          scheduledReconcile: false,
+          deduped: true,
+        });
+      }
+
+      const reportedEvent: WosmEvent = {
+        type: "harness.eventReported",
+        at: report.observedAt,
+        reportId: report.reportId,
+        provider: report.provider,
+        eventType: report.eventType,
+      };
+      const retentionDays = providerObservationRetentionDays(options.retention);
+
+      const persistResult = await runRuntimeBoundary(
+        {
+          operation: "observer.harnessEventReport.persist",
+          clock,
+          error: {
+            tag: "HarnessEventReportIngestionError",
+            code: "HARNESS_EVENT_REPORT_INGESTION_FAILED",
+            message: "Observer could not persist the harness event report.",
+            provider: report.provider,
+          },
+        },
+        async () => {
+          await options.persistence.recordEvent(reportedEvent, {
+            source: "hook",
+            createdAt: report.observedAt,
+          });
+          await options.persistence.recordProviderObservation({
+            provider: report.provider,
+            providerType: "harness",
+            entityKind: "harness_event",
+            entityKey: harnessEventReportEntityKey(report),
+            payload: harnessEventObservationFromReport(report),
+            observedAt: report.observedAt,
+            expiresAt: providerObservationExpiresAt(report.observedAt, retentionDays),
+          });
+          options.eventBus?.publish(reportedEvent);
+        },
+      );
+
+      if (!persistResult.ok) {
+        return HarnessEventReportReceiptSchema.parse({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          reportId: report.reportId,
+          provider: report.provider,
+          eventType: report.eventType,
+          accepted: false,
+          status: "rejected",
+          receivedAt,
+          projected: false,
+          scheduledReconcile: false,
+          error: persistResult.error,
+        });
+      }
+
+      const shouldReconcile = ingestOptions.triggerReconcile ?? true;
+      if (shouldReconcile && options.requestReconcile !== undefined) {
+        options.requestReconcile(`harness-report:${report.provider}:${report.eventType}`);
+      }
+
+      return HarnessEventReportReceiptSchema.parse({
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        reportId: report.reportId,
+        provider: report.provider,
+        eventType: report.eventType,
+        accepted: true,
+        status: "accepted",
+        receivedAt,
+        projected: false,
+        scheduledReconcile: shouldReconcile && options.requestReconcile !== undefined,
+        deduped: false,
+      });
+    },
+  };
+}
+
 async function hasIngestedHook(persistence: ObserverPersistence, hookId: string): Promise<boolean> {
   const events = await persistence.listEvents({ type: "hook.ingested" });
   return events.some(
     (event) => event.event.type === "hook.ingested" && event.event.hookId === hookId,
+  );
+}
+
+async function hasReportedHarnessEvent(
+  persistence: ObserverPersistence,
+  reportId: string,
+): Promise<boolean> {
+  const events = await persistence.listEvents({ type: "harness.eventReported" });
+  return events.some(
+    (event) => event.event.type === "harness.eventReported" && event.event.reportId === reportId,
+  );
+}
+
+function harnessEventObservationFromReport(report: HarnessEventReport): HarnessEventObservation {
+  const observation: HarnessEventObservation = {
+    provider: report.provider,
+    observedAt: report.observedAt,
+  };
+  if (report.correlation?.sessionId !== undefined) {
+    observation.sessionId = report.correlation.sessionId;
+  }
+  if (report.correlation?.worktreeId !== undefined) {
+    observation.worktreeId = report.correlation.worktreeId;
+  }
+  if (report.correlation?.harnessRunId !== undefined) {
+    observation.harnessRunId = report.correlation.harnessRunId;
+  }
+  if (report.status !== undefined) {
+    observation.status = report.status;
+  }
+  if (report.diagnostics?.rawEventType !== undefined) {
+    observation.rawEventType = report.diagnostics.rawEventType;
+  }
+  const providerData = providerDataFromReport(report);
+  if (providerData !== undefined) {
+    observation.providerData = providerData;
+  }
+  return HarnessEventObservationSchema.parse(observation);
+}
+
+function providerDataFromReport(report: HarnessEventReport): Record<string, unknown> | undefined {
+  const providerData: Record<string, unknown> = {
+    reportId: report.reportId,
+    eventType: report.eventType,
+  };
+  if (report.correlation?.terminalTargetId !== undefined) {
+    providerData.terminalTargetId = report.correlation.terminalTargetId;
+  }
+  if (report.correlation?.projectId !== undefined) {
+    providerData.projectId = report.correlation.projectId;
+  }
+  if (report.correlation?.cwd !== undefined) {
+    providerData.cwd = report.correlation.cwd;
+  }
+  if (report.correlation?.pid !== undefined) {
+    providerData.pid = report.correlation.pid;
+  }
+  if (report.diagnostics !== undefined) {
+    providerData.diagnostics = report.diagnostics;
+  }
+  if (report.providerData !== undefined) {
+    providerData.providerData = report.providerData;
+  }
+  return Object.keys(providerData).length === 0 ? undefined : providerData;
+}
+
+function harnessEventReportEntityKey(report: HarnessEventReport): string {
+  return (
+    report.correlation?.harnessRunId ??
+    report.correlation?.sessionId ??
+    report.correlation?.worktreeId ??
+    report.reportId
   );
 }
 

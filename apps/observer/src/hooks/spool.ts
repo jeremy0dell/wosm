@@ -1,7 +1,15 @@
 import { readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { HookReceipt, HookSpoolRecord, ProviderHookEvent, WosmEvent } from "@wosm/contracts";
-import { HookSpoolRecordSchema } from "@wosm/contracts";
+import type {
+  HarnessEventReport,
+  HarnessEventReportReceipt,
+  HarnessEventReportSpoolRecord,
+  HookReceipt,
+  HookSpoolRecord,
+  ProviderHookEvent,
+  WosmEvent,
+} from "@wosm/contracts";
+import { HarnessEventReportSpoolRecordSchema, HookSpoolRecordSchema } from "@wosm/contracts";
 import {
   type RuntimeClock,
   safeErrorFromUnknown,
@@ -20,10 +28,21 @@ export type HookSpoolDrainResult = {
 export type DrainHookSpoolOptions = {
   spoolDir: string;
   ingest(event: ProviderHookEvent): Promise<HookReceipt>;
+  report?(report: HarnessEventReport): Promise<HarnessEventReportReceipt>;
   persistence?: ObserverPersistence;
   eventBus?: ObserverEventBus;
   clock?: RuntimeClock;
 };
+
+type ParsedSpoolRecord =
+  | {
+      kind: "hook";
+      record: HookSpoolRecord;
+    }
+  | {
+      kind: "report";
+      record: HarnessEventReportSpoolRecord;
+    };
 
 export function hookSpoolDir(stateDir: string): string {
   return join(stateDir, "spool", "hooks");
@@ -32,7 +51,7 @@ export function hookSpoolDir(stateDir: string): string {
 export async function listHookSpoolRecords(spoolDir: string): Promise<
   Array<{
     path: string;
-    record: HookSpoolRecord;
+    record: HookSpoolRecord | HarnessEventReportSpoolRecord;
   }>
 > {
   let entries: string[];
@@ -42,14 +61,16 @@ export async function listHookSpoolRecords(spoolDir: string): Promise<
     return [];
   }
 
-  const records: Array<{ path: string; record: HookSpoolRecord }> = [];
+  const records: Array<{ path: string; record: HookSpoolRecord | HarnessEventReportSpoolRecord }> =
+    [];
   for (const entry of entries.filter((name) => name.endsWith(".json")).sort()) {
     const path = join(spoolDir, entry);
     try {
       const raw = JSON.parse(await readFile(path, "utf8"));
+      const parsed = parseSpoolRecord(raw);
       records.push({
         path,
-        record: HookSpoolRecordSchema.parse(raw),
+        record: parsed.record,
       });
     } catch {
       // Invalid spool files are left in place for later diagnostics.
@@ -84,33 +105,33 @@ export async function drainHookSpool(
   let failed = 0;
 
   for (const path of paths) {
-    let record: HookSpoolRecord;
+    let parsed: ParsedSpoolRecord;
     try {
       const raw = JSON.parse(await readFile(path, "utf8"));
-      record = HookSpoolRecordSchema.parse(raw);
+      parsed = parseSpoolRecord(raw);
     } catch {
       failed += 1;
       continue;
     }
 
     try {
-      const receipt = await options.ingest(record.event);
-      if (receipt.status === "ingested") {
+      const receipt = await drainSpoolRecord(parsed, options);
+      if (receipt.status === "drained") {
         await unlink(path);
         drained += 1;
       } else {
-        await updateFailedSpoolRecord(path, record, receipt.error);
+        await updateFailedSpoolRecord(path, parsed.record, receipt.error);
         failed += 1;
       }
     } catch (error) {
       await updateFailedSpoolRecord(
         path,
-        record,
+        parsed.record,
         safeErrorFromUnknown(error, {
           tag: "HookIngestionError",
           code: "HOOK_SPOOL_DRAIN_FAILED",
           message: "Hook spool record could not be delivered.",
-          provider: record.event.provider,
+          provider: spoolRecordProvider(parsed.record),
         }),
       );
       failed += 1;
@@ -138,19 +159,69 @@ export async function drainHookSpool(
   };
 }
 
+async function drainSpoolRecord(
+  parsed: ParsedSpoolRecord,
+  options: DrainHookSpoolOptions,
+): Promise<
+  | {
+      status: "drained";
+    }
+  | {
+      status: "failed";
+      error: HookSpoolRecord["lastError"] | HarnessEventReportSpoolRecord["lastError"] | undefined;
+    }
+> {
+  if (parsed.kind === "hook") {
+    const receipt = await options.ingest(parsed.record.event);
+    return receipt.status === "ingested"
+      ? { status: "drained" }
+      : { status: "failed", error: receipt.error };
+  }
+
+  if (options.report === undefined) {
+    return {
+      status: "failed",
+      error: safeErrorFromUnknown(undefined, {
+        tag: "HookIngestionError",
+        code: "HOOK_REPORT_SPOOL_UNSUPPORTED",
+        message: "Harness event report spool records are not supported by this drain path.",
+        provider: parsed.record.report.provider,
+      }),
+    };
+  }
+
+  const receipt = await options.report(parsed.record.report);
+  return receipt.status === "accepted"
+    ? { status: "drained" }
+    : { status: "failed", error: receipt.error };
+}
+
+function parseSpoolRecord(input: unknown): ParsedSpoolRecord {
+  const hook = HookSpoolRecordSchema.safeParse(input);
+  if (hook.success) {
+    return { kind: "hook", record: hook.data };
+  }
+  return { kind: "report", record: HarnessEventReportSpoolRecordSchema.parse(input) };
+}
+
 async function updateFailedSpoolRecord(
   path: string,
-  record: HookSpoolRecord,
-  error: HookSpoolRecord["lastError"] | undefined,
+  record: HookSpoolRecord | HarnessEventReportSpoolRecord,
+  error: HookSpoolRecord["lastError"] | HarnessEventReportSpoolRecord["lastError"] | undefined,
 ): Promise<void> {
-  const updated: HookSpoolRecord = {
+  const updated = {
     ...record,
     attempts: record.attempts + 1,
   };
   if (error !== undefined) {
     updated.lastError = error;
   }
-  await writeFile(path, JSON.stringify(HookSpoolRecordSchema.parse(updated), null, 2), {
+  const schema = "event" in updated ? HookSpoolRecordSchema : HarnessEventReportSpoolRecordSchema;
+  await writeFile(path, JSON.stringify(schema.parse(updated), null, 2), {
     mode: 0o600,
   });
+}
+
+function spoolRecordProvider(record: HookSpoolRecord | HarnessEventReportSpoolRecord): string {
+  return "event" in record ? record.event.provider : record.report.provider;
 }

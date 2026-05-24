@@ -1,6 +1,9 @@
-import { CodexHarnessProvider, compactCodexHookPayload } from "@wosm/codex";
+import {
+  CodexHarnessProvider,
+  codexHookPayloadToHarnessEventReport,
+  compactCodexHookPayload,
+} from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
-import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
   createFakeTerminalTarget,
   createFakeWorktree,
@@ -124,30 +127,38 @@ describe("observer reconcile with Codex harness", () => {
     });
     await core.reconcile("initial-codex-context");
 
-    const receipt = await api.ingestHookEvent({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      hookId: "hook_codex_working",
-      provider: "codex",
-      kind: "harness",
-      event: "PreToolUse",
-      receivedAt: "2026-05-21T12:00:01.000Z",
-      payload: compactCodexHookPayload({
-        session_id: "codex_session_123",
-        transcript_path: null,
-        cwd: "/tmp/wosm/web/task/src",
-        hook_event_name: "PreToolUse",
-        model: "gpt-5.4-codex",
-        permission_mode: "default",
-        turn_id: "turn_1",
-        tool_name: "Bash",
-        tool_input: { command: "pnpm test" },
-        tool_use_id: "call_test",
-      }).payload,
+    const compacted = compactCodexHookPayload({
+      session_id: "codex_session_123",
+      transcript_path: null,
+      cwd: "/tmp/wosm/web/task/src",
+      hook_event_name: "PreToolUse",
+      model: "gpt-5.4-codex",
+      permission_mode: "default",
+      turn_id: "turn_1",
+      tool_name: "Bash",
+      tool_input: { command: "pnpm test" },
+      tool_use_id: "call_test",
+      wosm_worktree_id: "wt_web_task",
+      wosm_terminal_target_id: "tmux:wosm:@1:%2",
     });
+    const receipt = await api.reportHarnessEvent(
+      codexHookPayloadToHarnessEventReport({
+        reportId: "report_codex_working",
+        observedAt: "2026-05-21T12:00:01.000Z",
+        payload: compacted.payload,
+        diagnostics: {
+          payloadBytes: compacted.originalByteCount,
+          compactedBytes: compacted.compactedByteCount,
+          compacted: compacted.compacted,
+          omittedFieldNames: compacted.omittedFieldNames,
+        },
+      }),
+    );
 
     expect(receipt).toMatchObject({
-      status: "ingested",
-      reconciled: false,
+      status: "accepted",
+      projected: false,
+      scheduledReconcile: true,
     });
     await expect(reconciled.next).resolves.toMatchObject({
       value: { type: "observer.reconciled" },

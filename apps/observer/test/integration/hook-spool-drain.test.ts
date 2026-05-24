@@ -1,15 +1,16 @@
 import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { compactCodexHookPayload } from "@wosm/codex";
+import { codexHookPayloadToHarnessEventReport, compactCodexHookPayload } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
-import { type ProviderHookEvent, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { FakeHarnessProvider, FakeTerminalProvider, FakeWorktreeProvider } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../tests/support/sockets";
 import {
   fileExists,
   readHookSpoolRecord,
+  writeHarnessEventReportSpoolRecordFixture,
   writeHookSpoolRecordFixture,
   writeInvalidHookSpoolFile,
 } from "../../../../tests/support/spool";
@@ -155,7 +156,7 @@ describe("observer hook spool drain", () => {
     fixture.sqlite.close();
   });
 
-  it("drains compacted Codex hook records without requiring raw tool payloads", async () => {
+  it("drains compacted Codex harness event report records without raw tool payloads", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
     const spoolDir = hookSpoolDir(stateDir);
     const rawCommand = "pnpm test --raw-output";
@@ -170,45 +171,56 @@ describe("observer hook spool drain", () => {
       tool_name: "Bash",
       tool_input: { command: rawCommand },
       tool_use_id: "call_test",
+      wosm_worktree_id: "wt_web_task",
+      wosm_session_id: "ses_web_task",
+      wosm_terminal_target_id: "tmux:wosm:@1:%2",
     });
-    const spoolPath = await writeHookSpoolRecordFixture({
+    const spoolPath = await writeHarnessEventReportSpoolRecordFixture({
       spoolDir,
-      spoolId: "spool_codex_compacted",
-      event: {
-        provider: "codex",
-        kind: "harness",
-        event: "PreToolUse",
+      spoolId: "spool_codex_report_compacted",
+      report: codexHookPayloadToHarnessEventReport({
+        reportId: "report_codex_compacted",
+        observedAt: now,
         payload: compacted.payload,
-      },
+        diagnostics: {
+          payloadBytes: compacted.originalByteCount,
+          compactedBytes: compacted.compactedByteCount,
+          compacted: compacted.compacted,
+          omittedFieldNames: compacted.omittedFieldNames,
+        },
+      }),
     });
-    let observedEvent: ProviderHookEvent | undefined;
-    const fixture = createFixture(spoolDir, {
-      ingest: async (event) => {
-        observedEvent = event;
-        return {
-          schemaVersion: WOSM_SCHEMA_VERSION,
-          hookId: event.hookId ?? "hook_codex_compacted",
-          provider: event.provider,
-          event: event.event,
-          accepted: true,
-          status: "ingested",
-          receivedAt: event.receivedAt,
-          reconciled: false,
-        };
-      },
-    });
+    const fixture = createFixture(spoolDir);
 
     await fixture.api.reconcile("manual");
 
     await expect(fileExists(spoolPath)).resolves.toBe(false);
-    expect(observedEvent?.payload).toMatchObject({
-      hook_event_name: "PreToolUse",
-      tool_input: {
-        compacted: true,
-        originalBytes: expect.any(Number),
-      },
-    });
-    expect(JSON.stringify(observedEvent)).not.toContain(rawCommand);
+    await expect(fixture.persistence.listProviderObservations()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "codex",
+          providerType: "harness",
+          entityKind: "harness_event",
+          entityKey: "ses_web_task",
+          payload: expect.objectContaining({
+            provider: "codex",
+            worktreeId: "wt_web_task",
+            rawEventType: "PreToolUse",
+            status: expect.objectContaining({
+              value: "working",
+              source: "harness_hook",
+            }),
+            providerData: expect.objectContaining({
+              reportId: "report_codex_compacted",
+              eventType: "PreToolUse",
+            }),
+          }),
+        }),
+      ]),
+    );
+    expect(JSON.stringify(await fixture.persistence.listProviderObservations())).not.toContain(
+      rawCommand,
+    );
     fixture.sqlite.close();
   });
 });

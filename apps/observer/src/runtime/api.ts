@@ -7,6 +7,8 @@ import type {
   DoctorOptions,
   DoctorReport,
   EventFilter,
+  HarnessEventReport,
+  HarnessEventReportReceipt,
   HookReceipt,
   ObserverHealth,
   ObserverStopReceipt,
@@ -27,7 +29,12 @@ import {
   type ObserverDiagnosticsDeps,
   runDoctor,
 } from "../diagnostics/collector.js";
-import { createHookIngestion, type HookIngestion } from "../hooks/ingestion.js";
+import {
+  createHarnessEventReportIngestion,
+  createHookIngestion,
+  type HarnessEventReportIngestion,
+  type HookIngestion,
+} from "../hooks/ingestion.js";
 import { drainHookSpool, hookSpoolDepth } from "../hooks/spool.js";
 import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
 import type { ProviderRegistry } from "../providers/registry.js";
@@ -46,6 +53,7 @@ export type CreateObserverApiOptions = {
   eventBus: ObserverEventBus;
   clock?: RuntimeClock;
   hookIngestion?: HookIngestion;
+  harnessEventReportIngestion?: HarnessEventReportIngestion;
   hookSpoolDir?: string;
   socketPath?: string;
   stateDir?: string;
@@ -82,6 +90,17 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       persistence: options.persistence,
       ...(options.providers === undefined ? {} : { providers: options.providers }),
       projects: providerProjectsFromConfig(options.config ?? emptyConfig()),
+      eventBus: options.eventBus,
+      clock,
+      ...(options.config?.observability?.retention === undefined
+        ? {}
+        : { retention: options.config.observability.retention }),
+      requestReconcile: reconcileScheduler.request,
+    });
+  const harnessEventReportIngestion =
+    options.harnessEventReportIngestion ??
+    createHarnessEventReportIngestion({
+      persistence: options.persistence,
       eventBus: options.eventBus,
       clock,
       ...(options.config?.observability?.retention === undefined
@@ -141,6 +160,8 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     reconcile: runReconcile,
     ingestHookEvent: (event: ProviderHookEvent): Promise<HookReceipt> =>
       hookIngestion.ingest(event),
+    reportHarnessEvent: (report: HarnessEventReport): Promise<HarnessEventReportReceipt> =>
+      harnessEventReportIngestion.ingest(report),
   };
 
   async function runReconcile(reason = "manual"): Promise<ReconcileReceipt> {
@@ -207,6 +228,8 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
           eventBus: options.eventBus,
           clock,
           ingest: (event) => hookIngestion.ingest(event, { triggerReconcile: false }),
+          report: (report) =>
+            harnessEventReportIngestion.ingest(report, { triggerReconcile: false }),
         }),
     );
 
