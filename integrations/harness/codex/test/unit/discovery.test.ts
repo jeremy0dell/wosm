@@ -30,6 +30,7 @@ describe("discoverCodexRuns", () => {
             harness: "codex",
             currentCommand: "codex",
             attached: true,
+            dead: false,
           },
         },
       ],

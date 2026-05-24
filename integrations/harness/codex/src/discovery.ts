@@ -10,6 +10,8 @@ const TmuxCodexProviderDataSchema = z
     harness: z.string().min(1).optional(),
     currentCommand: z.string().min(1).optional(),
     attached: z.boolean().optional(),
+    dead: z.boolean().optional(),
+    deadStatus: z.string().min(1).optional(),
   })
   .strict();
 

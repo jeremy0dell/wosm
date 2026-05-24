@@ -57,9 +57,13 @@ describeRealCodex("real Codex session.create", () => {
         timeout: 10_000,
       }).catch(() => undefined);
     });
-    cleanupTasks.push(async () => {
-      await rm(root, { recursive: true, force: true });
-    });
+    if (process.env.WOSM_REAL_CODEX_KEEP_TEMP !== "1") {
+      cleanupTasks.push(async () => {
+        await rm(root, { recursive: true, force: true });
+      });
+    } else {
+      process.stderr.write(`Keeping real Codex temp root: ${root}\n`);
+    }
 
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ path: join(stateDir, "observer.sqlite"), clock });
@@ -129,7 +133,7 @@ describeRealCodex("real Codex session.create", () => {
           },
           terminal: {
             provider: "tmux",
-            layout: "agent-shell",
+            layout: "agent-build-shell",
           },
         },
       });
