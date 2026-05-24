@@ -123,6 +123,63 @@ describe("hook bridge receiver", () => {
     expect(JSON.stringify(deliveredReport)).not.toContain(rawCommand);
   });
 
+  it("routes every supported Codex hook event through harness event report delivery", async () => {
+    const fixture = await createTempState();
+    const delivered: string[] = [];
+
+    for (const payload of codexReceiverPayloads()) {
+      const receipt = await receiveHookEvent(
+        {
+          provider: "codex",
+          event: payload.hook_event_name,
+          payload,
+          config: fixture.config,
+        },
+        {
+          clock: { now: () => new Date(now) },
+          clientFactory: () =>
+            ({
+              reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => {
+                delivered.push(report.eventType);
+                return {
+                  schemaVersion: "0.3.0",
+                  reportId: report.reportId,
+                  provider: report.provider,
+                  eventType: report.eventType,
+                  accepted: true,
+                  status: "accepted",
+                  receivedAt: report.observedAt,
+                  projected: false,
+                  scheduledReconcile: true,
+                };
+              },
+              ingestHookEvent: async () => {
+                throw new Error("Codex hooks should report through observer.harnessEvent.report");
+              },
+            }) as never,
+        },
+      );
+
+      expect(receipt).toMatchObject({
+        status: "ingested",
+        reconciled: false,
+      });
+    }
+
+    expect(delivered).toEqual([
+      "SessionStart",
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PostToolUse",
+      "PreCompact",
+      "PostCompact",
+      "SubagentStart",
+      "SubagentStop",
+      "Stop",
+    ]);
+  });
+
   it("auto-starts a stopped observer and retries delivery", async () => {
     const fixture = await createTempState();
     let attempts = 0;
@@ -363,6 +420,67 @@ describe("hook bridge receiver", () => {
     expect(JSON.stringify(record)).not.toContain("pnpm test");
   });
 
+  it("spools compacted Codex reports when report delivery times out", async () => {
+    const fixture = await createTempState();
+    const rawPrompt = "raw prompt that should not survive timeout spooling";
+
+    const receipt = await receiveHookEvent(
+      {
+        provider: "codex",
+        event: "UserPromptSubmit",
+        payload: {
+          session_id: "codex_session_1",
+          transcript_path: null,
+          cwd: "/tmp/wosm/web/task",
+          hook_event_name: "UserPromptSubmit",
+          model: "gpt-5.4-codex",
+          permission_mode: "default",
+          turn_id: "turn_1",
+          prompt: rawPrompt,
+        },
+        config: {
+          ...fixture.config,
+          observer: {
+            ...fixture.config.observer,
+            autoStartFromHooks: false,
+          },
+        },
+        deliveryTimeoutMs: 5,
+      },
+      {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async () => new Promise<HarnessEventReportReceipt>(() => undefined),
+          }) as never,
+      },
+    );
+
+    expect(receipt).toMatchObject({
+      status: "spooled",
+      error: {
+        tag: "TimeoutError",
+        code: "HOOK_REPORT_DELIVERY_TIMEOUT",
+      },
+    });
+    const files = await listHookSpoolFiles(fixture.hookSpoolDir);
+    expect(files).toHaveLength(1);
+    const record = await readHarnessEventReportSpoolRecord(fixture.hookSpoolDir, files[0] ?? "");
+    expect(record.lastError).toMatchObject({
+      code: "HOOK_REPORT_DELIVERY_TIMEOUT",
+    });
+    expect(record.report).toMatchObject({
+      provider: "codex",
+      eventType: "UserPromptSubmit",
+      diagnostics: {
+        rawEventType: "UserPromptSubmit",
+        compacted: true,
+        omittedFieldNames: ["prompt"],
+      },
+    });
+    expect(JSON.stringify(record)).not.toContain(rawPrompt);
+  });
+
   it("records redacted hook delivery diagnostics in the hook log", async () => {
     const fixture = await createTempState();
     const secret = "sk-hooksecret000000000";
@@ -542,3 +660,89 @@ describe("hook bridge receiver", () => {
     expect(spawnCount).toBe(1);
   });
 });
+
+function codexReceiverPayloads() {
+  const common = {
+    session_id: "codex_session_1",
+    transcript_path: null,
+    cwd: "/tmp/wosm/web/task",
+    model: "gpt-5.4-codex",
+    permission_mode: "default",
+    wosm_project_id: "web",
+    wosm_worktree_id: "wt_web_task",
+    wosm_session_id: "ses_web_task",
+    wosm_terminal_target_id: "tmux:wosm:@1:%2",
+  };
+  const turn = {
+    ...common,
+    turn_id: "turn_1",
+  };
+
+  return [
+    {
+      ...common,
+      hook_event_name: "SessionStart",
+      source: "startup",
+    },
+    {
+      ...turn,
+      hook_event_name: "UserPromptSubmit",
+      prompt: "Implement the plan.",
+    },
+    {
+      ...turn,
+      hook_event_name: "PreToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "pnpm test" },
+      tool_use_id: "call_pre",
+    },
+    {
+      ...turn,
+      hook_event_name: "PermissionRequest",
+      tool_name: "Bash",
+      tool_input: { command: "rm -rf /tmp/example" },
+    },
+    {
+      ...turn,
+      hook_event_name: "PostToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "pwd" },
+      tool_response: "ok",
+      tool_use_id: "call_post",
+    },
+    {
+      ...turn,
+      hook_event_name: "PreCompact",
+      trigger: "manual",
+    },
+    {
+      ...turn,
+      hook_event_name: "PostCompact",
+      trigger: "auto",
+    },
+    {
+      ...common,
+      hook_event_name: "SubagentStart",
+      turn_id: "turn_1",
+      agent_id: "agent_1",
+      agent_type: "reviewer",
+    },
+    {
+      ...common,
+      hook_event_name: "SubagentStop",
+      turn_id: "turn_1",
+      agent_transcript_path: null,
+      agent_id: "agent_1",
+      agent_type: "reviewer",
+      stop_hook_active: false,
+      last_assistant_message: "Reviewed.",
+    },
+    {
+      ...common,
+      hook_event_name: "Stop",
+      turn_id: "turn_1",
+      stop_hook_active: false,
+      last_assistant_message: "Done.",
+    },
+  ];
+}

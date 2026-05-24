@@ -469,6 +469,41 @@ describe("Codex hook event parsing", () => {
     });
   });
 
+  it("maps every supported Codex hook event to a provider-neutral report status", () => {
+    const expected = [
+      ["SessionStart", "starting", "high"],
+      ["UserPromptSubmit", "working", "medium"],
+      ["PreToolUse", "working", "medium"],
+      ["PermissionRequest", "needs_attention", "high"],
+      ["PostToolUse", "working", "medium"],
+      ["PreCompact", "working", "medium"],
+      ["PostCompact", "working", "medium"],
+      ["SubagentStart", "working", "medium"],
+      ["SubagentStop", "working", "medium"],
+      ["Stop", "idle", "high"],
+    ] as const;
+
+    const reports = codexReportPayloads().map((payload) =>
+      codexHookPayloadToHarnessEventReport({
+        reportId: `report_${payload.hook_event_name}`,
+        observedAt: now,
+        payload,
+      }),
+    );
+
+    expect(
+      reports.map((report) => [report.eventType, report.status?.value, report.status?.confidence]),
+    ).toEqual(expected);
+    for (const report of reports) {
+      expect(report.provider).toBe("codex");
+      expect(report.kind).toBe("harness");
+      expect(report.status?.source).toBe("harness_hook");
+      expect(report.diagnostics).toMatchObject({
+        rawEventType: report.eventType,
+      });
+    }
+  });
+
   it("throws typed provider errors for unsupported or mismatched payloads", () => {
     expect(() =>
       parseCodexHookEvent({
@@ -528,4 +563,102 @@ function context() {
       },
     ],
   };
+}
+
+function codexReportPayloads() {
+  const common = {
+    session_id: "codex_session_123",
+    transcript_path: null,
+    cwd: "/tmp/wosm/web/task",
+    model: "gpt-5.4-codex",
+    permission_mode: "default",
+    wosm_project_id: "web",
+    wosm_worktree_id: "wt_web_task",
+    wosm_session_id: "ses_web_task",
+    wosm_terminal_target_id: "tmux:wosm:@1:%2",
+  };
+  const turn = {
+    ...common,
+    turn_id: "turn_1",
+  };
+
+  return [
+    {
+      ...common,
+      hook_event_name: "SessionStart",
+      source: "startup",
+    },
+    {
+      ...turn,
+      hook_event_name: "UserPromptSubmit",
+      prompt: "Implement the plan.",
+    },
+    {
+      ...turn,
+      hook_event_name: "PreToolUse",
+      tool_name: "Bash",
+      tool_input: {
+        compacted: true,
+        originalBytes: 128,
+      },
+      tool_use_id: "call_pre",
+    },
+    {
+      ...turn,
+      hook_event_name: "PermissionRequest",
+      tool_name: "Bash",
+      tool_input: {
+        compacted: true,
+        originalBytes: 256,
+      },
+    },
+    {
+      ...turn,
+      hook_event_name: "PostToolUse",
+      tool_name: "Bash",
+      tool_input: {
+        compacted: true,
+        originalBytes: 128,
+      },
+      tool_response: {
+        compacted: true,
+        originalBytes: 512,
+      },
+      tool_use_id: "call_post",
+    },
+    {
+      ...turn,
+      hook_event_name: "PreCompact",
+      trigger: "manual",
+    },
+    {
+      ...turn,
+      hook_event_name: "PostCompact",
+      trigger: "auto",
+    },
+    {
+      ...common,
+      hook_event_name: "SubagentStart",
+      turn_id: "turn_1",
+      agent_id: "agent_1",
+      agent_type: "reviewer",
+    },
+    {
+      ...common,
+      hook_event_name: "SubagentStop",
+      turn_id: "turn_1",
+      agent_transcript_path: null,
+      agent_id: "agent_1",
+      agent_type: "reviewer",
+      stop_hook_active: false,
+      last_assistant_message: null,
+    },
+    {
+      ...common,
+      hook_event_name: "Stop",
+      turn_id: "turn_1",
+      stop_hook_active: false,
+      last_assistant_message: null,
+    },
+  ];
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { codexHookPayloadToHarnessEventReport, compactCodexHookPayload } from "@wosm/codex";
+import { compactCodexHookPayload } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
 import type {
   HarnessEventReport,
@@ -21,6 +21,11 @@ import {
 import { normalizeWorktrunkLifecycleEvent } from "@wosm/worktrunk";
 import { type HookObserverStartupDeps, startHookObserver } from "./observerStartup.js";
 import { type ObserverPaths, resolveObserverPaths } from "./paths.js";
+import {
+  type HookPayloadSummary,
+  harnessEventReportFromHookEvent,
+  shouldReportHarnessEvent,
+} from "./providerReports.js";
 import { writeHarnessEventReportSpoolRecord, writeHookSpoolRecord } from "./spool.js";
 
 export type HookReceiverInput = {
@@ -46,14 +51,6 @@ export type HookReceiverDeps = HookObserverStartupDeps & {
   writeReportSpool?: typeof writeHarnessEventReportSpoolRecord;
   hookId?: () => string;
   logger?: JsonlLogger;
-};
-
-type HookPayloadSummary = {
-  present: boolean;
-  originalBytes: number | null;
-  compactedBytes: number | null;
-  compacted: boolean;
-  omittedFieldNames: string[];
 };
 
 const lastStartByStateDir = new Map<string, number>();
@@ -83,7 +80,11 @@ export async function receiveHookEvent(
   const autoStart = input.autoStart ?? input.config?.observer?.autoStartFromHooks !== false;
 
   if (shouldReportHarnessEvent(compacted.event)) {
-    const reportResult = harnessEventReportFromHookEvent(compacted.event, compacted.payloadSummary);
+    const reportResult = harnessEventReportFromHookEvent(
+      compacted.event,
+      compacted.payloadSummary,
+      defaultHookId,
+    );
     if (!reportResult.ok) {
       return logAndReturn(
         paths,
@@ -511,43 +512,6 @@ function compactHookEventPayload(event: ProviderHookEvent): {
       omittedFieldNames: compaction.omittedFieldNames,
     },
   };
-}
-
-function shouldReportHarnessEvent(event: ProviderHookEvent): boolean {
-  return event.provider === "codex" && event.kind === "harness";
-}
-
-function harnessEventReportFromHookEvent(
-  event: ProviderHookEvent,
-  payloadSummary: HookPayloadSummary,
-):
-  | {
-      ok: true;
-      report: HarnessEventReport;
-    }
-  | {
-      ok: false;
-      error: unknown;
-    } {
-  try {
-    return {
-      ok: true,
-      report: codexHookPayloadToHarnessEventReport({
-        reportId: event.hookId ?? defaultHookId(),
-        observedAt: event.receivedAt,
-        payload: event.payload,
-        diagnostics: {
-          payloadBytes: payloadSummary.originalBytes,
-          compactedBytes: payloadSummary.compactedBytes,
-          compacted: payloadSummary.compacted,
-          truncated: false,
-          omittedFieldNames: payloadSummary.omittedFieldNames,
-        },
-      }),
-    };
-  } catch (error) {
-    return { ok: false, error };
-  }
 }
 
 function hookReceiptFromReportReceipt(receipt: HarnessEventReportReceipt): HookReceipt {
