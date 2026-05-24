@@ -84,6 +84,12 @@ function eventMatchesFilter(event: WosmEvent, filter: EventFilter | undefined): 
     }
   }
 
+  if (filter.traceId !== undefined) {
+    if (!("traceId" in event) || event.traceId !== filter.traceId) {
+      return false;
+    }
+  }
+
   if (filter.since !== undefined && "at" in event) {
     return Date.parse(event.at) >= Date.parse(filter.since);
   }

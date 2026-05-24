@@ -64,6 +64,7 @@ export function registerObserverCommandHandlers(
       eventBus: options.eventBus,
       clock: options.clock,
       idFactory: options.idFactory,
+      logger: options.logger,
       commandTimeoutMs: options.commandTimeoutMs,
     }),
   );
@@ -77,6 +78,7 @@ export function registerObserverCommandHandlers(
       eventBus: options.eventBus,
       clock: options.clock,
       idFactory: options.idFactory,
+      logger: options.logger,
       commandTimeoutMs: options.commandTimeoutMs,
     }),
   );

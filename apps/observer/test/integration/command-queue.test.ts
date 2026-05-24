@@ -58,6 +58,21 @@ const sendPromptCommand: WosmCommand = {
   },
 };
 
+const createWorktreeCommand: WosmCommand = {
+  type: "worktree.create",
+  payload: {
+    projectId: "web",
+    branch: "feature/auth",
+  },
+};
+
+const installHooksCommand: WosmCommand = {
+  type: "hooks.install",
+  payload: {
+    provider: "worktrunk",
+  },
+};
+
 const closeTerminalCommand: WosmCommand = {
   type: "terminal.close",
   payload: {
@@ -181,6 +196,72 @@ describe("observer command queue", () => {
         }),
       }),
     ]);
+    sqlite.close();
+  });
+
+  it("fails accepted commands that do not have registered handlers", async () => {
+    const { sqlite, persistence, queue } = createPersistenceAndQueue();
+
+    const receipts = await Promise.all([
+      queue.dispatch(createWorktreeCommand),
+      queue.dispatch(sendPromptCommand),
+      queue.dispatch(installHooksCommand),
+    ]);
+    await queue.drain();
+
+    expect(receipts).toEqual([
+      expect.objectContaining({ commandId: "cmd_1", accepted: true, status: "accepted" }),
+      expect.objectContaining({ commandId: "cmd_2", accepted: true, status: "accepted" }),
+      expect.objectContaining({ commandId: "cmd_3", accepted: true, status: "accepted" }),
+    ]);
+    expect(await persistence.listCommands()).toEqual([
+      expect.objectContaining({
+        id: "cmd_1",
+        status: "failed",
+        traceId: receipts[0]?.traceId,
+        error: expect.objectContaining({
+          tag: "CommandRoutingError",
+          code: "COMMAND_HANDLER_MISSING",
+          commandId: "cmd_1",
+          traceId: receipts[0]?.traceId,
+        }),
+      }),
+      expect.objectContaining({
+        id: "cmd_2",
+        status: "failed",
+        traceId: receipts[1]?.traceId,
+        error: expect.objectContaining({
+          tag: "CommandRoutingError",
+          code: "COMMAND_HANDLER_MISSING",
+          commandId: "cmd_2",
+          traceId: receipts[1]?.traceId,
+        }),
+      }),
+      expect.objectContaining({
+        id: "cmd_3",
+        status: "failed",
+        traceId: receipts[2]?.traceId,
+        error: expect.objectContaining({
+          tag: "CommandRoutingError",
+          code: "COMMAND_HANDLER_MISSING",
+          commandId: "cmd_3",
+          traceId: receipts[2]?.traceId,
+        }),
+      }),
+    ]);
+    for (const receipt of receipts) {
+      const events = await persistence.listEvents({ commandId: receipt.commandId });
+      expect(events.map((event) => event.type)).toEqual([
+        "command.accepted",
+        "command.started",
+        "command.failed",
+      ]);
+      expect(events.map((event) => event.traceId)).toEqual([
+        receipt.traceId,
+        receipt.traceId,
+        receipt.traceId,
+      ]);
+    }
     sqlite.close();
   });
 

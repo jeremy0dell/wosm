@@ -12,6 +12,7 @@ import {
 } from "@wosm/contracts";
 import { maxIso, optionalJson } from "./json.js";
 import { insertProviderObservation } from "./observations.js";
+import { providerObservationExpiresAt } from "./retention.js";
 import {
   harnessRunFromRow,
   projectFromRow,
@@ -52,7 +53,7 @@ export function persistReconcileResult(
       entityKey: worktree.id,
       payload: worktree,
       observedAt: worktree.observedAt,
-      expiresAt: input.expiresAt,
+      expiresAt: expiresAtFor(input, worktree.observedAt),
     });
   }
   for (const target of input.terminalTargets.map((value) =>
@@ -67,7 +68,7 @@ export function persistReconcileResult(
       entityKey: target.id,
       payload: target,
       observedAt: target.observedAt,
-      expiresAt: input.expiresAt,
+      expiresAt: expiresAtFor(input, target.observedAt),
     });
   }
   for (const run of input.harnessRuns.map((value) => HarnessRunObservationSchema.parse(value))) {
@@ -80,7 +81,7 @@ export function persistReconcileResult(
       entityKey: run.id,
       payload: run,
       observedAt: run.observedAt,
-      expiresAt: input.expiresAt,
+      expiresAt: expiresAtFor(input, run.observedAt),
     });
   }
   if (input.providerHealth !== undefined) {
@@ -93,11 +94,18 @@ export function persistReconcileResult(
         entityKey: health.providerId,
         payload: health,
         observedAt: health.lastCheckedAt,
-        expiresAt: input.expiresAt,
+        expiresAt: expiresAtFor(input, health.lastCheckedAt),
       });
     }
   }
   upsertSessions(database, input.terminalTargets, input.harnessRuns);
+}
+
+function expiresAtFor(input: PersistReconcileResultInput, observedAt: string): string | undefined {
+  if (input.providerObservationRetentionDays !== undefined) {
+    return providerObservationExpiresAt(observedAt, input.providerObservationRetentionDays);
+  }
+  return input.expiresAt;
 }
 
 export function listProjects(database: DatabaseSync): PersistedProject[] {

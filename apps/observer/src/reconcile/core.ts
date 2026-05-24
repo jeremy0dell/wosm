@@ -9,6 +9,7 @@ import { ProviderProjectConfigSchema } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import type { ObserverPersistence } from "../persistence/index.js";
+import { providerObservationRetentionDays } from "../persistence/retention.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverSqliteHandle, ObserverSqliteHealth } from "../sqlite.js";
 import { buildInitialSnapshot, type ProviderReadOptions, runReconcileOnce } from "./run.js";
@@ -60,6 +61,7 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
   const version = input.version ?? "0.0.0";
   const providerTimeoutMs = input.providerTimeoutMs ?? 5000;
   const providerReadRetries = input.providerReadRetries ?? 1;
+  const retentionDays = providerObservationRetentionDays(input.config.observability?.retention);
   const projects = providerProjectsFromConfig(input.config);
   let reconcileChain: Promise<void> = Promise.resolve();
   let providerHealth: Record<string, ProviderHealth> = {};
@@ -89,6 +91,7 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
           providers: input.providers,
           read,
           ...(input.persistence === undefined ? {} : { persistence: input.persistence }),
+          providerObservationRetentionDays: retentionDays,
         });
         providerHealth = result.providerHealth;
         lastReconcile = result.lastReconcile;

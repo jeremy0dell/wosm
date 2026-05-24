@@ -803,10 +803,7 @@
         "provider": "tmux",
         "terminalTargetId": "term_orphan_agent",
         "reason": "Terminal target has no matching configured project or worktree.",
-        "observedAt": "2026-05-20T12:00:00.000Z",
-        "providerData": {
-          "workspace": "wosm:orphan"
-        }
+        "observedAt": "2026-05-20T12:00:00.000Z"
       }
     ]
   },

@@ -6,6 +6,7 @@ import type {
   HarnessProvider,
   HarnessRunObservation,
   ProviderHealth,
+  SafeError,
   TerminalCapabilities,
   TerminalProvider,
   TerminalTargetObservation,
@@ -43,7 +44,11 @@ function createWorktreeProvider(config: WosmConfig): WorktreeProvider {
     return new WorktrunkProvider(options);
   }
 
-  return new NoopWorktreeProvider(config.defaults.worktreeProvider);
+  if (config.defaults.worktreeProvider === "noop-worktree") {
+    return new NoopWorktreeProvider(config.defaults.worktreeProvider);
+  }
+
+  return new UnavailableWorktreeProvider(config.defaults.worktreeProvider);
 }
 
 function createTerminalProvider(config: WosmConfig): TerminalProvider {
@@ -55,7 +60,11 @@ function createTerminalProvider(config: WosmConfig): TerminalProvider {
     return new TmuxProvider(options);
   }
 
-  return new NoopTerminalProvider(config.defaults.terminal);
+  if (config.defaults.terminal === "noop-terminal") {
+    return new NoopTerminalProvider(config.defaults.terminal);
+  }
+
+  return new UnavailableTerminalProvider(config.defaults.terminal);
 }
 
 function createHarnessProviders(config: WosmConfig): HarnessProvider[] {
@@ -112,7 +121,11 @@ function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider 
     return new OpenCodeHarnessProvider(options);
   }
 
-  return new NoopHarnessProvider(id);
+  if (id === "noop-harness") {
+    return new NoopHarnessProvider(id);
+  }
+
+  return new UnavailableHarnessProvider(id);
 }
 
 function health(providerId: string, providerType: ProviderHealth["providerType"]): ProviderHealth {
@@ -121,6 +134,30 @@ function health(providerId: string, providerType: ProviderHealth["providerType"]
     providerType,
     status: "healthy",
     lastCheckedAt: toIsoTimestamp(systemClock.now()),
+  };
+}
+
+function unavailableHealth(
+  providerId: string,
+  providerType: ProviderHealth["providerType"],
+  capabilities: Record<string, boolean>,
+): ProviderHealth {
+  return {
+    providerId,
+    providerType,
+    status: "unavailable",
+    lastCheckedAt: toIsoTimestamp(systemClock.now()),
+    lastError: providerUnavailableError(providerId),
+    capabilities,
+  };
+}
+
+function providerUnavailableError(providerId: string): SafeError {
+  return {
+    tag: "ProviderUnavailableError",
+    code: "PROVIDER_NOT_REGISTERED",
+    message: "The configured provider is not registered.",
+    provider: providerId,
   };
 }
 
@@ -151,6 +188,36 @@ class NoopWorktreeProvider implements WorktreeProvider {
 
   async removeWorktree(): Promise<{ worktreeId: string; removed: boolean; reason?: string }> {
     return { worktreeId: "unknown", removed: false, reason: "No worktree provider is configured." };
+  }
+}
+
+class UnavailableWorktreeProvider implements WorktreeProvider {
+  constructor(readonly id: string) {}
+
+  capabilities(): WorktreeCapabilities {
+    return {
+      canCreate: false,
+      canRemove: false,
+      canList: false,
+      canEmitLifecycleEvents: false,
+      canExposeDirtyState: false,
+    };
+  }
+
+  async health(): Promise<ProviderHealth> {
+    return unavailableHealth(this.id, "worktree", this.capabilities());
+  }
+
+  async listWorktrees(): Promise<WorktreeObservation[]> {
+    return [];
+  }
+
+  async createWorktree(): Promise<never> {
+    throw providerUnavailableError(this.id);
+  }
+
+  async removeWorktree(): Promise<never> {
+    throw providerUnavailableError(this.id);
   }
 }
 
@@ -186,6 +253,42 @@ class NoopTerminalProvider implements TerminalProvider {
   async closeTarget(): Promise<void> {}
 }
 
+class UnavailableTerminalProvider implements TerminalProvider {
+  constructor(readonly id: string) {}
+
+  capabilities(): TerminalCapabilities {
+    return {
+      canOpenWorkspace: false,
+      canFocusTarget: false,
+      canCloseTarget: false,
+      canCaptureOutput: false,
+      canSendInput: false,
+      canPersistIdentityBinding: false,
+      canDisplayPopup: false,
+    };
+  }
+
+  async health(): Promise<ProviderHealth> {
+    return unavailableHealth(this.id, "terminal", this.capabilities());
+  }
+
+  async listTargets(): Promise<TerminalTargetObservation[]> {
+    return [];
+  }
+
+  async openWorkspace(): Promise<never> {
+    throw providerUnavailableError(this.id);
+  }
+
+  async focusTarget(): Promise<never> {
+    throw providerUnavailableError(this.id);
+  }
+
+  async closeTarget(): Promise<never> {
+    throw providerUnavailableError(this.id);
+  }
+}
+
 class NoopHarnessProvider implements HarnessProvider {
   constructor(readonly id: string) {}
 
@@ -217,5 +320,39 @@ class NoopHarnessProvider implements HarnessProvider {
 
   async classifyRun(): Promise<never> {
     throw new Error("No harness provider is configured.");
+  }
+}
+
+class UnavailableHarnessProvider implements HarnessProvider {
+  constructor(readonly id: string) {}
+
+  capabilities(): HarnessCapabilities {
+    return {
+      canLaunch: false,
+      canDiscoverRuns: false,
+      canEmitEvents: false,
+      canClassifyStatus: false,
+      canReceivePrompt: false,
+      canResume: false,
+      canStop: false,
+      canRunNonInteractive: false,
+      canExposeApprovalState: false,
+    };
+  }
+
+  async health(): Promise<ProviderHealth> {
+    return unavailableHealth(this.id, "harness", this.capabilities());
+  }
+
+  async buildLaunch(): Promise<never> {
+    throw providerUnavailableError(this.id);
+  }
+
+  async discoverRuns(): Promise<HarnessRunObservation[]> {
+    return [];
+  }
+
+  async classifyRun(): Promise<never> {
+    throw providerUnavailableError(this.id);
   }
 }

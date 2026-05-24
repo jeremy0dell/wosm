@@ -124,13 +124,22 @@ describe("observer reconcile persistence", () => {
         state: "working",
       }),
     ]);
-    expect((await persistence.listProviderObservations()).map((item) => item.entityKind)).toEqual([
+    const observations = await persistence.listProviderObservations();
+    expect(observations.map((item) => item.entityKind)).toEqual([
       "worktree",
       "terminal_target",
       "harness_run",
       "provider_health",
       "provider_health",
       "provider_health",
+    ]);
+    expect(observations.map((item) => item.expiresAt)).toEqual([
+      "2026-06-03T12:00:00.000Z",
+      "2026-06-03T12:00:00.000Z",
+      "2026-06-03T12:00:00.000Z",
+      "2026-06-03T12:00:00.000Z",
+      "2026-06-03T12:00:00.000Z",
+      "2026-06-03T12:00:00.000Z",
     ]);
     expect(await persistence.listEvents({ type: "observer.reconciled" })).toEqual([
       expect.objectContaining({
@@ -192,7 +201,7 @@ describe("observer reconcile persistence", () => {
     sqlite.close();
   });
 
-  it("applies the latest correlated harness hook observation to discovered runs", async () => {
+  it("keeps harness hook observations diagnostic-only during live reconcile", async () => {
     const dbPath = await tempDbPath();
     const sqlite = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(now) } });
     const persistence = createObserverPersistence({
@@ -230,17 +239,26 @@ describe("observer reconcile persistence", () => {
       clock: { now: () => new Date(now) },
     });
 
-    const snapshot = await core.reconcile("hook-overlay");
+    const snapshot = await core.reconcile("hook-diagnostic-only");
 
     expect(snapshot.rows[0]?.agent).toMatchObject({
-      state: "needs_attention",
+      state: "working",
       confidence: "high",
-      reason: "Codex requested permission for Bash.",
+      reason: "Fake harness run is working.",
     });
     expect(snapshot.projects[0]?.counts).toMatchObject({
-      attention: 1,
+      working: 1,
+      attention: 0,
       unknown: 0,
     });
+    expect(await persistence.listProviderObservations({ includeExpired: true })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          entityKind: "harness_event",
+          entityKey: "run_web_main",
+        }),
+      ]),
+    );
     sqlite.close();
   });
 });

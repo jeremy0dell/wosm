@@ -217,7 +217,7 @@ async function executeCommand(
   });
   runtime?.eventBus?.publish(startedEvent);
 
-  const handler = handlers.get(context.command.type) ?? noopHandler;
+  const handler = handlers.get(context.command.type);
   const result = await runRuntimeBoundaryWithTimeout(
     {
       operation: `command.${context.command.type}`,
@@ -243,6 +243,9 @@ async function executeCommand(
       try {
         // Check before and after handler work because provider calls may notice abort cooperatively.
         throwIfCommandCancelled(linked.signal);
+        if (handler === undefined) {
+          throw missingCommandHandlerError();
+        }
         await handler({ ...context, signal: linked.signal });
         throwIfCommandCancelled(linked.signal);
       } finally {
@@ -326,8 +329,13 @@ async function executeCommand(
   runtime?.eventBus?.publish(failedEvent);
 }
 
-async function noopHandler(context: CommandHandlerContext): Promise<void> {
-  throwIfCommandCancelled(context.signal);
+function missingCommandHandlerError() {
+  return {
+    tag: "CommandRoutingError",
+    code: "COMMAND_HANDLER_MISSING",
+    message: "Observer does not have a handler for this command.",
+    hint: "Upgrade wosm or avoid this command until the command is implemented.",
+  };
 }
 
 function commandCancellationError() {

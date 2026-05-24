@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { ObservabilityRetentionConfig } from "@wosm/config";
 import type {
   HookReceipt,
   ProviderHookEvent,
@@ -28,6 +29,7 @@ export type CreateHookIngestionOptions = {
   clock?: RuntimeClock;
   hookId?: () => string;
   reconcile?: (reason: string) => Promise<unknown>;
+  retention?: ObservabilityRetentionConfig;
 };
 
 const defaultHookId = () => `hook_${randomUUID()}`;
@@ -108,6 +110,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
               projects: options.projects ?? [],
               persistence: options.persistence,
               clock,
+              ...(options.retention === undefined ? {} : { retention: options.retention }),
             });
 
       const shouldReconcile = ingestOptions.triggerReconcile ?? true;

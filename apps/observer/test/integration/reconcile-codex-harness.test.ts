@@ -94,7 +94,7 @@ describe("observer reconcile with Codex harness", () => {
     });
   });
 
-  it("applies correlated Codex hook events to the rendered row state", async () => {
+  it("persists correlated Codex hook events without overriding live row state", async () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ clock });
     const persistence = createObserverPersistence({
@@ -149,15 +149,34 @@ describe("observer reconcile with Codex harness", () => {
     });
     expect(core.getSnapshot().rows[0]?.agent).toMatchObject({
       harness: "codex",
-      state: "working",
-      confidence: "medium",
+      state: "unknown",
+      confidence: "low",
       sessionId: "ses_web_task",
     });
     expect(core.getSnapshot().rows[0]?.id).toBe("wt_web_task");
     expect(core.getSnapshot().counts).toMatchObject({
-      working: 1,
+      working: 0,
       attention: 0,
+      unknown: 1,
     });
+    await expect(persistence.listProviderObservations()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "codex",
+          providerType: "harness",
+          entityKind: "harness_event",
+          entityKey: "wt_web_task",
+          payload: expect.objectContaining({
+            provider: "codex",
+            worktreeId: "wt_web_task",
+            status: expect.objectContaining({
+              value: "working",
+              source: "harness_hook",
+            }),
+          }),
+        }),
+      ]),
+    );
     sqlite.close();
   });
 });

@@ -75,11 +75,22 @@ export function listProviderObservations(
 export function pruneExpiredProviderObservations(
   database: DatabaseSync,
   expiresBefore: string,
+  legacyObservedBefore?: string,
 ): number {
-  const result = database
+  let changes = 0;
+  const expiredResult = database
     .prepare("DELETE FROM provider_observations WHERE expires_at IS NOT NULL AND expires_at <= ?")
     .run(expiresBefore);
-  return Number(result.changes);
+  changes += Number(expiredResult.changes);
+
+  if (legacyObservedBefore !== undefined) {
+    const legacyResult = database
+      .prepare("DELETE FROM provider_observations WHERE expires_at IS NULL AND observed_at < ?")
+      .run(legacyObservedBefore);
+    changes += Number(legacyResult.changes);
+  }
+
+  return changes;
 }
 
 function validateProviderObservationPayload(

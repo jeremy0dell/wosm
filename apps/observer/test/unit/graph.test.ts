@@ -260,20 +260,39 @@ describe("observer graph derivation", () => {
           reason: "No matching configured project.",
           observedAt: generatedAt,
           providerData: {
-            rawTarget: "orphan",
+            rawTarget: "snapshot-secret-terminal",
+          },
+        },
+      ],
+      harnessRuns: [
+        {
+          ...harness("run_orphan", "wt_missing", "working"),
+          providerData: {
+            rawRun: "snapshot-secret-harness",
           },
         },
       ],
     });
 
     expect(snapshot.rows).toEqual([]);
-    expect(snapshot.orphans).toHaveLength(1);
-    expect(snapshot.orphans?.[0]).toMatchObject({
-      kind: "terminal_target",
-      provider: "fake-terminal",
-      terminalTargetId: "term_orphan",
-      reason: "Terminal target has no matching configured project or worktree.",
-    });
+    expect(snapshot.orphans).toEqual([
+      expect.objectContaining({
+        kind: "terminal_target",
+        provider: "fake-terminal",
+        terminalTargetId: "term_orphan",
+        reason: "Terminal target has no matching configured project or worktree.",
+      }),
+      expect.objectContaining({
+        kind: "harness_run",
+        provider: "fake-harness",
+        harnessRunId: "run_orphan",
+        reason: "Harness run has no matching configured project or worktree.",
+      }),
+    ]);
+    expect(snapshot.orphans?.[0]).not.toHaveProperty("providerData");
+    expect(snapshot.orphans?.[1]).not.toHaveProperty("providerData");
+    expect(JSON.stringify(snapshot)).not.toContain("snapshot-secret-terminal");
+    expect(JSON.stringify(snapshot)).not.toContain("snapshot-secret-harness");
     expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
   });
 

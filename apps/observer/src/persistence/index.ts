@@ -12,6 +12,7 @@ import {
   pruneExpiredProviderObservations,
 } from "./observations.js";
 import * as recoveryBreadcrumbStore from "./recoveryBreadcrumbs.js";
+import { providerObservationRetentionDays } from "./retention.js";
 import type { CreateObserverPersistenceOptions, ObserverPersistence } from "./types.js";
 
 export type * from "./types.js";
@@ -97,12 +98,21 @@ export function createObserverPersistence(
         }),
       ),
 
-    pruneExpiredProviderObservations: (expiresBefore) =>
-      transaction((database) => pruneExpiredProviderObservations(database, expiresBefore ?? now())),
+    pruneExpiredProviderObservations: (expiresBefore, legacyObservedBefore) =>
+      transaction((database) =>
+        pruneExpiredProviderObservations(database, expiresBefore ?? now(), legacyObservedBefore),
+      ),
 
     persistReconcileResult: (input) =>
       transaction((database) => {
-        correlationStore.persistReconcileResult(database, input, {
+        const reconcileInput =
+          input.expiresAt === undefined && input.providerObservationRetentionDays === undefined
+            ? {
+                ...input,
+                providerObservationRetentionDays: providerObservationRetentionDays(),
+              }
+            : input;
+        correlationStore.persistReconcileResult(database, reconcileInput, {
           observedAt: input.observedAt ?? now(),
           idFactory,
         });

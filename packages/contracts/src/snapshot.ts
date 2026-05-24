@@ -19,7 +19,7 @@ import {
   WorktreeStateSchema,
 } from "./observations.js";
 import { HarnessCapabilitiesSchema, ProviderHealthSchema } from "./providers.js";
-import { nonEmptyStringSchema, optionalProviderDataSchema, safeTextSchema } from "./shared.js";
+import { nonEmptyStringSchema, safeTextSchema } from "./shared.js";
 
 export const ProjectDefaultsSchema = z
   .object({
@@ -195,7 +195,6 @@ export const OrphanedRuntimeStateSchema = z
     harnessRunId: HarnessRunIdSchema.optional(),
     reason: nonEmptyStringSchema,
     observedAt: TimestampSchema,
-    providerData: optionalProviderDataSchema,
   })
   .strict();
 

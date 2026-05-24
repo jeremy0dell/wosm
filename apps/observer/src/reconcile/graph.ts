@@ -543,7 +543,6 @@ function orphans(
       if (terminal.projectId !== undefined) orphan.projectId = terminal.projectId;
       if (terminal.worktreeId !== undefined) orphan.worktreeId = terminal.worktreeId;
       if (terminal.sessionId !== undefined) orphan.sessionId = terminal.sessionId;
-      if (terminal.providerData !== undefined) orphan.providerData = terminal.providerData;
       orphans.push(orphan);
     }
   }
@@ -564,7 +563,6 @@ function orphans(
       if (run.projectId !== undefined) orphan.projectId = run.projectId;
       if (run.worktreeId !== undefined) orphan.worktreeId = run.worktreeId;
       if (run.sessionId !== undefined) orphan.sessionId = run.sessionId;
-      if (run.providerData !== undefined) orphan.providerData = run.providerData;
       orphans.push(orphan);
     }
   }

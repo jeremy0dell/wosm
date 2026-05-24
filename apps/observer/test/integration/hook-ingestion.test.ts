@@ -180,6 +180,7 @@ describe("observer hook ingestion", () => {
           providerType: "harness",
           entityKind: "harness_event",
           entityKey: "run_hook_1",
+          expiresAt: "2026-06-03T12:00:00.000Z",
           payload: expect.objectContaining({
             provider: "fake-harness",
             harnessRunId: "run_hook_1",

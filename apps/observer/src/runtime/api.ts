@@ -68,6 +68,9 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       projects: providerProjectsFromConfig(options.config ?? emptyConfig()),
       eventBus: options.eventBus,
       clock,
+      ...(options.config?.observability?.retention === undefined
+        ? {}
+        : { retention: options.config.observability.retention }),
       reconcile: (reason) => api.reconcile(reason),
     });
 

@@ -4,11 +4,15 @@ import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { type LoadedWosmConfig, loadConfig, type WosmConfig } from "@wosm/config";
 import { componentLogPath } from "@wosm/observability";
-import { systemClock } from "@wosm/runtime";
+import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { createCommandQueue } from "../commands/queue.js";
 import { registerObserverCommandHandlers } from "../commands/router.js";
 import { hookSpoolDir } from "../hooks/spool.js";
 import { createObserverPersistence } from "../persistence/index.js";
+import {
+  providerObservationLegacyCutoff,
+  providerObservationRetentionDays,
+} from "../persistence/retention.js";
 import { createProviderRegistry } from "../providers/factory.js";
 import { createObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
 import { openObserverSqlite } from "../sqlite.js";
@@ -46,6 +50,12 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
   const persistence = createObserverPersistence({ sqlite, clock });
   const eventBus = createObserverEventBus();
   const logger = createObserverLogger({ stateDir, clock });
+  const retentionDays = providerObservationRetentionDays(config.observability?.retention);
+  const pruneAt = toIsoTimestamp(clock.now());
+  await persistence.pruneExpiredProviderObservations(
+    pruneAt,
+    providerObservationLegacyCutoff(pruneAt, retentionDays),
+  );
   const commandQueue = createCommandQueue({ persistence, clock, eventBus, logger });
   const providers = createProviderRegistry(config);
   const core = createObserverCore({

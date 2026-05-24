@@ -162,6 +162,7 @@ export type PersistReconcileResultInput = {
   providerHealth?: Record<string, ProviderHealth>;
   observedAt?: string;
   expiresAt?: string | undefined;
+  providerObservationRetentionDays?: number | undefined;
 };
 
 export type ObserverPersistence = {
@@ -210,7 +211,7 @@ export type ObserverPersistence = {
     includeExpired?: boolean;
     now?: string;
   }): Promise<PersistedProviderObservation[]>;
-  pruneExpiredProviderObservations(now?: string): Promise<number>;
+  pruneExpiredProviderObservations(now?: string, legacyObservedBefore?: string): Promise<number>;
   persistReconcileResult(input: PersistReconcileResultInput): Promise<void>;
   listProjects(): Promise<PersistedProject[]>;
   listWorktrees(): Promise<PersistedWorktree[]>;

@@ -228,6 +228,194 @@ describe("session command vertical slice", () => {
     fixture.sqlite.close();
   });
 
+  it("removes a created worktree when session.create cannot open a terminal", async () => {
+    const worktree = new FakeWorktreeProvider({ now });
+    const terminal = new FakeTerminalProvider({
+      now,
+      failures: {
+        openWorkspace: {
+          tag: "TerminalProviderError",
+          code: "FAKE_TERMINAL_OPEN_FAILED",
+          message: "The fake terminal provider could not open the workspace.",
+          provider: "fake-terminal",
+        },
+      },
+    });
+    const fixture = createFixture({ worktree, terminal, sessionIds: ["ses_cleanup_open"] });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "cleanup-open",
+        harness: { provider: "fake-harness" },
+        terminal: { provider: "fake-terminal" },
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "failed",
+      error: {
+        code: "FAKE_TERMINAL_OPEN_FAILED",
+        provider: "fake-terminal",
+      },
+    });
+    expect(worktree.snapshot().removed).toEqual([
+      {
+        projectId: "web",
+        worktreeId: "wt_web_cleanup_open",
+        force: true,
+      },
+    ]);
+    expect(worktree.snapshot().worktrees).toEqual([]);
+    fixture.sqlite.close();
+  });
+
+  it("closes the opened terminal and removes the worktree when harness build fails", async () => {
+    const worktree = new FakeWorktreeProvider({ now });
+    const terminal = new FakeTerminalProvider({ now });
+    const harness = new FakeHarnessProvider({
+      now,
+      failures: {
+        buildLaunch: {
+          tag: "HarnessProviderError",
+          code: "FAKE_HARNESS_BUILD_FAILED",
+          message: "The fake harness provider could not build a launch plan.",
+          provider: "fake-harness",
+        },
+      },
+    });
+    const fixture = createFixture({
+      worktree,
+      terminal,
+      harness,
+      sessionIds: ["ses_cleanup_build"],
+    });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "cleanup-build",
+        harness: { provider: "fake-harness" },
+        terminal: { provider: "fake-terminal" },
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "failed",
+      error: {
+        code: "FAKE_HARNESS_BUILD_FAILED",
+        provider: "fake-harness",
+      },
+    });
+    expect(terminal.snapshot().closed).toEqual(["term_fake"]);
+    expect(worktree.snapshot().removed).toEqual([
+      {
+        projectId: "web",
+        worktreeId: "wt_web_cleanup_build",
+        force: true,
+      },
+    ]);
+    fixture.sqlite.close();
+  });
+
+  it("cleans up pre-launch resources when terminal launch fails", async () => {
+    const worktree = new FakeWorktreeProvider({ now });
+    const terminal = new FakeTerminalProvider({
+      now,
+      failures: {
+        launchProcess: {
+          tag: "TerminalProviderError",
+          code: "FAKE_TERMINAL_LAUNCH_FAILED",
+          message: "The fake terminal provider could not launch the process.",
+          provider: "fake-terminal",
+        },
+      },
+    });
+    const fixture = createFixture({ worktree, terminal, sessionIds: ["ses_cleanup_launch"] });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "cleanup-launch",
+        harness: { provider: "fake-harness" },
+        terminal: { provider: "fake-terminal" },
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "failed",
+      error: {
+        code: "FAKE_TERMINAL_LAUNCH_FAILED",
+        provider: "fake-terminal",
+      },
+    });
+    expect(terminal.snapshot().closed).toEqual(["term_fake"]);
+    expect(worktree.snapshot().removed).toEqual([
+      {
+        projectId: "web",
+        worktreeId: "wt_web_cleanup_launch",
+        force: true,
+      },
+    ]);
+    fixture.sqlite.close();
+  });
+
+  it("does not fail session.create when focus fails after launch", async () => {
+    const terminal = new FakeTerminalProvider({
+      now,
+      failures: {
+        focusTarget: {
+          tag: "TerminalProviderError",
+          code: "FAKE_TERMINAL_FOCUS_FAILED",
+          message: "The fake terminal provider could not focus the target.",
+          provider: "fake-terminal",
+        },
+      },
+    });
+    const harness = new FakeHarnessProvider({
+      now,
+      runs: [
+        createFakeHarnessRun({
+          id: "run_web_focus",
+          projectId: "web",
+          worktreeId: "wt_web_focus",
+          sessionId: "ses_focus",
+          state: "idle",
+          now,
+        }),
+      ],
+    });
+    const fixture = createFixture({ terminal, harness, sessionIds: ["ses_focus"] });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "focus",
+        harness: { provider: "fake-harness" },
+        terminal: { provider: "fake-terminal", focus: true },
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(terminal.snapshot().launches).toHaveLength(1);
+    expect(terminal.snapshot().focused).toEqual([]);
+    expect(fixture.core.getSnapshot().rows[0]?.agent).toMatchObject({
+      sessionId: "ses_focus",
+      state: "idle",
+    });
+    fixture.sqlite.close();
+  });
+
   it("starts an agent on an existing no-agent worktree", async () => {
     const harness = new FakeHarnessProvider({ now });
     const terminal = new FakeTerminalProvider({
@@ -328,6 +516,120 @@ describe("session command vertical slice", () => {
         sessionId: "ses_web_busy",
       },
     });
+    fixture.sqlite.close();
+  });
+
+  it("closes the terminal opened by session.startAgent when launch setup fails", async () => {
+    const worktree = new FakeWorktreeProvider({
+      now,
+      worktrees: [
+        createFakeWorktree({
+          id: "wt_web_cleanup_start",
+          projectId: "web",
+          branch: "cleanup-start",
+          now,
+        }),
+      ],
+    });
+    const terminal = new FakeTerminalProvider({ now });
+    const harness = new FakeHarnessProvider({
+      now,
+      failures: {
+        buildLaunch: {
+          tag: "HarnessProviderError",
+          code: "FAKE_HARNESS_BUILD_FAILED",
+          message: "The fake harness provider could not build a launch plan.",
+          provider: "fake-harness",
+        },
+      },
+    });
+    const fixture = createFixture({
+      worktree,
+      terminal,
+      harness,
+      sessionIds: ["ses_cleanup_start"],
+    });
+    await fixture.core.reconcile("pre-start-agent-cleanup");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.startAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_cleanup_start",
+        harness: { provider: "fake-harness" },
+        terminal: { provider: "fake-terminal" },
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "failed",
+      error: {
+        code: "FAKE_HARNESS_BUILD_FAILED",
+        provider: "fake-harness",
+      },
+    });
+    expect(terminal.snapshot().closed).toEqual(["term_fake"]);
+    expect(worktree.snapshot().removed).toEqual([]);
+    fixture.sqlite.close();
+  });
+
+  it("preserves the original command error when cleanup also fails", async () => {
+    const worktree = new FakeWorktreeProvider({ now });
+    const terminal = new FakeTerminalProvider({
+      now,
+      failures: {
+        closeTarget: {
+          tag: "TerminalProviderError",
+          code: "FAKE_TERMINAL_CLOSE_FAILED",
+          message: "The fake terminal provider could not close the target.",
+          provider: "fake-terminal",
+        },
+      },
+    });
+    const harness = new FakeHarnessProvider({
+      now,
+      failures: {
+        buildLaunch: {
+          tag: "HarnessProviderError",
+          code: "FAKE_HARNESS_BUILD_FAILED",
+          message: "The fake harness provider could not build a launch plan.",
+          provider: "fake-harness",
+        },
+      },
+    });
+    const fixture = createFixture({
+      worktree,
+      terminal,
+      harness,
+      sessionIds: ["ses_cleanup_failure"],
+    });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "cleanup-failure",
+        harness: { provider: "fake-harness" },
+        terminal: { provider: "fake-terminal" },
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "failed",
+      error: {
+        code: "FAKE_HARNESS_BUILD_FAILED",
+        provider: "fake-harness",
+      },
+    });
+    expect(worktree.snapshot().removed).toEqual([
+      {
+        projectId: "web",
+        worktreeId: "wt_web_cleanup_failure",
+        force: true,
+      },
+    ]);
     fixture.sqlite.close();
   });
 

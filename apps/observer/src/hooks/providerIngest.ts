@@ -1,3 +1,4 @@
+import type { ObservabilityRetentionConfig } from "@wosm/config";
 import type {
   HarnessEventObservation,
   ProviderHookEvent,
@@ -14,6 +15,10 @@ import type {
   ProviderObservationKind,
   ProviderObservationType,
 } from "../persistence/index.js";
+import {
+  providerObservationExpiresAt,
+  providerObservationRetentionDays,
+} from "../persistence/retention.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 
 export type ProviderHookIngestResult = {
@@ -28,6 +33,7 @@ export type IngestProviderHookEventOptions = {
   persistence: ObserverPersistence;
   clock?: RuntimeClock;
   timeoutMs?: number;
+  retention?: ObservabilityRetentionConfig;
 };
 
 type ObservationRecord = {
@@ -71,8 +77,12 @@ export async function ingestProviderHookEvent(
     };
   }
 
+  const retentionDays = providerObservationRetentionDays(options.retention);
   for (const observation of result.value) {
-    await options.persistence.recordProviderObservation(observation);
+    await options.persistence.recordProviderObservation({
+      ...observation,
+      expiresAt: providerObservationExpiresAt(observation.observedAt, retentionDays),
+    });
   }
 
   return {
@@ -93,11 +103,10 @@ async function routeProviderHook(
     return ingestHarnessHook(options);
   }
 
-  return [
-    ...(await ingestWorktreeHook(options)),
-    ...(await ingestTerminalHook(options)),
-    ...(await ingestHarnessHook(options)),
-  ];
+  const worktree = await ingestWorktreeHook(options);
+  const terminal = await ingestTerminalHook(options);
+  const harness = await ingestHarnessHook(options);
+  return [...worktree, ...terminal, ...harness];
 }
 
 async function ingestWorktreeHook(

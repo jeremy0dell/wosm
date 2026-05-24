@@ -14,6 +14,7 @@ import type {
   WorktreeRow,
   WosmSnapshot,
 } from "@wosm/contracts";
+import type { JsonlLogger } from "@wosm/observability";
 import {
   type RuntimeClock,
   type RuntimeSafeErrorFallback,
@@ -239,7 +240,7 @@ export async function launchHarnessInTerminal(
   if (input.signal !== undefined) mutationInput.signal = input.signal;
   if (input.trace !== undefined) mutationInput.trace = input.trace;
 
-  return runProviderMutation(
+  const result = await runProviderMutation(
     mutationInput,
     (signal) =>
       input.terminal.launchProcess?.({
@@ -247,6 +248,137 @@ export async function launchHarnessInTerminal(
         signal,
       }) as Promise<TerminalLaunchProcessResult>,
   );
+  if (result.started) {
+    return result;
+  }
+
+  const error: SafeError = {
+    tag: "TerminalProviderError",
+    code: "TERMINAL_LAUNCH_NOT_STARTED",
+    message: "The terminal provider did not confirm that the harness process started.",
+    provider: input.terminal.id,
+    worktreeId: input.request.worktree.id,
+  };
+  if (input.request.terminalTarget.sessionId !== undefined) {
+    error.sessionId = input.request.terminalTarget.sessionId;
+  }
+  throw safeError(error);
+}
+
+export async function closeTerminalTargetBestEffort(input: {
+  terminal: TerminalProvider;
+  targetId: string;
+  context: CommandHandlerContext;
+  logger?: JsonlLogger | undefined;
+  clock?: RuntimeClock | undefined;
+  commandTimeoutMs?: number | undefined;
+}): Promise<void> {
+  try {
+    await runProviderMutation(
+      {
+        operation: `provider.${input.terminal.id}.closeTarget.cleanup`,
+        clock: input.clock,
+        commandTimeoutMs: cleanupTimeoutMs(input.commandTimeoutMs),
+        trace: input.context.trace,
+        fallback: {
+          tag: "TerminalProviderError",
+          code: "TERMINAL_CLEANUP_CLOSE_FAILED",
+          message: "The terminal provider failed to close a target during cleanup.",
+          provider: input.terminal.id,
+        },
+      },
+      () => input.terminal.closeTarget(input.targetId),
+    );
+  } catch (error) {
+    await input.logger?.warn("Session cleanup failed to close terminal target.", {
+      commandId: input.context.commandId,
+      traceId: input.context.trace.traceId,
+      provider: input.terminal.id,
+      operation: "closeTarget",
+      targetId: input.targetId,
+      error,
+    });
+  }
+}
+
+export async function removeWorktreeBestEffort(input: {
+  providers: ProviderRegistry;
+  projectId: string;
+  worktreeId: string;
+  context: CommandHandlerContext;
+  logger?: JsonlLogger | undefined;
+  clock?: RuntimeClock | undefined;
+  commandTimeoutMs?: number | undefined;
+}): Promise<void> {
+  try {
+    await runProviderMutation(
+      {
+        operation: `provider.${input.providers.worktree.id}.removeWorktree.cleanup`,
+        clock: input.clock,
+        commandTimeoutMs: cleanupTimeoutMs(input.commandTimeoutMs),
+        trace: input.context.trace,
+        fallback: {
+          tag: "WorktreeProviderError",
+          code: "WORKTREE_CLEANUP_REMOVE_FAILED",
+          message: "The worktree provider failed to remove a worktree during cleanup.",
+          provider: input.providers.worktree.id,
+        },
+      },
+      () =>
+        input.providers.worktree.removeWorktree({
+          projectId: input.projectId,
+          worktreeId: input.worktreeId,
+          force: true,
+        }),
+    );
+  } catch (error) {
+    await input.logger?.warn("Session cleanup failed to remove worktree.", {
+      commandId: input.context.commandId,
+      traceId: input.context.trace.traceId,
+      provider: input.providers.worktree.id,
+      operation: "removeWorktree",
+      projectId: input.projectId,
+      worktreeId: input.worktreeId,
+      error,
+    });
+  }
+}
+
+export async function focusTerminalTargetBestEffort(input: {
+  terminal: TerminalProvider;
+  targetId: string;
+  context: CommandHandlerContext;
+  logger?: JsonlLogger | undefined;
+  clock?: RuntimeClock | undefined;
+  commandTimeoutMs?: number | undefined;
+}): Promise<void> {
+  try {
+    await runProviderMutation(
+      {
+        operation: `provider.${input.terminal.id}.focusTarget`,
+        clock: input.clock,
+        commandTimeoutMs: input.commandTimeoutMs,
+        signal: input.context.signal,
+        trace: input.context.trace,
+        fallback: {
+          tag: "TerminalProviderError",
+          code: "TERMINAL_FOCUS_FAILED",
+          message: "The terminal provider failed to focus the session target.",
+          provider: input.terminal.id,
+        },
+      },
+      () => input.terminal.focusTarget(input.targetId),
+    );
+  } catch (error) {
+    await input.logger?.warn("Terminal focus failed after session launch.", {
+      commandId: input.context.commandId,
+      traceId: input.context.trace.traceId,
+      provider: input.terminal.id,
+      operation: "focusTarget",
+      targetId: input.targetId,
+      error,
+    });
+  }
 }
 
 export async function publishSessionCreated(input: {
@@ -289,6 +421,10 @@ export function throwIfAborted(signal: AbortSignal): void {
 
 function safeError(input: SafeError): SafeError {
   return input;
+}
+
+function cleanupTimeoutMs(commandTimeoutMs: number | undefined): number {
+  return Math.min(commandTimeoutMs ?? 30_000, 5_000);
 }
 
 function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {

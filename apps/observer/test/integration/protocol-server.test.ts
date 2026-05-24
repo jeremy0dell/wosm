@@ -16,6 +16,7 @@ import {
   createObserverPersistence,
   openObserverSqlite,
   ProviderRegistry,
+  registerObserverCommandHandlers,
   startObserverServer,
 } from "../../src/internal";
 
@@ -78,16 +79,17 @@ function createObserverFixture(socketPath: string) {
     idFactory: observerIds(),
     eventBus,
   });
+  const providers = new ProviderRegistry({
+    worktree: new FakeWorktreeProvider({
+      now,
+      worktrees: [createFakeWorktree({ id: "wt_web_main", projectId: "web", now })],
+    }),
+    terminal: new FakeTerminalProvider({ now }),
+    harnesses: [new FakeHarnessProvider({ now })],
+  });
   const core = createObserverCore({
     config,
-    providers: new ProviderRegistry({
-      worktree: new FakeWorktreeProvider({
-        now,
-        worktrees: [createFakeWorktree({ id: "wt_web_main", projectId: "web", now })],
-      }),
-      terminal: new FakeTerminalProvider({ now }),
-      harnesses: [new FakeHarnessProvider({ now })],
-    }),
+    providers,
     persistence,
     sqlite,
     clock,
@@ -99,6 +101,15 @@ function createObserverFixture(socketPath: string) {
     eventBus,
     clock,
     socketPath,
+  });
+  registerObserverCommandHandlers({
+    queue,
+    core,
+    providers,
+    projects: config.projects,
+    persistence,
+    eventBus,
+    clock,
   });
   return { api, queue, sqlite, clock };
 }

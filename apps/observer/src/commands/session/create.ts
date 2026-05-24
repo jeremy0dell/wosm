@@ -1,4 +1,5 @@
-import type { ProviderProjectConfig, TerminalProvider } from "@wosm/contracts";
+import type { ProviderProjectConfig, WorktreeObservation } from "@wosm/contracts";
+import type { JsonlLogger } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
 import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
@@ -7,10 +8,13 @@ import type { ObserverEventBus } from "../../runtime/eventBus.js";
 import type { CommandHandler, CommandHandlerContext } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import {
+  closeTerminalTargetBestEffort,
   defaultSessionCommandIdFactory,
   findProjectOrThrow,
+  focusTerminalTargetBestEffort,
   launchHarnessInTerminal,
   publishSessionCreated,
+  removeWorktreeBestEffort,
   resolveHarnessProviderOrThrow,
   resolveTerminalProviderOrThrow,
   runProviderMutation,
@@ -27,6 +31,7 @@ export type CreateSessionCreateHandlerOptions = {
   eventBus?: ObserverEventBus | undefined;
   clock?: RuntimeClock | undefined;
   idFactory?: Partial<SessionCommandIdFactory> | undefined;
+  logger?: JsonlLogger | undefined;
   commandTimeoutMs?: number | undefined;
 };
 
@@ -53,104 +58,140 @@ export function createSessionCreateHandler(
       signal: context.signal,
       trace: context.trace,
     };
+    let createdWorktree: WorktreeObservation | undefined;
+    let openedTargetId: string | undefined;
+    let harnessLaunched = false;
 
-    const worktree = await runProviderMutation(
-      {
-        ...runtime,
-        operation: `provider.${options.providers.worktree.id}.createWorktree`,
-        fallback: {
-          tag: "WorktreeProviderError",
-          code: "WORKTREE_CREATE_FAILED",
-          message: "The worktree provider failed to create the session worktree.",
-          provider: options.providers.worktree.id,
+    try {
+      const worktree = await runProviderMutation(
+        {
+          ...runtime,
+          operation: `provider.${options.providers.worktree.id}.createWorktree`,
+          fallback: {
+            tag: "WorktreeProviderError",
+            code: "WORKTREE_CREATE_FAILED",
+            message: "The worktree provider failed to create the session worktree.",
+            provider: options.providers.worktree.id,
+          },
         },
-      },
-      () =>
-        options.providers.worktree.createWorktree({
-          project,
-          branch: payload.branch,
-          ...(payload.base === undefined ? {} : { base: payload.base }),
-        }),
-    );
-    throwIfAborted(context.signal);
+        () =>
+          options.providers.worktree.createWorktree({
+            project,
+            branch: payload.branch,
+            ...(payload.base === undefined ? {} : { base: payload.base }),
+          }),
+      );
+      createdWorktree = worktree;
+      throwIfAborted(context.signal);
 
-    const opened = await runProviderMutation(
-      {
-        ...runtime,
-        operation: `provider.${terminal.id}.openWorkspace`,
-        fallback: {
-          tag: "TerminalProviderError",
-          code: "TERMINAL_OPEN_FAILED",
-          message: "The terminal provider failed to open the session workspace.",
-          provider: terminal.id,
+      const opened = await runProviderMutation(
+        {
+          ...runtime,
+          operation: `provider.${terminal.id}.openWorkspace`,
+          fallback: {
+            tag: "TerminalProviderError",
+            code: "TERMINAL_OPEN_FAILED",
+            message: "The terminal provider failed to open the session workspace.",
+            provider: terminal.id,
+          },
         },
-      },
-      () =>
-        terminal.openWorkspace({
-          project,
-          worktree,
-          harness: harness.id,
-          layout: payload.terminal.layout ?? project.defaults.layout,
-          sessionId,
-        }),
-    );
-    throwIfAborted(context.signal);
-    const terminalTarget = terminalTargetObservationFromBinding({
-      binding: opened.target,
-      worktree,
-      observedAt: now(options.clock),
-    });
-
-    const launchPlan = await runProviderMutation(
-      {
-        ...runtime,
-        operation: `provider.${harness.id}.buildLaunch`,
-        fallback: {
-          tag: "HarnessProviderError",
-          code: "HARNESS_BUILD_LAUNCH_FAILED",
-          message: "The harness provider failed to build a launch plan.",
-          provider: harness.id,
-        },
-      },
-      () =>
-        harness.buildLaunch({
-          project,
-          worktree,
-          terminalTarget,
-          sessionId,
-          ...(payload.harness.mode === undefined ? {} : { mode: payload.harness.mode }),
-          ...(payload.initialPrompt === undefined ? {} : { initialPrompt: payload.initialPrompt }),
-          ...(payload.harness.profile === undefined ? {} : { profile: payload.harness.profile }),
-          ...(payload.harness.approvalPolicy === undefined
-            ? {}
-            : { approvalPolicy: payload.harness.approvalPolicy }),
-          ...(payload.harness.sandboxMode === undefined
-            ? {}
-            : { sandboxMode: payload.harness.sandboxMode }),
-        }),
-    );
-    throwIfAborted(context.signal);
-
-    await launchHarnessInTerminal({
-      ...runtime,
-      terminal,
-      request: {
-        project,
+        () =>
+          terminal.openWorkspace({
+            project,
+            worktree,
+            harness: harness.id,
+            layout: payload.terminal.layout ?? project.defaults.layout,
+            sessionId,
+          }),
+      );
+      openedTargetId = opened.target.targetId;
+      throwIfAborted(context.signal);
+      const terminalTarget = terminalTargetObservationFromBinding({
+        binding: opened.target,
         worktree,
-        terminalTarget: opened.target,
-        agentEndpointId: opened.agentEndpointId,
-        launchPlan,
-      },
-    });
-
-    if (payload.terminal.focus === true) {
-      await focusTerminalTarget({
-        terminal,
-        targetId: opened.target.targetId,
-        context,
-        clock: options.clock,
-        commandTimeoutMs: options.commandTimeoutMs,
+        observedAt: now(options.clock),
       });
+
+      const launchPlan = await runProviderMutation(
+        {
+          ...runtime,
+          operation: `provider.${harness.id}.buildLaunch`,
+          fallback: {
+            tag: "HarnessProviderError",
+            code: "HARNESS_BUILD_LAUNCH_FAILED",
+            message: "The harness provider failed to build a launch plan.",
+            provider: harness.id,
+          },
+        },
+        () =>
+          harness.buildLaunch({
+            project,
+            worktree,
+            terminalTarget,
+            sessionId,
+            ...(payload.harness.mode === undefined ? {} : { mode: payload.harness.mode }),
+            ...(payload.initialPrompt === undefined
+              ? {}
+              : { initialPrompt: payload.initialPrompt }),
+            ...(payload.harness.profile === undefined ? {} : { profile: payload.harness.profile }),
+            ...(payload.harness.approvalPolicy === undefined
+              ? {}
+              : { approvalPolicy: payload.harness.approvalPolicy }),
+            ...(payload.harness.sandboxMode === undefined
+              ? {}
+              : { sandboxMode: payload.harness.sandboxMode }),
+          }),
+      );
+      throwIfAborted(context.signal);
+
+      await launchHarnessInTerminal({
+        ...runtime,
+        terminal,
+        request: {
+          project,
+          worktree,
+          terminalTarget: opened.target,
+          agentEndpointId: opened.agentEndpointId,
+          launchPlan,
+        },
+      });
+      harnessLaunched = true;
+
+      if (payload.terminal.focus === true) {
+        await focusTerminalTargetBestEffort({
+          terminal,
+          targetId: opened.target.targetId,
+          context,
+          logger: options.logger,
+          clock: options.clock,
+          commandTimeoutMs: options.commandTimeoutMs,
+        });
+      }
+    } catch (error) {
+      if (!harnessLaunched) {
+        if (openedTargetId !== undefined) {
+          await closeTerminalTargetBestEffort({
+            terminal,
+            targetId: openedTargetId,
+            context,
+            logger: options.logger,
+            clock: options.clock,
+            commandTimeoutMs: options.commandTimeoutMs,
+          });
+        }
+        if (createdWorktree !== undefined) {
+          await removeWorktreeBestEffort({
+            providers: options.providers,
+            projectId: project.id,
+            worktreeId: createdWorktree.id,
+            context,
+            logger: options.logger,
+            clock: options.clock,
+            commandTimeoutMs: options.commandTimeoutMs,
+          });
+        }
+      }
+      throw error;
     }
 
     const snapshot = await reconcileAndPublish({
@@ -169,31 +210,6 @@ export function createSessionCreateHandler(
       clock: options.clock,
     });
   };
-}
-
-async function focusTerminalTarget(input: {
-  terminal: TerminalProvider;
-  targetId: string;
-  context: CommandHandlerContext;
-  clock?: RuntimeClock | undefined;
-  commandTimeoutMs?: number | undefined;
-}): Promise<void> {
-  await runProviderMutation(
-    {
-      operation: `provider.${input.terminal.id}.focusTarget`,
-      clock: input.clock,
-      commandTimeoutMs: input.commandTimeoutMs,
-      signal: input.context.signal,
-      trace: input.context.trace,
-      fallback: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_FOCUS_FAILED",
-        message: "The terminal provider failed to focus the session target.",
-        provider: input.terminal.id,
-      },
-    },
-    () => input.terminal.focusTarget(input.targetId),
-  );
 }
 
 function now(clock: RuntimeClock | undefined): string {

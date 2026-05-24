@@ -156,6 +156,7 @@ describe("observer persistence", () => {
     });
     const activeWorktree = createFakeWorktree({ id: "wt_active", projectId: "web", now });
     const expiredWorktree = createFakeWorktree({ id: "wt_expired", projectId: "web", now });
+    const legacyWorktree = createFakeWorktree({ id: "wt_legacy", projectId: "web", now });
 
     await persistence.recordProviderObservation({
       provider: "fake-worktree",
@@ -175,14 +176,22 @@ describe("observer persistence", () => {
       observedAt: now,
       expiresAt: earlier,
     });
+    await persistence.recordProviderObservation({
+      provider: "fake-worktree",
+      providerType: "worktree",
+      entityKind: "worktree",
+      entityKey: legacyWorktree.id,
+      payload: legacyWorktree,
+      observedAt: earlier,
+    });
 
     expect(
       (await persistence.listProviderObservations({ now })).map((item) => item.entityKey),
-    ).toEqual(["wt_active"]);
+    ).toEqual(["wt_legacy", "wt_active"]);
     expect(await persistence.listProviderObservations({ includeExpired: true, now })).toHaveLength(
-      2,
+      3,
     );
-    expect(await persistence.pruneExpiredProviderObservations(now)).toBe(1);
+    expect(await persistence.pruneExpiredProviderObservations(now, now)).toBe(2);
     expect(await persistence.listProviderObservations({ includeExpired: true, now })).toHaveLength(
       1,
     );

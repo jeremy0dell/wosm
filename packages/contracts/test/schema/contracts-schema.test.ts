@@ -102,6 +102,26 @@ describe("Phase 1 contract schemas", () => {
       await loadJson("snapshots/invalid-snapshot.json"),
       "invalid snapshot fixture",
     );
+    expectFails(
+      WosmSnapshotSchema,
+      {
+        ...(snapshots.orphanedTerminalTarget as Record<string, unknown>),
+        orphans: [
+          {
+            id: "orphan_term_secret",
+            kind: "terminal_target",
+            provider: "tmux",
+            terminalTargetId: "term_orphan_agent",
+            reason: "Terminal target has no matching configured project or worktree.",
+            observedAt: "2026-05-20T12:00:00.000Z",
+            providerData: {
+              secret: "do-not-expose",
+            },
+          },
+        ],
+      },
+      "orphan provider data boundary",
+    );
   });
 
   it("parses one command fixture for each command union member", async () => {
