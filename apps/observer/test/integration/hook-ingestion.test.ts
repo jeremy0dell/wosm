@@ -22,7 +22,7 @@ import {
 const now = "2026-05-20T12:00:00.000Z";
 
 describe("observer hook ingestion", () => {
-  it("persists a hook event, publishes it, and triggers reconciliation", async () => {
+  it("persists a hook event, publishes it, and schedules reconciliation", async () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ clock });
     const persistence = createObserverPersistence({
@@ -32,6 +32,7 @@ describe("observer hook ingestion", () => {
     });
     const eventBus = createObserverEventBus();
     const events = eventBus.subscribe()[Symbol.asyncIterator]();
+    const reconciled = nextObserverReconciled(eventBus);
     const core = createObserverCore({
       config,
       providers: new ProviderRegistry({
@@ -49,6 +50,7 @@ describe("observer hook ingestion", () => {
       commandQueue: createCommandQueue({ persistence, clock, idFactory: ids(), eventBus }),
       eventBus,
       clock,
+      hookReconcileDebounceMs: 0,
     });
     const nextEvent = events.next();
 
@@ -63,16 +65,20 @@ describe("observer hook ingestion", () => {
     expect(receipt).toMatchObject({
       accepted: true,
       status: "ingested",
-      reconciled: true,
+      reconciled: false,
+    });
+    await expect(nextEvent).resolves.toMatchObject({
+      value: { type: "hook.ingested", provider: "worktrunk" },
+    });
+    await expect(reconciled.next).resolves.toMatchObject({
+      value: { type: "observer.reconciled" },
     });
     expect((await persistence.listEvents()).map((event) => event.type)).toEqual([
       "hook.ingested",
       "observer.reconciled",
     ]);
-    await expect(nextEvent).resolves.toMatchObject({
-      value: { type: "hook.ingested", provider: "worktrunk" },
-    });
     await events.return?.();
+    await reconciled.close();
     sqlite.close();
   });
 
@@ -85,6 +91,7 @@ describe("observer hook ingestion", () => {
       idFactory: ids(),
     });
     const eventBus = createObserverEventBus();
+    const reconciled = nextObserverReconciled(eventBus);
     const harness = new RecordingHarnessProvider({ now });
     const providers = new ProviderRegistry({
       worktree: new FakeWorktreeProvider({ now }),
@@ -105,6 +112,7 @@ describe("observer hook ingestion", () => {
       commandQueue: createCommandQueue({ persistence, clock, idFactory: ids(), eventBus }),
       eventBus,
       clock,
+      hookReconcileDebounceMs: 0,
     });
     const event = {
       schemaVersion: WOSM_SCHEMA_VERSION,
@@ -121,6 +129,10 @@ describe("observer hook ingestion", () => {
 
     expect(first).toMatchObject({ status: "ingested", deduped: false });
     expect(second).toMatchObject({ status: "ingested", deduped: true, reconciled: false });
+    await expect(reconciled.next).resolves.toMatchObject({
+      value: { type: "observer.reconciled" },
+    });
+    await reconciled.close();
     expect(harness.ingestCalls).toBe(1);
     expect(
       (await persistence.listEvents({ type: "hook.ingested" })).map((event) => event.event),
@@ -137,6 +149,7 @@ describe("observer hook ingestion", () => {
       idFactory: ids(),
     });
     const eventBus = createObserverEventBus();
+    const reconciled = nextObserverReconciled(eventBus);
     const harness = new RecordingHarnessProvider({ now });
     const providers = new ProviderRegistry({
       worktree: new FakeWorktreeProvider({ now }),
@@ -157,6 +170,7 @@ describe("observer hook ingestion", () => {
       commandQueue: createCommandQueue({ persistence, clock, idFactory: ids(), eventBus }),
       eventBus,
       clock,
+      hookReconcileDebounceMs: 0,
     });
 
     const receipt = await api.ingestHookEvent({
@@ -171,7 +185,11 @@ describe("observer hook ingestion", () => {
       payload: { state: "idle" },
     });
 
-    expect(receipt).toMatchObject({ status: "ingested", reconciled: true });
+    expect(receipt).toMatchObject({ status: "ingested", reconciled: false });
+    await expect(reconciled.next).resolves.toMatchObject({
+      value: { type: "observer.reconciled" },
+    });
+    await reconciled.close();
     expect(harness.ingestCalls).toBe(1);
     await expect(persistence.listProviderObservations()).resolves.toEqual(
       expect.arrayContaining([
@@ -204,6 +222,7 @@ describe("observer hook ingestion", () => {
       idFactory: ids(),
     });
     const eventBus = createObserverEventBus();
+    const reconciled = nextObserverReconciled(eventBus);
     const worktree = createFakeWorktree({
       id: "wt_web_feature_auth",
       projectId: "web",
@@ -252,6 +271,7 @@ describe("observer hook ingestion", () => {
       eventBus,
       clock,
       config: projectConfig,
+      hookReconcileDebounceMs: 0,
     });
 
     await api.ingestHookEvent({
@@ -269,6 +289,10 @@ describe("observer hook ingestion", () => {
       worktrees: [{ id: "wt_web_feature_auth" }],
       terminalTargets: [{ id: "term_web_feature_auth" }],
     });
+    await expect(reconciled.next).resolves.toMatchObject({
+      value: { type: "observer.reconciled" },
+    });
+    await reconciled.close();
     sqlite.close();
   });
 });
@@ -315,6 +339,16 @@ function ids() {
     eventId: () => `evt_${++event}`,
     observationId: () => `obs_${++observation}`,
     breadcrumbId: () => `crumb_${++breadcrumb}`,
+  };
+}
+
+function nextObserverReconciled(eventBus: ReturnType<typeof createObserverEventBus>) {
+  const events = eventBus.subscribe({ type: "observer.reconciled" })[Symbol.asyncIterator]();
+  return {
+    next: events.next(),
+    close: async () => {
+      await events.return?.();
+    },
   };
 }
 

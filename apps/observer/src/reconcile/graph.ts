@@ -15,8 +15,10 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { type ObserverHarnessRun, observerHarnessRunFromRun } from "./harnessEventStatus.js";
 
 export type ObserverGraphProject = ProviderProjectConfig;
+export type ObserverGraphHarnessRun = HarnessRunObservation | ObserverHarnessRun;
 
 export type ObserverGraphInput = {
   generatedAt: string;
@@ -32,7 +34,7 @@ export type ObserverGraphInput = {
   harnessCapabilities?: Record<string, HarnessCapabilities>;
   worktrees: WorktreeObservation[];
   terminalTargets: TerminalTargetObservation[];
-  harnessRuns: HarnessRunObservation[];
+  harnessRuns: ObserverGraphHarnessRun[];
   alerts?: WosmAlert[];
 };
 
@@ -126,7 +128,8 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
     projectsById.has(worktree.projectId),
   );
   const worktreesById = new Map(configuredWorktrees.map((worktree) => [worktree.id, worktree]));
-  const harnessRunsById = new Map(input.harnessRuns.map((run) => [run.id, run]));
+  const harnessRuns = input.harnessRuns.map(normalizeHarnessRun);
+  const harnessRunsById = new Map(harnessRuns.map((run) => [run.run.id, run.run]));
   const providerAlerts = alertsFromProviderHealth(input.providerHealth, input.generatedAt);
   const alerts = [...providerAlerts, ...(input.alerts ?? [])];
   const allRows: WorktreeRow[] = [];
@@ -137,7 +140,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
       .filter((worktree) => worktree.projectId === project.id)
       .map((worktree) => {
         const terminal = chooseTerminal(worktree, input.terminalTargets);
-        const harnessRun = chooseHarnessRun(worktree, terminal, input.harnessRuns);
+        const harnessRun = chooseHarnessRun(worktree, terminal, harnessRuns);
         const rowInput: BuildWorktreeRowInput = {
           project,
           worktree,
@@ -202,7 +205,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
     sessions,
     counts,
     alerts,
-    ...orphans(input, worktreesById, projectsById, harnessRunsById),
+    ...orphans(input, harnessRuns, worktreesById, projectsById, harnessRunsById),
   };
 }
 
@@ -210,11 +213,11 @@ type BuildWorktreeRowInput = {
   project: ObserverGraphProject;
   worktree: WorktreeObservation;
   terminal?: TerminalTargetObservation;
-  harnessRun?: HarnessRunObservation;
+  harnessRun?: ObserverHarnessRun;
 };
 
 function buildWorktreeRow(input: BuildWorktreeRowInput): WorktreeRow {
-  const state = input.harnessRun?.state ?? "no_agent";
+  const state = input.harnessRun?.status.value ?? "no_agent";
   const policy = statusPolicy[state];
   const warning = warningFor(input.harnessRun, input.terminal, policy.warning);
   const reason = displayReason(input.harnessRun, warning);
@@ -258,17 +261,19 @@ function rowTerminal(terminal: TerminalTargetObservation): WorktreeRow["terminal
   };
 }
 
-function rowAgent(harnessRun: HarnessRunObservation): WorktreeRow["agent"] {
+function rowAgent(harnessRun: ObserverHarnessRun): WorktreeRow["agent"] {
+  const run = harnessRun.run;
+  const status = harnessRun.status;
   const agent: NonNullable<WorktreeRow["agent"]> = {
-    harness: harnessRun.provider,
-    state: harnessRun.state,
-    runId: harnessRun.id,
-    confidence: harnessRun.confidence,
-    reason: harnessRun.reason,
-    updatedAt: harnessRun.observedAt,
+    harness: run.provider,
+    state: status.value,
+    runId: run.id,
+    confidence: status.confidence,
+    reason: status.reason,
+    updatedAt: status.updatedAt,
   };
-  if (harnessRun.pid !== undefined) agent.pid = harnessRun.pid;
-  if (harnessRun.sessionId !== undefined) agent.sessionId = harnessRun.sessionId;
+  if (run.pid !== undefined) agent.pid = run.pid;
+  if (run.sessionId !== undefined) agent.sessionId = run.sessionId;
   return agent;
 }
 
@@ -276,7 +281,7 @@ type BuildSessionInput = {
   project: ObserverGraphProject;
   worktree: WorktreeObservation;
   terminal?: TerminalTargetObservation;
-  harnessRun?: HarnessRunObservation;
+  harnessRun?: ObserverHarnessRun;
   harnessCapabilities: Record<string, HarnessCapabilities>;
 };
 
@@ -285,18 +290,20 @@ function buildSession(input: BuildSessionInput): SessionView | undefined {
     return undefined;
   }
 
-  const sessionId = input.harnessRun.sessionId ?? input.terminal.sessionId;
+  const run = input.harnessRun.run;
+  const status = input.harnessRun.status;
+  const sessionId = run.sessionId ?? input.terminal.sessionId;
   if (sessionId === undefined) {
     return undefined;
   }
 
   const harness: SessionView["harness"] = {
-    provider: input.harnessRun.provider,
+    provider: run.provider,
     mode: "unknown",
-    runId: input.harnessRun.id,
-    capabilities: input.harnessCapabilities[input.harnessRun.provider] ?? emptyHarnessCapabilities,
+    runId: run.id,
+    capabilities: input.harnessCapabilities[run.provider] ?? emptyHarnessCapabilities,
   };
-  if (input.harnessRun.pid !== undefined) harness.pid = input.harnessRun.pid;
+  if (run.pid !== undefined) harness.pid = run.pid;
 
   const terminal: SessionView["terminal"] = {
     provider: input.terminal.provider,
@@ -310,16 +317,16 @@ function buildSession(input: BuildSessionInput): SessionView | undefined {
     id: sessionId,
     projectId: input.project.id,
     worktreeId: input.worktree.id,
-    createdAt: input.harnessRun.observedAt,
-    updatedAt: input.harnessRun.observedAt,
+    createdAt: run.observedAt,
+    updatedAt: status.updatedAt,
     harness,
     terminal,
     status: {
-      value: input.harnessRun.state,
-      confidence: input.harnessRun.confidence,
-      reason: input.harnessRun.reason,
-      source: "harness_process",
-      updatedAt: input.harnessRun.observedAt,
+      value: status.value,
+      confidence: status.confidence,
+      reason: status.reason,
+      source: status.source,
+      updatedAt: status.updatedAt,
     },
     title: `${input.project.label} ${input.worktree.branch}`,
     tags: [],
@@ -336,6 +343,13 @@ function chooseTerminal(
         terminal.worktreeId === worktree.id && terminalTargetMatchesWorktree(terminal, worktree),
     )
     .sort(compareObservations)[0];
+}
+
+function normalizeHarnessRun(run: ObserverGraphHarnessRun): ObserverHarnessRun {
+  if ("run" in run && "status" in run) {
+    return run;
+  }
+  return observerHarnessRunFromRun(run);
 }
 
 function terminalTargetMatchesWorktree(
@@ -371,17 +385,17 @@ function normalizeLocalPath(value: string): string {
 function chooseHarnessRun(
   worktree: WorktreeObservation,
   terminal: TerminalTargetObservation | undefined,
-  runs: HarnessRunObservation[],
-): HarnessRunObservation | undefined {
+  runs: ObserverHarnessRun[],
+): ObserverHarnessRun | undefined {
   // Prefer an explicit terminal-to-run binding, then fall back to the best run for the worktree.
   if (terminal?.harnessRunId !== undefined) {
-    const boundRun = runs.find((run) => run.id === terminal.harnessRunId);
+    const boundRun = runs.find((run) => run.run.id === terminal.harnessRunId);
     if (boundRun !== undefined) {
       return boundRun;
     }
   }
 
-  return runs.filter((run) => run.worktreeId === worktree.id).sort(compareHarnessRuns)[0];
+  return runs.filter((run) => run.run.worktreeId === worktree.id).sort(compareHarnessRuns)[0];
 }
 
 function compareRows(left: WorktreeRow, right: WorktreeRow): number {
@@ -403,12 +417,12 @@ function compareObservations(
   );
 }
 
-function compareHarnessRuns(left: HarnessRunObservation, right: HarnessRunObservation): number {
+function compareHarnessRuns(left: ObserverHarnessRun, right: ObserverHarnessRun): number {
   return (
-    statusPolicy[left.state].priority - statusPolicy[right.state].priority ||
-    confidenceRank[right.confidence] - confidenceRank[left.confidence] ||
-    Date.parse(right.observedAt) - Date.parse(left.observedAt) ||
-    left.id.localeCompare(right.id)
+    statusPolicy[left.status.value].priority - statusPolicy[right.status.value].priority ||
+    confidenceRank[right.status.confidence] - confidenceRank[left.status.confidence] ||
+    Date.parse(right.status.updatedAt) - Date.parse(left.status.updatedAt) ||
+    left.run.id.localeCompare(right.run.id)
   );
 }
 
@@ -445,31 +459,35 @@ function countRows(rows: WorktreeRow[]) {
 }
 
 function displayReason(
-  harnessRun: HarnessRunObservation | undefined,
+  harnessRun: ObserverHarnessRun | undefined,
   warning: boolean,
 ): string | undefined {
   if (harnessRun === undefined) {
     return "No harness run is associated with this worktree.";
   }
-  if (harnessRun.state === "needs_attention" || harnessRun.state === "stuck" || warning) {
-    return harnessRun.reason;
+  if (
+    harnessRun.status.value === "needs_attention" ||
+    harnessRun.status.value === "stuck" ||
+    warning
+  ) {
+    return harnessRun.status.reason;
   }
   return undefined;
 }
 
 function warningFor(
-  harnessRun: HarnessRunObservation | undefined,
+  harnessRun: ObserverHarnessRun | undefined,
   terminal: TerminalTargetObservation | undefined,
   defaultWarning: boolean,
 ): boolean {
   if (defaultWarning) {
     return true;
   }
-  if (harnessRun?.state !== "unknown") {
+  if (harnessRun?.status.value !== "unknown") {
     return false;
   }
 
-  const reason = `${harnessRun.reason} ${terminal?.reason ?? ""}`.toLowerCase();
+  const reason = `${harnessRun.status.reason} ${terminal?.reason ?? ""}`.toLowerCase();
   return (
     reason.includes("conflict") ||
     reason.includes("stale") ||
@@ -512,6 +530,7 @@ function alertsFromProviderHealth(
 
 function orphans(
   input: ObserverGraphInput,
+  harnessRuns: ObserverHarnessRun[],
   worktreesById: Map<string, WorktreeObservation>,
   projectsById: Map<string, ObserverGraphProject>,
   harnessRunsById: Map<string, HarnessRunObservation>,
@@ -547,7 +566,8 @@ function orphans(
     }
   }
 
-  for (const run of input.harnessRuns) {
+  for (const harnessRun of harnessRuns) {
+    const run = harnessRun.run;
     const hasProject = run.projectId === undefined || projectsById.has(run.projectId);
     const hasWorktree = run.worktreeId !== undefined && worktreesById.has(run.worktreeId);
 

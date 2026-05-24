@@ -6,7 +6,11 @@ import type {
 } from "@wosm/contracts";
 import { WosmSnapshotSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { buildWosmSnapshot, type ObserverGraphProject } from "../../src/reconcile/graph";
+import {
+  buildWosmSnapshot,
+  type ObserverGraphHarnessRun,
+  type ObserverGraphProject,
+} from "../../src/reconcile/graph";
 
 const generatedAt = "2026-05-20T12:00:00.000Z";
 const observerStartedAt = "2026-05-20T11:55:00.000Z";
@@ -130,7 +134,7 @@ function build(overrides: {
   projects?: ObserverGraphProject[];
   worktrees?: WorktreeObservation[];
   terminals?: TerminalTargetObservation[];
-  harnessRuns?: HarnessRunObservation[];
+  harnessRuns?: ObserverGraphHarnessRun[];
   providerHealth?: Record<string, ProviderHealth>;
 }) {
   return buildWosmSnapshot({
@@ -318,6 +322,42 @@ describe("observer graph derivation", () => {
         worktreeId: "wt_web_feature",
       }),
     ]);
+    expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
+
+  it("uses harness status provenance and timestamp for rows and sessions", () => {
+    const statusUpdatedAt = "2026-05-20T12:00:04.000Z";
+    const snapshot = build({
+      worktrees: [worktree("wt_web_feature", "web", "feature")],
+      terminals: [terminal("term_feature", "wt_web_feature", "run_feature")],
+      harnessRuns: [
+        {
+          run: harness("run_feature", "wt_web_feature", "unknown"),
+          status: {
+            value: "working",
+            confidence: "medium",
+            reason: "Codex is about to use Bash.",
+            source: "harness_hook",
+            updatedAt: statusUpdatedAt,
+          },
+        },
+      ],
+    });
+
+    expect(snapshot.rows[0]?.agent).toMatchObject({
+      state: "working",
+      confidence: "medium",
+      reason: "Codex is about to use Bash.",
+      updatedAt: statusUpdatedAt,
+    });
+    expect(snapshot.sessions[0]).toMatchObject({
+      updatedAt: statusUpdatedAt,
+      status: {
+        value: "working",
+        source: "harness_hook",
+        updatedAt: statusUpdatedAt,
+      },
+    });
     expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
   });
 });

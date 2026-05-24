@@ -1,0 +1,62 @@
+import { describe, expect, it } from "vitest";
+import { createReconcileScheduler } from "../../src/runtime/reconcileScheduler";
+
+describe("reconcile scheduler", () => {
+  it("coalesces a burst of hook reconcile requests", async () => {
+    const reasons: string[] = [];
+    const scheduler = createReconcileScheduler({
+      debounceMs: 0,
+      reconcile: async (reason) => {
+        reasons.push(reason);
+      },
+    });
+
+    scheduler.request("hook:codex:PreToolUse");
+    scheduler.request("hook:codex:PostToolUse");
+    scheduler.request("hook:codex:Stop");
+    await drainMicrotasks();
+
+    expect(reasons).toEqual(["hook:batch(3)"]);
+  });
+
+  it("runs one follow-up reconcile for requests that arrive while reconcile is running", async () => {
+    const reasons: string[] = [];
+    const firstReconcile = deferred<void>();
+    const firstStarted = deferred<void>();
+    const scheduler = createReconcileScheduler({
+      debounceMs: 0,
+      reconcile: async (reason) => {
+        reasons.push(reason);
+        if (reasons.length === 1) {
+          firstStarted.resolve();
+          await firstReconcile.promise;
+        }
+      },
+    });
+
+    scheduler.request("hook:codex:PreToolUse");
+    await firstStarted.promise;
+    scheduler.request("hook:codex:PostToolUse");
+    scheduler.request("hook:codex:Stop");
+    firstReconcile.resolve();
+    await drainMicrotasks();
+
+    expect(reasons).toEqual(["hook:codex:PreToolUse", "hook:batch(2)"]);
+  });
+});
+
+async function drainMicrotasks(): Promise<void> {
+  for (let index = 0; index < 10; index += 1) {
+    await Promise.resolve();
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
+}

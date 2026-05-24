@@ -27,6 +27,7 @@ import {
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ReconcileTiming } from "./core.js";
 import { buildWosmSnapshot, safeErrorToProviderHealth } from "./graph.js";
+import { applyHarnessEventStatusOverlays, type ObserverHarnessRun } from "./harnessEventStatus.js";
 
 export type ProviderReadOptions = {
   clock: RuntimeClock;
@@ -118,6 +119,18 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
   });
 
   const finishedAt = toIsoTimestamp(input.read.clock.now());
+  const harnessStatusInput: {
+    persistence?: ObserverPersistence;
+    harnessRuns: ObserverHarnessRun[];
+    now: string;
+  } = {
+    harnessRuns: harnessResult.harnessRuns,
+    now: finishedAt,
+  };
+  if (input.persistence !== undefined) {
+    harnessStatusInput.persistence = input.persistence;
+  }
+  const harnessRuns = await harnessRunsWithPersistedEventStatus(harnessStatusInput);
   const lastReconcile: ReconcileTiming = {
     reason: input.reason,
     startedAt: started,
@@ -126,7 +139,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     projectsScanned: worktreeResult.projectsScanned,
     worktreesObserved: worktreeResult.worktrees.length,
     terminalTargetsObserved: terminalResult.terminalTargets.length,
-    harnessRunsObserved: harnessResult.harnessRuns.length,
+    harnessRunsObserved: harnessRuns.length,
     eventsEmitted: 0,
     errors,
   };
@@ -139,7 +152,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     harnessCapabilities: harnessResult.harnessCapabilities,
     worktrees: worktreeResult.worktrees,
     terminalTargets: terminalResult.terminalTargets,
-    harnessRuns: harnessResult.harnessRuns,
+    harnessRuns,
   });
 
   lastReconcile.eventsEmitted = await persistReconcileResult({
@@ -147,7 +160,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     projects: input.projects,
     worktrees: worktreeResult.worktrees,
     terminalTargets: terminalResult.terminalTargets,
-    harnessRuns: harnessResult.harnessRuns,
+    harnessRuns: harnessRuns.map((harnessRun) => harnessRun.run),
     providerHealth,
     observedAt: finishedAt,
     providerObservationRetentionDays: retentionDays,
@@ -159,7 +172,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     projectsScanned: worktreeResult.projectsScanned,
     worktreesObserved: worktreeResult.worktrees.length,
     terminalTargetsObserved: terminalResult.terminalTargets.length,
-    harnessRunsObserved: harnessResult.harnessRuns.length,
+    harnessRunsObserved: harnessRuns.length,
     errorCount: errors.length,
   });
 
@@ -306,10 +319,10 @@ async function readHarnessObservations(input: {
   providerHealth: Record<string, ProviderHealth>;
   errors: SafeError[];
 }): Promise<{
-  harnessRuns: HarnessRunObservation[];
+  harnessRuns: ObserverHarnessRun[];
   harnessCapabilities: Record<string, HarnessCapabilities>;
 }> {
-  const harnessRuns: HarnessRunObservation[] = [];
+  const harnessRuns: ObserverHarnessRun[] = [];
   const harnessCapabilities: Record<string, HarnessCapabilities> = {};
 
   for (const provider of input.providers.harnesses.values()) {
@@ -392,8 +405,8 @@ async function classifyHarnessRuns(input: {
   read: ProviderReadOptions;
   providerHealth: Record<string, ProviderHealth>;
   errors: SafeError[];
-}): Promise<HarnessRunObservation[]> {
-  const classifiedRuns: HarnessRunObservation[] = [];
+}): Promise<ObserverHarnessRun[]> {
+  const classifiedRuns: ObserverHarnessRun[] = [];
   for (const run of input.runs) {
     const classification = await runProviderReadBoundary(
       {
@@ -438,6 +451,22 @@ async function classifyHarnessRuns(input: {
   }
 
   return classifiedRuns;
+}
+
+async function harnessRunsWithPersistedEventStatus(input: {
+  persistence?: ObserverPersistence;
+  harnessRuns: ObserverHarnessRun[];
+  now: string;
+}): Promise<ObserverHarnessRun[]> {
+  if (input.persistence === undefined) {
+    return input.harnessRuns;
+  }
+
+  const observations = await input.persistence.listProviderObservations({ now: input.now });
+  return applyHarnessEventStatusOverlays({
+    runs: input.harnessRuns,
+    observations,
+  });
 }
 
 async function persistReconcileResult(input: {
@@ -582,18 +611,27 @@ function failedProviderHealth(input: {
 function runWithStatus(
   run: HarnessRunObservation,
   classification: HarnessStatusObservation,
-): HarnessRunObservation {
-  return {
-    ...run,
-    ...(classification.projectId === undefined ? {} : { projectId: classification.projectId }),
-    ...(classification.worktreeId === undefined ? {} : { worktreeId: classification.worktreeId }),
-    ...(classification.sessionId === undefined ? {} : { sessionId: classification.sessionId }),
+): ObserverHarnessRun {
+  const nextRun: HarnessRunObservation = {
+    id: run.id,
+    provider: run.provider,
     state: classification.status.value,
     confidence: classification.status.confidence,
     reason: classification.status.reason,
-    observedAt: classification.status.updatedAt,
-    ...(classification.providerData === undefined
-      ? {}
-      : { providerData: classification.providerData }),
+    observedAt: run.observedAt,
+  };
+  const projectId = classification.projectId ?? run.projectId;
+  const worktreeId = classification.worktreeId ?? run.worktreeId;
+  const sessionId = classification.sessionId ?? run.sessionId;
+  const providerData = classification.providerData ?? run.providerData;
+  if (projectId !== undefined) nextRun.projectId = projectId;
+  if (worktreeId !== undefined) nextRun.worktreeId = worktreeId;
+  if (sessionId !== undefined) nextRun.sessionId = sessionId;
+  if (run.pid !== undefined) nextRun.pid = run.pid;
+  if (run.cwd !== undefined) nextRun.cwd = run.cwd;
+  if (providerData !== undefined) nextRun.providerData = providerData;
+  return {
+    run: nextRun,
+    status: classification.status,
   };
 }

@@ -201,7 +201,7 @@ describe("observer reconcile persistence", () => {
     sqlite.close();
   });
 
-  it("keeps harness hook observations diagnostic-only during live reconcile", async () => {
+  it("promotes matching harness hook observations during live reconcile", async () => {
     const dbPath = await tempDbPath();
     const sqlite = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(now) } });
     const persistence = createObserverPersistence({
@@ -239,7 +239,102 @@ describe("observer reconcile persistence", () => {
       clock: { now: () => new Date(now) },
     });
 
-    const snapshot = await core.reconcile("hook-diagnostic-only");
+    const snapshot = await core.reconcile("hook-promoted-status");
+
+    expect(snapshot.rows[0]?.agent).toMatchObject({
+      state: "needs_attention",
+      confidence: "high",
+      reason: "Codex requested permission for Bash.",
+      updatedAt: "2026-05-20T12:00:01.000Z",
+    });
+    expect(snapshot.sessions[0]?.status).toMatchObject({
+      value: "needs_attention",
+      source: "harness_hook",
+      updatedAt: "2026-05-20T12:00:01.000Z",
+    });
+    expect(snapshot.projects[0]?.counts).toMatchObject({
+      working: 0,
+      attention: 1,
+      unknown: 0,
+    });
+    expect(snapshot.counts).toMatchObject({
+      working: 0,
+      attention: 1,
+      unknown: 0,
+    });
+    expect(await persistence.listHarnessRuns()).toEqual([
+      expect.objectContaining({
+        id: "run_web_main",
+        state: "needs_attention",
+        confidence: "high",
+        lastSeenAt: now,
+        providerData: expect.objectContaining({
+          statusOverlay: {
+            source: "harness_hook",
+            rawEventType: "PermissionRequest",
+            updatedAt: "2026-05-20T12:00:01.000Z",
+            correlatedBy: "harnessRunId",
+          },
+        }),
+      }),
+    ]);
+    expect(await persistence.listSessions()).toEqual([
+      expect.objectContaining({
+        id: "ses_web_main",
+        state: "needs_attention",
+        lastSeenAt: now,
+      }),
+    ]);
+    expect(await persistence.listProviderObservations({ includeExpired: true })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          entityKind: "harness_event",
+          entityKey: "run_web_main",
+        }),
+      ]),
+    );
+    sqlite.close();
+  });
+
+  it("leaves unmatched harness hook observations diagnostic-only during live reconcile", async () => {
+    const dbPath = await tempDbPath();
+    const sqlite = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    await persistence.recordProviderObservation({
+      provider: "fake-harness",
+      providerType: "harness",
+      entityKind: "harness_event",
+      entityKey: "missing_run",
+      observedAt: "2026-05-20T12:00:01.000Z",
+      payload: {
+        provider: "fake-harness",
+        harnessRunId: "missing_run",
+        worktreeId: "wt_web_main",
+        sessionId: "ses_web_main",
+        rawEventType: "PermissionRequest",
+        status: {
+          value: "needs_attention",
+          confidence: "high",
+          reason: "Codex requested permission for Bash.",
+          source: "harness_hook",
+          updatedAt: "2026-05-20T12:00:01.000Z",
+        },
+        observedAt: "2026-05-20T12:00:01.000Z",
+      },
+    });
+    const core = createObserverCore({
+      config,
+      providers: providersWithOneSession(),
+      persistence,
+      sqlite,
+      clock: { now: () => new Date(now) },
+    });
+
+    const snapshot = await core.reconcile("hook-unmatched-diagnostic-only");
 
     expect(snapshot.rows[0]?.agent).toMatchObject({
       state: "working",
@@ -255,7 +350,7 @@ describe("observer reconcile persistence", () => {
       expect.arrayContaining([
         expect.objectContaining({
           entityKind: "harness_event",
-          entityKey: "run_web_main",
+          entityKey: "missing_run",
         }),
       ]),
     );

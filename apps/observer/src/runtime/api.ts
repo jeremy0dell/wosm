@@ -33,6 +33,10 @@ import type { ObserverPersistence, PersistedCommand } from "../persistence/index
 import type { ProviderRegistry } from "../providers/registry.js";
 import { type ObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
 import type { ObserverEventBus } from "./eventBus.js";
+import {
+  type CreateReconcileSchedulerOptions,
+  createReconcileScheduler,
+} from "./reconcileScheduler.js";
 
 export type CreateObserverApiOptions = {
   core: ObserverCore;
@@ -52,6 +56,7 @@ export type CreateObserverApiOptions = {
   configPath?: string;
   configDiagnostics?: ConfigDiagnostic[];
   onStop?: () => Promise<void> | void;
+  hookReconcileDebounceMs?: number;
 };
 
 export type ObserverApi = ProtocolObserverApi;
@@ -59,7 +64,18 @@ export type ObserverApi = ProtocolObserverApi;
 export function createObserverApi(options: CreateObserverApiOptions): ObserverApi {
   const clock = options.clock ?? systemClock;
   let reconciling = false;
-  let api: ObserverApi;
+  const schedulerOptions: CreateReconcileSchedulerOptions = {
+    reconcile: (reason) => runReconcile(reason),
+  };
+  if (options.hookReconcileDebounceMs !== undefined) {
+    schedulerOptions.debounceMs = options.hookReconcileDebounceMs;
+  }
+  if (options.logger !== undefined) {
+    schedulerOptions.onError = async (error) => {
+      await options.logger?.error("Scheduled observer reconcile failed.", { error });
+    };
+  }
+  const reconcileScheduler = createReconcileScheduler(schedulerOptions);
   const hookIngestion =
     options.hookIngestion ??
     createHookIngestion({
@@ -71,10 +87,10 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       ...(options.config?.observability?.retention === undefined
         ? {}
         : { retention: options.config.observability.retention }),
-      reconcile: (reason) => api.reconcile(reason),
+      requestReconcile: reconcileScheduler.request,
     });
 
-  api = {
+  const api: ObserverApi = {
     health: async () => {
       const coreHealth = options.core.getHealth();
       const snapshot = options.core.getSnapshot();
@@ -122,49 +138,51 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       diagnosticOptions?: DiagnosticCollectionOptions,
     ): Promise<DiagnosticSnapshot> =>
       collectDiagnosticSnapshot(diagnosticDeps(), diagnosticOptions),
-    reconcile: async (reason = "manual"): Promise<ReconcileReceipt> => {
-      if (!reconciling) {
-        reconciling = true;
-        try {
-          await drainConfiguredSpool();
-        } finally {
-          reconciling = false;
-        }
-      }
-
-      const result = await runRuntimeBoundary(
-        {
-          operation: "observer.reconcile",
-          clock,
-          error: {
-            tag: "ObserverReconcileError",
-            code: "OBSERVER_RECONCILE_FAILED",
-            message: "Observer reconciliation failed.",
-          },
-        },
-        () => options.core.reconcile(reason),
-      );
-
-      if (!result.ok) {
-        throw result.error;
-      }
-
-      const event: WosmEvent = {
-        type: "observer.reconciled",
-        at: result.value.generatedAt,
-        changed: 0,
-      };
-      options.eventBus.publish(event);
-      return {
-        schemaVersion: WOSM_SCHEMA_VERSION,
-        reason,
-        reconciledAt: result.value.generatedAt,
-        snapshot: result.value,
-      };
-    },
+    reconcile: runReconcile,
     ingestHookEvent: (event: ProviderHookEvent): Promise<HookReceipt> =>
       hookIngestion.ingest(event),
   };
+
+  async function runReconcile(reason = "manual"): Promise<ReconcileReceipt> {
+    if (!reconciling) {
+      reconciling = true;
+      try {
+        await drainConfiguredSpool();
+      } finally {
+        reconciling = false;
+      }
+    }
+
+    const result = await runRuntimeBoundary(
+      {
+        operation: "observer.reconcile",
+        clock,
+        error: {
+          tag: "ObserverReconcileError",
+          code: "OBSERVER_RECONCILE_FAILED",
+          message: "Observer reconciliation failed.",
+        },
+      },
+      () => options.core.reconcile(reason),
+    );
+
+    if (!result.ok) {
+      throw result.error;
+    }
+
+    const event: WosmEvent = {
+      type: "observer.reconciled",
+      at: result.value.generatedAt,
+      changed: 0,
+    };
+    options.eventBus.publish(event);
+    return {
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      reason,
+      reconciledAt: result.value.generatedAt,
+      snapshot: result.value,
+    };
+  }
 
   async function drainConfiguredSpool(): Promise<void> {
     if (options.hookSpoolDir === undefined) {

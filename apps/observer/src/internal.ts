@@ -21,5 +21,6 @@ export * from "./runtime/api.js";
 export * from "./runtime/eventBus.js";
 export * from "./runtime/logging.js";
 export * from "./runtime/main.js";
+export * from "./runtime/reconcileScheduler.js";
 export * from "./runtime/server.js";
 export * from "./sqlite.js";

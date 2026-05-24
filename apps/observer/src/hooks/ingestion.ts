@@ -28,7 +28,7 @@ export type CreateHookIngestionOptions = {
   eventBus?: ObserverEventBus;
   clock?: RuntimeClock;
   hookId?: () => string;
-  reconcile?: (reason: string) => Promise<unknown>;
+  requestReconcile?: (reason: string) => void;
   retention?: ObservabilityRetentionConfig;
 };
 
@@ -114,36 +114,8 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
             });
 
       const shouldReconcile = ingestOptions.triggerReconcile ?? true;
-      if (shouldReconcile && options.reconcile !== undefined) {
-        const reconcileResult = await runRuntimeBoundary(
-          {
-            operation: "observer.hook.reconcile",
-            clock,
-            error: {
-              tag: "HookIngestionError",
-              code: "HOOK_RECONCILE_FAILED",
-              message: "Observer ingested the hook event but reconciliation failed.",
-              provider: event.provider,
-            },
-          },
-          () => options.reconcile?.(`hook:${event.provider}:${event.event}`) ?? Promise.resolve(),
-        );
-
-        if (!reconcileResult.ok) {
-          const receipt: HookReceipt = {
-            schemaVersion: WOSM_SCHEMA_VERSION,
-            hookId: id,
-            provider: event.provider,
-            event: event.event,
-            accepted: true,
-            status: "ingested",
-            receivedAt: event.receivedAt,
-            reconciled: false,
-            deduped: false,
-            error: reconcileResult.error,
-          };
-          return HookReceiptSchema.parse(receipt);
-        }
+      if (shouldReconcile && options.requestReconcile !== undefined) {
+        options.requestReconcile(`hook:${event.provider}:${event.event}`);
       }
 
       const receipt: HookReceipt = {
@@ -154,7 +126,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
         accepted: true,
         status: "ingested",
         receivedAt: event.receivedAt,
-        reconciled: shouldReconcile && options.reconcile !== undefined,
+        reconciled: false,
         deduped: false,
       };
       if (providerIngestResult?.error !== undefined) {

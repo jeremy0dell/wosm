@@ -4,6 +4,8 @@ Use `planning/wosm_rebuild_tdd_final_v1.md` as the technical design document. It
 
 Use `planning/wosm_phased_development_cycle_final_v1.md` as the implementation sequence. It owns phase order, phase scope, red-first expectations, and phase exit criteria.
 
+Use `planning/harness_hook_ingress_refactor_master_plan.md` as the master plan for the provider-neutral hook ingress refactor, including fast socket ingest, status projection, spool behavior, reconcile scheduling, and hook-runner packaging decisions.
+
 Use `planning/effect_boundary_hardening_sequence.md` when sequencing the follow-up runtime boundary hardening work for Effect, protocol IO, observer queues, reconciliation, provider calls, CLI diagnostics, and hook handling.
 
 Use `planning/code_smell_remediation_p1_p2.md` when handling the P1/P2 code smell cleanup for provider diagnostics boundaries, recovery breadcrumb validation, diagnostics invariants, async spread cleanup, and optional object construction conventions.
