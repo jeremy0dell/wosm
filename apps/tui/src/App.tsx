@@ -29,6 +29,7 @@ export type AppProps = {
   focusOrigin?: TerminalFocusOrigin;
   resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
   onFocusSuccess?: () => Promise<void>;
+  onDismiss?: () => Promise<void>;
   persistentPopup?: boolean;
   onExit?: (code: number) => void;
 };
@@ -41,6 +42,7 @@ export function App({
   focusOrigin,
   resolveFocusOrigin,
   onFocusSuccess,
+  onDismiss,
   persistentPopup = false,
   onExit,
 }: AppProps) {
@@ -59,6 +61,10 @@ export function App({
     }
     if (dashboard.uiState.prompt !== undefined || promptModeRef.current !== undefined) {
       handlePromptInput({ input, key, dashboard, promptValueRef, promptModeRef });
+      return;
+    }
+    if (persistentPopup && onDismiss !== undefined && (input === "q" || key.escape === true)) {
+      void dismissPersistentPopup(onDismiss, dashboard);
       return;
     }
     if (input === "q") {
@@ -148,7 +154,11 @@ export function App({
 
   return (
     <Box flexDirection="column">
-      <Dashboard snapshot={dashboard.snapshot} uiState={dashboard.uiState} />
+      <Dashboard
+        snapshot={dashboard.snapshot}
+        uiState={dashboard.uiState}
+        quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
+      />
       <CommandPrompt prompt={dashboard.uiState.prompt} />
       <ToastStack toasts={dashboard.toasts} />
     </Box>
@@ -252,6 +262,17 @@ async function dispatchFocusWithLifecycle(
 
   if (options.exitOnFocusSuccess && !options.persistentPopup) {
     options.onExit?.(0);
+  }
+}
+
+async function dismissPersistentPopup(
+  onDismiss: () => Promise<void>,
+  dashboard: ReturnType<typeof useObserverDashboard>,
+): Promise<void> {
+  try {
+    await onDismiss();
+  } catch (error: unknown) {
+    dashboard.addToast(safeErrorToToast(toSafeError(error)));
   }
 }
 

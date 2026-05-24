@@ -17,6 +17,7 @@ export type TuiCommandDeps = {
   popupLifecycle?: {
     resolveFocusOrigin?: RunTuiOptions["resolveFocusOrigin"];
     onFocusSuccess?: RunTuiOptions["onFocusSuccess"];
+    onDismiss?: RunTuiOptions["onDismiss"];
   };
 };
 
@@ -68,12 +69,13 @@ export async function runTuiCommand(
   if (parsed.popupMode) {
     const env = deps.env ?? process.env;
     if (parsed.persistentPopup) {
+      const dismissPopup =
+        deps.popupLifecycle?.onDismiss ?? (() => dismissTmuxPopup({ env }).then(() => undefined));
       runOptions.persistentPopup = true;
       runOptions.resolveFocusOrigin =
         deps.popupLifecycle?.resolveFocusOrigin ?? (() => resolveTmuxPopupFocusOrigin({ env }));
-      runOptions.onFocusSuccess =
-        deps.popupLifecycle?.onFocusSuccess ??
-        (() => dismissTmuxPopup({ env }).then(() => undefined));
+      runOptions.onFocusSuccess = deps.popupLifecycle?.onFocusSuccess ?? dismissPopup;
+      runOptions.onDismiss = dismissPopup;
     } else {
       runOptions.exitOnFocusSuccess = true;
       const focusOrigin = focusOriginFromEnv(env);

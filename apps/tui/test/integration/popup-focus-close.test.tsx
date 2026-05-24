@@ -77,6 +77,76 @@ describe("TUI transient focus-and-close navigation", () => {
     instance.unmount();
   });
 
+  it("dismisses a persistent popup on q without exiting the TUI process", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const exits: number[] = [];
+    let dismissCount = 0;
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        onDismiss={async () => {
+          dismissCount += 1;
+        }}
+        onExit={(code) => exits.push(code)}
+        persistentPopup={true}
+        service={service}
+      />,
+    );
+
+    instance.stdin.write("q");
+
+    await waitFor(() => dismissCount === 1);
+    expect(exits).toEqual([]);
+    expect(service.cleanupCount).toBe(0);
+    instance.unmount();
+  });
+
+  it("dismisses a persistent popup on escape without exiting the TUI process", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const exits: number[] = [];
+    let dismissCount = 0;
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        onDismiss={async () => {
+          dismissCount += 1;
+        }}
+        onExit={(code) => exits.push(code)}
+        persistentPopup={true}
+        service={service}
+      />,
+    );
+
+    instance.stdin.write("\u001B");
+
+    await waitFor(() => dismissCount === 1);
+    expect(exits).toEqual([]);
+    expect(service.cleanupCount).toBe(0);
+    instance.unmount();
+  });
+
+  it("falls back to normal q exit when a persistent popup has no dismiss hook", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const exits: number[] = [];
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        onExit={(code) => exits.push(code)}
+        persistentPopup={true}
+        service={service}
+      />,
+    );
+
+    instance.stdin.write("q");
+
+    await waitFor(() => exits.length === 1);
+    expect(exits).toEqual([0]);
+    instance.unmount();
+  });
+
   it("stays open and shows a SafeError toast when focus fails", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);

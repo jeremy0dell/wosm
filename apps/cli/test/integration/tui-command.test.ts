@@ -229,12 +229,16 @@ describe("CLI tui command", () => {
     const runOptions: RunTuiOptions[] = [];
     let running = false;
     let dismissed = false;
+    let closed = false;
     const resolveFocusOrigin = async () => ({
       provider: "tmux",
       clientId: "client_from_option",
     });
     const onFocusSuccess = async () => {
       dismissed = true;
+    };
+    const onDismiss = async () => {
+      closed = true;
     };
 
     const result = await runCli(["--config", configPath, "tui", "--popup", "--persistent"], {
@@ -286,6 +290,7 @@ describe("CLI tui command", () => {
         popupLifecycle: {
           resolveFocusOrigin,
           onFocusSuccess,
+          onDismiss,
         },
         runTui: async (options) => {
           runOptions.push(options);
@@ -304,6 +309,7 @@ describe("CLI tui command", () => {
       persistentPopup: true,
       resolveFocusOrigin,
       onFocusSuccess,
+      onDismiss,
     });
     await expect(runOptions[0]?.resolveFocusOrigin?.()).resolves.toEqual({
       provider: "tmux",
@@ -311,6 +317,8 @@ describe("CLI tui command", () => {
     });
     await runOptions[0]?.onFocusSuccess?.();
     expect(dismissed).toBe(true);
+    await runOptions[0]?.onDismiss?.();
+    expect(closed).toBe(true);
   });
 
   it("returns a nonzero result when observer startup is unavailable", async () => {

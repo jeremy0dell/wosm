@@ -50,4 +50,21 @@ describe("TUI app rendering", () => {
     expect(frame).toContain("0 worktrees");
     instance.unmount();
   });
+
+  it("labels q and escape as close in persistent popup mode", () => {
+    const snapshot = createDashboardSnapshot();
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        onDismiss={async () => undefined}
+        persistentPopup={true}
+        service={new FakeTuiObserverService(snapshot)}
+      />,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("q/esc:close");
+    expect(frame).not.toContain("q:quit");
+    instance.unmount();
+  });
 });

@@ -7,11 +7,13 @@ import { ProjectGroup } from "./ProjectGroup.js";
 export type DashboardProps = {
   snapshot: WosmSnapshot;
   uiState: TuiUiState;
+  quitActionLabel?: "close" | "quit";
 };
 
-export function Dashboard({ snapshot, uiState }: DashboardProps) {
+export function Dashboard({ snapshot, uiState, quitActionLabel = "quit" }: DashboardProps) {
   const groups = selectProjectGroups(snapshot, uiState);
   const slots = selectKeySlots(snapshot, uiState);
+  const quitHint = quitActionLabel === "close" ? "q/esc:close" : "q:quit";
   return (
     <Box flexDirection="column">
       <Text bold>
@@ -28,7 +30,7 @@ export function Dashboard({ snapshot, uiState }: DashboardProps) {
         />
       ))}
       <Box marginTop={1}>
-        <Text color="gray">n:new bg 1-9:start/focus /:search r:refresh q:quit</Text>
+        <Text color="gray">n:new bg 1-9:start/focus /:search r:refresh {quitHint}</Text>
       </Box>
     </Box>
   );

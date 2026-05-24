@@ -12,6 +12,7 @@ export type RunTuiOptions = {
   focusOrigin?: TerminalFocusOrigin;
   resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
   onFocusSuccess?: () => Promise<void>;
+  onDismiss?: () => Promise<void>;
   persistentPopup?: boolean;
 };
 
@@ -40,6 +41,9 @@ export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
     }
     if (options.onFocusSuccess !== undefined) {
       appProps.onFocusSuccess = options.onFocusSuccess;
+    }
+    if (options.onDismiss !== undefined) {
+      appProps.onDismiss = options.onDismiss;
     }
     instance = render(<App {...appProps} />);
   });
