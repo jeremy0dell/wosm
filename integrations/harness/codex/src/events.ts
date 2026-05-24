@@ -213,9 +213,9 @@ export function statusFromCodexHookEvent(
   }
   if (event.hook_event_name === "Stop") {
     return {
-      value: "unknown",
-      confidence: "low",
-      reason: "Codex stop hook fired, but no reliable idle signal was observed.",
+      value: "idle",
+      confidence: "high",
+      reason: "Codex turn completed.",
       source: "harness_hook",
       updatedAt: observedAt,
     };

@@ -1,4 +1,4 @@
-import { CodexHarnessProvider } from "@wosm/codex";
+import { CodexHarnessProvider, compactCodexHookPayload } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
@@ -94,7 +94,7 @@ describe("observer reconcile with Codex harness", () => {
     });
   });
 
-  it("persists correlated Codex hook events without overriding live row state", async () => {
+  it("uses correlated Codex hook events to update live row state", async () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ clock });
     const persistence = createObserverPersistence({
@@ -103,6 +103,7 @@ describe("observer reconcile with Codex harness", () => {
       idFactory: ids(),
     });
     const eventBus = createObserverEventBus();
+    const reconciled = nextObserverReconciled(eventBus);
     const providers = codexProviders();
     const core = createObserverCore({
       config,
@@ -119,6 +120,7 @@ describe("observer reconcile with Codex harness", () => {
       eventBus,
       clock,
       config,
+      hookReconcileDebounceMs: 0,
     });
     await core.reconcile("initial-codex-context");
 
@@ -129,7 +131,7 @@ describe("observer reconcile with Codex harness", () => {
       kind: "harness",
       event: "PreToolUse",
       receivedAt: "2026-05-21T12:00:01.000Z",
-      payload: {
+      payload: compactCodexHookPayload({
         session_id: "codex_session_123",
         transcript_path: null,
         cwd: "/tmp/wosm/web/task/src",
@@ -140,25 +142,52 @@ describe("observer reconcile with Codex harness", () => {
         tool_name: "Bash",
         tool_input: { command: "pnpm test" },
         tool_use_id: "call_test",
-      },
+      }).payload,
     });
 
     expect(receipt).toMatchObject({
       status: "ingested",
-      reconciled: true,
+      reconciled: false,
     });
-    expect(core.getSnapshot().rows[0]?.agent).toMatchObject({
+    await expect(reconciled.next).resolves.toMatchObject({
+      value: { type: "observer.reconciled" },
+    });
+    await reconciled.close();
+    const snapshot = core.getSnapshot();
+    expect(snapshot.rows[0]?.agent).toMatchObject({
       harness: "codex",
-      state: "unknown",
-      confidence: "low",
+      state: "working",
+      confidence: "medium",
       sessionId: "ses_web_task",
+      updatedAt: "2026-05-21T12:00:01.000Z",
     });
-    expect(core.getSnapshot().rows[0]?.id).toBe("wt_web_task");
-    expect(core.getSnapshot().counts).toMatchObject({
-      working: 0,
+    expect(snapshot.sessions[0]?.status).toMatchObject({
+      value: "working",
+      source: "harness_hook",
+      updatedAt: "2026-05-21T12:00:01.000Z",
+    });
+    expect(snapshot.rows[0]?.id).toBe("wt_web_task");
+    expect(snapshot.counts).toMatchObject({
+      working: 1,
       attention: 0,
-      unknown: 1,
+      unknown: 0,
     });
+    expect(await persistence.listHarnessRuns()).toEqual([
+      expect.objectContaining({
+        id: "codex:tmux:wosm:@1:%2",
+        state: "working",
+        confidence: "medium",
+        lastSeenAt: now,
+        providerData: expect.objectContaining({
+          statusOverlay: {
+            source: "harness_hook",
+            rawEventType: "PreToolUse",
+            updatedAt: "2026-05-21T12:00:01.000Z",
+            correlatedBy: "worktreeId",
+          },
+        }),
+      }),
+    ]);
     await expect(persistence.listProviderObservations()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -180,6 +209,16 @@ describe("observer reconcile with Codex harness", () => {
     sqlite.close();
   });
 });
+
+function nextObserverReconciled(eventBus: ReturnType<typeof createObserverEventBus>) {
+  const events = eventBus.subscribe({ type: "observer.reconciled" })[Symbol.asyncIterator]();
+  return {
+    next: events.next(),
+    close: async () => {
+      await events.return?.();
+    },
+  };
+}
 
 function codexProviders(): ProviderRegistry {
   return new ProviderRegistry({

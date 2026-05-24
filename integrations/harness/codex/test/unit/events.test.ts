@@ -1,6 +1,7 @@
 import type { RawHarnessEvent } from "@wosm/contracts";
 import { HarnessEventObservationSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
+import { compactCodexHookPayload } from "../../src/compaction";
 import { CodexHarnessProviderError } from "../../src/errors";
 import { normalizeCodexRawEvent, parseCodexHookEvent } from "../../src/events";
 
@@ -258,7 +259,120 @@ describe("Codex hook event parsing", () => {
     ]);
   });
 
-  it("keeps Stop as unknown low confidence instead of inventing idle", () => {
+  it("compacts status-safe Codex hook payloads without breaking strict parsing", () => {
+    const common = {
+      session_id: "codex_session_123",
+      transcript_path: null,
+      cwd: "/tmp/wosm/web/task",
+      model: "gpt-5.5",
+      permission_mode: "default",
+      wosm_project_id: "web",
+      wosm_worktree_id: "wt_web_task",
+      wosm_worktree_path: "/tmp/wosm/web/task",
+      wosm_session_id: "ses_web_task",
+      wosm_terminal_provider: "tmux",
+      wosm_terminal_target_id: "tmux:wosm:@1:%2",
+    };
+    const turn = {
+      ...common,
+      turn_id: "turn_1",
+    };
+    const rawSecret = "raw payload that should not survive compaction";
+    const payloads = [
+      {
+        ...turn,
+        hook_event_name: "UserPromptSubmit",
+        prompt: `Please run ${rawSecret}`,
+      },
+      {
+        ...turn,
+        hook_event_name: "PreToolUse",
+        tool_name: "Bash",
+        tool_input: { command: `echo ${rawSecret}` },
+        tool_use_id: "call_pre",
+      },
+      {
+        ...turn,
+        hook_event_name: "PermissionRequest",
+        tool_name: "Bash",
+        tool_input: { command: `rm -rf ${rawSecret}` },
+      },
+      {
+        ...turn,
+        hook_event_name: "PostToolUse",
+        tool_name: "Bash",
+        tool_input: { command: "pwd" },
+        tool_response: `stdout ${rawSecret}`,
+        tool_use_id: "call_post",
+      },
+      {
+        ...turn,
+        hook_event_name: "Stop",
+        stop_hook_active: false,
+        last_assistant_message: `Done with ${rawSecret}`,
+      },
+      {
+        ...turn,
+        hook_event_name: "SubagentStop",
+        agent_transcript_path: null,
+        agent_id: "agent_1",
+        agent_type: "reviewer",
+        stop_hook_active: false,
+        last_assistant_message: `Reviewed ${rawSecret}`,
+      },
+    ];
+
+    const compactedPayloads = payloads.map((payload) => compactCodexHookPayload(payload));
+
+    expect(
+      compactedPayloads.map((result) => parseCodexHookEvent(result.payload).hook_event_name),
+    ).toEqual([
+      "UserPromptSubmit",
+      "PreToolUse",
+      "PermissionRequest",
+      "PostToolUse",
+      "Stop",
+      "SubagentStop",
+    ]);
+    expect(JSON.stringify(compactedPayloads)).not.toContain(rawSecret);
+    expect(compactedPayloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          compacted: true,
+          omittedFieldNames: expect.arrayContaining(["tool_input"]),
+        }),
+        expect.objectContaining({
+          compacted: true,
+          omittedFieldNames: expect.arrayContaining(["tool_response"]),
+        }),
+        expect.objectContaining({
+          compacted: true,
+          omittedFieldNames: expect.arrayContaining(["prompt"]),
+        }),
+        expect.objectContaining({
+          compacted: true,
+          omittedFieldNames: expect.arrayContaining(["last_assistant_message"]),
+        }),
+      ]),
+    );
+    expect(compactedPayloads[1]?.payload).toMatchObject({
+      hook_event_name: "PreToolUse",
+      tool_input: {
+        compacted: true,
+        originalBytes: expect.any(Number),
+      },
+      wosm_project_id: "web",
+      wosm_terminal_target_id: "tmux:wosm:@1:%2",
+    });
+    expect(compactedPayloads[0]?.payload).toMatchObject({
+      prompt: expect.stringContaining("bytes"),
+    });
+    expect(compactedPayloads[4]?.payload).toMatchObject({
+      last_assistant_message: null,
+    });
+  });
+
+  it("maps Stop to idle even when stop_hook_active is true", () => {
     const observations = normalizeCodexRawEvent(
       {
         provider: "codex",
@@ -271,7 +385,7 @@ describe("Codex hook event parsing", () => {
           model: "gpt-5.4-codex",
           permission_mode: "default",
           turn_id: "turn_1",
-          stop_hook_active: false,
+          stop_hook_active: true,
           last_assistant_message: "Done.",
         },
       },
@@ -281,8 +395,9 @@ describe("Codex hook event parsing", () => {
     expect(observations[0]).toMatchObject({
       rawEventType: "Stop",
       status: {
-        value: "unknown",
-        confidence: "low",
+        value: "idle",
+        confidence: "high",
+        reason: "Codex turn completed.",
       },
     });
   });

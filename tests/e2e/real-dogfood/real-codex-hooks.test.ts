@@ -113,6 +113,18 @@ describeReal("real Codex hook dogfood", () => {
         state: expect.stringMatching(/^(working|needs_attention)$/),
         sessionId: expect.any(String),
       });
+      const idleRow = await waitForRowAgentState({
+        env,
+        configPath: config.configPath,
+        branch,
+        states: ["idle"],
+        timeoutMs: 180_000,
+      });
+      expect(idleRow.agent).toMatchObject({
+        harness: "codex",
+        state: "idle",
+        sessionId: activeRow.agent?.sessionId,
+      });
 
       const bundle = await runWosmJson<{ bundlePath: string }>(env, {
         configPath: config.configPath,

@@ -132,6 +132,10 @@ describe("CLI hook command", () => {
     expect(result.code).toBe(0);
     expect(observedPayload).toMatchObject({
       hook_event_name: "PreToolUse",
+      tool_input: {
+        compacted: true,
+        originalBytes: expect.any(Number),
+      },
       wosm_project_id: "web",
       wosm_worktree_id: "wt_web_task",
       wosm_worktree_path: "/tmp/wosm/web/task",
@@ -139,6 +143,7 @@ describe("CLI hook command", () => {
       wosm_terminal_provider: "tmux",
       wosm_terminal_target_id: "tmux:wosm:@1:%2",
     });
+    expect(JSON.stringify(observedPayload)).not.toContain("pnpm test");
   });
 
   it("rejects malformed JSON stdin without delivering or spooling arbitrary text", async () => {

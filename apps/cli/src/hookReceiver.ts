@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { compactCodexHookPayload } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
 import type { HookReceipt, ProviderHookEvent, SafeError } from "@wosm/contracts";
 import { ProviderHookEventSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
@@ -38,6 +39,14 @@ export type HookReceiverDeps = ObserverProcessDeps & {
   logger?: JsonlLogger;
 };
 
+type HookPayloadSummary = {
+  present: boolean;
+  originalBytes: number | null;
+  compactedBytes: number | null;
+  compacted: boolean;
+  omittedFieldNames: string[];
+};
+
 // Rate-limit auto-starts per state dir so concurrent hooks from one install do not fork storms.
 const lastStartByStateDir = new Map<string, number>();
 const defaultHookId = () => `hook_${Date.now()}_${randomUUID()}`;
@@ -59,6 +68,7 @@ export async function receiveHookEvent(
     receivedAt: toIsoTimestamp(clock.now()),
     ...(input.payload === undefined ? {} : { payload: input.payload }),
   });
+  const compacted = compactHookEventPayload(event);
   const deliveryTimeoutMs = input.deliveryTimeoutMs ?? 750;
   const startupTimeoutMs = input.startupTimeoutMs ?? 1500;
   const rateLimitMs = input.rateLimitMs ?? 2000;
@@ -66,9 +76,15 @@ export async function receiveHookEvent(
 
   // Delivery is best-effort and local-first: try the running observer, optionally
   // start it once, then spool the event for later replay.
-  const onlineDelivery = await deliverHook(paths, event, deliveryTimeoutMs, deps);
+  const onlineDelivery = await deliverHook(paths, compacted.event, deliveryTimeoutMs, deps);
   if (onlineDelivery.ok && onlineDelivery.value.status === "ingested") {
-    return logAndReturn(paths, event, onlineDelivery.value, deps);
+    return logAndReturn(
+      paths,
+      compacted.event,
+      onlineDelivery.value,
+      compacted.payloadSummary,
+      deps,
+    );
   }
 
   const deliveryError = onlineDelivery.ok ? onlineDelivery.value.error : onlineDelivery.error;
@@ -82,18 +98,36 @@ export async function receiveHookEvent(
       deps,
     });
     if (startResult.ok) {
-      const retryDelivery = await deliverHook(paths, event, deliveryTimeoutMs, deps);
+      const retryDelivery = await deliverHook(paths, compacted.event, deliveryTimeoutMs, deps);
       if (retryDelivery.ok && retryDelivery.value.status === "ingested") {
-        return logAndReturn(paths, event, retryDelivery.value, deps);
+        return logAndReturn(
+          paths,
+          compacted.event,
+          retryDelivery.value,
+          compacted.payloadSummary,
+          deps,
+        );
       }
       const retryError = retryDelivery.ok ? retryDelivery.value.error : retryDelivery.error;
-      const spooled = await spool(paths, event, retryError, deps);
-      return logAndReturn(paths, event, spooled, deps);
+      const spooled = await spool(paths, compacted.event, retryError, deps);
+      return logAndReturn(paths, compacted.event, spooled, compacted.payloadSummary, deps);
     }
-    return logAndReturn(paths, event, await spool(paths, event, startResult.error, deps), deps);
+    return logAndReturn(
+      paths,
+      compacted.event,
+      await spool(paths, compacted.event, startResult.error, deps),
+      compacted.payloadSummary,
+      deps,
+    );
   }
 
-  return logAndReturn(paths, event, await spool(paths, event, deliveryError, deps), deps);
+  return logAndReturn(
+    paths,
+    compacted.event,
+    await spool(paths, compacted.event, deliveryError, deps),
+    compacted.payloadSummary,
+    deps,
+  );
 }
 
 async function deliverHook(
@@ -201,6 +235,7 @@ async function logAndReturn(
   paths: ObserverPaths,
   event: ProviderHookEvent,
   receipt: HookReceipt,
+  payloadSummary: HookPayloadSummary,
   deps: HookReceiverDeps,
 ): Promise<HookReceipt> {
   const logger =
@@ -227,7 +262,7 @@ async function logAndReturn(
         status: receipt.status,
         event: event.event,
         kind: event.kind,
-        payload: event.payload,
+        payloadSummary,
         ...(receipt.error === undefined ? {} : { error: receipt.error }),
       },
     });
@@ -235,6 +270,66 @@ async function logAndReturn(
     // Hook logging must never block provider hook completion.
   }
   return receipt;
+}
+
+function compactHookEventPayload(event: ProviderHookEvent): {
+  event: ProviderHookEvent;
+  payloadSummary: HookPayloadSummary;
+} {
+  if (event.payload === undefined) {
+    return {
+      event,
+      payloadSummary: {
+        present: false,
+        originalBytes: null,
+        compactedBytes: null,
+        compacted: false,
+        omittedFieldNames: [],
+      },
+    };
+  }
+
+  if (event.provider !== "codex") {
+    const byteCount = jsonByteCount(event.payload);
+    return {
+      event,
+      payloadSummary: {
+        present: true,
+        originalBytes: byteCount,
+        compactedBytes: byteCount,
+        compacted: false,
+        omittedFieldNames: [],
+      },
+    };
+  }
+
+  const compaction = compactCodexHookPayload(event.payload);
+  const compactedEvent = ProviderHookEventSchema.parse({
+    ...event,
+    payload: compaction.payload,
+  });
+  return {
+    event: compactedEvent,
+    payloadSummary: {
+      present: true,
+      originalBytes: compaction.originalByteCount,
+      compactedBytes: compaction.compactedByteCount,
+      compacted: compaction.compacted,
+      omittedFieldNames: compaction.omittedFieldNames,
+    },
+  };
+}
+
+function jsonByteCount(value: unknown): number | null {
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) {
+      return null;
+    }
+    return Buffer.byteLength(serialized, "utf8");
+  } catch {
+    return null;
+  }
 }
 
 function defaultClientFactory(socketPath: string) {

@@ -1,8 +1,9 @@
 import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { compactCodexHookPayload } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
-import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { type ProviderHookEvent, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { FakeHarnessProvider, FakeTerminalProvider, FakeWorktreeProvider } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../tests/support/sockets";
@@ -151,6 +152,63 @@ describe("observer hook spool drain", () => {
       code: "ENOENT",
     });
     await server.close();
+    fixture.sqlite.close();
+  });
+
+  it("drains compacted Codex hook records without requiring raw tool payloads", async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
+    const spoolDir = hookSpoolDir(stateDir);
+    const rawCommand = "pnpm test --raw-output";
+    const compacted = compactCodexHookPayload({
+      session_id: "codex_session_123",
+      transcript_path: null,
+      cwd: "/tmp/wosm/web/task",
+      hook_event_name: "PreToolUse",
+      model: "gpt-5.4-codex",
+      permission_mode: "default",
+      turn_id: "turn_1",
+      tool_name: "Bash",
+      tool_input: { command: rawCommand },
+      tool_use_id: "call_test",
+    });
+    const spoolPath = await writeHookSpoolRecordFixture({
+      spoolDir,
+      spoolId: "spool_codex_compacted",
+      event: {
+        provider: "codex",
+        kind: "harness",
+        event: "PreToolUse",
+        payload: compacted.payload,
+      },
+    });
+    let observedEvent: ProviderHookEvent | undefined;
+    const fixture = createFixture(spoolDir, {
+      ingest: async (event) => {
+        observedEvent = event;
+        return {
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          hookId: event.hookId ?? "hook_codex_compacted",
+          provider: event.provider,
+          event: event.event,
+          accepted: true,
+          status: "ingested",
+          receivedAt: event.receivedAt,
+          reconciled: false,
+        };
+      },
+    });
+
+    await fixture.api.reconcile("manual");
+
+    await expect(fileExists(spoolPath)).resolves.toBe(false);
+    expect(observedEvent?.payload).toMatchObject({
+      hook_event_name: "PreToolUse",
+      tool_input: {
+        compacted: true,
+        originalBytes: expect.any(Number),
+      },
+    });
+    expect(JSON.stringify(observedEvent)).not.toContain(rawCommand);
     fixture.sqlite.close();
   });
 });

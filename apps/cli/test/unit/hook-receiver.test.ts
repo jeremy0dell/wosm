@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { receiveHookEvent } from "@wosm/cli";
-import type { HookReceipt } from "@wosm/contracts";
+import type { HookReceipt, ProviderHookEvent } from "@wosm/contracts";
 import { componentLogPath, readJsonlLog } from "@wosm/observability";
 import { describe, expect, it } from "vitest";
 import { fileMode, listHookSpoolFiles, readHookSpoolRecord } from "../../../../tests/support/spool";
@@ -38,6 +38,65 @@ describe("CLI hook receiver", () => {
 
     expect(receipt.status).toBe("ingested");
     await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
+  });
+
+  it("delivers compacted Codex hook payloads online", async () => {
+    const fixture = await createTempState();
+    const rawCommand = "cat /tmp/raw-command-output-secret";
+    let deliveredEvent: ProviderHookEvent | undefined;
+
+    const receipt = await receiveHookEvent(
+      {
+        provider: "codex",
+        event: "PreToolUse",
+        payload: {
+          session_id: "codex_session_1",
+          transcript_path: null,
+          cwd: "/tmp/wosm/web/task",
+          hook_event_name: "PreToolUse",
+          model: "gpt-5.4-codex",
+          permission_mode: "default",
+          turn_id: "turn_1",
+          tool_name: "Bash",
+          tool_input: { command: rawCommand },
+          tool_use_id: "call_test",
+          wosm_project_id: "web",
+          wosm_worktree_id: "wt_web_task",
+        },
+        config: fixture.config,
+      },
+      {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            ingestHookEvent: async (event): Promise<HookReceipt> => {
+              deliveredEvent = event;
+              return {
+                schemaVersion: "0.3.0",
+                hookId: event.hookId ?? "hook_1",
+                provider: event.provider,
+                event: event.event,
+                accepted: true,
+                status: "ingested",
+                receivedAt: event.receivedAt,
+                reconciled: true,
+              };
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt.status).toBe("ingested");
+    expect(deliveredEvent?.payload).toMatchObject({
+      hook_event_name: "PreToolUse",
+      tool_input: {
+        compacted: true,
+        originalBytes: expect.any(Number),
+      },
+      wosm_project_id: "web",
+      wosm_worktree_id: "wt_web_task",
+    });
+    expect(JSON.stringify(deliveredEvent?.payload)).not.toContain(rawCommand);
   });
 
   it("auto-starts a stopped observer and retries delivery", async () => {
@@ -218,6 +277,63 @@ describe("CLI hook receiver", () => {
     });
   });
 
+  it("spools compacted Codex hook records when delivery is offline", async () => {
+    const fixture = await createTempState();
+    const rawResponse = "full command output that should not be written to spool";
+    const receipt = await receiveHookEvent(
+      {
+        provider: "codex",
+        event: "PostToolUse",
+        payload: {
+          session_id: "codex_session_1",
+          transcript_path: null,
+          cwd: "/tmp/wosm/web/task",
+          hook_event_name: "PostToolUse",
+          model: "gpt-5.4-codex",
+          permission_mode: "default",
+          turn_id: "turn_1",
+          tool_name: "Bash",
+          tool_input: { command: "pnpm test" },
+          tool_response: rawResponse,
+          tool_use_id: "call_test",
+        },
+        config: {
+          ...fixture.config,
+          observer: {
+            ...fixture.config.observer,
+            autoStartFromHooks: false,
+          },
+        },
+      },
+      {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            ingestHookEvent: async () => {
+              throw new Error("offline");
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt.status).toBe("spooled");
+    const files = await listHookSpoolFiles(fixture.hookSpoolDir);
+    expect(files).toHaveLength(1);
+    const record = await readHookSpoolRecord(fixture.hookSpoolDir, files[0] ?? "");
+    expect(record.event.payload).toMatchObject({
+      hook_event_name: "PostToolUse",
+      tool_input: {
+        compacted: true,
+        originalBytes: expect.any(Number),
+      },
+      tool_response: {
+        compacted: true,
+        originalBytes: expect.any(Number),
+      },
+    });
+    expect(JSON.stringify(record)).not.toContain(rawResponse);
+  });
+
   it("records redacted hook delivery diagnostics in the hook log", async () => {
     const fixture = await createTempState();
     const secret = "sk-hooksecret000000000";
@@ -257,14 +373,80 @@ describe("CLI hook receiver", () => {
         attributes: expect.objectContaining({
           hookId: "hook_logged_1",
           status: "spooled",
-          payload: expect.objectContaining({
-            token: "[REDACTED]",
-            branch: "feature/secret",
+          payloadSummary: expect.objectContaining({
+            present: true,
+            originalBytes: expect.any(Number),
+            compactedBytes: expect.any(Number),
+            compacted: false,
+            omittedFieldNames: [],
           }),
         }),
       }),
     ]);
+    expect(logs[0]?.attributes).not.toHaveProperty("payload");
     expect(JSON.stringify(logs)).not.toContain(secret);
+  });
+
+  it("logs only Codex payload metadata after compaction", async () => {
+    const fixture = await createTempState();
+    const rawPrompt = "ship this prompt text nowhere";
+
+    const receipt = await receiveHookEvent(
+      {
+        provider: "codex",
+        event: "UserPromptSubmit",
+        payload: {
+          session_id: "codex_session_1",
+          transcript_path: null,
+          cwd: "/tmp/wosm/web/task",
+          hook_event_name: "UserPromptSubmit",
+          model: "gpt-5.4-codex",
+          permission_mode: "default",
+          turn_id: "turn_1",
+          prompt: rawPrompt,
+        },
+        config: {
+          ...fixture.config,
+          observer: {
+            ...fixture.config.observer,
+            autoStartFromHooks: false,
+          },
+        },
+      },
+      {
+        clock: { now: () => new Date(now) },
+        hookId: () => "hook_codex_logged",
+        clientFactory: () =>
+          ({
+            ingestHookEvent: async () => {
+              throw new Error("offline");
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt.status).toBe("spooled");
+    const logs = await readJsonlLog(componentLogPath(fixture.stateDir, "hook"));
+    expect(logs).toEqual([
+      expect.objectContaining({
+        component: "hook",
+        level: "warn",
+        provider: "codex",
+        attributes: expect.objectContaining({
+          hookId: "hook_codex_logged",
+          status: "spooled",
+          payloadSummary: expect.objectContaining({
+            present: true,
+            originalBytes: expect.any(Number),
+            compactedBytes: expect.any(Number),
+            compacted: true,
+            omittedFieldNames: ["prompt"],
+          }),
+        }),
+      }),
+    ]);
+    expect(logs[0]?.attributes).not.toHaveProperty("payload");
+    expect(JSON.stringify(logs)).not.toContain(rawPrompt);
   });
 
   it("rate-limits repeated auto-start attempts and spools without spawning again", async () => {
