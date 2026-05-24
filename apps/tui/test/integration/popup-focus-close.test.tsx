@@ -84,7 +84,7 @@ describe("TUI transient focus-and-close navigation", () => {
     instance.unmount();
   });
 
-  it("supports Enter activation for focus-and-close", async () => {
+  it("does not activate focus-and-close from Enter without a selected row", async () => {
     const snapshot = createCommandSnapshot("idle");
     const service = new FakeTuiObserverService(snapshot);
     const exits: number[] = [];
@@ -99,12 +99,9 @@ describe("TUI transient focus-and-close navigation", () => {
 
     instance.stdin.write("\r");
 
-    await waitFor(() => exits.length === 1);
-    expect(service.dispatched[0]).toEqual({
-      type: "terminal.focus",
-      payload: { targetId: "term_wt_web_idle_agent" },
-    });
-    expect(exits).toEqual([0]);
+    await settle();
+    expect(service.dispatched).toHaveLength(0);
+    expect(exits).toEqual([]);
     instance.unmount();
   });
 });
@@ -116,4 +113,8 @@ async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void>
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("Timed out waiting for condition.");
+}
+
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 20));
 }

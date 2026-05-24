@@ -22,14 +22,12 @@ export type TuiPromptState = TuiTextPromptState | TuiCleanupPromptState;
 export type TuiUiState = {
   searchQuery: string;
   collapsedProjectIds: ReadonlySet<string>;
-  selectedWorktreeId?: WorktreeId;
   prompt?: TuiPromptState;
 };
 
 export type CreateInitialUiStateOptions = {
   searchQuery?: string;
   collapsedProjectIds?: Iterable<string>;
-  selectedWorktreeId?: WorktreeId;
 };
 
 export function createInitialUiState(options: CreateInitialUiStateOptions = {}): TuiUiState {
@@ -37,9 +35,6 @@ export function createInitialUiState(options: CreateInitialUiStateOptions = {}):
     searchQuery: options.searchQuery ?? "",
     collapsedProjectIds: new Set(options.collapsedProjectIds ?? []),
   };
-  if (options.selectedWorktreeId !== undefined) {
-    state.selectedWorktreeId = options.selectedWorktreeId;
-  }
   return state;
 }
 
@@ -48,9 +43,6 @@ export function setSearchQuery(state: TuiUiState, searchQuery: string): TuiUiSta
     ...state,
     searchQuery,
   };
-  if (state.selectedWorktreeId !== undefined) {
-    next.selectedWorktreeId = state.selectedWorktreeId;
-  }
   if (state.prompt !== undefined) {
     next.prompt = state.prompt;
   }
@@ -69,20 +61,6 @@ export function toggleProjectCollapsed(state: TuiUiState, projectId: string): Tu
     ...state,
     collapsedProjectIds,
   };
-  if (state.selectedWorktreeId !== undefined) {
-    next.selectedWorktreeId = state.selectedWorktreeId;
-  }
-  if (state.prompt !== undefined) {
-    next.prompt = state.prompt;
-  }
-  return next;
-}
-
-export function selectWorktree(state: TuiUiState, selectedWorktreeId: WorktreeId): TuiUiState {
-  const next: TuiUiState = {
-    ...state,
-    selectedWorktreeId,
-  };
   if (state.prompt !== undefined) {
     next.prompt = state.prompt;
   }
@@ -97,9 +75,6 @@ export function openPrompt(state: TuiUiState, mode: PromptMode): TuiUiState {
     ...state,
     prompt: { mode, value: "" },
   };
-  if (state.selectedWorktreeId !== undefined) {
-    next.selectedWorktreeId = state.selectedWorktreeId;
-  }
   return next;
 }
 
@@ -118,9 +93,6 @@ export function openCleanupPrompt(
       label: prompt.label,
     },
   };
-  if (state.selectedWorktreeId !== undefined) {
-    next.selectedWorktreeId = state.selectedWorktreeId;
-  }
   return next;
 }
 
@@ -138,19 +110,12 @@ export function updatePromptValue(state: TuiUiState, value: string): TuiUiState 
       value,
     },
   };
-  if (state.selectedWorktreeId !== undefined) {
-    next.selectedWorktreeId = state.selectedWorktreeId;
-  }
   return next;
 }
 
 export function closePrompt(state: TuiUiState): TuiUiState {
-  const next: TuiUiState = {
+  return {
     searchQuery: state.searchQuery,
     collapsedProjectIds: state.collapsedProjectIds,
   };
-  if (state.selectedWorktreeId !== undefined) {
-    next.selectedWorktreeId = state.selectedWorktreeId;
-  }
-  return next;
 }

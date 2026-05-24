@@ -3,21 +3,28 @@ import { intentForDashboardKey } from "../../src/keymap.js";
 import { createCommandSnapshot } from "../fixtures/snapshots.js";
 
 describe("TUI dashboard keymap", () => {
-  it("maps Enter to focus the selected row", () => {
+  it("does not target an invisible selected row for Enter", () => {
     const snapshot = createCommandSnapshot("idle");
     const intent = intentForDashboardKey("enter", snapshot, {
       searchQuery: "",
       collapsedProjectIds: new Set(),
-      selectedWorktreeId: "wt_web_idle",
     });
 
-    expect(intent).toEqual({
-      type: "command",
-      command: {
-        type: "terminal.focus",
-        payload: { targetId: "term_wt_web_idle_agent" },
-      },
-    });
+    expect(intent).toEqual({ type: "none" });
+  });
+
+  it("does not target an invisible selected row for row-scoped commands", () => {
+    const snapshot = createCommandSnapshot("idle");
+    const state = {
+      searchQuery: "",
+      collapsedProjectIds: new Set<string>(),
+    };
+
+    expect(intentForDashboardKey("s", snapshot, state)).toEqual({ type: "none" });
+    expect(intentForDashboardKey("a", snapshot, state)).toEqual({ type: "none" });
+    expect(intentForDashboardKey("t", snapshot, state)).toEqual({ type: "none" });
+    expect(intentForDashboardKey("c", snapshot, state)).toEqual({ type: "none" });
+    expect(intentForDashboardKey("x", snapshot, state)).toEqual({ type: "none" });
   });
 
   it("adds focus origin to row focus commands when provided", () => {

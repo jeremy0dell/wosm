@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
+import { runCodexHooksCommand } from "./commands/codexHooks.js";
 import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
 import {
   isConfigError,
@@ -104,7 +105,11 @@ export async function runCli(
 
   if (command === "hook") {
     const stdin = options.stdin ?? (await readStdinIfAvailable());
-    const result = await runHookCommand(commandArgs, { config, stdin }, options.hookDeps);
+    const result = await runHookCommand(
+      commandArgs,
+      { config, stdin, env: options.env },
+      options.hookDeps,
+    );
     return { code: result.status === "rejected" ? 1 : 0, output: result };
   }
 
@@ -181,13 +186,23 @@ export async function runCli(
     hookAction !== undefined &&
     ["plan", "install", "uninstall", "doctor"].includes(hookAction)
   ) {
-    if (commandArgs[1] !== "worktrunk") {
-      throw new Error(`Unknown hook provider: ${commandArgs[1] ?? ""}`);
+    const provider = commandArgs[1];
+    const result =
+      provider === "worktrunk"
+        ? await runWorktrunkHooksCommand([hookAction, ...commandArgs.slice(2)], {
+            config,
+            configPath: resolvedConfigPath,
+          })
+        : provider === "codex"
+          ? await runCodexHooksCommand([hookAction, ...commandArgs.slice(2)], {
+              config,
+              configPath: resolvedConfigPath,
+              env: options.env,
+            })
+          : undefined;
+    if (result === undefined) {
+      throw new Error(`Unknown hook provider: ${provider ?? ""}`);
     }
-    const result = await runWorktrunkHooksCommand([hookAction, ...commandArgs.slice(2)], {
-      config,
-      configPath: resolvedConfigPath,
-    });
     return { code: "status" in result && result.status === "warn" ? 1 : 0, output: result };
   }
 

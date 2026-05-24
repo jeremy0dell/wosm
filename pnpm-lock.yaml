@@ -41,6 +41,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@wosm/codex':
+        specifier: workspace:*
+        version: link:../../integrations/harness/codex
       '@wosm/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -131,6 +134,9 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../../packages/runtime
+      smol-toml:
+        specifier: ^1.6.1
+        version: 1.6.1
       zod:
         specifier: ^4.1.12
         version: 4.4.3

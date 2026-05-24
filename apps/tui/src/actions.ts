@@ -156,11 +156,11 @@ export function buildSendPromptCommand(
   prompt: string,
 ): WosmCommand {
   if (!canSendPromptToRow(row, sessions)) {
-    throw new Error("The selected harness cannot receive prompts safely.");
+    throw new Error("The target harness cannot receive prompts safely.");
   }
   const sessionId = row.agent?.sessionId;
   if (sessionId === undefined) {
-    throw new Error("The selected row has no session.");
+    throw new Error("The target row has no session.");
   }
   return {
     type: "session.sendPrompt",
@@ -179,7 +179,7 @@ function buildSessionCloseCommand(
 ): WosmCommand {
   const sessionId = row.agent?.sessionId;
   if (sessionId === undefined) {
-    throw new Error("The selected row has no session.");
+    throw new Error("The target row has no session.");
   }
   const payload: Extract<WosmCommand, { type: "session.close" }>["payload"] = {
     sessionId,

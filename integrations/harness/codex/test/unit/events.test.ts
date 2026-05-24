@@ -82,6 +82,108 @@ describe("Codex hook event parsing", () => {
     expect(JSON.stringify(observations[0]?.providerData)).not.toContain("rm -rf");
   });
 
+  it("uses WOSM hook context fields before cwd correlation", () => {
+    const observations = normalizeCodexRawEvent(
+      {
+        provider: "codex",
+        observedAt: now,
+        event: {
+          session_id: "codex_session_123",
+          transcript_path: null,
+          cwd: "/tmp/not-the-worktree",
+          hook_event_name: "PreToolUse",
+          model: "gpt-5.4-codex",
+          permission_mode: "default",
+          turn_id: "turn_1",
+          tool_name: "Bash",
+          tool_input: { command: "pnpm test" },
+          tool_use_id: "call_test",
+          wosm_project_id: "web",
+          wosm_worktree_id: "wt_web_task",
+          wosm_worktree_path: "/tmp/wosm/web/task",
+          wosm_session_id: "ses_web_task",
+          wosm_terminal_provider: "tmux",
+          wosm_terminal_target_id: "tmux:wosm:@1:%2",
+        },
+      },
+      context(),
+    );
+
+    expect(observations[0]).toMatchObject({
+      sessionId: "ses_web_task",
+      worktreeId: "wt_web_task",
+      harnessRunId: "codex:tmux:wosm:@1:%2",
+      status: {
+        value: "working",
+      },
+      providerData: {
+        wosmProjectId: "web",
+        wosmWorktreeId: "wt_web_task",
+        wosmSessionId: "ses_web_task",
+        wosmTerminalTargetId: "tmux:wosm:@1:%2",
+      },
+    });
+  });
+
+  it("correlates hook cwd values inside an observed worktree", () => {
+    const observations = normalizeCodexRawEvent(
+      {
+        provider: "codex",
+        observedAt: now,
+        event: {
+          session_id: "codex_session_123",
+          transcript_path: null,
+          cwd: "/tmp/wosm/web/task/src/components",
+          hook_event_name: "PostToolUse",
+          model: "gpt-5.4-codex",
+          permission_mode: "default",
+          turn_id: "turn_1",
+          tool_name: "Read",
+          tool_input: { file_path: "Button.tsx" },
+          tool_response: { ok: true },
+          tool_use_id: "call_read",
+        },
+      },
+      context(),
+    );
+
+    expect(observations[0]).toMatchObject({
+      sessionId: "ses_web_task",
+      worktreeId: "wt_web_task",
+      harnessRunId: "codex:tmux:wosm:@1:%2",
+      status: {
+        value: "working",
+      },
+    });
+  });
+
+  it("leaves unmatched hook events uncorrelated", () => {
+    const observations = normalizeCodexRawEvent(
+      {
+        provider: "codex",
+        observedAt: now,
+        event: {
+          session_id: "codex_session_123",
+          transcript_path: null,
+          cwd: "/tmp/other",
+          hook_event_name: "PostToolUse",
+          model: "gpt-5.4-codex",
+          permission_mode: "default",
+          turn_id: "turn_1",
+          tool_name: "Read",
+          tool_input: { file_path: "Button.tsx" },
+          tool_response: { ok: true },
+          tool_use_id: "call_read",
+        },
+      },
+      context(),
+    );
+
+    expect(observations[0]?.sessionId).toBeUndefined();
+    expect(observations[0]?.worktreeId).toBeUndefined();
+    expect(observations[0]?.harnessRunId).toBeUndefined();
+  });
+
   it("accepts current Codex lifecycle hook input shapes", () => {
     const common = {
       session_id: "codex_session_123",

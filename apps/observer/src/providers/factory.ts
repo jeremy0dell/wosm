@@ -30,17 +30,17 @@ export function createProviderRegistry(config: WosmConfig): ProviderRegistry {
 
 function createWorktreeProvider(config: WosmConfig): WorktreeProvider {
   if (config.defaults.worktreeProvider === "worktrunk") {
-    return new WorktrunkProvider({
-      ...(config.worktree?.worktrunk?.command === undefined
-        ? {}
-        : { command: config.worktree.worktrunk.command }),
-      ...(config.worktree?.worktrunk?.configPath === undefined
-        ? {}
-        : { configPath: config.worktree.worktrunk.configPath }),
-      ...(config.worktree?.worktrunk?.useLifecycleHooks === undefined
-        ? {}
-        : { useLifecycleHooks: config.worktree.worktrunk.useLifecycleHooks }),
-    });
+    const options: ConstructorParameters<typeof WorktrunkProvider>[0] = {};
+    if (config.worktree?.worktrunk?.command !== undefined) {
+      options.command = config.worktree.worktrunk.command;
+    }
+    if (config.worktree?.worktrunk?.configPath !== undefined) {
+      options.configPath = config.worktree.worktrunk.configPath;
+    }
+    if (config.worktree?.worktrunk?.useLifecycleHooks !== undefined) {
+      options.useLifecycleHooks = config.worktree.worktrunk.useLifecycleHooks;
+    }
+    return new WorktrunkProvider(options);
   }
 
   return new NoopWorktreeProvider(config.defaults.worktreeProvider);
@@ -48,56 +48,68 @@ function createWorktreeProvider(config: WosmConfig): WorktreeProvider {
 
 function createTerminalProvider(config: WosmConfig): TerminalProvider {
   if (config.defaults.terminal === "tmux") {
-    return new TmuxProvider({
-      ...(config.terminal?.tmux === undefined ? {} : { config: config.terminal.tmux }),
-    });
+    const options: ConstructorParameters<typeof TmuxProvider>[0] = {};
+    if (config.terminal?.tmux !== undefined) {
+      options.config = config.terminal.tmux;
+    }
+    return new TmuxProvider(options);
   }
 
   return new NoopTerminalProvider(config.defaults.terminal);
 }
 
 function createHarnessProviders(config: WosmConfig): HarnessProvider[] {
-  const ids = new Set<string>([
-    config.defaults.harness,
-    ...config.projects.map((project) => project.defaults.harness),
-    ...Object.keys(config.harness ?? {}),
-  ]);
-  return [...ids].map((id) => createHarnessProvider(id, config));
+  const ids = new Set<string>();
+  ids.add(config.defaults.harness);
+  for (const project of config.projects) {
+    ids.add(project.defaults.harness);
+  }
+  for (const providerId of Object.keys(config.harness ?? {})) {
+    ids.add(providerId);
+  }
+  return Array.from(ids).map((id) => createHarnessProvider(id, config));
 }
 
 function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider {
   if (id === "scripted") {
-    return new ScriptedAgentHarnessProvider({
+    const options: ConstructorParameters<typeof ScriptedAgentHarnessProvider>[0] = {
       stateDir: join(config.observer?.stateDir ?? process.cwd(), "scripted"),
-      ...(config.harness?.scripted?.command === undefined
-        ? {}
-        : { nodeCommand: config.harness.scripted.command }),
-    });
+    };
+    if (config.harness?.scripted?.command !== undefined) {
+      options.nodeCommand = config.harness.scripted.command;
+    }
+    return new ScriptedAgentHarnessProvider(options);
   }
 
   if (id === "codex") {
-    return new CodexHarnessProvider({
-      ...(config.harness?.codex?.command === undefined
-        ? {}
-        : { command: config.harness.codex.command }),
-      ...(config.harness?.codex?.profile === undefined
-        ? {}
-        : { profile: config.harness.codex.profile }),
-      ...(config.harness?.codex?.approvalPolicy === undefined
-        ? {}
-        : { approvalPolicy: config.harness.codex.approvalPolicy }),
-      ...(config.harness?.codex?.sandboxMode === undefined
-        ? {}
-        : { sandboxMode: config.harness.codex.sandboxMode }),
-    });
+    const options: ConstructorParameters<typeof CodexHarnessProvider>[0] = {};
+    if (config.harness?.codex?.command !== undefined) {
+      options.command = config.harness.codex.command;
+    }
+    if (config.harness?.codex?.profile !== undefined) {
+      options.profile = config.harness.codex.profile;
+    }
+    if (config.harness?.codex?.approvalPolicy !== undefined) {
+      options.approvalPolicy = config.harness.codex.approvalPolicy;
+    }
+    if (config.harness?.codex?.sandboxMode !== undefined) {
+      options.sandboxMode = config.harness.codex.sandboxMode;
+    }
+    if (config.harness?.codex?.installHooks !== undefined) {
+      options.installHooks = config.harness.codex.installHooks;
+    }
+    if (config.observer?.stateDir !== undefined) {
+      options.stateDir = config.observer.stateDir;
+    }
+    return new CodexHarnessProvider(options);
   }
 
   if (id === "opencode") {
-    return new OpenCodeHarnessProvider({
-      ...(config.harness?.opencode?.command === undefined
-        ? {}
-        : { command: config.harness.opencode.command }),
-    });
+    const options: ConstructorParameters<typeof OpenCodeHarnessProvider>[0] = {};
+    if (config.harness?.opencode?.command !== undefined) {
+      options.command = config.harness.opencode.command;
+    }
+    return new OpenCodeHarnessProvider(options);
   }
 
   return new NoopHarnessProvider(id);

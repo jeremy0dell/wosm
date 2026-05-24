@@ -22,6 +22,16 @@ describe("TUI app rendering", () => {
     expect(frame).toContain("unknown");
     expect(frame).toContain("exited");
     expect(frame).toContain("no agent");
+    expect(frame).toContain("[1] ! checkout-copy");
+    expect(frame).toContain("[2] ! slow-tests");
+    expect(frame).toContain("[3] * cache-refactor");
+    expect(frame).toContain("[4] . fix-nav-mobile");
+    expect(frame).toContain("[5] ? ghost-signal");
+    expect(frame).toContain("[6] x done-run");
+    expect(frame).toContain("[7] - feature-auth");
+    expect(frame).not.toContain(">");
+    expect(frame).not.toContain("s:start bg");
+    expect(frame).not.toContain("enter/1-9");
     expect(frame).not.toContain("providerData");
     expect(frame).not.toContain("inspect");
     expect(frame).not.toContain("debug panel");

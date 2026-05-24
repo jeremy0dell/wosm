@@ -1,5 +1,6 @@
+import { stat } from "node:fs/promises";
 import type { WosmConfig } from "@wosm/config";
-import type { DoctorOptions, DoctorReport } from "@wosm/contracts";
+import type { DoctorCheck, DoctorOptions, DoctorReport } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
 import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import {
@@ -23,7 +24,14 @@ export async function runDoctorCommand(
   const doctorOptions = parseDoctorOptions(args);
   const timeoutMs = options.timeoutMs ?? 30_000;
   const paths = resolveObserverPaths(options.config);
-  const status = await startObserver({ ...options, paths, timeoutMs }, deps);
+  const observerOptions: Parameters<typeof startObserver>[0] = { paths, timeoutMs };
+  if (options.config !== undefined) {
+    observerOptions.config = options.config;
+  }
+  if (options.configPath !== undefined) {
+    observerOptions.configPath = options.configPath;
+  }
+  const status = await startObserver(observerOptions, deps);
   assertRunning(status);
   const client =
     deps.clientFactory?.(paths.socketPath) ??
@@ -48,7 +56,14 @@ export async function runDoctorCommand(
   if (!result.ok) {
     throw result.error;
   }
-  return result.value;
+  const observerStartedAt = status.health.startedAt ?? result.value.observer.startedAt;
+  const freshnessCheck =
+    shouldCheckRuntimeFreshness(deps) && observerStartedAt !== undefined
+      ? await observerRuntimeFreshnessCheck(observerStartedAt)
+      : undefined;
+  return freshnessCheck === undefined
+    ? result.value
+    : reportWithCliCheck(result.value, freshnessCheck);
 }
 
 function parseDoctorOptions(args: string[]): DoctorOptions {
@@ -69,6 +84,93 @@ function parseDoctorOptions(args: string[]): DoctorOptions {
     }
   }
   return Object.keys(result).length === 0 ? undefined : result;
+}
+
+export async function observerRuntimeFreshnessCheck(
+  observerStartedAt: string,
+): Promise<DoctorCheck | undefined> {
+  const runtimeEntries = [
+    new URL("../../../observer/dist/runtime/main.js", import.meta.url),
+    new URL("../main.js", import.meta.url),
+    new URL("../main.ts", import.meta.url),
+  ];
+  const mtimes = await Promise.all(
+    runtimeEntries.map(async (entry) => {
+      try {
+        return (await stat(entry)).mtimeMs;
+      } catch {
+        return undefined;
+      }
+    }),
+  );
+  let newestMtime = Number.NEGATIVE_INFINITY;
+  for (const mtime of mtimes) {
+    if (mtime !== undefined && mtime > newestMtime) {
+      newestMtime = mtime;
+    }
+  }
+  if (!Number.isFinite(newestMtime)) {
+    return undefined;
+  }
+
+  const startedAtMs = Date.parse(observerStartedAt);
+  if (!Number.isFinite(startedAtMs) || startedAtMs + 1000 >= newestMtime) {
+    return undefined;
+  }
+
+  return {
+    name: "observer-runtime-freshness",
+    status: "warn",
+    message: "Observer is running from an older local build than the current wosm runtime files.",
+    error: {
+      tag: "ObserverRuntimeFreshnessError",
+      code: "OBSERVER_RUNTIME_STALE",
+      message:
+        "The running observer started before the current local wosm runtime files were built.",
+      hint: "Restart the observer so hook parsing and reconcile logic use the current build.",
+    },
+  };
+}
+
+function shouldCheckRuntimeFreshness(deps: ObserverProcessDeps): boolean {
+  return deps.clientFactory === undefined && deps.spawnObserver === undefined;
+}
+
+function reportWithCliCheck(report: DoctorReport, check: DoctorCheck): DoctorReport {
+  const checks = report.checks.slice();
+  checks.push(check);
+  const next: DoctorReport = {
+    schemaVersion: report.schemaVersion,
+    generatedAt: report.generatedAt,
+    status: doctorStatusWithCheck(report, check),
+    checks,
+    observer: report.observer,
+    config: report.config,
+    providers: report.providers,
+    snapshot: report.snapshot,
+    logs: report.logs,
+    localState: report.localState,
+    retention: report.retention,
+    recentErrors: report.recentErrors,
+    debugBundle: report.debugBundle,
+  };
+  if (report.sqlite !== undefined) {
+    next.sqlite = report.sqlite;
+  }
+  if (report.hooks !== undefined) {
+    next.hooks = report.hooks;
+  }
+  return next;
+}
+
+function doctorStatusWithCheck(report: DoctorReport, check: DoctorCheck): DoctorReport["status"] {
+  if (check.status === "error") {
+    return "unavailable";
+  }
+  if (report.status === "healthy") {
+    return "degraded";
+  }
+  return report.status;
 }
 
 function assertRunning(

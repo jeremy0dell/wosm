@@ -20,38 +20,27 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("dispatches session.startAgent for no-agent rows", async () => {
+  it("does not dispatch start-agent from an invisible selected row", async () => {
     const snapshot = createCommandSnapshot("none");
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("s");
 
-    await waitFor(() => service.dispatched.length === 1);
-    expect(service.dispatched[0]).toEqual({
-      type: "session.startAgent",
-      payload: {
-        projectId: "web",
-        worktreeId: "wt_web_no_agent",
-        harness: { provider: "codex" },
-        terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
-      },
-    });
+    await settle();
+    expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
 
-  it("keeps idle-agent primary action focus-only", async () => {
+  it("does not dispatch focus from an invisible selected row", async () => {
     const snapshot = createCommandSnapshot("idle");
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("s");
 
-    await waitFor(() => service.dispatched.length === 1);
-    expect(service.dispatched[0]).toEqual({
-      type: "terminal.focus",
-      payload: { targetId: "term_wt_web_idle_agent" },
-    });
+    await settle();
+    expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
 
@@ -192,61 +181,20 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("asks for cleanup confirmation before dispatching destructive commands", async () => {
+  it("does not open cleanup confirmation from invisible selected-row commands", async () => {
     const snapshot = createCommandSnapshot("idle");
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("t");
-
-    await waitFor(() => instance.lastFrame()?.includes("confirm close terminal") === true);
-    expect(service.dispatched).toHaveLength(0);
-
-    instance.stdin.write("\r");
-
-    await waitFor(() => service.dispatched.length === 1);
-    expect(service.dispatched[0]).toEqual({
-      type: "terminal.close",
-      payload: {
-        targetId: "term_wt_web_idle_agent",
-        force: true,
-      },
-    });
-    instance.unmount();
-  });
-
-  it("cancels cleanup confirmation with escape", async () => {
-    const snapshot = createCommandSnapshot("idle");
-    const service = new FakeTuiObserverService(snapshot);
-    const instance = render(<App initialSnapshot={snapshot} service={service} />);
-
     instance.stdin.write("c");
-    await waitFor(() => instance.lastFrame()?.includes("confirm close all") === true);
-    instance.stdin.write("\u001B");
-
-    await waitFor(() => instance.lastFrame()?.includes("confirm close all") === false);
-    expect(service.dispatched).toHaveLength(0);
-    instance.unmount();
-  });
-
-  it("confirms dirty active worktree removal with force", async () => {
-    const snapshot = createCommandSnapshot("idle", { dirty: true });
-    const service = new FakeTuiObserverService(snapshot);
-    const instance = render(<App initialSnapshot={snapshot} service={service} />);
-
     instance.stdin.write("x");
-    await waitFor(() => instance.lastFrame()?.includes("confirm remove worktree") === true);
-    instance.stdin.write("\r");
 
-    await waitFor(() => service.dispatched.length === 1);
-    expect(service.dispatched[0]).toEqual({
-      type: "worktree.remove",
-      payload: {
-        projectId: "web",
-        worktreeId: "wt_web_idle",
-        force: true,
-      },
-    });
+    await settle();
+    expect(instance.lastFrame()).not.toContain("confirm close terminal");
+    expect(instance.lastFrame()).not.toContain("confirm close all");
+    expect(instance.lastFrame()).not.toContain("confirm remove worktree");
+    expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
 });
@@ -258,4 +206,8 @@ async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void>
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("Timed out waiting for condition.");
+}
+
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 20));
 }

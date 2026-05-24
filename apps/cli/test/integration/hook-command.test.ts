@@ -82,6 +82,65 @@ describe("CLI hook command", () => {
     expect(observedPayload).toEqual({ branch: "feature/run-cli" });
   });
 
+  it("adds WOSM launch context to Codex hook payloads", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let observedPayload: unknown;
+
+    const result = await runCli(["--config", configPath, "hook", "codex", "PreToolUse"], {
+      stdin: JSON.stringify({
+        session_id: "codex_session_1",
+        transcript_path: null,
+        cwd: "/tmp/wosm/web/task",
+        hook_event_name: "PreToolUse",
+        model: "gpt-5.4-codex",
+        permission_mode: "default",
+        turn_id: "turn_1",
+        tool_name: "Bash",
+        tool_input: { command: "pnpm test" },
+        tool_use_id: "call_test",
+      }),
+      env: {
+        WOSM_PROJECT_ID: "web",
+        WOSM_WORKTREE_ID: "wt_web_task",
+        WOSM_WORKTREE_PATH: "/tmp/wosm/web/task",
+        WOSM_SESSION_ID: "ses_web_task",
+        WOSM_TERMINAL_PROVIDER: "tmux",
+        WOSM_TERMINAL_TARGET_ID: "tmux:wosm:@1:%2",
+      },
+      hookDeps: {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            ingestHookEvent: async (event): Promise<HookReceipt> => {
+              observedPayload = event.payload;
+              return {
+                schemaVersion: "0.3.0",
+                hookId: "hook_1",
+                provider: event.provider,
+                event: event.event,
+                accepted: true,
+                status: "ingested",
+                receivedAt: event.receivedAt,
+                reconciled: true,
+              };
+            },
+          }) as never,
+      },
+    });
+
+    expect(result.code).toBe(0);
+    expect(observedPayload).toMatchObject({
+      hook_event_name: "PreToolUse",
+      wosm_project_id: "web",
+      wosm_worktree_id: "wt_web_task",
+      wosm_worktree_path: "/tmp/wosm/web/task",
+      wosm_session_id: "ses_web_task",
+      wosm_terminal_provider: "tmux",
+      wosm_terminal_target_id: "tmux:wosm:@1:%2",
+    });
+  });
+
   it("rejects malformed JSON stdin without delivering or spooling arbitrary text", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);

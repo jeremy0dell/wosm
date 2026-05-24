@@ -1,14 +1,4 @@
-import {
-  access,
-  appendFile,
-  chmod,
-  copyFile,
-  mkdir,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { RealDogfoodEnvironment } from "./env";
@@ -109,18 +99,22 @@ export async function installCodexHookProjectConfig(input: {
   const hookDeliveryLogPath = join(hookLogDirPath, "codex-hook-delivery.log");
   await mkdir(hookLogDirPath, { recursive: true });
   await mkdir(codexHome, { recursive: true });
-  await writeFile(
-    hookScriptPath,
-    codexHookScript({
-      wosmBin: input.env.wosmBin,
-      configPath: input.configPath,
-      payloadLogPath: hookPayloadLogPath,
-      deliveryLogPath: hookDeliveryLogPath,
-    }),
-    "utf8",
-  );
-  await chmod(hookScriptPath, 0o700);
-  await appendFile(hookConfigPath, codexHookInlineToml(hookScriptPath), "utf8");
+  await runWosmJson(input.env, {
+    configPath: input.configPath,
+    args: [
+      "hooks",
+      "install",
+      "codex",
+      "--yes",
+      "--codex-config",
+      hookConfigPath,
+      "--hook-script",
+      hookScriptPath,
+      "--wosm-bin",
+      input.env.wosmBin,
+    ],
+    timeoutMs: 30_000,
+  });
   return {
     hookScriptPath,
     hookConfigPath,
@@ -178,67 +172,8 @@ function sanitize(value: string): string {
   return value.replaceAll(/[^a-zA-Z0-9_-]/g, "-").slice(0, 48);
 }
 
-function codexHookScript(input: {
-  wosmBin: string;
-  configPath: string;
-  payloadLogPath: string;
-  deliveryLogPath: string;
-}): string {
-  return [
-    "#!/usr/bin/env bash",
-    "set -euo pipefail",
-    'payload_file="$(mktemp /tmp/wosm-codex-hook.XXXXXX)"',
-    "trap 'rm -f \"$payload_file\"' EXIT",
-    'cat > "$payload_file"',
-    `cat "$payload_file" >> ${shellSingleQuote(input.payloadLogPath)}`,
-    `printf '\\n' >> ${shellSingleQuote(input.payloadLogPath)}`,
-    'event="$(/usr/bin/env node -e \'const fs = require("node:fs"); const input = fs.readFileSync(process.argv[1], "utf8"); const payload = JSON.parse(input); if (typeof payload.hook_event_name !== "string" || payload.hook_event_name.length === 0) { throw new Error("missing hook_event_name"); } process.stdout.write(payload.hook_event_name);\' "$payload_file")"',
-    `${shellSingleQuote(input.wosmBin)} --config ${shellSingleQuote(input.configPath)} hook codex "$event" < "$payload_file" >> ${shellSingleQuote(input.deliveryLogPath)} 2>&1`,
-    "",
-  ].join("\n");
-}
-
-function codexHookInlineToml(command: string): string {
-  return ["", "# wosm real dogfood hook fixture", ...codexHookConfigArgs(command), ""].join("\n");
-}
-
-function codexHookConfigArgs(command: string): string[] {
-  return [
-    hookConfigToml("SessionStart", command, "startup|resume|clear|compact"),
-    hookConfigToml("UserPromptSubmit", command),
-    hookConfigToml("PreToolUse", command, ".*"),
-    hookConfigToml("PermissionRequest", command, ".*"),
-    hookConfigToml("PostToolUse", command, ".*"),
-    hookConfigToml("PreCompact", command, "manual|auto"),
-    hookConfigToml("PostCompact", command, "manual|auto"),
-    hookConfigToml("SubagentStart", command, ".*"),
-    hookConfigToml("SubagentStop", command, ".*"),
-    hookConfigToml("Stop", command),
-  ];
-}
-
-function hookConfigToml(event: string, command: string, matcher?: string): string {
-  const lines = [`[[hooks.${event}]]`];
-  if (matcher !== undefined) {
-    lines.push(`matcher = ${tomlString(matcher)}`);
-  }
-  lines.push(
-    `[[hooks.${event}.hooks]]`,
-    'type = "command"',
-    `command = ${tomlString(command)}`,
-    "timeout = 30",
-    `statusMessage = ${tomlString("Notify wosm")}`,
-    "",
-  );
-  return lines.join("\n");
-}
-
 function shellSingleQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
-}
-
-function tomlString(value: string): string {
-  return JSON.stringify(value);
 }
 
 function codexHomeForRepo(repo: RealTempRepo): string {

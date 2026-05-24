@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runCli } from "@wosm/cli";
+import { observerRuntimeFreshnessCheck, runCli } from "@wosm/cli";
 import type { DiagnosticEvidenceIndex, DiagnosticSnapshot, DoctorReport } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
@@ -37,6 +37,16 @@ describe("CLI diagnostic commands", () => {
         debugBundle: {
           available: true,
         },
+      },
+    });
+  });
+
+  it("reports stale local observer runtime evidence without restarting anything", async () => {
+    await expect(observerRuntimeFreshnessCheck("2000-01-01T00:00:00.000Z")).resolves.toMatchObject({
+      name: "observer-runtime-freshness",
+      status: "warn",
+      error: {
+        code: "OBSERVER_RUNTIME_STALE",
       },
     });
   });

@@ -50,20 +50,6 @@ export function selectKeySlots(
   return slots;
 }
 
-export function selectSelectedRow(
-  snapshot: WosmSnapshot,
-  state: TuiUiState,
-): WorktreeRow | undefined {
-  const visibleRows = selectVisibleRows(snapshot, state);
-  if (state.selectedWorktreeId !== undefined) {
-    const selected = visibleRows.find((row) => row.id === state.selectedWorktreeId);
-    if (selected !== undefined) {
-      return selected;
-    }
-  }
-  return visibleRows[0];
-}
-
 export function selectNewSessionAvailability(
   snapshot: WosmSnapshot,
   state: TuiUiState,
@@ -102,14 +88,9 @@ export function selectNewSessionAvailability(
 
 function selectNewSessionProject(
   snapshot: WosmSnapshot,
-  state: TuiUiState,
+  _state: TuiUiState,
 ): ProjectView | undefined {
-  const selected = selectSelectedRow(snapshot, state);
-  const selectedProject =
-    selected === undefined
-      ? undefined
-      : snapshot.projects.find((project) => project.id === selected.projectId);
-  return selectedProject ?? snapshot.projects[0];
+  return snapshot.projects[0];
 }
 
 function compareRows(left: WorktreeRow, right: WorktreeRow): number {

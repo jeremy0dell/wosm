@@ -1,3 +1,4 @@
+import { normalize as normalizePath } from "node:path";
 import type {
   HarnessEventContext,
   HarnessEventObservation,
@@ -21,6 +22,12 @@ const commonFields = {
   cwd: nonEmptyStringSchema,
   model: nonEmptyStringSchema,
   permission_mode: permissionModeSchema,
+  wosm_project_id: nonEmptyStringSchema.optional(),
+  wosm_worktree_id: nonEmptyStringSchema.optional(),
+  wosm_worktree_path: nonEmptyStringSchema.optional(),
+  wosm_session_id: nonEmptyStringSchema.optional(),
+  wosm_terminal_provider: nonEmptyStringSchema.optional(),
+  wosm_terminal_target_id: nonEmptyStringSchema.optional(),
 };
 
 const optionalSubagentFields = {
@@ -310,6 +317,24 @@ function providerDataFromCodexEvent(event: CodexHookEvent): Record<string, unkno
   if ("trigger" in event) {
     providerData.trigger = event.trigger;
   }
+  if (event.wosm_project_id !== undefined) {
+    providerData.wosmProjectId = event.wosm_project_id;
+  }
+  if (event.wosm_worktree_id !== undefined) {
+    providerData.wosmWorktreeId = event.wosm_worktree_id;
+  }
+  if (event.wosm_worktree_path !== undefined) {
+    providerData.wosmWorktreePath = event.wosm_worktree_path;
+  }
+  if (event.wosm_session_id !== undefined) {
+    providerData.wosmSessionId = event.wosm_session_id;
+  }
+  if (event.wosm_terminal_provider !== undefined) {
+    providerData.wosmTerminalProvider = event.wosm_terminal_provider;
+  }
+  if (event.wosm_terminal_target_id !== undefined) {
+    providerData.wosmTerminalTargetId = event.wosm_terminal_target_id;
+  }
   return providerData;
 }
 
@@ -321,17 +346,26 @@ function correlateCodexEvent(
   worktreeId?: string;
   harnessRunId?: string;
 } {
-  const terminal = terminalForCwd(event.cwd, context.terminalTargets);
-  const worktree = worktreeForCwd(event.cwd, context.worktrees);
+  const terminal =
+    terminalForId(event.wosm_terminal_target_id, context.terminalTargets) ??
+    terminalForCwd(event.cwd, context.terminalTargets);
+  const worktree =
+    worktreeForId(event.wosm_worktree_id, context.worktrees) ??
+    worktreeForPath(event.wosm_worktree_path, context.worktrees) ??
+    worktreeForCwd(event.cwd, context.worktrees);
   const result: {
     sessionId?: string;
     worktreeId?: string;
     harnessRunId?: string;
   } = {};
-  if (terminal?.sessionId !== undefined) {
+  if (event.wosm_session_id !== undefined) {
+    result.sessionId = event.wosm_session_id;
+  } else if (terminal?.sessionId !== undefined) {
     result.sessionId = terminal.sessionId;
   }
-  if (terminal?.worktreeId !== undefined) {
+  if (event.wosm_worktree_id !== undefined) {
+    result.worktreeId = event.wosm_worktree_id;
+  } else if (terminal?.worktreeId !== undefined) {
     result.worktreeId = terminal.worktreeId;
   } else if (worktree !== undefined) {
     result.worktreeId = worktree.id;
@@ -344,16 +378,67 @@ function correlateCodexEvent(
   return result;
 }
 
+function terminalForId(
+  terminalTargetId: string | undefined,
+  targets: TerminalTargetObservation[],
+): TerminalTargetObservation | undefined {
+  if (terminalTargetId === undefined) {
+    return undefined;
+  }
+  return targets.find((target) => target.id === terminalTargetId);
+}
+
 function terminalForCwd(
   cwd: string,
   targets: TerminalTargetObservation[],
 ): TerminalTargetObservation | undefined {
-  return targets.find((target) => target.cwd === cwd);
+  return (
+    targets.find((target) => target.cwd !== undefined && samePath(target.cwd, cwd)) ??
+    targets.find((target) => target.cwd !== undefined && pathIsSameOrInside(cwd, target.cwd))
+  );
+}
+
+function worktreeForId(
+  worktreeId: string | undefined,
+  worktrees: WorktreeObservation[],
+): WorktreeObservation | undefined {
+  if (worktreeId === undefined) {
+    return undefined;
+  }
+  return worktrees.find((worktree) => worktree.id === worktreeId);
+}
+
+function worktreeForPath(
+  path: string | undefined,
+  worktrees: WorktreeObservation[],
+): WorktreeObservation | undefined {
+  if (path === undefined) {
+    return undefined;
+  }
+  return worktrees.find((worktree) => samePath(worktree.path, path));
 }
 
 function worktreeForCwd(
   cwd: string,
   worktrees: WorktreeObservation[],
 ): WorktreeObservation | undefined {
-  return worktrees.find((worktree) => worktree.path === cwd);
+  return (
+    worktrees.find((worktree) => samePath(worktree.path, cwd)) ??
+    worktrees.find((worktree) => pathIsSameOrInside(cwd, worktree.path))
+  );
+}
+
+function samePath(left: string, right: string): boolean {
+  return normalizeObservedPath(left) === normalizeObservedPath(right);
+}
+
+function pathIsSameOrInside(candidatePath: string, parentPath: string): boolean {
+  const candidate = normalizeObservedPath(candidatePath);
+  const parent = normalizeObservedPath(parentPath);
+  return candidate === parent || candidate.startsWith(`${parent}/`);
+}
+
+function normalizeObservedPath(path: string): string {
+  const normalized = normalizePath(path).replace(/^\/private\/var\//, "/var/");
+  return normalized.length > 1 && normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }

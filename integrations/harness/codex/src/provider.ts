@@ -18,6 +18,7 @@ import {
   type ExternalCommandRunner,
   runExternalCommand,
   runRuntimeBoundary,
+  safeErrorFromUnknown,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
@@ -25,7 +26,8 @@ import { classifyCodexRunStatus } from "./classify.js";
 import { discoverCodexRuns } from "./discovery.js";
 import { codexProviderErrorFromUnknown } from "./errors.js";
 import { normalizeCodexRawEvent } from "./events.js";
-import { buildCodexLaunchPlan } from "./launch.js";
+import { doctorCodexHooks } from "./hooks.js";
+import { buildCodexLaunchPlan, type CodexLaunchOptions } from "./launch.js";
 
 export type CodexHarnessProviderOptions = {
   command?: string;
@@ -33,6 +35,8 @@ export type CodexHarnessProviderOptions = {
   approvalPolicy?: string;
   sandboxMode?: string;
   noAltScreen?: boolean;
+  installHooks?: boolean;
+  stateDir?: string;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
@@ -101,42 +105,76 @@ export class CodexHarnessProvider implements HarnessProvider {
     }
   }
 
-  async doctorChecks(_context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]> {
+  async doctorChecks(context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]> {
     const health = await this.health();
+    const checks: ProviderDoctorCheck[] = [];
     if (health.status === "healthy") {
-      return [
-        {
-          name: "codex.login",
-          status: "ok",
-          message: "Codex authentication is available.",
-        },
-      ];
+      checks.push({
+        name: "codex.login",
+        status: "ok",
+        message: "Codex authentication is available.",
+      });
+    } else {
+      const check: ProviderDoctorCheck = {
+        name: "codex.login",
+        status: "error",
+        message: "Codex is unavailable or not authenticated.",
+      };
+      if (health.lastError !== undefined) {
+        check.error = health.lastError;
+      }
+      checks.push(check);
     }
-    const check: ProviderDoctorCheck = {
-      name: "codex.login",
-      status: "error",
-      message: "Codex is unavailable or not authenticated.",
-    };
-    if (health.lastError !== undefined) {
-      check.error = health.lastError;
+
+    try {
+      const hookOptions: Parameters<typeof doctorCodexHooks>[0] = {
+        enabled: this.#options.installHooks === true,
+      };
+      if (this.#options.stateDir !== undefined) {
+        hookOptions.stateDir = this.#options.stateDir;
+      }
+      if (context?.wosmConfigPath !== undefined) {
+        hookOptions.wosmConfigPath = context.wosmConfigPath;
+      }
+      const hookResult = await doctorCodexHooks(hookOptions);
+      checks.push({
+        name: "codex-hooks",
+        status: hookResult.status,
+        message: `${hookResult.message} Config: ${hookResult.configPath}. Script: ${hookResult.hookScriptPath}.`,
+      });
+    } catch (cause) {
+      checks.push({
+        name: "codex-hooks",
+        status: "error",
+        message: "Codex hook diagnostics failed.",
+        error: safeErrorFromUnknown(cause, {
+          tag: "CodexHookSetupError",
+          code: "CODEX_HOOK_DIAGNOSTIC_FAILED",
+          message: "Codex hook diagnostics failed.",
+          provider: this.id,
+        }),
+      });
     }
-    return [check];
+    return checks;
   }
 
   async buildLaunch(request: BuildHarnessLaunchRequest): Promise<HarnessLaunchPlan> {
-    return buildCodexLaunchPlan(request, {
+    const options: CodexLaunchOptions = {
       command: command(this.#options),
-      ...(this.#options.profile === undefined ? {} : { defaultProfile: this.#options.profile }),
-      ...(this.#options.approvalPolicy === undefined
-        ? {}
-        : { defaultApprovalPolicy: this.#options.approvalPolicy }),
-      ...(this.#options.sandboxMode === undefined
-        ? {}
-        : { defaultSandboxMode: this.#options.sandboxMode }),
-      ...(this.#options.noAltScreen === undefined
-        ? {}
-        : { noAltScreen: this.#options.noAltScreen }),
-    });
+    };
+    if (this.#options.profile !== undefined) {
+      options.defaultProfile = this.#options.profile;
+    }
+    if (this.#options.approvalPolicy !== undefined) {
+      options.defaultApprovalPolicy = this.#options.approvalPolicy;
+    }
+    if (this.#options.sandboxMode !== undefined) {
+      options.defaultSandboxMode = this.#options.sandboxMode;
+    }
+    if (this.#options.noAltScreen !== undefined) {
+      options.noAltScreen = this.#options.noAltScreen;
+    }
+    return buildCodexLaunchPlan(request, options);
   }
 
   async discoverRuns(context: HarnessDiscoveryContext): Promise<HarnessRunObservation[]> {

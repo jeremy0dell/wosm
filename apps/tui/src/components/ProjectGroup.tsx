@@ -6,17 +6,10 @@ export type ProjectGroupProps = {
   project: ProjectView;
   rows: readonly WorktreeRow[];
   collapsed: boolean;
-  selectedWorktreeId: string | undefined;
   slots: ReadonlyMap<string, WorktreeRow>;
 };
 
-export function ProjectGroup({
-  project,
-  rows,
-  collapsed,
-  selectedWorktreeId,
-  slots,
-}: ProjectGroupProps) {
+export function ProjectGroup({ project, rows, collapsed, slots }: ProjectGroupProps) {
   const slotByRow = new Map([...slots.entries()].map(([slot, row]) => [row.id, slot]));
   return (
     <Box flexDirection="column" marginTop={1}>
@@ -26,14 +19,7 @@ export function ProjectGroup({
       </Text>
       {!collapsed && rows.length === 0 ? <Text color="gray"> 0 worktrees</Text> : null}
       {!collapsed
-        ? rows.map((row) => (
-            <WorktreeRowView
-              key={row.id}
-              row={row}
-              slot={slotByRow.get(row.id)}
-              selected={selectedWorktreeId === row.id}
-            />
-          ))
+        ? rows.map((row) => <WorktreeRowView key={row.id} row={row} slot={slotByRow.get(row.id)} />)
         : null}
     </Box>
   );

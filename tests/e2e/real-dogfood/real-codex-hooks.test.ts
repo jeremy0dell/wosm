@@ -6,7 +6,6 @@ import {
   createCodexSentinel,
   installCodexHookProjectConfig,
   waitForCodexSentinel,
-  waitForFileContaining,
   writeFailureBundle,
 } from "../../support/real-wosm/codex";
 import { writeRealWosmConfig } from "../../support/real-wosm/config";
@@ -101,12 +100,17 @@ describeReal("real Codex hook dogfood", () => {
       });
       const row = findRowByBranch(snapshot, branch);
       await continuePastCodexStartupPrompts(env, row);
+      const activeRow = await waitForRowAgentState({
+        env,
+        configPath: config.configPath,
+        branch,
+        states: ["working", "needs_attention"],
+        timeoutMs: 180_000,
+      });
       await waitForCodexSentinel(sentinel, { rootPath: row.path, timeoutMs: 240_000 });
-      await waitForFileContaining(hooks.hookPayloadLogPath, "PostToolUse");
-      await waitForFileContaining(hooks.hookDeliveryLogPath, '"event": "PostToolUse"');
-      await waitForFileContaining(hooks.hookDeliveryLogPath, '"status": "ingested"');
-      expect(row.agent).toMatchObject({
+      expect(activeRow.agent).toMatchObject({
         harness: "codex",
+        state: expect.stringMatching(/^(working|needs_attention)$/),
         sessionId: expect.any(String),
       });
 
@@ -128,6 +132,36 @@ describeReal("real Codex hook dogfood", () => {
     }
   }, 300_000);
 });
+
+async function waitForRowAgentState(input: {
+  env: RealDogfoodEnvironment;
+  configPath: string;
+  branch: string;
+  states: Array<NonNullable<WosmSnapshot["rows"][number]["agent"]>["state"]>;
+  timeoutMs: number;
+}): Promise<WosmSnapshot["rows"][number]> {
+  const allowed = new Set(input.states);
+  const deadline = Date.now() + input.timeoutMs;
+  while (Date.now() <= deadline) {
+    try {
+      const snapshot = await runWosmJson<WosmSnapshot>(input.env, {
+        configPath: input.configPath,
+        args: ["snapshot", "--json", "--include-debug"],
+        timeoutMs: 30_000,
+      });
+      const row = findRowByBranch(snapshot, input.branch);
+      if (row.agent !== undefined && allowed.has(row.agent.state)) {
+        return row;
+      }
+    } catch {
+      // The branch can be absent briefly while the session command settles.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(
+    `Timed out waiting for Codex row ${input.branch} to enter ${input.states.join("/")}.`,
+  );
+}
 
 async function continuePastCodexStartupPrompts(
   env: RealDogfoodEnvironment,

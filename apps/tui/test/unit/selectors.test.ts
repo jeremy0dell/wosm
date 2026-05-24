@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  selectKeySlots,
-  selectProjectGroups,
-  selectSelectedRow,
-  selectVisibleRows,
-} from "../../src/selectors.js";
+import { selectKeySlots, selectProjectGroups, selectVisibleRows } from "../../src/selectors.js";
 import { createInitialUiState, setSearchQuery, toggleProjectCollapsed } from "../../src/uiState.js";
 import { createDashboardSnapshot } from "../fixtures/snapshots.js";
 
@@ -51,12 +46,11 @@ describe("TUI selectors", () => {
     ]);
   });
 
-  it("assigns stable numeric slots and resolves the selected row", () => {
+  it("assigns stable numeric slots without resolving any selected row", () => {
     const snapshot = createDashboardSnapshot();
-    const state = createInitialUiState({ selectedWorktreeId: "wt_web_idle" });
+    const state = createInitialUiState();
     const slots = selectKeySlots(snapshot, state);
 
     expect(slots.get("4")?.id).toBe("wt_web_idle");
-    expect(selectSelectedRow(snapshot, state)?.id).toBe("wt_web_idle");
   });
 });
