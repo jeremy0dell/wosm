@@ -1,5 +1,5 @@
 import { runCli, runHookCommand } from "@wosm/cli";
-import type { HookReceipt } from "@wosm/contracts";
+import type { HarnessEventReport, HarnessEventReportReceipt, HookReceipt } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { listHookSpoolFiles } from "../../../../tests/support/spool";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
@@ -85,7 +85,7 @@ describe("CLI hook command", () => {
   it("adds WOSM launch context to Codex hook payloads", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);
-    let observedPayload: unknown;
+    let observedReport: HarnessEventReport | undefined;
 
     const result = await runCli(["--config", configPath, "hook", "codex", "PreToolUse"], {
       stdin: JSON.stringify({
@@ -112,17 +112,18 @@ describe("CLI hook command", () => {
         clock: { now: () => new Date(now) },
         clientFactory: () =>
           ({
-            ingestHookEvent: async (event): Promise<HookReceipt> => {
-              observedPayload = event.payload;
+            reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => {
+              observedReport = report;
               return {
                 schemaVersion: "0.3.0",
-                hookId: "hook_1",
-                provider: event.provider,
-                event: event.event,
+                reportId: report.reportId,
+                provider: report.provider,
+                eventType: report.eventType,
                 accepted: true,
-                status: "ingested",
-                receivedAt: event.receivedAt,
-                reconciled: true,
+                status: "accepted",
+                receivedAt: report.observedAt,
+                projected: false,
+                scheduledReconcile: true,
               };
             },
           }) as never,
@@ -130,20 +131,31 @@ describe("CLI hook command", () => {
     });
 
     expect(result.code).toBe(0);
-    expect(observedPayload).toMatchObject({
-      hook_event_name: "PreToolUse",
-      tool_input: {
-        compacted: true,
-        originalBytes: expect.any(Number),
+    expect(observedReport).toMatchObject({
+      provider: "codex",
+      eventType: "PreToolUse",
+      correlation: {
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        terminalTargetId: "tmux:wosm:@1:%2",
+        cwd: "/tmp/wosm/web/task",
       },
-      wosm_project_id: "web",
-      wosm_worktree_id: "wt_web_task",
-      wosm_worktree_path: "/tmp/wosm/web/task",
-      wosm_session_id: "ses_web_task",
-      wosm_terminal_provider: "tmux",
-      wosm_terminal_target_id: "tmux:wosm:@1:%2",
+      diagnostics: {
+        compacted: true,
+        omittedFieldNames: ["tool_input"],
+      },
+      providerData: {
+        hookEventName: "PreToolUse",
+        wosmProjectId: "web",
+        wosmWorktreeId: "wt_web_task",
+        wosmWorktreePath: "/tmp/wosm/web/task",
+        wosmSessionId: "ses_web_task",
+        wosmTerminalProvider: "tmux",
+        wosmTerminalTargetId: "tmux:wosm:@1:%2",
+      },
     });
-    expect(JSON.stringify(observedPayload)).not.toContain("pnpm test");
+    expect(JSON.stringify(observedReport)).not.toContain("pnpm test");
   });
 
   it("rejects malformed JSON stdin without delivering or spooling arbitrary text", async () => {

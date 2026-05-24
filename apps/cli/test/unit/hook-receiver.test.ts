@@ -1,9 +1,14 @@
 import { join } from "node:path";
 import { receiveHookEvent } from "@wosm/cli";
-import type { HookReceipt, ProviderHookEvent } from "@wosm/contracts";
+import type { HarnessEventReport, HarnessEventReportReceipt, HookReceipt } from "@wosm/contracts";
 import { componentLogPath, readJsonlLog } from "@wosm/observability";
 import { describe, expect, it } from "vitest";
-import { fileMode, listHookSpoolFiles, readHookSpoolRecord } from "../../../../tests/support/spool";
+import {
+  fileMode,
+  listHookSpoolFiles,
+  readHarnessEventReportSpoolRecord,
+  readHookSpoolRecord,
+} from "../../../../tests/support/spool";
 import { createTempState } from "../../../../tests/support/temp-projects";
 
 const now = "2026-05-20T12:00:00.000Z";
@@ -43,7 +48,7 @@ describe("CLI hook receiver", () => {
   it("delivers compacted Codex hook payloads online", async () => {
     const fixture = await createTempState();
     const rawCommand = "cat /tmp/raw-command-output-secret";
-    let deliveredEvent: ProviderHookEvent | undefined;
+    let deliveredReport: HarnessEventReport | undefined;
 
     const receipt = await receiveHookEvent(
       {
@@ -69,17 +74,18 @@ describe("CLI hook receiver", () => {
         clock: { now: () => new Date(now) },
         clientFactory: () =>
           ({
-            ingestHookEvent: async (event): Promise<HookReceipt> => {
-              deliveredEvent = event;
+            reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => {
+              deliveredReport = report;
               return {
                 schemaVersion: "0.3.0",
-                hookId: event.hookId ?? "hook_1",
-                provider: event.provider,
-                event: event.event,
+                reportId: report.reportId,
+                provider: report.provider,
+                eventType: report.eventType,
                 accepted: true,
-                status: "ingested",
-                receivedAt: event.receivedAt,
-                reconciled: true,
+                status: "accepted",
+                receivedAt: report.observedAt,
+                projected: false,
+                scheduledReconcile: true,
               };
             },
           }) as never,
@@ -87,16 +93,34 @@ describe("CLI hook receiver", () => {
     );
 
     expect(receipt.status).toBe("ingested");
-    expect(deliveredEvent?.payload).toMatchObject({
-      hook_event_name: "PreToolUse",
-      tool_input: {
-        compacted: true,
-        originalBytes: expect.any(Number),
+    expect(deliveredReport).toMatchObject({
+      provider: "codex",
+      kind: "harness",
+      eventType: "PreToolUse",
+      status: {
+        value: "working",
+        source: "harness_hook",
       },
-      wosm_project_id: "web",
-      wosm_worktree_id: "wt_web_task",
+      correlation: {
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        cwd: "/tmp/wosm/web/task",
+      },
+      diagnostics: {
+        rawEventType: "PreToolUse",
+        payloadBytes: expect.any(Number),
+        compactedBytes: expect.any(Number),
+        compacted: true,
+        omittedFieldNames: ["tool_input"],
+      },
+      providerData: {
+        hookEventName: "PreToolUse",
+        toolName: "Bash",
+        wosmProjectId: "web",
+        wosmWorktreeId: "wt_web_task",
+      },
     });
-    expect(JSON.stringify(deliveredEvent?.payload)).not.toContain(rawCommand);
+    expect(JSON.stringify(deliveredReport)).not.toContain(rawCommand);
   });
 
   it("auto-starts a stopped observer and retries delivery", async () => {
@@ -257,7 +281,7 @@ describe("CLI hook receiver", () => {
         clock: { now: () => new Date(now) },
         clientFactory: () =>
           ({
-            ingestHookEvent: async () => {
+            reportHarnessEvent: async () => {
               throw new Error("offline");
             },
           }) as never,
@@ -319,19 +343,24 @@ describe("CLI hook receiver", () => {
     expect(receipt.status).toBe("spooled");
     const files = await listHookSpoolFiles(fixture.hookSpoolDir);
     expect(files).toHaveLength(1);
-    const record = await readHookSpoolRecord(fixture.hookSpoolDir, files[0] ?? "");
-    expect(record.event.payload).toMatchObject({
-      hook_event_name: "PostToolUse",
-      tool_input: {
+    const record = await readHarnessEventReportSpoolRecord(fixture.hookSpoolDir, files[0] ?? "");
+    expect(record.report).toMatchObject({
+      provider: "codex",
+      kind: "harness",
+      eventType: "PostToolUse",
+      diagnostics: {
+        rawEventType: "PostToolUse",
         compacted: true,
-        originalBytes: expect.any(Number),
+        omittedFieldNames: expect.arrayContaining(["tool_input", "tool_response"]),
       },
-      tool_response: {
-        compacted: true,
-        originalBytes: expect.any(Number),
+      providerData: {
+        hookEventName: "PostToolUse",
+        toolName: "Bash",
+        toolUseId: "call_test",
       },
     });
     expect(JSON.stringify(record)).not.toContain(rawResponse);
+    expect(JSON.stringify(record)).not.toContain("pnpm test");
   });
 
   it("records redacted hook delivery diagnostics in the hook log", async () => {
@@ -418,7 +447,7 @@ describe("CLI hook receiver", () => {
         hookId: () => "hook_codex_logged",
         clientFactory: () =>
           ({
-            ingestHookEvent: async () => {
+            reportHarnessEvent: async () => {
               throw new Error("offline");
             },
           }) as never,

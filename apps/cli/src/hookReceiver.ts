@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { compactCodexHookPayload } from "@wosm/codex";
+import { codexHookPayloadToHarnessEventReport, compactCodexHookPayload } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
-import type { HookReceipt, ProviderHookEvent, SafeError } from "@wosm/contracts";
-import { ProviderHookEventSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import type {
+  HarnessEventReport,
+  HarnessEventReportReceipt,
+  HookReceipt,
+  ProviderHookEvent,
+  SafeError,
+} from "@wosm/contracts";
+import { HookReceiptSchema, ProviderHookEventSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { componentLogPath, createJsonlLogger, type JsonlLogger } from "@wosm/observability";
 import { createObserverClient } from "@wosm/protocol";
 import {
@@ -13,7 +19,7 @@ import {
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { normalizeWorktrunkLifecycleEvent } from "@wosm/worktrunk";
-import { writeHookSpoolRecord } from "./hookSpool.js";
+import { writeHarnessEventReportSpoolRecord, writeHookSpoolRecord } from "./hookSpool.js";
 import { type ObserverProcessDeps, startObserver } from "./observerProcess.js";
 import { type ObserverPaths, resolveObserverPaths } from "./paths.js";
 
@@ -35,6 +41,7 @@ export type HookReceiverDeps = ObserverProcessDeps & {
   clientFactory?: (socketPath: string) => ReturnType<typeof createObserverClient>;
   clock?: RuntimeClock;
   writeSpool?: typeof writeHookSpoolRecord;
+  writeReportSpool?: typeof writeHarnessEventReportSpoolRecord;
   hookId?: () => string;
   logger?: JsonlLogger;
 };
@@ -73,6 +80,33 @@ export async function receiveHookEvent(
   const startupTimeoutMs = input.startupTimeoutMs ?? 1500;
   const rateLimitMs = input.rateLimitMs ?? 2000;
   const autoStart = input.autoStart ?? input.config?.observer?.autoStartFromHooks !== false;
+
+  if (shouldReportHarnessEvent(compacted.event)) {
+    const reportResult = harnessEventReportFromHookEvent(compacted.event, compacted.payloadSummary);
+    if (!reportResult.ok) {
+      return logAndReturn(
+        paths,
+        compacted.event,
+        rejectedHookReceiptForReportError(compacted.event, reportResult.error),
+        compacted.payloadSummary,
+        deps,
+      );
+    }
+    return receiveHarnessEventReport(
+      {
+        paths,
+        event: compacted.event,
+        report: reportResult.report,
+        payloadSummary: compacted.payloadSummary,
+        deliveryTimeoutMs,
+        startupTimeoutMs,
+        rateLimitMs,
+        autoStart,
+        config: input.config,
+      },
+      deps,
+    );
+  }
 
   // Delivery is best-effort and local-first: try the running observer, optionally
   // start it once, then spool the event for later replay.
@@ -130,6 +164,97 @@ export async function receiveHookEvent(
   );
 }
 
+async function receiveHarnessEventReport(
+  input: {
+    paths: ObserverPaths;
+    event: ProviderHookEvent;
+    report: HarnessEventReport;
+    payloadSummary: HookPayloadSummary;
+    deliveryTimeoutMs: number;
+    startupTimeoutMs: number;
+    rateLimitMs: number;
+    autoStart: boolean;
+    config?: WosmConfig | undefined;
+  },
+  deps: HookReceiverDeps,
+): Promise<HookReceipt> {
+  const onlineDelivery = await deliverHarnessEventReport(
+    input.paths,
+    input.report,
+    input.deliveryTimeoutMs,
+    deps,
+  );
+  if (onlineDelivery.ok && onlineDelivery.value.status === "accepted") {
+    return logAndReturn(
+      input.paths,
+      input.event,
+      hookReceiptFromReportReceipt(onlineDelivery.value),
+      input.payloadSummary,
+      deps,
+    );
+  }
+
+  const deliveryError = onlineDelivery.ok ? onlineDelivery.value.error : onlineDelivery.error;
+
+  if (input.autoStart) {
+    const startResult = await maybeStartObserver({
+      paths: input.paths,
+      config: input.config,
+      timeoutMs: input.startupTimeoutMs,
+      rateLimitMs: input.rateLimitMs,
+      deps,
+    });
+    if (startResult.ok) {
+      const retryDelivery = await deliverHarnessEventReport(
+        input.paths,
+        input.report,
+        input.deliveryTimeoutMs,
+        deps,
+      );
+      if (retryDelivery.ok && retryDelivery.value.status === "accepted") {
+        return logAndReturn(
+          input.paths,
+          input.event,
+          hookReceiptFromReportReceipt(retryDelivery.value),
+          input.payloadSummary,
+          deps,
+        );
+      }
+      const retryError = retryDelivery.ok ? retryDelivery.value.error : retryDelivery.error;
+      const spooled = await spoolHarnessEventReport(input.paths, input.report, retryError, deps);
+      return logAndReturn(
+        input.paths,
+        input.event,
+        hookReceiptFromReportReceipt(spooled),
+        input.payloadSummary,
+        deps,
+      );
+    }
+    const spooled = await spoolHarnessEventReport(
+      input.paths,
+      input.report,
+      startResult.error,
+      deps,
+    );
+    return logAndReturn(
+      input.paths,
+      input.event,
+      hookReceiptFromReportReceipt(spooled),
+      input.payloadSummary,
+      deps,
+    );
+  }
+
+  const spooled = await spoolHarnessEventReport(input.paths, input.report, deliveryError, deps);
+  return logAndReturn(
+    input.paths,
+    input.event,
+    hookReceiptFromReportReceipt(spooled),
+    input.payloadSummary,
+    deps,
+  );
+}
+
 async function deliverHook(
   paths: ObserverPaths,
   event: ProviderHookEvent,
@@ -165,6 +290,49 @@ async function deliverHook(
             code: "HOOK_REJECTED",
             message: "Observer rejected the hook event.",
             provider: event.provider,
+          })
+        );
+      }
+      return receipt;
+    },
+  );
+}
+
+async function deliverHarnessEventReport(
+  paths: ObserverPaths,
+  report: HarnessEventReport,
+  timeoutMs: number,
+  deps: HookReceiverDeps,
+) {
+  return runRuntimeBoundaryWithTimeout(
+    {
+      operation: "cli.harnessEventReport.deliver",
+      clock: deps.clock,
+      timeoutMs,
+      error: {
+        tag: "HookDeliveryError",
+        code: "HOOK_REPORT_DELIVERY_FAILED",
+        message: "Harness event report could not be delivered to the observer.",
+        provider: report.provider,
+      },
+      timeoutError: {
+        tag: "TimeoutError",
+        code: "HOOK_REPORT_DELIVERY_TIMEOUT",
+        message: "Harness event report delivery timed out.",
+        provider: report.provider,
+      },
+    },
+    async () => {
+      const client = (deps.clientFactory ?? defaultClientFactory)(paths.socketPath);
+      const receipt = await client.reportHarnessEvent(report);
+      if (receipt.status !== "accepted") {
+        throw (
+          receipt.error ??
+          safeErrorFromUnknown(receipt, {
+            tag: "HookDeliveryError",
+            code: "HOOK_REPORT_REJECTED",
+            message: "Observer rejected the harness event report.",
+            provider: report.provider,
           })
         );
       }
@@ -226,6 +394,20 @@ async function spool(
   return (deps.writeSpool ?? writeHookSpoolRecord)({
     spoolDir: paths.hookSpoolDir,
     event,
+    ...(error === undefined ? {} : { error }),
+    ...(deps.clock === undefined ? {} : { clock: deps.clock }),
+  });
+}
+
+async function spoolHarnessEventReport(
+  paths: ObserverPaths,
+  report: HarnessEventReport,
+  error: SafeError | undefined,
+  deps: HookReceiverDeps,
+): Promise<HarnessEventReportReceipt> {
+  return (deps.writeReportSpool ?? writeHarnessEventReportSpoolRecord)({
+    spoolDir: paths.hookSpoolDir,
+    report,
     ...(error === undefined ? {} : { error }),
     ...(deps.clock === undefined ? {} : { clock: deps.clock }),
   });
@@ -318,6 +500,87 @@ function compactHookEventPayload(event: ProviderHookEvent): {
       omittedFieldNames: compaction.omittedFieldNames,
     },
   };
+}
+
+function shouldReportHarnessEvent(event: ProviderHookEvent): boolean {
+  return event.provider === "codex" && event.kind === "harness";
+}
+
+function harnessEventReportFromHookEvent(
+  event: ProviderHookEvent,
+  payloadSummary: HookPayloadSummary,
+):
+  | {
+      ok: true;
+      report: HarnessEventReport;
+    }
+  | {
+      ok: false;
+      error: unknown;
+    } {
+  try {
+    return {
+      ok: true,
+      report: codexHookPayloadToHarnessEventReport({
+        reportId: event.hookId ?? defaultHookId(),
+        observedAt: event.receivedAt,
+        payload: event.payload,
+        diagnostics: {
+          payloadBytes: payloadSummary.originalBytes,
+          compactedBytes: payloadSummary.compactedBytes,
+          compacted: payloadSummary.compacted,
+          truncated: false,
+          omittedFieldNames: payloadSummary.omittedFieldNames,
+        },
+      }),
+    };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function hookReceiptFromReportReceipt(receipt: HarnessEventReportReceipt): HookReceipt {
+  const status = receipt.status === "accepted" ? "ingested" : receipt.status;
+  const hookReceipt: HookReceipt = {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    hookId: receipt.reportId,
+    provider: receipt.provider,
+    event: receipt.eventType,
+    accepted: receipt.accepted,
+    status,
+    receivedAt: receipt.receivedAt,
+  };
+  if (status === "ingested") {
+    hookReceipt.reconciled = false;
+  }
+  if (status === "spooled") {
+    hookReceipt.spooled = true;
+  }
+  if (receipt.deduped !== undefined) {
+    hookReceipt.deduped = receipt.deduped;
+  }
+  if (receipt.error !== undefined) {
+    hookReceipt.error = receipt.error;
+  }
+  return HookReceiptSchema.parse(hookReceipt);
+}
+
+function rejectedHookReceiptForReportError(event: ProviderHookEvent, error: unknown): HookReceipt {
+  return HookReceiptSchema.parse({
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    hookId: event.hookId ?? defaultHookId(),
+    provider: event.provider,
+    event: event.event,
+    accepted: false,
+    status: "rejected",
+    receivedAt: event.receivedAt,
+    error: safeErrorFromUnknown(error, {
+      tag: "HookPayloadError",
+      code: "HOOK_REPORT_INVALID",
+      message: "Hook payload could not be normalized to a harness event report.",
+      provider: event.provider,
+    }),
+  });
 }
 
 function jsonByteCount(value: unknown): number | null {

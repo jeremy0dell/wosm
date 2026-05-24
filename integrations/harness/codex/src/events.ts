@@ -2,11 +2,13 @@ import { normalize as normalizePath } from "node:path";
 import type {
   HarnessEventContext,
   HarnessEventObservation,
+  HarnessEventReport,
   ObservedStatus,
   RawHarnessEvent,
   TerminalTargetObservation,
   WorktreeObservation,
 } from "@wosm/contracts";
+import { HarnessEventReportSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { z } from "zod";
 import { codexHarnessError } from "./errors.js";
 
@@ -151,6 +153,19 @@ export const CodexHookEventSchema = z.discriminatedUnion("hook_event_name", [
 
 export type CodexHookEvent = z.infer<typeof CodexHookEventSchema>;
 
+export type CodexHarnessEventReportInput = {
+  reportId: string;
+  observedAt: string;
+  payload: unknown;
+  diagnostics?: {
+    payloadBytes?: number | null;
+    compactedBytes?: number | null;
+    compacted?: boolean;
+    truncated?: boolean;
+    omittedFieldNames?: string[];
+  };
+};
+
 export function parseCodexHookEvent(input: unknown): CodexHookEvent {
   const result = CodexHookEventSchema.safeParse(input);
   if (!result.success) {
@@ -187,6 +202,31 @@ export function normalizeCodexRawEvent(
     observation.harnessRunId = correlation.harnessRunId;
   }
   return [observation];
+}
+
+export function codexHookPayloadToHarnessEventReport(
+  input: CodexHarnessEventReportInput,
+): HarnessEventReport {
+  const event = parseCodexHookEvent(input.payload);
+  const report: HarnessEventReport = {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    reportId: input.reportId,
+    provider: "codex",
+    kind: "harness",
+    eventType: event.hook_event_name,
+    observedAt: input.observedAt,
+    status: statusFromCodexHookEvent(event, input.observedAt),
+  };
+  const correlation = reportCorrelationFromCodexEvent(event);
+  if (correlation !== undefined) {
+    report.correlation = correlation;
+  }
+  const diagnostics = reportDiagnosticsFromCodexEvent(event, input.diagnostics);
+  if (diagnostics !== undefined) {
+    report.diagnostics = diagnostics;
+  }
+  report.providerData = providerDataFromCodexEvent(event);
+  return HarnessEventReportSchema.parse(report);
 }
 
 export function statusFromCodexHookEvent(
@@ -336,6 +376,52 @@ function providerDataFromCodexEvent(event: CodexHookEvent): Record<string, unkno
     providerData.wosmTerminalTargetId = event.wosm_terminal_target_id;
   }
   return providerData;
+}
+
+function reportCorrelationFromCodexEvent(
+  event: CodexHookEvent,
+): HarnessEventReport["correlation"] | undefined {
+  const correlation: NonNullable<HarnessEventReport["correlation"]> = {
+    cwd: event.cwd,
+  };
+  if (event.wosm_project_id !== undefined) {
+    correlation.projectId = event.wosm_project_id;
+  }
+  if (event.wosm_worktree_id !== undefined) {
+    correlation.worktreeId = event.wosm_worktree_id;
+  }
+  if (event.wosm_session_id !== undefined) {
+    correlation.sessionId = event.wosm_session_id;
+  }
+  if (event.wosm_terminal_target_id !== undefined) {
+    correlation.terminalTargetId = event.wosm_terminal_target_id;
+  }
+  return correlation;
+}
+
+function reportDiagnosticsFromCodexEvent(
+  event: CodexHookEvent,
+  input: CodexHarnessEventReportInput["diagnostics"],
+): HarnessEventReport["diagnostics"] | undefined {
+  const diagnostics: NonNullable<HarnessEventReport["diagnostics"]> = {
+    rawEventType: event.hook_event_name,
+  };
+  if (typeof input?.payloadBytes === "number") {
+    diagnostics.payloadBytes = input.payloadBytes;
+  }
+  if (typeof input?.compactedBytes === "number") {
+    diagnostics.compactedBytes = input.compactedBytes;
+  }
+  if (input?.compacted !== undefined) {
+    diagnostics.compacted = input.compacted;
+  }
+  if (input?.truncated !== undefined) {
+    diagnostics.truncated = input.truncated;
+  }
+  if (input?.omittedFieldNames !== undefined && input.omittedFieldNames.length > 0) {
+    diagnostics.omittedFieldNames = input.omittedFieldNames;
+  }
+  return diagnostics;
 }
 
 function correlateCodexEvent(

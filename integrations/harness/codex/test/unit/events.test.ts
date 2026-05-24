@@ -3,7 +3,11 @@ import { HarnessEventObservationSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { compactCodexHookPayload } from "../../src/compaction";
 import { CodexHarnessProviderError } from "../../src/errors";
-import { normalizeCodexRawEvent, parseCodexHookEvent } from "../../src/events";
+import {
+  codexHookPayloadToHarnessEventReport,
+  normalizeCodexRawEvent,
+  parseCodexHookEvent,
+} from "../../src/events";
 
 const now = "2026-05-21T12:00:00.000Z";
 
@@ -370,6 +374,69 @@ describe("Codex hook event parsing", () => {
     expect(compactedPayloads[4]?.payload).toMatchObject({
       last_assistant_message: null,
     });
+  });
+
+  it("maps compacted Codex hooks to provider-neutral reports without raw payloads", () => {
+    const rawOutput = "raw stdout that must not leave the Codex boundary";
+    const compacted = compactCodexHookPayload({
+      session_id: "codex_session_123",
+      transcript_path: null,
+      cwd: "/tmp/wosm/web/task",
+      hook_event_name: "PostToolUse",
+      model: "gpt-5.4-codex",
+      permission_mode: "default",
+      turn_id: "turn_1",
+      tool_name: "Bash",
+      tool_input: { command: "pnpm test" },
+      tool_response: rawOutput,
+      tool_use_id: "call_test",
+      wosm_project_id: "web",
+      wosm_worktree_id: "wt_web_task",
+      wosm_session_id: "ses_web_task",
+      wosm_terminal_target_id: "tmux:wosm:@1:%2",
+    });
+
+    const report = codexHookPayloadToHarnessEventReport({
+      reportId: "report_codex_post_tool",
+      observedAt: now,
+      payload: compacted.payload,
+      diagnostics: {
+        payloadBytes: compacted.originalByteCount,
+        compactedBytes: compacted.compactedByteCount,
+        compacted: compacted.compacted,
+        omittedFieldNames: compacted.omittedFieldNames,
+      },
+    });
+
+    expect(report).toMatchObject({
+      provider: "codex",
+      kind: "harness",
+      eventType: "PostToolUse",
+      status: {
+        value: "working",
+        source: "harness_hook",
+      },
+      correlation: {
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        terminalTargetId: "tmux:wosm:@1:%2",
+        cwd: "/tmp/wosm/web/task",
+      },
+      diagnostics: {
+        rawEventType: "PostToolUse",
+        compacted: true,
+        omittedFieldNames: expect.arrayContaining(["tool_input", "tool_response"]),
+      },
+      providerData: {
+        codexSessionId: "codex_session_123",
+        hookEventName: "PostToolUse",
+        toolName: "Bash",
+        toolUseId: "call_test",
+      },
+    });
+    expect(JSON.stringify(report)).not.toContain(rawOutput);
+    expect(JSON.stringify(report)).not.toContain("pnpm test");
   });
 
   it("maps Stop to idle even when stop_hook_active is true", () => {
