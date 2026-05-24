@@ -12,6 +12,7 @@ describe("CLI manual-smoke commands", () => {
     const sockets: string[] = [];
 
     const result = await runCli(["--config", configPath], {
+      env: {},
       observerDeps: runningObserverDeps({ socketPath: fixture.socketPath }),
       tuiDeps: {
         runTui: async (options) => {

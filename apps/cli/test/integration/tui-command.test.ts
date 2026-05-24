@@ -1,4 +1,5 @@
 import { runCli, runTuiCommand } from "@wosm/cli";
+import type { RunTuiOptions } from "@wosm/tui";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
 
@@ -220,6 +221,96 @@ describe("CLI tui command", () => {
         },
       },
     ]);
+  });
+
+  it("maps --popup --persistent to popup lifecycle hooks", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const runOptions: RunTuiOptions[] = [];
+    let running = false;
+    let dismissed = false;
+    const resolveFocusOrigin = async () => ({
+      provider: "tmux",
+      clientId: "client_from_option",
+    });
+    const onFocusSuccess = async () => {
+      dismissed = true;
+    };
+
+    const result = await runCli(["--config", configPath, "tui", "--popup", "--persistent"], {
+      observerDeps: {
+        spawnObserver: async () => {
+          running = true;
+          return { pid: 1234, unref: () => undefined };
+        },
+        clientFactory: () =>
+          ({
+            health: async () => {
+              if (!running) throw new Error("stopped");
+              return {
+                schemaVersion: "0.3.0",
+                status: "healthy",
+                pid: 1234,
+                startedAt: now,
+                version: "0.0.0",
+              };
+            },
+            reconcile: async (reason: string) => ({
+              schemaVersion: "0.3.0",
+              reason,
+              reconciledAt: now,
+              snapshot: {
+                schemaVersion: "0.3.0",
+                generatedAt: now,
+                observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
+                providerHealth: {},
+                projects: [],
+                rows: [],
+                sessions: [],
+                counts: {
+                  projects: 0,
+                  worktrees: 0,
+                  agents: 0,
+                  working: 0,
+                  idle: 0,
+                  attention: 0,
+                  unknown: 0,
+                },
+                alerts: [],
+              },
+            }),
+          }) as never,
+        sleep: async () => undefined,
+      },
+      tuiDeps: {
+        popupLifecycle: {
+          resolveFocusOrigin,
+          onFocusSuccess,
+        },
+        runTui: async (options) => {
+          runOptions.push(options);
+          return { status: "exited", code: 0 };
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      code: 0,
+      output: { status: "exited", code: 0 },
+    });
+    expect(runOptions).toHaveLength(1);
+    expect(runOptions[0]).toMatchObject({
+      socketPath: fixture.socketPath,
+      persistentPopup: true,
+      resolveFocusOrigin,
+      onFocusSuccess,
+    });
+    await expect(runOptions[0]?.resolveFocusOrigin?.()).resolves.toEqual({
+      provider: "tmux",
+      clientId: "client_from_option",
+    });
+    await runOptions[0]?.onFocusSuccess?.();
+    expect(dismissed).toBe(true);
   });
 
   it("returns a nonzero result when observer startup is unavailable", async () => {

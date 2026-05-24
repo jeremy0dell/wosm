@@ -37,6 +37,46 @@ describe("TUI transient focus-and-close navigation", () => {
     instance.unmount();
   });
 
+  it("resolves persistent popup focus origin at activation time and dismisses without exiting", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const exits: number[] = [];
+    let resolveCount = 0;
+    let dismissCount = 0;
+    const instance = render(
+      <App
+        resolveFocusOrigin={async () => {
+          resolveCount += 1;
+          return { provider: "tmux", clientId: `client_${resolveCount}` };
+        }}
+        onFocusSuccess={async () => {
+          dismissCount += 1;
+        }}
+        initialSnapshot={snapshot}
+        onExit={(code) => exits.push(code)}
+        persistentPopup={true}
+        service={service}
+      />,
+    );
+
+    instance.stdin.write("4");
+
+    await waitFor(() => dismissCount === 1);
+    expect(service.dispatched[0]).toEqual({
+      type: "terminal.focus",
+      payload: {
+        targetId: "term_wt_web_idle_agent",
+        origin: {
+          provider: "tmux",
+          clientId: "client_1",
+        },
+      },
+    });
+    expect(service.waitedForCommandIds).toEqual(["cmd_tui_1"]);
+    expect(exits).toEqual([]);
+    instance.unmount();
+  });
+
   it("stays open and shows a SafeError toast when focus fails", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
@@ -64,6 +104,43 @@ describe("TUI transient focus-and-close navigation", () => {
 
     await waitFor(() => instance.lastFrame()?.includes("The terminal target is stale.") === true);
     expect(instance.lastFrame()).toContain("diagnostic diag_terminal_stale");
+    expect(exits).toEqual([]);
+    instance.unmount();
+  });
+
+  it("keeps a persistent popup visible and does not dismiss when focus fails", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    service.nextCompletion = {
+      status: "failed",
+      commandId: "cmd_tui_1",
+      error: {
+        tag: "TerminalProviderError",
+        code: "TERMINAL_TARGET_STALE",
+        message: "The terminal target is stale.",
+        diagnosticId: "diag_terminal_stale",
+      },
+    };
+    const exits: number[] = [];
+    let dismissCount = 0;
+    const instance = render(
+      <App
+        resolveFocusOrigin={async () => ({ provider: "tmux", clientId: "client_1" })}
+        onFocusSuccess={async () => {
+          dismissCount += 1;
+        }}
+        initialSnapshot={snapshot}
+        onExit={(code) => exits.push(code)}
+        persistentPopup={true}
+        service={service}
+      />,
+    );
+
+    instance.stdin.write("4");
+
+    await waitFor(() => instance.lastFrame()?.includes("The terminal target is stale.") === true);
+    expect(instance.lastFrame()).toContain("diagnostic diag_terminal_stale");
+    expect(dismissCount).toBe(0);
     expect(exits).toEqual([]);
     instance.unmount();
   });

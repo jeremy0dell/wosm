@@ -1,6 +1,7 @@
 import type { WosmConfig } from "@wosm/config";
 import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
+import { dismissTmuxPopup, resolveTmuxPopupFocusOrigin } from "@wosm/tmux";
 import { type RunTuiOptions, runTui, type TuiRunResult } from "@wosm/tui";
 import {
   type ObserverProcessDeps,
@@ -13,6 +14,10 @@ export type TuiCommandDeps = {
   observer?: ObserverProcessDeps;
   runTui?: (options: RunTuiOptions) => Promise<TuiRunResult>;
   env?: Record<string, string | undefined>;
+  popupLifecycle?: {
+    resolveFocusOrigin?: RunTuiOptions["resolveFocusOrigin"];
+    onFocusSuccess?: RunTuiOptions["onFocusSuccess"];
+  };
 };
 
 export type TuiCommandOptions = {
@@ -61,11 +66,21 @@ export async function runTuiCommand(
   });
   const runOptions: RunTuiOptions = { socketPath: observer.paths.socketPath };
   if (parsed.popupMode) {
-    runOptions.exitOnFocusSuccess = true;
-  }
-  const focusOrigin = focusOriginFromEnv(deps.env ?? process.env);
-  if (focusOrigin !== undefined) {
-    runOptions.focusOrigin = focusOrigin;
+    const env = deps.env ?? process.env;
+    if (parsed.persistentPopup) {
+      runOptions.persistentPopup = true;
+      runOptions.resolveFocusOrigin =
+        deps.popupLifecycle?.resolveFocusOrigin ?? (() => resolveTmuxPopupFocusOrigin({ env }));
+      runOptions.onFocusSuccess =
+        deps.popupLifecycle?.onFocusSuccess ??
+        (() => dismissTmuxPopup({ env }).then(() => undefined));
+    } else {
+      runOptions.exitOnFocusSuccess = true;
+      const focusOrigin = focusOriginFromEnv(env);
+      if (focusOrigin !== undefined) {
+        runOptions.focusOrigin = focusOrigin;
+      }
+    }
   }
   return (deps.runTui ?? runTui)(runOptions);
 }
@@ -87,15 +102,21 @@ async function reconcileBeforeTui(input: {
 function parseTuiArgs(
   args: string[],
   timeoutMs: number | undefined,
-): { timeoutMs?: number; popupMode: boolean } {
+): { timeoutMs?: number; popupMode: boolean; persistentPopup: boolean } {
   const parsed = takeTimeoutOption(args, timeoutMs);
-  const unknown = parsed.args.find((arg) => arg !== "--popup");
+  const unknown = parsed.args.find((arg) => arg !== "--popup" && arg !== "--persistent");
   if (unknown !== undefined) {
     throw new Error(`Unknown tui option: ${unknown}`);
   }
+  const popupMode = parsed.args.includes("--popup");
+  const persistentPopup = parsed.args.includes("--persistent");
+  if (persistentPopup && !popupMode) {
+    throw new Error("--persistent requires --popup.");
+  }
 
-  const result: { timeoutMs?: number; popupMode: boolean } = {
-    popupMode: parsed.args.includes("--popup"),
+  const result: { timeoutMs?: number; popupMode: boolean; persistentPopup: boolean } = {
+    popupMode,
+    persistentPopup,
   };
   if (parsed.timeoutMs !== undefined) result.timeoutMs = parsed.timeoutMs;
   return result;
