@@ -71,7 +71,7 @@ describeReal("real TUI control dogfood", () => {
       sessionName: tuiSession,
     });
     await waitForTuiText(env, tuiSession, branch);
-    await sendTmuxKeys({ env, target: tuiSession, keys: ["s"] });
+    await sendTmuxKeys({ env, target: tuiSession, keys: ["1"] });
 
     const client = createRealObserverClient(config, 30_000);
     const snapshot = await waitForSnapshot(

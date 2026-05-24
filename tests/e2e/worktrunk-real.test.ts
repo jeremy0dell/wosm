@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { installWorktrunkHooks, uninstallWorktrunkHooks, WorktrunkProvider } from "@wosm/worktrunk";
 import { describe, expect, it } from "vitest";
+import { writeConfigToml } from "../support/temp-projects";
 
 const execFileAsync = promisify(execFile);
 const runReal = process.env.WOSM_REAL_WORKTRUNK === "1";
@@ -18,6 +19,22 @@ describeReal("real Worktrunk provider smoke", () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-real-wt-"));
     const repo = join(root, "repo");
     const worktrunkConfigPath = join(root, "worktrunk", "config.toml");
+    const wosmBin = join(process.cwd(), "bin", "wosm");
+    const wosmConfigPath = await writeConfigToml(root, {
+      schemaVersion: 1,
+      observer: {
+        stateDir: join(root, "wosm-state"),
+        socketPath: join(root, "run", "observer.sock"),
+        autoStartFromHooks: false,
+      },
+      defaults: {
+        worktreeProvider: "noop-worktree",
+        terminal: "noop-terminal",
+        harness: "noop-harness",
+        layout: "agent-shell",
+      },
+      projects: [],
+    });
     const branch = `wosm-real-${Date.now()}`;
     await mkdir(repo, { recursive: true });
     await execFileAsync("git", ["init", "-b", "main"], { cwd: repo });
@@ -47,8 +64,8 @@ describeReal("real Worktrunk provider smoke", () => {
 
     await installWorktrunkHooks({
       worktrunkConfigPath,
-      wosmConfigPath: join(root, "wosm-config.toml"),
-      wosmBin: "wosm",
+      wosmConfigPath,
+      wosmBin,
     });
 
     let createdId: string | undefined;
@@ -69,8 +86,8 @@ describeReal("real Worktrunk provider smoke", () => {
       }
       await uninstallWorktrunkHooks({
         worktrunkConfigPath,
-        wosmConfigPath: join(root, "wosm-config.toml"),
-        wosmBin: "wosm",
+        wosmConfigPath,
+        wosmBin,
       }).catch(() => undefined);
     }
   });

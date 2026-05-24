@@ -7,13 +7,22 @@ import { createTempState, writeConfigToml } from "../support/temp-projects";
 describe("observer lifecycle e2e", () => {
   it("starts a real observer process, serves protocol requests, and stops cleanly", async () => {
     const fixture = await createTempState();
-    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const config = {
+      ...fixture.config,
+      defaults: {
+        worktreeProvider: "noop-worktree",
+        terminal: "noop-terminal",
+        harness: "noop-harness",
+        layout: "agent-shell",
+      },
+    };
+    const configPath = await writeConfigToml(fixture.root, config);
     const client = createObserverClient({ socketPath: fixture.socketPath, timeoutMs: 1000 });
     let started = false;
 
     try {
       const status = await startObserver({
-        config: fixture.config,
+        config,
         configPath,
         timeoutMs: 30_000,
       });
