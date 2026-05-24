@@ -7,6 +7,10 @@ import { createTempState, writeConfigToml } from "../../../../tests/support/temp
 const now = "2026-05-20T12:00:00.000Z";
 
 describe("CLI hook command", () => {
+  it("keeps legacy wosm hook usage text for missing args", async () => {
+    await expect(runHookCommand([])).rejects.toThrow("Usage: wosm hook <provider> <event>");
+  });
+
   it("forwards generic provider hook stdin payloads", async () => {
     const fixture = await createTempState();
     const receipt = await runHookCommand(

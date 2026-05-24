@@ -13,6 +13,10 @@ export async function runHookCommand(
   options: HookCommandOptions = {},
   deps: HookReceiverDeps = {},
 ): Promise<HookReceipt> {
+  const [provider, event] = args;
+  if (provider === undefined || event === undefined) {
+    throw new Error("Usage: wosm hook <provider> <event>");
+  }
   const bridgeOptions: HookBridgeCommandOptions = { ...options };
   if (bridgeOptions.observerEntryPath === undefined) {
     bridgeOptions.observerEntryPath = defaultCliObserverEntryPath();

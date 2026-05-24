@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { receiveHookEvent } from "@wosm/cli";
 import type { HarnessEventReport, HarnessEventReportReceipt, HookReceipt } from "@wosm/contracts";
+import { receiveHookEvent } from "@wosm/hook-bridge";
 import { componentLogPath, readJsonlLog } from "@wosm/observability";
 import { describe, expect, it } from "vitest";
 import {
@@ -13,7 +13,7 @@ import { createTempState } from "../../../../tests/support/temp-projects";
 
 const now = "2026-05-20T12:00:00.000Z";
 
-describe("CLI hook receiver", () => {
+describe("hook bridge receiver", () => {
   it("delivers hook events online without spooling", async () => {
     const fixture = await createTempState();
 

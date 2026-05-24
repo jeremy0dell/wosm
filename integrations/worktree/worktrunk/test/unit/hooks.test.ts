@@ -82,6 +82,57 @@ describe("Worktrunk hook setup", () => {
     );
   });
 
+  it("replaces and uninstalls legacy generated wosm hook commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-wt-hooks-"));
+    const configPath = join(root, "config.toml");
+    await writeFile(
+      configPath,
+      [
+        "[post-create]",
+        'existing = "echo existing"',
+        'wosm = "/usr/local/bin/wosm --config /tmp/wosm/config.toml hook worktrunk post-create"',
+        "",
+        "[post-switch]",
+        'wosm = "wosm --config /tmp/wosm/config.toml hook worktrunk post-switch"',
+        "",
+        "[pre-remove]",
+        'wosm = "wosm --config /tmp/wosm/config.toml hook worktrunk pre-remove"',
+        "",
+        "[post-remove]",
+        'wosm = "wosm --config /tmp/wosm/config.toml hook worktrunk post-remove"',
+        "",
+      ].join("\n"),
+    );
+
+    await expect(
+      doctorWorktrunkHooks({
+        worktrunkConfigPath: configPath,
+        wosmConfigPath: "/tmp/wosm/config.toml",
+      }),
+    ).resolves.toMatchObject({
+      status: "warn",
+      installed: false,
+    });
+
+    const plan = await planWorktrunkHooks({
+      worktrunkConfigPath: configPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+    });
+    expect(plan.changed).toBe(true);
+    expect(plan.after).toContain("wosm-hook --config /tmp/wosm/config.toml worktrunk post-create");
+    expect(plan.after).not.toContain(" hook worktrunk post-create");
+
+    const removed = await uninstallWorktrunkHooks({
+      worktrunkConfigPath: configPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+    });
+    const contents = await readFile(configPath, "utf8");
+
+    expect(removed.installed).toBe(false);
+    expect(contents).toContain("echo existing");
+    expect(contents).not.toContain("hook worktrunk");
+  });
+
   it("can generate the legacy wosm hook command for compatibility", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-wt-hooks-"));
     const configPath = join(root, "config.toml");

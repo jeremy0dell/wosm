@@ -245,7 +245,7 @@ function uninstallCommands(
 ): Record<string, unknown> {
   const next = { ...document };
   for (const hookName of WORKTRUNK_HOOK_NAMES) {
-    const value = withoutGeneratedCommand(next[hookName], commands[hookName]);
+    const value = withoutGeneratedCommand(next[hookName], commands[hookName], hookName);
     if (value === undefined) {
       delete next[hookName];
     } else {
@@ -273,24 +273,46 @@ function withGeneratedCommand(value: unknown, command: string): unknown {
   return { existing: String(value), [generatedCommandKey]: command };
 }
 
-function withoutGeneratedCommand(value: unknown, command: string): unknown {
+function withoutGeneratedCommand(
+  value: unknown,
+  command: string,
+  hookName: WorktrunkHookName,
+): unknown {
   if (typeof value === "string") {
-    return value === command ? undefined : value;
+    return isGeneratedCommandValue(value, command, hookName) ? undefined : value;
   }
   if (Array.isArray(value)) {
     const next = value
-      .map((entry) => withoutGeneratedCommand(entry, command))
+      .map((entry) => withoutGeneratedCommand(entry, command, hookName))
       .filter((entry) => entry !== undefined);
     return next.length === 0 ? undefined : next;
   }
   if (isRecord(value)) {
     const next = { ...value };
-    if (next[generatedCommandKey] === command) {
+    if (isGeneratedCommandValue(next[generatedCommandKey], command, hookName)) {
       delete next[generatedCommandKey];
     }
     return Object.keys(next).length === 0 ? undefined : next;
   }
   return value;
+}
+
+function isGeneratedCommandValue(
+  value: unknown,
+  command: string,
+  hookName: WorktrunkHookName,
+): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  if (value === command) {
+    return true;
+  }
+  return isLegacyGeneratedCommand(value, hookName);
+}
+
+function isLegacyGeneratedCommand(value: string, hookName: WorktrunkHookName): boolean {
+  return value.trimEnd().endsWith(` hook worktrunk ${hookName}`);
 }
 
 function hookContainsCommand(
