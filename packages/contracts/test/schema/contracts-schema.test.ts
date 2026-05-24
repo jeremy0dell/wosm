@@ -5,6 +5,9 @@ import {
   EventFilterSchema,
   HarnessCapabilitiesSchema,
   HarnessEventObservationSchema,
+  HarnessEventReportReceiptSchema,
+  HarnessEventReportSchema,
+  HarnessEventReportSpoolRecordSchema,
   HarnessLaunchPlanSchema,
   HarnessRunObservationSchema,
   HarnessStatusObservationSchema,
@@ -203,6 +206,7 @@ describe("Phase 1 contract schemas", () => {
       "command.failed",
       "command.started",
       "command.succeeded",
+      "harness.eventReported",
       "hook.ingested",
       "hook.spoolDrained",
       "observer.reconciled",
@@ -267,6 +271,81 @@ describe("Phase 1 contract schemas", () => {
         attempts: 0,
       },
       "hook spool record",
+    );
+
+    const harnessReport = {
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      reportId: "report_1",
+      provider: "codex",
+      kind: "harness",
+      eventType: "PreToolUse",
+      observedAt: "2026-05-20T12:02:00.000Z",
+      status: {
+        value: "working",
+        confidence: "medium",
+        reason: "Codex is about to use Bash.",
+        source: "harness_hook",
+        updatedAt: "2026-05-20T12:02:00.000Z",
+      },
+      correlation: {
+        sessionId: "ses_web_task",
+        worktreeId: "wt_web_task",
+        terminalTargetId: "tmux:wosm:@1:%2",
+        projectId: "web",
+        cwd: "/tmp/wosm/web/task",
+      },
+      diagnostics: {
+        rawEventType: "PreToolUse",
+        payloadBytes: 400,
+        compactedBytes: 180,
+        compacted: true,
+        truncated: false,
+        omittedFieldNames: ["tool_input"],
+      },
+      providerData: {
+        hookEventName: "PreToolUse",
+      },
+    };
+
+    expectParses(HarnessEventReportSchema, harnessReport, "harness event report");
+    expectFails(
+      HarnessEventReportSchema,
+      {
+        ...harnessReport,
+        status: {
+          ...(harnessReport.status as Record<string, unknown>),
+          reason: undefined,
+        },
+      },
+      "harness event report with explicit undefined",
+    );
+
+    expectParses(
+      HarnessEventReportReceiptSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        reportId: "report_1",
+        provider: "codex",
+        eventType: "PreToolUse",
+        accepted: true,
+        status: "accepted",
+        receivedAt: "2026-05-20T12:02:00.000Z",
+        projected: false,
+        scheduledReconcile: true,
+      },
+      "harness event report receipt",
+    );
+
+    expectParses(
+      HarnessEventReportSpoolRecordSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        spoolId: "spool_report_1",
+        createdAt: "2026-05-20T12:02:01.000Z",
+        report: harnessReport,
+        attempts: 0,
+      },
+      "harness event report spool record",
     );
 
     expectParses(

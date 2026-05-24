@@ -7,6 +7,8 @@ import type {
   DoctorOptions,
   DoctorReport,
   EventFilter,
+  HarnessEventReport,
+  HarnessEventReportReceipt,
   HookReceipt,
   ObserverHealth,
   ObserverStopReceipt,
@@ -25,6 +27,7 @@ import {
   DiagnosticsCollectParamsSchema,
   DoctorRunParamsSchema,
   EventsSubscribeParamsSchema,
+  HarnessEventReportParamsSchema,
   HookIngestParamsSchema,
   PROTOCOL_SCHEMA_VERSION,
   ProtocolEventEnvelopeSchema,
@@ -47,6 +50,7 @@ export type ObserverApi = {
   getCommand(commandId: CommandId): Promise<CommandRecord | undefined>;
   reconcile(reason?: string): Promise<ReconcileReceipt>;
   ingestHookEvent(event: ProviderHookEvent): Promise<HookReceipt>;
+  reportHarnessEvent(report: HarnessEventReport): Promise<HarnessEventReportReceipt>;
   runDoctor(options?: DoctorOptions): Promise<DoctorReport>;
   collectDiagnostics(options?: DiagnosticCollectionOptions): Promise<DiagnosticSnapshot>;
 };
@@ -159,6 +163,10 @@ async function routeSingleResponseRequest(
       case "observer.ingestHookEvent": {
         const params = HookIngestParamsSchema.parse(request.params);
         return await api.ingestHookEvent(params.event);
+      }
+      case "observer.harnessEvent.report": {
+        const params = HarnessEventReportParamsSchema.parse(request.params);
+        return await api.reportHarnessEvent(params.report);
       }
       case "doctor.run": {
         const params = DoctorRunParamsSchema.parse(request.params);

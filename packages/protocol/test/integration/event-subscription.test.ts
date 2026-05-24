@@ -184,6 +184,17 @@ function minimalApi(): ObserverApi {
       receivedAt: event.receivedAt,
       reconciled: true,
     }),
+    reportHarnessEvent: async (report) => ({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      reportId: report.reportId,
+      provider: report.provider,
+      eventType: report.eventType,
+      accepted: true,
+      status: "accepted",
+      receivedAt: report.observedAt,
+      projected: false,
+      scheduledReconcile: true,
+    }),
   };
 }
 

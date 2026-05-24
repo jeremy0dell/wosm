@@ -7,6 +7,8 @@ import {
   DoctorOptionsSchema,
   DoctorReportSchema,
   EventFilterSchema,
+  HarnessEventReportReceiptSchema,
+  HarnessEventReportSchema,
   HookReceiptSchema,
   ObserverHealthSchema,
   ObserverStopReceiptSchema,
@@ -32,6 +34,7 @@ export const ProtocolMethodSchema = z.enum([
   "command.get",
   "observer.reconcile",
   "observer.ingestHookEvent",
+  "observer.harnessEvent.report",
   "doctor.run",
   "diagnostics.collect",
 ]);
@@ -128,6 +131,12 @@ export const HookIngestParamsSchema = z
   })
   .strict();
 
+export const HarnessEventReportParamsSchema = z
+  .object({
+    report: HarnessEventReportSchema,
+  })
+  .strict();
+
 export const EventsSubscribeParamsSchema = EventFilterSchema.optional();
 
 export const DoctorRunParamsSchema = DoctorOptionsSchema;
@@ -143,6 +152,7 @@ export const ProtocolResultSchemas = {
   "command.get": CommandRecordSchema.nullable(),
   "observer.reconcile": ReconcileReceiptSchema,
   "observer.ingestHookEvent": HookReceiptSchema,
+  "observer.harnessEvent.report": HarnessEventReportReceiptSchema,
   "doctor.run": DoctorReportSchema,
   "diagnostics.collect": DiagnosticSnapshotSchema,
 } as const;

@@ -176,6 +176,13 @@
     "provider": "worktrunk",
     "event": "worktree.created"
   },
+  "harnessEventReported": {
+    "type": "harness.eventReported",
+    "at": "2026-05-20T12:03:00.000Z",
+    "reportId": "report_codex_1",
+    "provider": "codex",
+    "eventType": "PreToolUse"
+  },
   "hookSpoolDrained": {
     "type": "hook.spoolDrained",
     "at": "2026-05-20T12:04:00.000Z",

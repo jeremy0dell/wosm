@@ -30,6 +30,7 @@ export const WosmEventTypeSchema = z.enum([
   "command.failed",
   "provider.healthChanged",
   "hook.ingested",
+  "harness.eventReported",
   "hook.spoolDrained",
 ]);
 
@@ -148,6 +149,16 @@ export const HookIngestedEventSchema = z
   })
   .strict();
 
+export const HarnessEventReportedEventSchema = z
+  .object({
+    type: z.literal("harness.eventReported"),
+    at: TimestampSchema,
+    reportId: nonEmptyStringSchema,
+    provider: ProviderIdSchema,
+    eventType: nonEmptyStringSchema,
+  })
+  .strict();
+
 export const HookSpoolDrainedEventSchema = z
   .object({
     type: z.literal("hook.spoolDrained"),
@@ -174,6 +185,7 @@ export const WosmEventSchema = z.discriminatedUnion("type", [
   CommandFailedEventSchema,
   ProviderHealthChangedEventSchema,
   HookIngestedEventSchema,
+  HarnessEventReportedEventSchema,
   HookSpoolDrainedEventSchema,
 ]);
 

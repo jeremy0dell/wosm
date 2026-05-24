@@ -2,6 +2,8 @@ import type {
   CommandRecord,
   DiagnosticSnapshot,
   DoctorReport,
+  HarnessEventReport,
+  HarnessEventReportReceipt,
   HookReceipt,
   ObserverHealth,
   ObserverStopReceipt,
@@ -91,6 +93,26 @@ describe("protocol client/server", () => {
     await expect(client.ingestHookEvent(hookEvent)).resolves.toMatchObject({
       provider: "worktrunk",
       status: "ingested",
+    });
+
+    const report: HarnessEventReport = {
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      reportId: "report_1",
+      provider: "codex",
+      kind: "harness",
+      eventType: "PreToolUse",
+      observedAt: now,
+      status: {
+        value: "working",
+        confidence: "medium",
+        reason: "Codex is about to use Bash.",
+        source: "harness_hook",
+        updatedAt: now,
+      },
+    };
+    await expect(client.reportHarnessEvent(report)).resolves.toMatchObject({
+      provider: "codex",
+      status: "accepted",
     });
 
     await server.close();
@@ -299,6 +321,17 @@ function fakeApi(overrides: Partial<ObserverApi> & { snapshot?: WosmSnapshot } =
       status: "ingested",
       receivedAt: event.receivedAt,
       reconciled: true,
+    }),
+    reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => ({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      reportId: report.reportId,
+      provider: report.provider,
+      eventType: report.eventType,
+      accepted: true,
+      status: "accepted",
+      receivedAt: report.observedAt,
+      projected: false,
+      scheduledReconcile: true,
     }),
     runDoctor: async (): Promise<DoctorReport> => doctorReport(snapshot),
     collectDiagnostics: async (): Promise<DiagnosticSnapshot> => diagnosticSnapshot(snapshot),
