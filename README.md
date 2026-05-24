@@ -54,6 +54,13 @@ wosm debug bundle
 wosm observer stop
 ```
 
+### Hook Runner
+
+`@wosm/hook-runner` provides the small `wosm-hook` bridge used by generated provider
+hooks. It parses hook stdin, reports to the observer with bounded delivery, and
+spools locally if the observer is unavailable. The older `wosm hook <provider>
+<event>` command remains available as a JSON-emitting compatibility wrapper.
+
 ### Observer
 
 `@wosm/observer` is the local background process that owns runtime truth. It talks to

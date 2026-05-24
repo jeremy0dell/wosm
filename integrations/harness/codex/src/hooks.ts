@@ -23,6 +23,7 @@ export type CodexHookPlanOptions = {
   hookScriptPath?: string;
   stateDir?: string;
   wosmConfigPath?: string;
+  hookBin?: string;
   wosmBin?: string;
   env?: NodeJS.ProcessEnv;
   homeDir?: string;
@@ -134,11 +135,14 @@ export async function installCodexHooks(
 
 function scriptOptions(
   hookScriptPath: string,
-  options: Pick<CodexHookPlanOptions, "wosmConfigPath" | "wosmBin">,
+  options: Pick<CodexHookPlanOptions, "wosmConfigPath" | "hookBin" | "wosmBin">,
 ): Parameters<typeof expectedCodexHookScript>[0] {
   const input: Parameters<typeof expectedCodexHookScript>[0] = { hookScriptPath };
   if (options.wosmConfigPath !== undefined) {
     input.wosmConfigPath = options.wosmConfigPath;
+  }
+  if (options.hookBin !== undefined) {
+    input.hookBin = options.hookBin;
   }
   if (options.wosmBin !== undefined) {
     input.wosmBin = options.wosmBin;
@@ -266,14 +270,19 @@ export function expectedCodexHookCommands(input: {
 export function expectedCodexHookScript(input: {
   hookScriptPath: string;
   wosmConfigPath?: string;
+  hookBin?: string;
   wosmBin?: string;
 }): string {
   const shellTmpDir = "$" + "{TMPDIR:-/tmp}";
-  const wosmArgs = [input.wosmBin ?? "wosm"];
+  const legacyWosmBin = input.wosmBin;
+  const hookArgs = [legacyWosmBin ?? input.hookBin ?? "wosm-hook"];
   if (input.wosmConfigPath !== undefined) {
-    wosmArgs.push("--config", input.wosmConfigPath);
+    hookArgs.push("--config", input.wosmConfigPath);
   }
-  wosmArgs.push("hook", "codex");
+  if (legacyWosmBin !== undefined) {
+    hookArgs.push("hook");
+  }
+  hookArgs.push("codex");
   return [
     "#!/usr/bin/env bash",
     "set -euo pipefail",
@@ -281,7 +290,7 @@ export function expectedCodexHookScript(input: {
     "trap 'rm -f \"$payload_file\"' EXIT",
     'cat > "$payload_file"',
     'event="$(/usr/bin/env node -e \'const fs = require("node:fs"); const input = fs.readFileSync(process.argv[1], "utf8"); const payload = JSON.parse(input); if (typeof payload.hook_event_name !== "string" || payload.hook_event_name.length === 0) { throw new Error("missing hook_event_name"); } process.stdout.write(payload.hook_event_name);\' "$payload_file")"',
-    `${commandLine(wosmArgs)} "$event" < "$payload_file" > /dev/null`,
+    `${commandLine(hookArgs)} "$event" < "$payload_file" > /dev/null`,
     "",
   ].join("\n");
 }

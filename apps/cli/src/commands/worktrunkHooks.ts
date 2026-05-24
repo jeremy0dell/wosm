@@ -31,6 +31,7 @@ export async function runWorktrunkHooksCommand(
   const hookOptions: WorktrunkHookPlanOptions = {
     ...(worktrunkConfigPath === undefined ? {} : { worktrunkConfigPath }),
     ...(options.configPath === undefined ? {} : { wosmConfigPath: options.configPath }),
+    ...(flags.hookBin === undefined ? {} : { hookBin: flags.hookBin }),
     ...(flags.wosmBin === undefined ? {} : { wosmBin: flags.wosmBin }),
   };
 
@@ -58,11 +59,13 @@ export async function runWorktrunkHooksCommand(
 function parseFlags(args: string[]): {
   yes: boolean;
   worktrunkConfigPath?: string;
+  hookBin?: string;
   wosmBin?: string;
 } {
   const flags: {
     yes: boolean;
     worktrunkConfigPath?: string;
+    hookBin?: string;
     wosmBin?: string;
   } = { yes: false };
 
@@ -80,6 +83,11 @@ function parseFlags(args: string[]): {
     }
     if (arg === "--wosm-bin" && value !== undefined) {
       flags.wosmBin = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--hook-bin" && value !== undefined) {
+      flags.hookBin = value;
       index += 1;
       continue;
     }

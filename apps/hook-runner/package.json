@@ -1,5 +1,5 @@
 {
-  "name": "@wosm/cli",
+  "name": "@wosm/hook-runner",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     }
   },
   "bin": {
-    "wosm": "./dist/main.js"
+    "wosm-hook": "./dist/main.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -19,14 +19,6 @@
   "dependencies": {
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
-    "@wosm/hook-bridge": "workspace:*",
-    "@wosm/codex": "workspace:*",
-    "@wosm/observability": "workspace:*",
-    "@wosm/observer": "workspace:*",
-    "@wosm/protocol": "workspace:*",
-    "@wosm/runtime": "workspace:*",
-    "@wosm/tui": "workspace:*",
-    "@wosm/tmux": "workspace:*",
-    "@wosm/worktrunk": "workspace:*"
+    "@wosm/hook-bridge": "workspace:*"
   }
 }

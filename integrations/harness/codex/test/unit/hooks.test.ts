@@ -19,7 +19,7 @@ describe("Codex hook setup", () => {
       codexConfigPath: configPath,
       hookScriptPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
-      wosmBin: "/usr/local/bin/wosm",
+      hookBin: "/usr/local/bin/wosm-hook",
     });
 
     expect(plan.changed).toBe(true);
@@ -66,7 +66,8 @@ describe("Codex hook setup", () => {
     expect(second.changed).toBe(false);
     expect(config).toContain("echo existing");
     expect(config).toContain(hookScriptPath);
-    expect(script).toContain("hook codex");
+    expect(script).toContain("wosm-hook --config /tmp/wosm/config.toml codex");
+    expect(script).not.toContain(" hook codex");
     expect(script).toContain("--config /tmp/wosm/config.toml");
     expect(script).toContain('"$event" < "$payload_file" > /dev/null');
     expect(scriptMode).toBe(0o700);
@@ -81,6 +82,22 @@ describe("Codex hook setup", () => {
       status: "ok",
       installed: true,
     });
+  });
+
+  it("can generate the legacy wosm hook command for compatibility", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
+    const configPath = join(root, "codex", "config.toml");
+    const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
+
+    await installCodexHooks({
+      codexConfigPath: configPath,
+      hookScriptPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+      wosmBin: "/usr/local/bin/wosm",
+    });
+
+    const script = await readFile(hookScriptPath, "utf8");
+    expect(script).toContain("/usr/local/bin/wosm --config /tmp/wosm/config.toml hook codex");
   });
 
   it("uninstalls generated hooks without removing unrelated commands", async () => {

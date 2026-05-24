@@ -219,16 +219,18 @@ wosm observer stop
 With the fake-provider config above, hook delivery can be checked without touching real Worktrunk state:
 
 ```bash
-wosm hook worktrunk post-create <<< '{"branch":"feature/manual-hook"}'
+wosm-hook --config /path/to/config.toml worktrunk post-create <<< '{"branch":"feature/manual-hook"}'
 wosm doctor
 wosm debug bundle
 ```
 
 Expected basics:
 
-- The hook command reports `ingested` when the observer is reachable or can be auto-started.
+- The hook bridge exits quietly when the observer accepts the hook or the event is spooled.
 - `doctor` reports hook spool depth; it should remain zero for successful delivery.
 - `debug bundle` includes redacted hook log evidence from `logs/hooks.jsonl`.
+
+`wosm hook <provider> <event>` remains available as a compatibility wrapper and still emits the JSON receipt shape.
 
 ## Cleanup Smoke
 
@@ -291,7 +293,7 @@ WOSM_CODEX_BIN="$(command -v codex)" \
 pnpm test:e2e:real
 ```
 
-The suite covers observer start/status/reconcile/snapshot/debug bundle, real Worktrunk worktree creation, tmux workbench focus, Codex launch with bounded sentinel prompts, real Codex hooks from an isolated temporary `CODEX_HOME` calling `wosm hook codex ...`, Worktrunk hook delivery/spool/drain, restart recovery, SQLite deletion recovery, TUI key-driven control, and tmux popup navigation over a real wosm-created Codex agent pane. Failed lifecycle tests attempt to write a debug bundle under that test's temp state directory.
+The suite covers observer start/status/reconcile/snapshot/debug bundle, real Worktrunk worktree creation, tmux workbench focus, Codex launch with bounded sentinel prompts, real Codex hooks from an isolated temporary `CODEX_HOME` calling `wosm-hook codex ...`, Worktrunk hook delivery/spool/drain, restart recovery, SQLite deletion recovery, TUI key-driven control, and tmux popup navigation over a real wosm-created Codex agent pane. Failed lifecycle tests attempt to write a debug bundle under that test's temp state directory.
 
 From the repo root, local wrapper scripts set the required real flags and binary paths automatically:
 

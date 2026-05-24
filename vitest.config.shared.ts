@@ -12,6 +12,10 @@ export const wosmAliases = {
   "@wosm/codex": fileURLToPath(
     new URL("./integrations/harness/codex/src/index.ts", import.meta.url),
   ),
+  "@wosm/hook-bridge": fileURLToPath(
+    new URL("./packages/hook-bridge/src/index.ts", import.meta.url),
+  ),
+  "@wosm/hook-runner": fileURLToPath(new URL("./apps/hook-runner/src/index.ts", import.meta.url)),
   "@wosm/opencode": fileURLToPath(
     new URL("./integrations/harness/opencode/src/index.ts", import.meta.url),
   ),

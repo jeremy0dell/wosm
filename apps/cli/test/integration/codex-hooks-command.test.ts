@@ -21,6 +21,8 @@ describe("CLI Codex hook commands", () => {
       codexConfigPath,
       "--hook-script",
       hookScriptPath,
+      "--hook-bin",
+      "/opt/wosm-hook",
     ]);
 
     expect(result).toMatchObject({
@@ -62,7 +64,17 @@ describe("CLI Codex hook commands", () => {
       codexConfigPath,
       "--hook-script",
       hookScriptPath,
+      "--hook-bin",
+      "/opt/wosm-hook",
     ]);
+    expect(installed).toMatchObject({
+      code: 0,
+      output: {
+        provider: "codex",
+        installed: true,
+      },
+    });
+    await expect(readFile(hookScriptPath, "utf8")).resolves.toContain("/opt/wosm-hook --config");
     const uninstalled = await runCli([
       "--config",
       configPath,
@@ -76,13 +88,6 @@ describe("CLI Codex hook commands", () => {
       hookScriptPath,
     ]);
 
-    expect(installed).toMatchObject({
-      code: 0,
-      output: {
-        provider: "codex",
-        installed: true,
-      },
-    });
     expect(uninstalled).toMatchObject({
       code: 0,
       output: {

@@ -19,7 +19,7 @@ describeReal("real Worktrunk provider smoke", () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-real-wt-"));
     const repo = join(root, "repo");
     const worktrunkConfigPath = join(root, "worktrunk", "config.toml");
-    const wosmBin = join(process.cwd(), "bin", "wosm");
+    const wosmHookBin = join(process.cwd(), "bin", "wosm-hook");
     const wosmConfigPath = await writeConfigToml(root, {
       schemaVersion: 1,
       observer: {
@@ -65,7 +65,7 @@ describeReal("real Worktrunk provider smoke", () => {
     await installWorktrunkHooks({
       worktrunkConfigPath,
       wosmConfigPath,
-      wosmBin,
+      hookBin: wosmHookBin,
     });
 
     let createdId: string | undefined;
@@ -87,7 +87,7 @@ describeReal("real Worktrunk provider smoke", () => {
       await uninstallWorktrunkHooks({
         worktrunkConfigPath,
         wosmConfigPath,
-        wosmBin,
+        hookBin: wosmHookBin,
       }).catch(() => undefined);
     }
   });

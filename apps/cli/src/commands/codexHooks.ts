@@ -54,6 +54,7 @@ type ParsedCodexHookFlags = {
   yes: boolean;
   codexConfigPath?: string;
   hookScriptPath?: string;
+  hookBin?: string;
   wosmBin?: string;
 };
 
@@ -77,6 +78,9 @@ function buildCodexHookOptions(
   if (flags.wosmBin !== undefined) {
     hookOptions.wosmBin = flags.wosmBin;
   }
+  if (flags.hookBin !== undefined) {
+    hookOptions.hookBin = flags.hookBin;
+  }
   if (options.env !== undefined) {
     hookOptions.env = options.env;
   }
@@ -98,6 +102,9 @@ function copyCodexHookOptions(source: CodexHookPlanOptions, target: CodexHookPla
   }
   if (source.wosmBin !== undefined) {
     target.wosmBin = source.wosmBin;
+  }
+  if (source.hookBin !== undefined) {
+    target.hookBin = source.hookBin;
   }
   if (source.env !== undefined) {
     target.env = source.env;
@@ -126,6 +133,11 @@ function parseFlags(args: string[]): ParsedCodexHookFlags {
     }
     if (arg === "--wosm-bin" && value !== undefined) {
       flags.wosmBin = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--hook-bin" && value !== undefined) {
+      flags.hookBin = value;
       index += 1;
       continue;
     }

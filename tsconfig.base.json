@@ -21,6 +21,8 @@
       "@wosm/config": ["packages/config/src/index.ts"],
       "@wosm/contracts": ["packages/contracts/src/index.ts"],
       "@wosm/codex": ["integrations/harness/codex/src/index.ts"],
+      "@wosm/hook-bridge": ["packages/hook-bridge/src/index.ts"],
+      "@wosm/hook-runner": ["apps/hook-runner/src/index.ts"],
       "@wosm/opencode": ["integrations/harness/opencode/src/index.ts"],
       "@wosm/observability": ["packages/observability/src/index.ts"],
       "@wosm/protocol": ["packages/protocol/src/index.ts"],

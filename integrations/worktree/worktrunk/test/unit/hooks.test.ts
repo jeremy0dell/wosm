@@ -17,13 +17,13 @@ describe("Worktrunk hook setup", () => {
     const plan = await planWorktrunkHooks({
       worktrunkConfigPath: configPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
-      wosmBin: "/usr/local/bin/wosm",
+      hookBin: "/usr/local/bin/wosm-hook",
     });
 
     expect(plan.changed).toBe(true);
     expect(plan.missing).toEqual(["post-create", "post-switch", "pre-remove", "post-remove"]);
     expect(plan.commands["post-create"]).toBe(
-      "/usr/local/bin/wosm --config /tmp/wosm/config.toml hook worktrunk post-create",
+      "/usr/local/bin/wosm-hook --config /tmp/wosm/config.toml worktrunk post-create",
     );
     await expect(readFile(configPath, "utf8")).rejects.toThrow();
   });
@@ -50,7 +50,7 @@ describe("Worktrunk hook setup", () => {
     expect(installed.backupPath).toBeDefined();
     expect(second.changed).toBe(false);
     expect(contents).toContain("echo existing");
-    expect(contents).toContain("hook worktrunk post-create");
+    expect(contents).toContain("wosm-hook --config /tmp/wosm/config.toml worktrunk post-create");
     await expect(
       doctorWorktrunkHooks({
         worktrunkConfigPath: configPath,
@@ -77,7 +77,24 @@ describe("Worktrunk hook setup", () => {
     const contents = await readFile(configPath, "utf8");
 
     expect(removed.installed).toBe(false);
-    expect(contents).not.toContain("hook worktrunk post-create");
+    expect(contents).not.toContain(
+      "wosm-hook --config /tmp/wosm/config.toml worktrunk post-create",
+    );
+  });
+
+  it("can generate the legacy wosm hook command for compatibility", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-wt-hooks-"));
+    const configPath = join(root, "config.toml");
+
+    const plan = await planWorktrunkHooks({
+      worktrunkConfigPath: configPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+      wosmBin: "/usr/local/bin/wosm",
+    });
+
+    expect(plan.commands["post-create"]).toBe(
+      "/usr/local/bin/wosm --config /tmp/wosm/config.toml hook worktrunk post-create",
+    );
   });
 
   it("maps invalid hook config TOML to a typed setup error", async () => {

@@ -15,6 +15,7 @@ export type WorktrunkHookName = (typeof WORKTRUNK_HOOK_NAMES)[number];
 export type WorktrunkHookPlanOptions = {
   worktrunkConfigPath?: string;
   wosmConfigPath?: string;
+  hookBin?: string;
   wosmBin?: string;
   env?: NodeJS.ProcessEnv;
   homeDir?: string;
@@ -199,16 +200,17 @@ export function resolveWorktrunkConfigPath(options: WorktrunkHookPlanOptions = {
 }
 
 export function expectedWorktrunkHookCommands(
-  options: Pick<WorktrunkHookPlanOptions, "wosmConfigPath" | "wosmBin"> = {},
+  options: Pick<WorktrunkHookPlanOptions, "wosmConfigPath" | "hookBin" | "wosmBin"> = {},
 ): Record<WorktrunkHookName, string> {
-  const wosmBin = options.wosmBin ?? "wosm";
+  const legacyWosmBin = options.wosmBin;
+  const hookBin = legacyWosmBin ?? options.hookBin ?? "wosm-hook";
   return Object.fromEntries(
     WORKTRUNK_HOOK_NAMES.map((hookName) => [
       hookName,
       commandLine([
-        wosmBin,
+        hookBin,
         ...(options.wosmConfigPath === undefined ? [] : ["--config", options.wosmConfigPath]),
-        "hook",
+        ...(legacyWosmBin === undefined ? [] : ["hook"]),
         "worktrunk",
         hookName,
       ]),

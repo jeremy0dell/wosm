@@ -18,6 +18,8 @@ describe("CLI Worktrunk hook commands", () => {
       "plan",
       "--worktrunk-config",
       worktrunkConfigPath,
+      "--hook-bin",
+      "/opt/wosm-hook",
     ]);
 
     expect(result).toMatchObject({
@@ -26,6 +28,9 @@ describe("CLI Worktrunk hook commands", () => {
         provider: "worktrunk",
         changed: true,
         configPath: worktrunkConfigPath,
+        commands: {
+          "post-create": `/opt/wosm-hook --config ${configPath} worktrunk post-create`,
+        },
       },
     });
     await expect(readFile(worktrunkConfigPath, "utf8")).rejects.toThrow();

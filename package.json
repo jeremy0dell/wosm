@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "bin": {
-    "wosm": "./bin/wosm"
+    "wosm": "./bin/wosm",
+    "wosm-hook": "./bin/wosm-hook"
   },
   "packageManager": "pnpm@11.0.0",
   "engines": {
@@ -20,6 +21,7 @@
     "agent:reset": "node scripts/agent-reset.mjs",
     "agent:reset:run": "node scripts/agent-reset.mjs --yes",
     "wosm": "bin/wosm",
+    "wosm-hook": "bin/wosm-hook",
     "wosm:link": "pnpm link --global",
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",

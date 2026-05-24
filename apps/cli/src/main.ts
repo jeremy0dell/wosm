@@ -107,7 +107,7 @@ export async function runCli(
     const stdin = options.stdin ?? (await readStdinIfAvailable());
     const result = await runHookCommand(
       commandArgs,
-      { config, stdin, env: options.env },
+      { config, configPath: resolvedConfigPath, stdin, env: options.env },
       options.hookDeps,
     );
     return { code: result.status === "rejected" ? 1 : 0, output: result };

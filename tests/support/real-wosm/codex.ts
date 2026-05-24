@@ -110,8 +110,8 @@ export async function installCodexHookProjectConfig(input: {
       hookConfigPath,
       "--hook-script",
       hookScriptPath,
-      "--wosm-bin",
-      input.env.wosmBin,
+      "--hook-bin",
+      input.env.wosmHookBin,
     ],
     timeoutMs: 30_000,
   });
