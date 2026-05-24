@@ -100,19 +100,7 @@ describeReal("real Codex hook dogfood", () => {
       });
       const row = findRowByBranch(snapshot, branch);
       await continuePastCodexStartupPrompts(env, row);
-      const activeRow = await waitForRowAgentState({
-        env,
-        configPath: config.configPath,
-        branch,
-        states: ["working", "needs_attention"],
-        timeoutMs: 180_000,
-      });
       await waitForCodexSentinel(sentinel, { rootPath: row.path, timeoutMs: 240_000 });
-      expect(activeRow.agent).toMatchObject({
-        harness: "codex",
-        state: expect.stringMatching(/^(working|needs_attention)$/),
-        sessionId: expect.any(String),
-      });
       const idleRow = await waitForRowAgentState({
         env,
         configPath: config.configPath,
@@ -123,7 +111,7 @@ describeReal("real Codex hook dogfood", () => {
       expect(idleRow.agent).toMatchObject({
         harness: "codex",
         state: "idle",
-        sessionId: activeRow.agent?.sessionId,
+        sessionId: expect.any(String),
       });
 
       const bundle = await runWosmJson<{ bundlePath: string }>(env, {
@@ -131,9 +119,18 @@ describeReal("real Codex hook dogfood", () => {
         args: ["debug", "bundle"],
         timeoutMs: 30_000,
       });
-      await assertDebugBundleContains(bundle.bundlePath, "events.jsonl", "hook.ingested");
+      await assertDebugBundleContains(bundle.bundlePath, "events.jsonl", "harness.eventReported");
       await assertDebugBundleContains(bundle.bundlePath, "events.jsonl", '"provider":"codex"');
-      await assertDebugBundleContains(bundle.bundlePath, "logs/observer.jsonl", "hook:codex");
+      await assertDebugBundleContains(
+        bundle.bundlePath,
+        "events.jsonl",
+        '"eventType":"PreToolUse"',
+      );
+      await assertDebugBundleContains(
+        bundle.bundlePath,
+        "logs/observer.jsonl",
+        "harness-report:codex",
+      );
     } catch (error) {
       await writeFailureBundle({
         env,

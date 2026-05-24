@@ -169,6 +169,81 @@ describe("observer diagnostics collector", () => {
     expect(snapshot.logs[0]?.attributes).toMatchObject({ commandId: "cmd_match" });
     sqlite.close();
   });
+
+  it("includes uncorrelated hook report events in unfiltered diagnostics", async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-diag-events-"));
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({
+      path: join(stateDir, "observer.sqlite"),
+      clock,
+    });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const providers = new ProviderRegistry({
+      worktree: new ProviderDiagnosticWorktreeProvider({ now }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
+    const core = createObserverCore({
+      config,
+      providers,
+      persistence,
+      sqlite,
+      clock,
+    });
+    await persistence.recordCommandAccepted({
+      commandId: "cmd_match",
+      command: { type: "observer.reconcile", payload: { reason: "match" } },
+      createdAt: now,
+      traceId: "trc_match",
+      spanId: "spn_match",
+    });
+    await persistence.recordEvent(
+      {
+        type: "harness.eventReported",
+        at: now,
+        reportId: "hook_report_1",
+        provider: "codex",
+        eventType: "PreToolUse",
+      },
+      { source: "hook", createdAt: now },
+    );
+
+    const unfiltered = await collectDiagnosticSnapshot({
+      config,
+      core,
+      persistence,
+      providers,
+      paths: { stateDir },
+      clock,
+    });
+    const commandFiltered = await collectDiagnosticSnapshot(
+      {
+        config,
+        core,
+        persistence,
+        providers,
+        paths: { stateDir },
+        clock,
+      },
+      { commandId: "cmd_match" },
+    );
+
+    expect(unfiltered.events).toContainEqual(
+      expect.objectContaining({
+        type: "harness.eventReported",
+        provider: "codex",
+        eventType: "PreToolUse",
+      }),
+    );
+    expect(commandFiltered.events).not.toContainEqual(
+      expect.objectContaining({ type: "harness.eventReported" }),
+    );
+    sqlite.close();
+  });
 });
 
 class ProviderDiagnosticWorktreeProvider extends FakeWorktreeProvider {

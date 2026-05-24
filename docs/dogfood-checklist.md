@@ -33,7 +33,7 @@ Confirm:
 
 - Observer starts, reports status, reconciles, snapshots, writes a debug bundle, and stops.
 - `session.create` creates a real Worktrunk worktree, opens a real tmux target in the background, launches Codex, and writes the sentinel file.
-- A real project-local Codex hook fires from the launched Codex process, calls `wosm hook codex ...`, and appears in observer `events.jsonl` as `hook.ingested` for provider `codex`.
+- A real project-local Codex hook fires from the launched Codex process, calls `wosm hook codex ...`, and appears in observer `events.jsonl` as `harness.eventReported` for provider `codex`.
 - `session.startAgent` works on an existing Worktrunk worktree without stealing focus from the TUI.
 - `terminal.focus`, TUI Enter/numeric focus, close, and remove commands route through observer commands.
 - Popup navigation opens the real TUI in a tmux popup over a wosm-created Codex agent pane, then slot activation exits the popup onto that same agent pane.

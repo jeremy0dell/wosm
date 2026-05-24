@@ -68,6 +68,7 @@ describe("Codex hook setup", () => {
     expect(config).toContain(hookScriptPath);
     expect(script).toContain("hook codex");
     expect(script).toContain("--config /tmp/wosm/config.toml");
+    expect(script).toContain('"$event" < "$payload_file" > /dev/null');
     expect(scriptMode).toBe(0o700);
     await expect(
       doctorCodexHooks({

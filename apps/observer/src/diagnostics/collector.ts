@@ -76,19 +76,20 @@ export async function collectDiagnosticSnapshot(
   const latestFailure = options?.latestFailure === true ? latestFailedCommand(commands) : undefined;
   const commandIdFilter = options?.commandId ?? latestFailure?.id;
   const traceIdFilter = options?.traceId ?? latestFailure?.traceId;
+  const hasCommandFilter = commandIdFilter !== undefined || traceIdFilter !== undefined;
   const filteredCommands = filterCommands(commands, {
     commandId: commandIdFilter,
     traceId: traceIdFilter,
   });
   const commandIds = new Set<string>();
   if (commandIdFilter !== undefined) commandIds.add(commandIdFilter);
-  for (const command of filteredCommands) {
-    commandIds.add(command.id);
-  }
   const traceIds = new Set<string>();
   if (traceIdFilter !== undefined) traceIds.add(traceIdFilter);
-  for (const command of filteredCommands) {
-    if (command.traceId !== undefined) traceIds.add(command.traceId);
+  if (hasCommandFilter) {
+    for (const command of filteredCommands) {
+      commandIds.add(command.id);
+      if (command.traceId !== undefined) traceIds.add(command.traceId);
+    }
   }
   const eventFilter: { commandId?: string } = {};
   if (commandIdFilter !== undefined) {

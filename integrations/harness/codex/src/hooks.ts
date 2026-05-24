@@ -281,7 +281,7 @@ export function expectedCodexHookScript(input: {
     "trap 'rm -f \"$payload_file\"' EXIT",
     'cat > "$payload_file"',
     'event="$(/usr/bin/env node -e \'const fs = require("node:fs"); const input = fs.readFileSync(process.argv[1], "utf8"); const payload = JSON.parse(input); if (typeof payload.hook_event_name !== "string" || payload.hook_event_name.length === 0) { throw new Error("missing hook_event_name"); } process.stdout.write(payload.hook_event_name);\' "$payload_file")"',
-    `${commandLine(wosmArgs)} "$event" < "$payload_file"`,
+    `${commandLine(wosmArgs)} "$event" < "$payload_file" > /dev/null`,
     "",
   ].join("\n");
 }

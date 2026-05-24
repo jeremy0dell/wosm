@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { RealDogfoodEnvironment } from "./env";
@@ -198,21 +198,7 @@ async function linkCodexUserFile(codexHome: string, fileName: string): Promise<v
 }
 
 async function ensureCodexConfigFile(codexHome: string): Promise<void> {
-  const copied = await copyCodexUserFile(codexHome, "config.toml");
-  if (!copied) {
-    await writeFile(join(codexHome, "config.toml"), "[features]\nhooks = true\n", "utf8");
-  }
-}
-
-async function copyCodexUserFile(codexHome: string, fileName: string): Promise<boolean> {
-  const source = join(homedir(), ".codex", fileName);
-  try {
-    await access(source);
-  } catch {
-    return false;
-  }
-  await copyFile(source, join(codexHome, fileName));
-  return true;
+  await writeFile(join(codexHome, "config.toml"), "[features]\nhooks = true\n", "utf8");
 }
 
 async function delay(ms: number): Promise<void> {
