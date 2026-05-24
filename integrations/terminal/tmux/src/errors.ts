@@ -106,10 +106,20 @@ export function tmuxProviderErrorFromUnknown(
 
   const safeError = tmuxSafeError(error, fallback);
   const hint = safeError.hint ?? fallback.hint;
-  return new TmuxTerminalProviderError(fallback.code, safeError.message, {
+  const message = isGenericExternalCommandFailure(safeError) ? fallback.message : safeError.message;
+  return new TmuxTerminalProviderError(fallback.code, message, {
     cause: error,
     ...(hint === undefined ? {} : { hint }),
   });
+}
+
+function isGenericExternalCommandFailure(error: SafeError): boolean {
+  return (
+    error.tag === "ExternalCommandError" &&
+    (error.code === "EXTERNAL_COMMAND_FAILED" ||
+      error.code === "EXTERNAL_COMMAND_TIMEOUT" ||
+      error.code === "EXTERNAL_COMMAND_ABORTED")
+  );
 }
 
 function isMissingBinary(error: unknown): boolean {

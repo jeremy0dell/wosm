@@ -13,6 +13,8 @@ describe("tmux target parser", () => {
           "@1",
           "%2",
           "1",
+          "0",
+          "",
           "/tmp/wosm/web/feature",
           "12345",
           "codex",
@@ -49,13 +51,30 @@ describe("tmux target parser", () => {
         harness: "codex",
         currentCommand: "codex",
         attached: true,
+        dead: false,
       },
     });
   });
 
   it("keeps unbound panes low-confidence and provider-specific", () => {
     const targets = parseTmuxTargetLines(
-      ["wosm", "@1", "%3", "0", "/tmp/random", "", "zsh", "scratch", "", "", "", "", ""].join("\t"),
+      [
+        "wosm",
+        "@1",
+        "%3",
+        "0",
+        "0",
+        "",
+        "/tmp/random",
+        "",
+        "zsh",
+        "scratch",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ].join("\t"),
       { observedAt: now },
     );
 
@@ -71,8 +90,46 @@ describe("tmux target parser", () => {
           paneId: "%3",
           currentCommand: "zsh",
           attached: false,
+          dead: false,
         }),
       }),
     ]);
+  });
+
+  it("marks dead tmux panes as stale targets", () => {
+    const targets = parseTmuxTargetLines(
+      [
+        [
+          "wosm",
+          "@1",
+          "%4",
+          "1",
+          "1",
+          "0",
+          "",
+          "",
+          "codex",
+          "web-feature",
+          "ses_web_feature",
+          "web",
+          "wt_web_feature",
+          "main-agent",
+          "codex",
+        ].join("\t"),
+      ].join("\n"),
+      { observedAt: now },
+    );
+
+    expect(TerminalTargetObservationSchema.parse(targets[0])).toEqual(targets[0]);
+    expect(targets[0]).toMatchObject({
+      id: "tmux:wosm:@1:%4",
+      state: "stale",
+      confidence: "high",
+      reason: "tmux pane has wosm identity binding but is dead.",
+      providerData: {
+        dead: true,
+        deadStatus: "0",
+      },
+    });
   });
 });

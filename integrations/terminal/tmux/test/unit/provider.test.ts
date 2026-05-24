@@ -182,6 +182,8 @@ describe("TmuxProvider", () => {
             "@1",
             "%2",
             "1",
+            "0",
+            "",
             "/tmp/wosm/web/feature",
             "12345",
             "codex",

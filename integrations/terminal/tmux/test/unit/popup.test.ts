@@ -101,6 +101,27 @@ describe("tmux popup", () => {
     ).resolves.toEqual({ opened: true });
   });
 
+  it("reports popup failures with the provider-specific message", async () => {
+    await expect(
+      openTmuxPopup({
+        env: {},
+        runner: async (input) => {
+          if (input.args?.[0] === "display-popup") {
+            throw Object.assign(new Error("tmux failed"), {
+              code: 1,
+              stderr: "display-popup failed",
+            });
+          }
+          return result(input);
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "TERMINAL_OPEN_FAILED",
+      message: "tmux failed to open the wosm popup.",
+      provider: "tmux",
+    });
+  });
+
   it("uses the focus client id from the environment for tmux key bindings", async () => {
     const calls: ExternalCommandInput[] = [];
 

@@ -6,6 +6,8 @@ export const tmuxListTargetsFormat = [
   "#{window_id}",
   "#{pane_id}",
   "#{session_attached}",
+  "#{pane_dead}",
+  "#{pane_dead_status}",
   "#{pane_current_path}",
   "#{pane_pid}",
   "#{pane_current_command}",
@@ -42,6 +44,8 @@ function parseTmuxTargetLine(
     windowId = "",
     paneId = "",
     attached = "0",
+    paneDead = "0",
+    paneDeadStatus = "",
     cwd = "",
     pid = "",
     currentCommand = "",
@@ -53,6 +57,7 @@ function parseTmuxTargetLine(
     harness = "",
   ] = line.split("\t");
   const hasBinding = projectId.length > 0 && worktreeId.length > 0 && role === "main-agent";
+  const isDead = paneDead === "1";
   const parsedPid = parsePositiveInteger(pid);
   const providerData: Record<string, unknown> = {
     sessionId,
@@ -61,7 +66,11 @@ function parseTmuxTargetLine(
     role,
     harness,
     attached: attached === "1",
+    dead: isDead,
   };
+  if (paneDeadStatus.length > 0) {
+    providerData.deadStatus = paneDeadStatus;
+  }
   if (currentCommand.length > 0) {
     providerData.currentCommand = currentCommand;
   }
@@ -72,17 +81,27 @@ function parseTmuxTargetLine(
     ...(projectId.length === 0 ? {} : { projectId }),
     ...(worktreeId.length === 0 ? {} : { worktreeId }),
     ...(wosmSessionId.length === 0 ? {} : { sessionId: wosmSessionId }),
-    state: attached === "1" ? "open" : "detached",
+    state: isDead ? "stale" : attached === "1" ? "open" : "detached",
     ...(cwd.length === 0 ? {} : { cwd }),
     ...(parsedPid === undefined ? {} : { pid: parsedPid }),
     ...(title.length === 0 ? {} : { title }),
     confidence: hasBinding ? "high" : "low",
-    reason: hasBinding
-      ? "tmux pane has wosm identity binding."
-      : "tmux pane is missing wosm identity binding.",
+    reason: targetReason({ hasBinding, isDead }),
     observedAt: options.observedAt,
     providerData,
   };
+}
+
+function targetReason(input: { hasBinding: boolean; isDead: boolean }): string {
+  if (input.isDead && input.hasBinding) {
+    return "tmux pane has wosm identity binding but is dead.";
+  }
+  if (input.isDead) {
+    return "tmux pane is dead and missing wosm identity binding.";
+  }
+  return input.hasBinding
+    ? "tmux pane has wosm identity binding."
+    : "tmux pane is missing wosm identity binding.";
 }
 
 function parsePositiveInteger(value: string): number | undefined {
