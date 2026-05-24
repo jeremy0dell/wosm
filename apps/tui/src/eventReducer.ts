@@ -32,7 +32,7 @@ export function applyWosmEvent(snapshot: WosmSnapshot, event: WosmEvent): TuiEve
   if (event.type === "worktree.agentStateChanged") {
     return withSnapshot(snapshot, {
       rows: snapshot.rows.map((row) =>
-        row.id === event.worktreeId ? mergeRowPatch(row, { agent: event.agent }) : row,
+        row.id === event.worktreeId ? mergeRowPatch(row, rowPatchForAgentState(event.agent)) : row,
       ),
     });
   }
@@ -135,6 +135,79 @@ function mergeRowPatch(row: WorktreeRow, patch: OptionalPatch<WorktreeRow>): Wor
   }
   if (patch.display !== undefined) next.display = { ...row.display, ...patch.display };
   return next;
+}
+
+function rowPatchForAgentState(agent: WorktreeRow["agent"]): OptionalPatch<WorktreeRow> {
+  if (agent === undefined) {
+    return {
+      agent,
+      display: {
+        statusLabel: "no agent",
+        sortPriority: 70,
+        alert: false,
+        reason: "No harness run is associated with this worktree.",
+      },
+    };
+  }
+
+  const display = displayForAgent(agent);
+  return {
+    agent,
+    display,
+  };
+}
+
+function displayForAgent(agent: NonNullable<WorktreeRow["agent"]>): WorktreeRow["display"] {
+  if (agent.state === "needs_attention") {
+    return {
+      statusLabel: "needs attention",
+      sortPriority: 10,
+      alert: true,
+      reason: agent.reason,
+    };
+  }
+  if (agent.state === "stuck") {
+    return {
+      statusLabel: "stuck",
+      sortPriority: 20,
+      alert: true,
+      warning: true,
+      reason: agent.reason,
+    };
+  }
+  if (agent.state === "working") {
+    return {
+      statusLabel: "working",
+      sortPriority: 30,
+      alert: false,
+    };
+  }
+  if (agent.state === "starting") {
+    return {
+      statusLabel: "starting",
+      sortPriority: 35,
+      alert: false,
+    };
+  }
+  if (agent.state === "idle") {
+    return {
+      statusLabel: "idle",
+      sortPriority: 40,
+      alert: false,
+    };
+  }
+  if (agent.state === "exited") {
+    return {
+      statusLabel: "exited",
+      sortPriority: 60,
+      alert: false,
+    };
+  }
+  return {
+    statusLabel: "unknown",
+    sortPriority: 50,
+    alert: false,
+  };
 }
 
 function mergeSessionPatch(session: SessionView, patch: OptionalPatch<SessionView>): SessionView {

@@ -18,7 +18,7 @@ import type {
   WosmEvent,
   WosmSnapshot,
 } from "@wosm/contracts";
-import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { HarnessEventReportReceiptSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import type { ObserverApi as ProtocolObserverApi } from "@wosm/protocol";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
@@ -160,8 +160,50 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     reconcile: runReconcile,
     ingestHookEvent: (event: ProviderHookEvent): Promise<HookReceipt> =>
       hookIngestion.ingest(event),
-    reportHarnessEvent: (report: HarnessEventReport): Promise<HarnessEventReportReceipt> =>
-      harnessEventReportIngestion.ingest(report),
+    reportHarnessEvent: async (report: HarnessEventReport): Promise<HarnessEventReportReceipt> => {
+      const receipt = await harnessEventReportIngestion.ingest(report, {
+        triggerReconcile: false,
+      });
+      if (!receipt.accepted || receipt.deduped === true) {
+        return receipt;
+      }
+      const projection = await runRuntimeBoundary(
+        {
+          operation: "observer.harnessEventReport.projectStatus",
+          clock,
+          error: {
+            tag: "StatusProjectionError",
+            code: "STATUS_PROJECTION_FAILED",
+            message: "Observer could not project the harness event status.",
+            provider: report.provider,
+          },
+        },
+        () => options.core.projectHarnessEventStatus(report),
+      );
+      if (!projection.ok) {
+        await options.logger?.error("Harness event status projection failed.", {
+          provider: report.provider,
+          reportId: report.reportId,
+          error: projection.error,
+        });
+        reconcileScheduler.request(`harness-report:${report.provider}:${report.eventType}`);
+        return HarnessEventReportReceiptSchema.parse({
+          ...receipt,
+          projected: false,
+          scheduledReconcile: true,
+          error: projection.error,
+        });
+      }
+      for (const event of projection.value.events) {
+        options.eventBus.publish(event);
+      }
+      reconcileScheduler.request(`harness-report:${report.provider}:${report.eventType}`);
+      return HarnessEventReportReceiptSchema.parse({
+        ...receipt,
+        projected: projection.value.projected,
+        scheduledReconcile: true,
+      });
+    },
   };
 
   async function runReconcile(reason = "manual"): Promise<ReconcileReceipt> {

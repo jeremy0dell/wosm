@@ -40,6 +40,31 @@ describe("TUI event reducer", () => {
     expect(removed.snapshot.rows.map((candidate) => candidate.id)).not.toContain("wt_web_added");
   });
 
+  it("updates row display from live agent state events", () => {
+    const snapshot = createCommandSnapshot("idle");
+    const result = applyWosmEvent(snapshot, {
+      type: "worktree.agentStateChanged",
+      worktreeId: "wt_web_idle",
+      agent: {
+        harness: "codex",
+        state: "needs_attention",
+        runId: "run_wt_web_idle",
+        sessionId: "ses_wt_web_idle",
+        confidence: "high",
+        reason: "Codex requested permission.",
+        updatedAt: fixtureNow,
+      },
+    });
+
+    expect(result.needsSnapshotRefresh).toBe(false);
+    expect(result.snapshot.rows[0]?.agent?.state).toBe("needs_attention");
+    expect(result.snapshot.rows[0]?.display).toMatchObject({
+      statusLabel: "needs attention",
+      alert: true,
+      reason: "Codex requested permission.",
+    });
+  });
+
   it("turns command failures into safe diagnostic toasts", () => {
     const snapshot = createCommandSnapshot("idle");
     const result = applyWosmEvent(snapshot, {

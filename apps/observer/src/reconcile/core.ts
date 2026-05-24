@@ -1,5 +1,6 @@
 import type { WosmConfig } from "@wosm/config";
 import type {
+  HarnessEventReport,
   ProviderHealth,
   ProviderProjectConfig,
   SafeError,
@@ -13,6 +14,10 @@ import { providerObservationRetentionDays } from "../persistence/retention.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverSqliteHandle, ObserverSqliteHealth } from "../sqlite.js";
 import { buildInitialSnapshot, type ProviderReadOptions, runReconcileOnce } from "./run.js";
+import {
+  projectHarnessEventReportOntoSnapshot,
+  type StatusProjectionResult,
+} from "./statusProjection.js";
 
 export type ReconcileTiming = {
   reason: string;
@@ -37,6 +42,7 @@ export type ObserverCoreHealth = {
 
 export type ObserverCore = {
   reconcile(reason?: string): Promise<WosmSnapshot>;
+  projectHarnessEventStatus(report: HarnessEventReport): Promise<StatusProjectionResult>;
   getSnapshot(): WosmSnapshot;
   getHealth(): ObserverCoreHealth;
 };
@@ -103,6 +109,17 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
       const execution = previous.then(run);
       reconcileChain = execution.catch(() => undefined).then(() => undefined);
       return execution;
+    },
+    projectHarnessEventStatus: async (report) => {
+      const result = projectHarnessEventReportOntoSnapshot({
+        snapshot,
+        report,
+        projectedAt: toIsoTimestamp(clock.now()),
+      });
+      if (result.projected) {
+        snapshot = result.snapshot;
+      }
+      return result;
     },
     getSnapshot: () => snapshot,
     getHealth: () => ({

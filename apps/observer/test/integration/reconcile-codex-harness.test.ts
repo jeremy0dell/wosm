@@ -126,6 +126,9 @@ describe("observer reconcile with Codex harness", () => {
       hookReconcileDebounceMs: 0,
     });
     await core.reconcile("initial-codex-context");
+    const stateEvents = eventBus
+      .subscribe({ type: ["worktree.agentStateChanged", "session.updated"] })
+      [Symbol.asyncIterator]();
 
     const compacted = compactCodexHookPayload({
       session_id: "codex_session_123",
@@ -157,13 +160,42 @@ describe("observer reconcile with Codex harness", () => {
 
     expect(receipt).toMatchObject({
       status: "accepted",
-      projected: false,
+      projected: true,
       scheduledReconcile: true,
+    });
+    expect(core.getSnapshot().rows[0]?.agent).toMatchObject({
+      harness: "codex",
+      state: "working",
+      confidence: "medium",
+      sessionId: "ses_web_task",
+      updatedAt: "2026-05-21T12:00:01.000Z",
+    });
+    await expect(stateEvents.next()).resolves.toMatchObject({
+      value: {
+        type: "worktree.agentStateChanged",
+        worktreeId: "wt_web_task",
+        agent: expect.objectContaining({
+          state: "working",
+        }),
+      },
+    });
+    await expect(stateEvents.next()).resolves.toMatchObject({
+      value: {
+        type: "session.updated",
+        sessionId: "ses_web_task",
+        patch: expect.objectContaining({
+          status: expect.objectContaining({
+            value: "working",
+            source: "harness_hook",
+          }),
+        }),
+      },
     });
     await expect(reconciled.next).resolves.toMatchObject({
       value: { type: "observer.reconciled" },
     });
     await reconciled.close();
+    await stateEvents.return?.();
     const snapshot = core.getSnapshot();
     expect(snapshot.rows[0]?.agent).toMatchObject({
       harness: "codex",
