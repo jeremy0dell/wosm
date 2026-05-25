@@ -9,7 +9,7 @@ import {
 import { type ObserverPaths, resolveObserverPaths } from "../paths.js";
 
 export type PopupCommandDeps = Partial<
-  Pick<TmuxPopupOptions, "enterWorkbench" | "env" | "runner" | "tuiCommand">
+  Pick<TmuxPopupOptions, "enterWorkbench" | "env" | "runner" | "tuiCommand" | "uiSessionName">
 > & {
   observer?: ObserverProcessDeps;
   openTmuxPopup?: (options: TmuxPopupOptions) => Promise<TmuxPopupResult>;
@@ -24,6 +24,7 @@ export type PopupCommandOptions = {
   env?: TmuxPopupOptions["env"] | undefined;
   observer?: ObserverProcessDeps | undefined;
   tuiCommand?: TmuxPopupOptions["tuiCommand"] | undefined;
+  uiSessionName?: TmuxPopupOptions["uiSessionName"] | undefined;
 };
 
 export type PopupCommandUnavailableResult = {
@@ -53,6 +54,7 @@ export async function runPopupCommand(
   const enterWorkbench = options.enterWorkbench ?? deps.enterWorkbench ?? false;
   const env = options.env ?? deps.env;
   const tuiCommand = options.tuiCommand ?? deps.tuiCommand;
+  const uiSessionName = options.uiSessionName ?? deps.uiSessionName;
   const observer = await reconcileBeforePopup(options, options.observer ?? deps.observer);
   if (observer !== undefined) {
     return observer;
@@ -67,6 +69,7 @@ export async function runPopupCommand(
     ...(env === undefined ? {} : { env }),
     ...(runner === undefined ? {} : { runner }),
     ...(tuiCommand === undefined ? {} : { tuiCommand }),
+    ...(uiSessionName === undefined ? {} : { uiSessionName }),
   });
 }
 

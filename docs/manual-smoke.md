@@ -151,6 +151,18 @@ wosm
 
 Outside tmux, no subcommand defaults to the full TUI. `wosm tui` always opens the full TUI explicitly. TUI startup performs one observer reconcile with reason `tui-startup` before rendering, so the first screen is based on a fresh snapshot.
 
+For TUI development, use the same command routing with a reloadable dev TUI:
+
+```bash
+pnpm wosm:tui-dev
+```
+
+This performs an initial build, keeps a Turbo build watcher running in the background, and runs
+normal `wosm` placement with a watch-mode TUI command. Outside tmux it opens the full TUI in the
+current terminal. Inside tmux it uses the normal popup path, but the persistent UI process runs under
+Node watch mode so changes to rebuilt TUI code reload in place. Build watcher output is written to
+`.turbo/tui-dev-build.log`.
+
 Background-first create/start should keep the dashboard as the cockpit:
 
 ```text
