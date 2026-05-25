@@ -356,13 +356,13 @@ function buildPopupCleanupScript(options: TmuxPopupState): string {
   const commands = [
     `if [ "$(${tmuxCommand} show-options -gqv ${optionName} 2>/dev/null)" = ${clientId} ]; then`,
     `${tmuxCommand} set-option -gq -u ${optionName};`,
-    "fi",
+    "fi;",
   ];
   if (focusOptionName !== undefined) {
     commands.push(
       `if [ "$(${tmuxCommand} show-options -gqv ${focusOptionName} 2>/dev/null)" = ${clientId} ]; then`,
       `${tmuxCommand} set-option -gq -u ${focusOptionName};`,
-      "fi",
+      "fi;",
     );
   }
   return commands.join(" ");

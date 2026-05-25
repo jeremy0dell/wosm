@@ -186,6 +186,10 @@ describe("tmux popup", () => {
         expect.stringContaining("env -u TMUX tmux attach-session -t _wosm-ui"),
       ],
     ]);
+    const displayPopupArgs = calls.at(-1)?.args;
+    const popupShellCommand = displayPopupArgs?.[displayPopupArgs.length - 1];
+    expect(popupShellCommand).toContain("fi; if");
+    expect(popupShellCommand).not.toContain("fi if");
   });
 
   it("closes an active popup for the current client without killing the UI session", async () => {

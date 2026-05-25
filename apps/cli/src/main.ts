@@ -127,7 +127,11 @@ export async function runCli(
 
   if (command === "popup") {
     const popupEnv = options.popupDeps?.env ?? options.env;
-    const tuiCommand = options.popupDeps?.tuiCommand ?? defaultPopupTuiCommand(resolvedConfigPath);
+    const defaultPopupEnv = popupEnv ?? process.env;
+    const tuiCommand =
+      options.popupDeps?.tuiCommand ?? defaultPopupTuiCommand(resolvedConfigPath, defaultPopupEnv);
+    const uiSessionName =
+      options.popupDeps?.uiSessionName ?? popupUiSessionNameFromEnv(defaultPopupEnv);
     const popupDeps: PopupCommandDeps = {};
     if (options.popupDeps !== undefined) {
       Object.assign(popupDeps, options.popupDeps);
@@ -142,6 +146,7 @@ export async function runCli(
         configPath: resolvedConfigPath,
         tuiCommand,
         ...(popupEnv === undefined ? {} : { env: popupEnv }),
+        ...(uiSessionName === undefined ? {} : { uiSessionName }),
       },
       popupDeps,
     );
@@ -228,13 +233,33 @@ function defaultCommandEnv(options: CliRunOptions): Record<string, string | unde
   return options.env ?? options.popupDeps?.env ?? options.tuiDeps?.env ?? process.env;
 }
 
-function defaultPopupTuiCommand(configPath: string | undefined): string {
-  const parts = [shellQuote(process.execPath), shellQuote(fileURLToPath(import.meta.url))];
+function defaultPopupTuiCommand(
+  configPath: string | undefined,
+  env: Record<string, string | undefined> | undefined,
+): string {
+  const command = nonEmptyString(env?.WOSM_TUI_COMMAND);
+  const parts =
+    command === undefined
+      ? [shellQuote(process.execPath), shellQuote(fileURLToPath(import.meta.url))]
+      : [command];
   if (configPath !== undefined) {
     parts.push("--config", shellQuote(configPath));
   }
   parts.push("tui", "--popup", "--persistent");
   return parts.join(" ");
+}
+
+function popupUiSessionNameFromEnv(
+  env: Record<string, string | undefined> | undefined,
+): string | undefined {
+  return nonEmptyString(env?.WOSM_TUI_SESSION_NAME);
+}
+
+function nonEmptyString(value: string | undefined): string | undefined {
+  if (value === undefined || value.length === 0) {
+    return undefined;
+  }
+  return value;
 }
 
 function shellQuote(value: string): string {

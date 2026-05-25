@@ -127,6 +127,93 @@ describe("CLI popup command", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("uses the configured TUI command and UI session name for dev popup placement", async () => {
+    const fixture = await createTempState();
+    fixture.config.defaults.terminal = "tmux";
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const calls: TmuxPopupOptions[] = [];
+    const reconciles: string[] = [];
+
+    await expect(
+      runCli(["--config", configPath], {
+        observerDeps: runningObserverDeps(reconciles),
+        popupDeps: {
+          env: {
+            TMUX: "/tmp/tmux-501/default,123,0",
+            WOSM_TUI_COMMAND: "node --watch --watch-preserve-output apps/cli/dist/main.js",
+            WOSM_TUI_SESSION_NAME: "_wosm-ui-dev",
+          },
+          openTmuxPopup: async (options) => {
+            calls.push(options);
+            return { opened: true };
+          },
+        },
+      }),
+    ).resolves.toEqual({
+      code: 0,
+      output: { opened: true },
+    });
+
+    expect(reconciles).toEqual(["popup-open"]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.tuiCommand).toBe(
+      [
+        "node --watch --watch-preserve-output apps/cli/dist/main.js",
+        "--config",
+        shellQuote(configPath),
+        "tui",
+        "--popup",
+        "--persistent",
+      ].join(" "),
+    );
+    expect(calls[0]?.uiSessionName).toBe("_wosm-ui-dev");
+  });
+
+  it("reads the dev TUI command from the real process environment", async () => {
+    const fixture = await createTempState();
+    fixture.config.defaults.terminal = "tmux";
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const calls: TmuxPopupOptions[] = [];
+    const reconciles: string[] = [];
+    const previousCommand = process.env.WOSM_TUI_COMMAND;
+    const previousSessionName = process.env.WOSM_TUI_SESSION_NAME;
+    process.env.WOSM_TUI_COMMAND = "node --watch apps/cli/dist/main.js";
+    process.env.WOSM_TUI_SESSION_NAME = "_wosm-ui-dev";
+    try {
+      await expect(
+        runCli(["--config", configPath, "popup"], {
+          observerDeps: runningObserverDeps(reconciles),
+          popupDeps: {
+            openTmuxPopup: async (options) => {
+              calls.push(options);
+              return { opened: true };
+            },
+          },
+        }),
+      ).resolves.toEqual({
+        code: 0,
+        output: { opened: true },
+      });
+    } finally {
+      if (previousCommand === undefined) {
+        delete process.env.WOSM_TUI_COMMAND;
+      } else {
+        process.env.WOSM_TUI_COMMAND = previousCommand;
+      }
+      if (previousSessionName === undefined) {
+        delete process.env.WOSM_TUI_SESSION_NAME;
+      } else {
+        process.env.WOSM_TUI_SESSION_NAME = previousSessionName;
+      }
+    }
+
+    expect(reconciles).toEqual(["popup-open"]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.tuiCommand).toContain("node --watch apps/cli/dist/main.js");
+    expect(calls[0]?.tuiCommand).toContain("tui --popup --persistent");
+    expect(calls[0]?.uiSessionName).toBe("_wosm-ui-dev");
+  });
+
   it("rejects popup when the configured terminal provider is not tmux", async () => {
     const fixture = await createTempState();
     fixture.config.defaults.terminal = "ghostty";
