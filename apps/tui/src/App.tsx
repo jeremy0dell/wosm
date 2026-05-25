@@ -8,7 +8,7 @@ import { ToastStack } from "./components/ToastStack.js";
 import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
 import { intentForDashboardKey } from "./keymap.js";
 import { selectNewSessionAvailability } from "./selectors.js";
-import { safeErrorToToast } from "./services/errors.js";
+import { safeErrorToToast, toSafeError } from "./services/errors.js";
 import type { TuiObserverService } from "./services/types.js";
 import {
   closePrompt,
@@ -27,6 +27,10 @@ export type AppProps = {
   initialUiState?: TuiUiState;
   exitOnFocusSuccess?: boolean;
   focusOrigin?: TerminalFocusOrigin;
+  resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
+  onFocusSuccess?: () => Promise<void>;
+  onDismiss?: () => Promise<void>;
+  persistentPopup?: boolean;
   onExit?: (code: number) => void;
 };
 
@@ -36,6 +40,10 @@ export function App({
   initialUiState,
   exitOnFocusSuccess = false,
   focusOrigin,
+  resolveFocusOrigin,
+  onFocusSuccess,
+  onDismiss,
+  persistentPopup = false,
   onExit,
 }: AppProps) {
   const promptValueRef = useRef("");
@@ -53,6 +61,10 @@ export function App({
     }
     if (dashboard.uiState.prompt !== undefined || promptModeRef.current !== undefined) {
       handlePromptInput({ input, key, dashboard, promptValueRef, promptModeRef });
+      return;
+    }
+    if (persistentPopup && onDismiss !== undefined && (input === "q" || key.escape === true)) {
+      void dismissPersistentPopup(onDismiss, dashboard);
       return;
     }
     if (input === "q") {
@@ -104,8 +116,26 @@ export function App({
       return;
     }
     if (intent.type === "command") {
-      if (exitOnFocusSuccess && intent.command.type === "terminal.focus") {
-        void dispatchFocusAndExitOnSuccess(intent.command, dashboard, onExit);
+      if (
+        shouldUseFocusLifecycle(intent.command, {
+          exitOnFocusSuccess,
+          persistentPopup,
+          ...(resolveFocusOrigin === undefined ? {} : { resolveFocusOrigin }),
+          ...(onFocusSuccess === undefined ? {} : { onFocusSuccess }),
+        })
+      ) {
+        void dispatchFocusWithLifecycle(
+          intent.command,
+          dashboard,
+          buildFocusLifecycleOptions({
+            exitOnFocusSuccess,
+            focusOrigin,
+            resolveFocusOrigin,
+            onFocusSuccess,
+            persistentPopup,
+            onExit,
+          }),
+        );
         return;
       }
       void dashboard.dispatchCommand(intent.command);
@@ -124,7 +154,11 @@ export function App({
 
   return (
     <Box flexDirection="column">
-      <Dashboard snapshot={dashboard.snapshot} uiState={dashboard.uiState} />
+      <Dashboard
+        snapshot={dashboard.snapshot}
+        uiState={dashboard.uiState}
+        quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
+      />
       <CommandPrompt prompt={dashboard.uiState.prompt} />
       <ToastStack toasts={dashboard.toasts} />
     </Box>
@@ -141,15 +175,128 @@ function dashboardKeyOptions(focusOrigin: TerminalFocusOrigin | undefined): {
   return options;
 }
 
-async function dispatchFocusAndExitOnSuccess(
+type FocusLifecyclePresence = {
+  exitOnFocusSuccess: boolean;
+  persistentPopup: boolean;
+  resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
+  onFocusSuccess?: () => Promise<void>;
+};
+
+type FocusLifecycleOptions = FocusLifecyclePresence & {
+  focusOrigin?: TerminalFocusOrigin;
+  onExit?: (code: number) => void;
+};
+
+function shouldUseFocusLifecycle(
   command: WosmCommand,
-  dashboard: ReturnType<typeof useObserverDashboard>,
-  onExit: ((code: number) => void) | undefined,
-): Promise<void> {
-  const succeeded = await dashboard.dispatchCommandAndWaitForCompletion(command);
-  if (succeeded) {
-    onExit?.(0);
+  options: FocusLifecyclePresence,
+): command is Extract<WosmCommand, { type: "terminal.focus" }> {
+  return (
+    command.type === "terminal.focus" &&
+    (options.exitOnFocusSuccess ||
+      options.persistentPopup ||
+      options.resolveFocusOrigin !== undefined ||
+      options.onFocusSuccess !== undefined)
+  );
+}
+
+function buildFocusLifecycleOptions(options: {
+  exitOnFocusSuccess: boolean;
+  focusOrigin: TerminalFocusOrigin | undefined;
+  resolveFocusOrigin: (() => Promise<TerminalFocusOrigin | undefined>) | undefined;
+  onFocusSuccess: (() => Promise<void>) | undefined;
+  persistentPopup: boolean;
+  onExit: ((code: number) => void) | undefined;
+}): FocusLifecycleOptions {
+  const built: FocusLifecycleOptions = {
+    exitOnFocusSuccess: options.exitOnFocusSuccess,
+    persistentPopup: options.persistentPopup,
+  };
+  if (options.focusOrigin !== undefined) {
+    built.focusOrigin = options.focusOrigin;
   }
+  if (options.resolveFocusOrigin !== undefined) {
+    built.resolveFocusOrigin = options.resolveFocusOrigin;
+  }
+  if (options.onFocusSuccess !== undefined) {
+    built.onFocusSuccess = options.onFocusSuccess;
+  }
+  if (options.onExit !== undefined) {
+    built.onExit = options.onExit;
+  }
+  return built;
+}
+
+async function dispatchFocusWithLifecycle(
+  command: Extract<WosmCommand, { type: "terminal.focus" }>,
+  dashboard: ReturnType<typeof useObserverDashboard>,
+  options: FocusLifecycleOptions,
+): Promise<void> {
+  let focusCommand: Extract<WosmCommand, { type: "terminal.focus" }>;
+  try {
+    focusCommand = await withResolvedFocusOrigin(command, options);
+  } catch (error: unknown) {
+    dashboard.addToast(safeErrorToToast(toSafeError(error)));
+    return;
+  }
+
+  const waitsForCompletion =
+    options.exitOnFocusSuccess || options.persistentPopup || options.onFocusSuccess !== undefined;
+  if (!waitsForCompletion) {
+    await dashboard.dispatchCommand(focusCommand);
+    return;
+  }
+
+  const succeeded = await dashboard.dispatchCommandAndWaitForCompletion(focusCommand);
+  if (!succeeded) {
+    return;
+  }
+
+  if (options.onFocusSuccess !== undefined) {
+    try {
+      await options.onFocusSuccess();
+    } catch (error: unknown) {
+      dashboard.addToast(safeErrorToToast(toSafeError(error)));
+    }
+  }
+
+  if (options.exitOnFocusSuccess && !options.persistentPopup) {
+    options.onExit?.(0);
+  }
+}
+
+async function dismissPersistentPopup(
+  onDismiss: () => Promise<void>,
+  dashboard: ReturnType<typeof useObserverDashboard>,
+): Promise<void> {
+  try {
+    await onDismiss();
+  } catch (error: unknown) {
+    dashboard.addToast(safeErrorToToast(toSafeError(error)));
+  }
+}
+
+async function withResolvedFocusOrigin(
+  command: Extract<WosmCommand, { type: "terminal.focus" }>,
+  options: Pick<FocusLifecycleOptions, "focusOrigin" | "resolveFocusOrigin">,
+): Promise<Extract<WosmCommand, { type: "terminal.focus" }>> {
+  let origin = options.focusOrigin;
+  if (options.resolveFocusOrigin !== undefined) {
+    const resolved = await options.resolveFocusOrigin();
+    if (resolved !== undefined) {
+      origin = resolved;
+    }
+  }
+  if (origin === undefined) {
+    return command;
+  }
+  return {
+    type: "terminal.focus",
+    payload: {
+      ...command.payload,
+      origin,
+    },
+  };
 }
 
 type PromptInputContext = {
