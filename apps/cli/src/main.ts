@@ -127,23 +127,34 @@ export async function runCli(
 
   if (command === "popup") {
     const popupEnv = options.popupDeps?.env ?? options.env;
-    const tuiCommand = options.popupDeps?.tuiCommand ?? defaultPopupTuiCommand();
+    const tuiCommand = options.popupDeps?.tuiCommand ?? defaultPopupTuiCommand(resolvedConfigPath);
+    const popupDeps: PopupCommandDeps = {};
+    if (options.popupDeps !== undefined) {
+      Object.assign(popupDeps, options.popupDeps);
+    }
+    if (options.observerDeps !== undefined) {
+      popupDeps.observer = options.observerDeps;
+    }
     const result = await runPopupCommand(
       args.slice(1),
       {
         config,
+        configPath: resolvedConfigPath,
         tuiCommand,
         ...(popupEnv === undefined ? {} : { env: popupEnv }),
       },
-      options.popupDeps,
+      popupDeps,
     );
-    return { code: 0, output: result };
+    return { code: "code" in result ? result.code : 0, output: result };
   }
 
   if (command === "tui") {
     const tuiDeps: TuiCommandDeps = {};
     if (options.observerDeps !== undefined) tuiDeps.observer = options.observerDeps;
     if (options.tuiDeps?.runTui !== undefined) tuiDeps.runTui = options.tuiDeps.runTui;
+    if (options.tuiDeps?.popupLifecycle !== undefined) {
+      tuiDeps.popupLifecycle = options.tuiDeps.popupLifecycle;
+    }
     const tuiEnv = options.tuiDeps?.env ?? options.env;
     if (tuiEnv !== undefined) tuiDeps.env = tuiEnv;
     const result = await runTuiCommand(
@@ -217,8 +228,13 @@ function defaultCommandEnv(options: CliRunOptions): Record<string, string | unde
   return options.env ?? options.popupDeps?.env ?? options.tuiDeps?.env ?? process.env;
 }
 
-function defaultPopupTuiCommand(): string {
-  return `${shellQuote(process.execPath)} ${shellQuote(fileURLToPath(import.meta.url))} tui --popup`;
+function defaultPopupTuiCommand(configPath: string | undefined): string {
+  const parts = [shellQuote(process.execPath), shellQuote(fileURLToPath(import.meta.url))];
+  if (configPath !== undefined) {
+    parts.push("--config", shellQuote(configPath));
+  }
+  parts.push("tui", "--popup", "--persistent");
+  return parts.join(" ");
 }
 
 function shellQuote(value: string): string {

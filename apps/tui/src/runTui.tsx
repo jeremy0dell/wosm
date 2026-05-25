@@ -10,6 +10,10 @@ export type RunTuiOptions = {
   service?: TuiObserverService;
   exitOnFocusSuccess?: boolean;
   focusOrigin?: TerminalFocusOrigin;
+  resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
+  onFocusSuccess?: () => Promise<void>;
+  onDismiss?: () => Promise<void>;
+  persistentPopup?: boolean;
 };
 
 export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
@@ -21,6 +25,7 @@ export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
     const appProps: ComponentProps<typeof App> = {
       service,
       exitOnFocusSuccess: options.exitOnFocusSuccess === true,
+      persistentPopup: options.persistentPopup === true,
       onExit: (code) => {
         if (resolved) return;
         resolved = true;
@@ -30,6 +35,15 @@ export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
     };
     if (options.focusOrigin !== undefined) {
       appProps.focusOrigin = options.focusOrigin;
+    }
+    if (options.resolveFocusOrigin !== undefined) {
+      appProps.resolveFocusOrigin = options.resolveFocusOrigin;
+    }
+    if (options.onFocusSuccess !== undefined) {
+      appProps.onFocusSuccess = options.onFocusSuccess;
+    }
+    if (options.onDismiss !== undefined) {
+      appProps.onDismiss = options.onDismiss;
     }
     instance = render(<App {...appProps} />);
   });

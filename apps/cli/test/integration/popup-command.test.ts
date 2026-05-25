@@ -1,52 +1,14 @@
 import { fileURLToPath } from "node:url";
+import type { ObserverProcessDeps } from "@wosm/cli";
 import { runCli, runPopupCommand, shouldSuppressCliProcessOutput } from "@wosm/cli";
-import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
+import type { TmuxPopupOptions } from "@wosm/tmux";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
 
+const now = "2026-05-20T12:00:00.000Z";
+
 describe("CLI popup command", () => {
-  it("opens a tmux popup for the TUI client path", async () => {
-    const calls: ExternalCommandInput[] = [];
-
-    await expect(
-      runPopupCommand([], {
-        env: {
-          TMUX: "/tmp/tmux-501/default,123,0",
-        },
-        runner: async (input) => {
-          calls.push(input);
-          if (input.args?.[0] === "display-message") {
-            return result(input, "client_1\n");
-          }
-          return result(input);
-        },
-      }),
-    ).resolves.toMatchObject({ opened: true });
-
-    expect(calls[0]).toMatchObject({
-      command: "tmux",
-      args: ["display-message", "-p", "#{client_name}"],
-    });
-    const popupCall = calls.find(
-      (call) => call.args?.[0] === "display-popup" && call.args.includes("-E"),
-    );
-    expect(popupCall).toMatchObject({
-      command: "tmux",
-      args: expect.arrayContaining([
-        "display-popup",
-        "-c",
-        "client_1",
-        "-w",
-        "50%",
-        "-h",
-        "50%",
-        "-E",
-        expect.stringContaining("WOSM_FOCUS_CLIENT_ID=client_1"),
-      ]),
-    });
-  });
-
-  it("routes runCli popup through global --config parsing", async () => {
+  it("delegates popup opening to the tmux integration", async () => {
     const fixture = await createTempState();
     fixture.config.defaults.terminal = "tmux";
     fixture.config.terminal = {
@@ -56,141 +18,122 @@ describe("CLI popup command", () => {
         popupPosition: "C",
       },
     };
+    const calls: TmuxPopupOptions[] = [];
+    const reconciles: string[] = [];
+
+    await expect(
+      runPopupCommand(
+        [],
+        {
+          config: fixture.config,
+          env: {
+            TMUX: "/tmp/tmux-501/default,123,0",
+          },
+          tuiCommand: "node wosm tui --popup --persistent",
+        },
+        {
+          observer: runningObserverDeps(reconciles),
+          openTmuxPopup: async (options) => {
+            calls.push(options);
+            return { opened: true };
+          },
+        },
+      ),
+    ).resolves.toEqual({ opened: true });
+
+    expect(reconciles).toEqual(["popup-open"]);
+    expect(calls).toEqual([
+      {
+        config: {
+          popupWidth: "90%",
+          popupHeight: "80%",
+          popupPosition: "C",
+        },
+        enterWorkbench: false,
+        env: {
+          TMUX: "/tmp/tmux-501/default,123,0",
+        },
+        tuiCommand: "node wosm tui --popup --persistent",
+      },
+    ]);
+  });
+
+  it("routes runCli popup through global --config parsing", async () => {
+    const fixture = await createTempState();
+    fixture.config.defaults.terminal = "tmux";
     const configPath = await writeConfigToml(fixture.root, fixture.config);
-    const calls: ExternalCommandInput[] = [];
+    const calls: TmuxPopupOptions[] = [];
+    const reconciles: string[] = [];
 
     await expect(
       runCli(["--config", configPath, "popup"], {
+        observerDeps: runningObserverDeps(reconciles),
         popupDeps: {
           env: {
             TMUX: "/tmp/tmux-501/default,123,0",
           },
-          runner: async (input) => {
-            calls.push(input);
-            if (input.args?.[0] === "display-message") {
-              return result(input, "client_1\n");
-            }
-            return result(input);
+          openTmuxPopup: async (options) => {
+            calls.push(options);
+            return { opened: true };
           },
         },
       }),
-    ).resolves.toMatchObject({
+    ).resolves.toEqual({
       code: 0,
       output: { opened: true },
     });
 
-    const popupCall = calls.find(
-      (call) => call.args?.[0] === "display-popup" && call.args.includes("-E"),
-    );
-    expect(popupCall?.args).toEqual([
-      "display-popup",
-      "-c",
-      "client_1",
-      "-w",
-      "90%",
-      "-h",
-      "80%",
-      "-E",
-      expect.stringContaining("WOSM_FOCUS_CLIENT_ID=client_1"),
-    ]);
-  });
-
-  it("uses the current CLI entrypoint for popup TUI launches", async () => {
-    const fixture = await createTempState();
-    fixture.config.defaults.terminal = "tmux";
-    const configPath = await writeConfigToml(fixture.root, fixture.config);
-    const calls: ExternalCommandInput[] = [];
-
-    await expect(
-      runCli(["--config", configPath, "popup"], {
-        popupDeps: {
-          env: {},
-          runner: async (input) => {
-            calls.push(input);
-            return result(input);
-          },
-        },
-      }),
-    ).resolves.toMatchObject({
-      code: 0,
-      output: { opened: true },
+    expect(reconciles).toEqual(["popup-open"]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      env: {
+        TMUX: "/tmp/tmux-501/default,123,0",
+      },
     });
-
-    const popupCall = calls.find(
-      (call) => call.args?.[0] === "display-popup" && call.args.includes("-E"),
+    expect(calls[0]?.tuiCommand).toContain("--config");
+    expect(calls[0]?.tuiCommand).toContain(shellQuote(configPath));
+    expect(calls[0]?.tuiCommand).toContain("tui --popup --persistent");
+    expect(calls[0]?.tuiCommand).toContain(
+      shellQuote(fileURLToPath(new URL("../../src/main.ts", import.meta.url))),
     );
-    expect(popupCall?.args).toEqual([
-      "display-popup",
-      "-w",
-      "50%",
-      "-h",
-      "50%",
-      "-E",
-      [
-        "env",
-        "WOSM_TUI_POPUP=1",
-        "WOSM_FOCUS_PROVIDER=tmux",
-        shellQuote(process.execPath),
-        shellQuote(fileURLToPath(new URL("../../src/main.ts", import.meta.url))),
-        "tui",
-        "--popup",
-      ].join(" "),
-    ]);
   });
 
   it("defaults bare wosm to the popup command when invoked from tmux", async () => {
     const fixture = await createTempState();
     fixture.config.defaults.terminal = "tmux";
     const configPath = await writeConfigToml(fixture.root, fixture.config);
-    const calls: ExternalCommandInput[] = [];
+    const calls: TmuxPopupOptions[] = [];
+    const reconciles: string[] = [];
 
     await expect(
       runCli(["--config", configPath], {
+        observerDeps: runningObserverDeps(reconciles),
         popupDeps: {
           env: {
             TMUX: "/tmp/tmux-501/default,123,0",
           },
-          runner: async (input) => {
-            calls.push(input);
-            if (input.args?.[0] === "display-message") {
-              return result(input, "client_1\n");
-            }
-            return result(input);
+          openTmuxPopup: async (options) => {
+            calls.push(options);
+            return { opened: true };
           },
         },
       }),
-    ).resolves.toMatchObject({
+    ).resolves.toEqual({
       code: 0,
       output: { opened: true },
     });
 
-    expect(calls.some((call) => call.args?.[0] === "display-popup")).toBe(true);
+    expect(reconciles).toEqual(["popup-open"]);
+    expect(calls).toHaveLength(1);
   });
 
-  it("opens the popup without changing the session behind the active client", async () => {
-    const calls: ExternalCommandInput[] = [];
+  it("rejects popup when the configured terminal provider is not tmux", async () => {
+    const fixture = await createTempState();
+    fixture.config.defaults.terminal = "ghostty";
 
-    await expect(
-      runPopupCommand([], {
-        env: {
-          WOSM_FOCUS_CLIENT_ID: "client_behind_agent",
-        },
-        runner: async (input) => {
-          calls.push(input);
-          return result(input);
-        },
-      }),
-    ).resolves.toEqual({ opened: true });
-
-    expect(calls.map((call) => call.args)).toEqual([
-      ["show-options", "-sqv", "@wosm_popup_client"],
-      ["set-option", "-sq", "@wosm_popup_client", "client_behind_agent"],
-      expect.arrayContaining(["display-popup", "-c", "client_behind_agent"]),
-    ]);
-    expect(calls.some((call) => call.args?.[0] === "switch-client")).toBe(false);
-    expect(calls.some((call) => call.args?.[0] === "new-session")).toBe(false);
-    expect(calls.some((call) => call.args?.[0] === "select-window")).toBe(false);
-    expect(calls.some((call) => call.args?.[0] === "select-pane")).toBe(false);
+    await expect(runPopupCommand([], { config: fixture.config })).rejects.toThrow(
+      "Popup is only implemented for tmux, not ghostty.",
+    );
   });
 
   it("suppresses explicit popup command JSON in the interactive CLI process", () => {
@@ -202,16 +145,49 @@ describe("CLI popup command", () => {
   });
 });
 
-function result(input: ExternalCommandInput, stdout = ""): ExternalCommandResult {
-  return {
-    command: input.command,
-    args: input.args ?? [],
-    stdout,
-    stderr: "",
-    exitCode: 0,
-  };
-}
-
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function runningObserverDeps(reconciles: string[]): ObserverProcessDeps {
+  return {
+    clientFactory: () =>
+      ({
+        health: async () => ({
+          schemaVersion: "0.3.0",
+          status: "healthy",
+          pid: 1234,
+          startedAt: now,
+          version: "0.0.0",
+        }),
+        reconcile: async (reason: string) => {
+          reconciles.push(reason);
+          return {
+            schemaVersion: "0.3.0",
+            reason,
+            reconciledAt: now,
+            snapshot: {
+              schemaVersion: "0.3.0",
+              generatedAt: now,
+              observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
+              providerHealth: {},
+              projects: [],
+              rows: [],
+              sessions: [],
+              counts: {
+                projects: 0,
+                worktrees: 0,
+                agents: 0,
+                working: 0,
+                idle: 0,
+                attention: 0,
+                unknown: 0,
+              },
+              alerts: [],
+            },
+          };
+        },
+      }) as never,
+    sleep: async () => undefined,
+  };
 }
