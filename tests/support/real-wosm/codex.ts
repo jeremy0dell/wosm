@@ -89,7 +89,7 @@ export async function installCodexHookProjectConfig(input: {
   configPath: string;
 }): Promise<CodexHookFixture> {
   const codexHome = codexHomeForRepo(input.repo);
-  const hookConfigPath = join(codexHome, "config.toml");
+  const hookConfigPath = join(codexHome, "wosm.config.toml");
   const hookLogDirPath = join(
     tmpdir(),
     `wosm-real-codex-hooks-${process.pid}-${Date.now()}-${basename(input.repo.root)}`,
@@ -113,6 +113,9 @@ export async function installCodexHookProjectConfig(input: {
       "--hook-bin",
       input.env.wosmHookBin,
     ],
+    env: {
+      CODEX_HOME: codexHome,
+    },
     timeoutMs: 30_000,
   });
   return {

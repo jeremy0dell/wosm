@@ -14,6 +14,7 @@ export type RunWosmOptions = {
   stdin?: string;
   timeoutMs?: number;
   cwd?: string;
+  env?: Record<string, string | undefined>;
 };
 
 export class CleanupStack {
@@ -52,6 +53,15 @@ export async function runWosm(
       ? options.args
       : ["--config", options.configPath, ...options.args];
   const childEnv = wosmChildEnv(env);
+  if (options.env !== undefined) {
+    for (const [key, value] of Object.entries(options.env)) {
+      if (value === undefined) {
+        delete childEnv[key];
+      } else {
+        childEnv[key] = value;
+      }
+    }
+  }
 
   return new Promise((resolve) => {
     const child = spawn(env.wosmBin, args, {

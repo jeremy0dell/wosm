@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { codexHookAdapter } from "@wosm/codex";
 import type { HarnessEventReport, HarnessEventReportReceipt, HookReceipt } from "@wosm/contracts";
 import { receiveHookEvent } from "@wosm/hook-bridge";
 import { componentLogPath, readJsonlLog } from "@wosm/observability";
@@ -67,8 +68,10 @@ describe("hook bridge receiver", () => {
           tool_use_id: "call_test",
           wosm_project_id: "web",
           wosm_worktree_id: "wt_web_task",
+          wosm_session_id: "ses_web_task",
         },
         config: fixture.config,
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
@@ -118,9 +121,85 @@ describe("hook bridge receiver", () => {
         toolName: "Bash",
         wosmProjectId: "web",
         wosmWorktreeId: "wt_web_task",
+        wosmSessionId: "ses_web_task",
       },
     });
     expect(JSON.stringify(deliveredReport)).not.toContain(rawCommand);
+  });
+
+  it("ignores Codex harness hooks missing owned runtime context before side effects", async () => {
+    const fixture = await createTempState();
+    const payloads = [
+      { hook_event_name: "UnknownFutureEvent" },
+      { hook_event_name: "UnknownFutureEvent", wosm_session_id: "ses_web_task" },
+      { hook_event_name: "UnknownFutureEvent", wosm_worktree_id: "wt_web_task" },
+    ];
+
+    for (const payload of payloads) {
+      let clientCreated = false;
+      let spawned = false;
+      let hookSpooled = false;
+      let reportSpooled = false;
+      let logged = false;
+
+      const receipt = await receiveHookEvent(
+        {
+          provider: "codex",
+          event: "UnknownFutureEvent",
+          payload,
+          config: fixture.config,
+          providerAdapters: [codexHookAdapter],
+          rateLimitMs: 0,
+        },
+        {
+          clock: { now: () => new Date(now) },
+          clientFactory: () => {
+            clientCreated = true;
+            return {
+              reportHarnessEvent: async () => {
+                throw new Error("ignored hooks should not reach observer delivery");
+              },
+              ingestHookEvent: async () => {
+                throw new Error("ignored hooks should not reach observer delivery");
+              },
+            } as never;
+          },
+          spawnObserver: async () => {
+            spawned = true;
+            return { pid: 1234, unref: () => undefined };
+          },
+          writeSpool: async () => {
+            hookSpooled = true;
+            throw new Error("ignored hooks should not write hook spool records");
+          },
+          writeReportSpool: async () => {
+            reportSpooled = true;
+            throw new Error("ignored hooks should not write report spool records");
+          },
+          logger: {
+            log: async () => {
+              logged = true;
+            },
+          } as never,
+        },
+      );
+
+      expect(receipt).toMatchObject({
+        provider: "codex",
+        event: "UnknownFutureEvent",
+        accepted: false,
+        status: "ignored",
+        receivedAt: now,
+      });
+      expect(receipt).not.toHaveProperty("error");
+      expect(receipt).not.toHaveProperty("spooled");
+      expect(clientCreated).toBe(false);
+      expect(spawned).toBe(false);
+      expect(hookSpooled).toBe(false);
+      expect(reportSpooled).toBe(false);
+      expect(logged).toBe(false);
+    }
+    await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
   });
 
   it("routes every supported Codex hook event through harness event report delivery", async () => {
@@ -134,6 +213,7 @@ describe("hook bridge receiver", () => {
           event: payload.hook_event_name,
           payload,
           config: fixture.config,
+          providerAdapters: [codexHookAdapter],
         },
         {
           clock: { now: () => new Date(now) },
@@ -333,6 +413,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
@@ -377,6 +458,8 @@ describe("hook bridge receiver", () => {
           tool_input: { command: "pnpm test" },
           tool_response: rawResponse,
           tool_use_id: "call_test",
+          wosm_worktree_id: "wt_web_task",
+          wosm_session_id: "ses_web_task",
         },
         config: {
           ...fixture.config,
@@ -385,6 +468,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
@@ -437,6 +521,8 @@ describe("hook bridge receiver", () => {
           permission_mode: "default",
           turn_id: "turn_1",
           prompt: rawPrompt,
+          wosm_worktree_id: "wt_web_task",
+          wosm_session_id: "ses_web_task",
         },
         config: {
           ...fixture.config,
@@ -445,6 +531,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
         deliveryTimeoutMs: 5,
       },
       {
@@ -497,6 +584,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
@@ -551,6 +639,8 @@ describe("hook bridge receiver", () => {
           permission_mode: "default",
           turn_id: "turn_1",
           prompt: rawPrompt,
+          wosm_worktree_id: "wt_web_task",
+          wosm_session_id: "ses_web_task",
         },
         config: {
           ...fixture.config,
@@ -559,6 +649,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },

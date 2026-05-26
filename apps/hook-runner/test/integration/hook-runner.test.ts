@@ -33,6 +33,41 @@ describe("wosm-hook runner", () => {
     expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
   });
 
+  it("exits quietly when a Codex hook is ignored for missing ownership env", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let delivered = false;
+
+    const result = await runHookRunner(["--config", configPath, "codex", "PreToolUse"], {
+      stdin: JSON.stringify({
+        session_id: "codex_session_1",
+        transcript_path: null,
+        cwd: "/tmp/wosm/web/task",
+        hook_event_name: "PreToolUse",
+        model: "gpt-5.4-codex",
+        permission_mode: "default",
+        turn_id: "turn_1",
+        tool_name: "Bash",
+        tool_input: { command: "pnpm test" },
+        tool_use_id: "call_test",
+      }),
+      env: {},
+      hookDeps: {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async () => {
+              delivered = true;
+              throw new Error("ignored hooks should not reach observer delivery");
+            },
+          }) as never,
+      },
+    });
+
+    expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+    expect(delivered).toBe(false);
+  });
+
   it("prints compact stderr and exits 1 for rejected hook payloads", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);

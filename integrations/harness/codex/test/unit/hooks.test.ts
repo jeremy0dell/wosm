@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,17 +13,23 @@ import {
 describe("Codex hook setup", () => {
   it("plans hook config and generated script without writing files", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
-    const configPath = join(root, "codex", "config.toml");
+    const codexHome = join(root, "codex-home");
+    const configPath = join(codexHome, "wosm.config.toml");
+    const baseConfigPath = join(codexHome, "config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
 
     const plan = await planCodexHooks({
-      codexConfigPath: configPath,
       hookScriptPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
       hookBin: "/usr/local/bin/wosm-hook",
+      env: { CODEX_HOME: codexHome },
     });
 
     expect(plan.changed).toBe(true);
+    expect(plan.configPath).toBe(configPath);
+    expect(plan.profileName).toBe("wosm");
+    expect(plan.profileConfigPath).toBe(configPath);
+    expect(plan.baseConfigPath).toBe(baseConfigPath);
     expect(plan.missing).toEqual([
       "SessionStart",
       "UserPromptSubmit",
@@ -38,54 +45,73 @@ describe("Codex hook setup", () => {
     expect(plan.commands.PreToolUse).toBe(hookScriptPath);
     expect(plan.after).toContain("[[hooks.PreToolUse]]");
     await expect(readFile(configPath, "utf8")).rejects.toThrow();
+    await expect(readFile(baseConfigPath, "utf8")).rejects.toThrow();
     await expect(readFile(hookScriptPath, "utf8")).rejects.toThrow();
   });
 
-  it("installs idempotently, backs up config, writes a script, and preserves unrelated hooks", async () => {
+  it("installs into the wosm profile, cleans legacy global entries, and preserves unrelated hooks", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
-    const configPath = join(root, "codex", "config.toml");
+    const codexHome = join(root, "codex-home");
+    const configPath = join(codexHome, "wosm.config.toml");
+    const baseConfigPath = join(codexHome, "config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
-    await mkdir(join(root, "codex"), { recursive: true });
+    const env = { CODEX_HOME: codexHome };
+    await mkdir(codexHome, { recursive: true });
     await writeFile(configPath, existingCodexConfig(), "utf8");
+    await writeFile(baseConfigPath, legacyGlobalCodexConfig(hookScriptPath), "utf8");
 
     const installed = await installCodexHooks({
-      codexConfigPath: configPath,
       hookScriptPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
+      env,
     });
     const second = await installCodexHooks({
-      codexConfigPath: configPath,
       hookScriptPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
+      env,
     });
     const config = await readFile(configPath, "utf8");
+    const baseConfig = await readFile(baseConfigPath, "utf8");
     const script = await readFile(hookScriptPath, "utf8");
     const scriptMode = (await stat(hookScriptPath)).mode & 0o777;
 
     expect(installed.backupPath).toBeDefined();
+    expect(installed.profileBackupPath).toBeDefined();
+    expect(installed.baseBackupPath).toBeDefined();
+    expect(installed.backupPaths).toHaveLength(2);
+    expect(installed.legacyGlobalCleanup.stale).toEqual(["PreToolUse"]);
     expect(second.changed).toBe(false);
     expect(config).toContain("echo existing");
     expect(config).toContain(hookScriptPath);
+    expect(baseConfig).toContain("echo existing");
+    expect(baseConfig).not.toContain(hookScriptPath);
     expect(script).toContain("wosm-hook --config /tmp/wosm/config.toml codex");
     expect(script).not.toContain(" hook codex");
     expect(script).toContain("--config /tmp/wosm/config.toml");
+    expect(script).toContain(
+      `if [ -z "\${WOSM_SESSION_ID:-}" ] || [ -z "\${WOSM_WORKTREE_ID:-}" ]; then`,
+    );
+    expect(script.indexOf("if [ -z")).toBeLessThan(script.indexOf("payload_file="));
     expect(script).toContain('"$event" < "$payload_file" > /dev/null');
     expect(scriptMode).toBe(0o700);
     await expect(
       doctorCodexHooks({
-        codexConfigPath: configPath,
         hookScriptPath,
         wosmConfigPath: "/tmp/wosm/config.toml",
         enabled: true,
+        env,
       }),
     ).resolves.toMatchObject({
       status: "ok",
       installed: true,
+      profileConfigPath: configPath,
+      baseConfigPath,
     });
   });
 
   it("can generate the legacy wosm hook command for compatibility", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
+    const env = codexEnv(root);
     const configPath = join(root, "codex", "config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
 
@@ -94,62 +120,215 @@ describe("Codex hook setup", () => {
       hookScriptPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
       wosmBin: "/usr/local/bin/wosm",
+      env,
     });
 
     const script = await readFile(hookScriptPath, "utf8");
     expect(script).toContain("/usr/local/bin/wosm --config /tmp/wosm/config.toml hook codex");
   });
 
-  it("uninstalls generated hooks without removing unrelated commands", async () => {
+  it("generated script exits before payload parsing or hook invocation without ownership env", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
+    const env = codexEnv(root);
     const configPath = join(root, "codex", "config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
-    await mkdir(join(root, "codex"), { recursive: true });
-    await writeFile(configPath, existingCodexConfig(), "utf8");
-    await installCodexHooks({ codexConfigPath: configPath, hookScriptPath });
 
-    const removed = await uninstallCodexHooks({ codexConfigPath: configPath, hookScriptPath });
+    await installCodexHooks({
+      codexConfigPath: configPath,
+      hookScriptPath,
+      hookBin: join(root, "missing-wosm-hook"),
+      env,
+    });
+
+    for (const env of [
+      {},
+      { WOSM_SESSION_ID: "ses_web_task" },
+      { WOSM_WORKTREE_ID: "wt_web_task" },
+    ]) {
+      const result = await runHookScript(hookScriptPath, "{ invalid json", {
+        TMPDIR: root,
+        ...env,
+      });
+
+      expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+    }
+  });
+
+  it("generated script invokes wosm-hook with Codex event when ownership env is present", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
+    const env = codexEnv(root);
+    const configPath = join(root, "codex", "config.toml");
+    const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
+    const hookBin = join(root, "wosm-hook");
+    const argsLog = join(root, "hook.args");
+    const stdinLog = join(root, "hook.stdin");
+    await writeFile(
+      hookBin,
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        `printf '%s\\n' "$*" >> ${shellQuote(argsLog)}`,
+        `cat >> ${shellQuote(stdinLog)}`,
+        "",
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+
+    await installCodexHooks({
+      codexConfigPath: configPath,
+      hookScriptPath,
+      wosmConfigPath: "/tmp/wosm/config.toml",
+      hookBin,
+      env,
+    });
+
+    const payload = JSON.stringify({ hook_event_name: "PreToolUse" });
+    const result = await runHookScript(hookScriptPath, payload, {
+      TMPDIR: root,
+      WOSM_SESSION_ID: "ses_web_task",
+      WOSM_WORKTREE_ID: "wt_web_task",
+    });
+
+    expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+    await expect(readFile(argsLog, "utf8")).resolves.toBe(
+      "--config /tmp/wosm/config.toml codex PreToolUse\n",
+    );
+    await expect(readFile(stdinLog, "utf8")).resolves.toBe(payload);
+  });
+
+  it("uninstalls generated hooks without removing unrelated commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
+    const codexHome = join(root, "codex-home");
+    const configPath = join(codexHome, "wosm.config.toml");
+    const baseConfigPath = join(codexHome, "config.toml");
+    const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
+    const env = { CODEX_HOME: codexHome };
+    await mkdir(codexHome, { recursive: true });
+    await writeFile(configPath, existingCodexConfig(), "utf8");
+    await installCodexHooks({ hookScriptPath, env });
+    await writeFile(baseConfigPath, legacyGlobalCodexConfig(hookScriptPath), "utf8");
+
+    const removed = await uninstallCodexHooks({ hookScriptPath, env });
     const config = await readFile(configPath, "utf8");
+    const baseConfig = await readFile(baseConfigPath, "utf8");
 
     expect(removed.installed).toBe(false);
     expect(removed.scriptRemoved).toBe(true);
+    expect(removed.legacyGlobalChanged).toBe(true);
     expect(config).toContain("echo existing");
     expect(config).not.toContain(hookScriptPath);
+    expect(baseConfig).toContain("echo existing");
+    expect(baseConfig).not.toContain(hookScriptPath);
     await expect(access(hookScriptPath)).rejects.toThrow();
   });
 
   it("only warns for missing hooks when install_hooks requested them", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
+    const env = codexEnv(root);
     const configPath = join(root, "codex", "config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
 
     await expect(
-      doctorCodexHooks({ codexConfigPath: configPath, hookScriptPath, enabled: false }),
+      doctorCodexHooks({ codexConfigPath: configPath, hookScriptPath, enabled: false, env }),
     ).resolves.toMatchObject({
       status: "ok",
       installed: false,
     });
     await expect(
-      doctorCodexHooks({ codexConfigPath: configPath, hookScriptPath, enabled: true }),
+      doctorCodexHooks({ codexConfigPath: configPath, hookScriptPath, enabled: true, env }),
     ).resolves.toMatchObject({
       status: "warn",
       installed: false,
     });
   });
 
+  it("warns when generated global Codex hook entries remain", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
+    const codexHome = join(root, "codex-home");
+    const configPath = join(codexHome, "wosm.config.toml");
+    const baseConfigPath = join(codexHome, "config.toml");
+    const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
+    const env = { CODEX_HOME: codexHome };
+
+    await installCodexHooks({ hookScriptPath, env });
+    await writeFile(baseConfigPath, legacyGlobalCodexConfig(hookScriptPath), "utf8");
+
+    await expect(doctorCodexHooks({ hookScriptPath, enabled: true, env })).resolves.toMatchObject({
+      status: "warn",
+      installed: true,
+      profileConfigPath: configPath,
+      baseConfigPath,
+      legacyGlobalCleanup: {
+        changed: true,
+        stale: ["PreToolUse"],
+      },
+    });
+  });
+
   it("maps invalid Codex TOML to a typed setup error", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
+    const env = codexEnv(root);
     const configPath = join(root, "codex", "config.toml");
     await mkdir(join(root, "codex"), { recursive: true });
     await writeFile(configPath, "not = [valid");
 
-    await expect(planCodexHooks({ codexConfigPath: configPath })).rejects.toMatchObject({
+    await expect(planCodexHooks({ codexConfigPath: configPath, env })).rejects.toMatchObject({
       tag: "CodexHookSetupError",
       code: "CODEX_HOOK_INVALID_TOML",
       provider: "codex",
     });
   });
 });
+
+async function runHookScript(
+  scriptPath: string,
+  stdin: string,
+  env: Record<string, string | undefined>,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const childEnv: NodeJS.ProcessEnv = {};
+  if (process.env.PATH !== undefined) {
+    childEnv.PATH = process.env.PATH;
+  }
+  for (const [key, value] of Object.entries(env)) {
+    if (value !== undefined) {
+      childEnv[key] = value;
+    }
+  }
+
+  const child = spawn(scriptPath, [], {
+    env: childEnv,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+
+  const completed = new Promise<{ code: number | null; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      child.on("error", reject);
+      child.on("close", (code) => {
+        resolve({ code, stdout, stderr });
+      });
+    },
+  );
+  child.stdin.end(stdin);
+  return completed;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function codexEnv(root: string): Record<string, string> {
+  return { CODEX_HOME: join(root, "codex-home") };
+}
 
 function existingCodexConfig(): string {
   return [
@@ -162,6 +341,29 @@ function existingCodexConfig(): string {
     'type = "command"',
     'command = "echo existing"',
     "timeout = 10",
+    "",
+  ].join("\n");
+}
+
+function legacyGlobalCodexConfig(hookScriptPath: string): string {
+  return [
+    "[features]",
+    "hooks = true",
+    "",
+    "[[hooks.PostToolUse]]",
+    'matcher = ".*"',
+    "[[hooks.PostToolUse.hooks]]",
+    'type = "command"',
+    'command = "echo existing"',
+    "timeout = 10",
+    "",
+    "[[hooks.PreToolUse]]",
+    'matcher = ".*"',
+    "[[hooks.PreToolUse.hooks]]",
+    'type = "command"',
+    `command = ${JSON.stringify(hookScriptPath)}`,
+    "timeout = 30",
+    'statusMessage = "Notify wosm"',
     "",
   ].join("\n");
 }
