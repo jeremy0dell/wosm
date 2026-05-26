@@ -313,12 +313,24 @@ async function runHookScript(
   const completed = new Promise<{ code: number | null; stdout: string; stderr: string }>(
     (resolve, reject) => {
       child.on("error", reject);
+      child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+        if (error.code === "EPIPE") {
+          return;
+        }
+        reject(error);
+      });
       child.on("close", (code) => {
         resolve({ code, stdout, stderr });
       });
     },
   );
-  child.stdin.end(stdin);
+  try {
+    child.stdin.end(stdin);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EPIPE") {
+      throw error;
+    }
+  }
   return completed;
 }
 

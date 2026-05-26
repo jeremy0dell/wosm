@@ -112,6 +112,10 @@ export function createWorktreeMetadataRefreshService(
     existing?: PersistedWorktreeMetadataCurrent<"change_summary">;
     cachedPullRequest?: WosmSnapshot["rows"][number]["worktree"]["pr"];
   }): Promise<void> {
+    if (shouldBackOffFailedRefresh(input.existing)) {
+      return;
+    }
+
     try {
       const worktree: LocalGitWorktree = {
         id: input.row.id,
@@ -191,6 +195,7 @@ export function createWorktreeMetadataRefreshService(
     );
 
     if (input.existing !== undefined) {
+      const failedAt = toIsoTimestamp(clock.now());
       await options.persistence.upsertWorktreeMetadataCurrent({
         worktreeId: input.row.id,
         kind: "change_summary",
@@ -199,8 +204,8 @@ export function createWorktreeMetadataRefreshService(
           stale: true,
         },
         ...(input.existing.cacheKey === undefined ? {} : { cacheKey: input.existing.cacheKey }),
-        ...(input.existing.expiresAt === undefined ? {} : { expiresAt: input.existing.expiresAt }),
-        updatedAt: toIsoTimestamp(clock.now()),
+        expiresAt: addMs(failedAt, options.ttlMs ?? defaultTtlMs),
+        updatedAt: failedAt,
         stale: true,
         lastError: safeError,
       });
@@ -214,6 +219,12 @@ export function createWorktreeMetadataRefreshService(
       error: safeError,
     });
   }
+}
+
+function shouldBackOffFailedRefresh(
+  existing: PersistedWorktreeMetadataCurrent<"change_summary"> | undefined,
+): boolean {
+  return existing?.stale === true && existing.lastError !== undefined && !existing.expired;
 }
 
 async function runWithConcurrency<T>(
