@@ -44,7 +44,12 @@ describeReal("real Codex hook dogfood", () => {
     const repo = await createRealTempRepo(env);
     cleanup.defer(repo.cleanup);
     const codexCommand = await createCodexHookEnabledWrapper({ env, repo });
-    const config = await writeRealWosmConfig({ env, repo, codexCommand });
+    const config = await writeRealWosmConfig({
+      env,
+      repo,
+      codexCommand,
+      installCodexHooks: true,
+    });
     const hooks = await installCodexHookProjectConfig({
       env,
       repo,

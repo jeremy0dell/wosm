@@ -1,12 +1,19 @@
 import { fileURLToPath } from "node:url";
-import type { HookReceipt } from "@wosm/contracts";
+import { codexHookAdapter } from "@wosm/codex";
+import type { HookReceipt, ProviderHookAdapter } from "@wosm/contracts";
 import {
   type HookBridgeCommandOptions,
   type HookReceiverDeps,
   runHookBridgeCommand,
 } from "@wosm/hook-bridge";
+import { worktrunkHookAdapter } from "@wosm/worktrunk";
 
 export type HookCommandOptions = HookBridgeCommandOptions;
+
+const defaultProviderHookAdapters: readonly ProviderHookAdapter[] = [
+  codexHookAdapter,
+  worktrunkHookAdapter,
+];
 
 export async function runHookCommand(
   args: string[],
@@ -20,6 +27,9 @@ export async function runHookCommand(
   const bridgeOptions: HookBridgeCommandOptions = { ...options };
   if (bridgeOptions.observerEntryPath === undefined) {
     bridgeOptions.observerEntryPath = defaultCliObserverEntryPath();
+  }
+  if (bridgeOptions.providerAdapters === undefined) {
+    bridgeOptions.providerAdapters = defaultProviderHookAdapters;
   }
   return runHookBridgeCommand(args, bridgeOptions, deps);
 }

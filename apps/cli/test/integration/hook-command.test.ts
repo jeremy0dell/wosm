@@ -162,6 +162,50 @@ describe("CLI hook command", () => {
     expect(JSON.stringify(observedReport)).not.toContain("pnpm test");
   });
 
+  it("exits 0 with an ignored receipt for Codex hooks without ownership env", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let delivered = false;
+
+    const result = await runCli(["--config", configPath, "hook", "codex", "PreToolUse"], {
+      stdin: JSON.stringify({
+        session_id: "codex_session_1",
+        transcript_path: null,
+        cwd: "/tmp/wosm/web/task",
+        hook_event_name: "PreToolUse",
+        model: "gpt-5.4-codex",
+        permission_mode: "default",
+        turn_id: "turn_1",
+        tool_name: "Bash",
+        tool_input: { command: "pnpm test" },
+        tool_use_id: "call_test",
+      }),
+      env: {},
+      hookDeps: {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async () => {
+              delivered = true;
+              throw new Error("ignored hooks should not reach observer delivery");
+            },
+          }) as never,
+      },
+    });
+
+    expect(result).toMatchObject({
+      code: 0,
+      output: {
+        provider: "codex",
+        event: "PreToolUse",
+        accepted: false,
+        status: "ignored",
+      },
+    });
+    expect(delivered).toBe(false);
+    await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
+  });
+
   it("rejects malformed JSON stdin without delivering or spooling arbitrary text", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);
@@ -174,6 +218,38 @@ describe("CLI hook command", () => {
         clientFactory: () =>
           ({
             ingestHookEvent: async (): Promise<HookReceipt> => {
+              delivered = true;
+              throw new Error("should not deliver invalid hook payload");
+            },
+          }) as never,
+      },
+    });
+
+    expect(result).toMatchObject({
+      code: 1,
+      output: {
+        status: "rejected",
+        error: {
+          code: "HOOK_PAYLOAD_INVALID",
+        },
+      },
+    });
+    expect(delivered).toBe(false);
+    await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
+  });
+
+  it("still rejects malformed Codex JSON when wosm hook is invoked", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let delivered = false;
+
+    const result = await runCli(["--config", configPath, "hook", "codex", "PreToolUse"], {
+      stdin: "{ invalid json",
+      hookDeps: {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async (): Promise<HarnessEventReportReceipt> => {
               delivered = true;
               throw new Error("should not deliver invalid hook payload");
             },

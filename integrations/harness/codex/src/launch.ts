@@ -3,6 +3,7 @@ import type { BuildHarnessLaunchRequest, HarnessLaunchPlan } from "@wosm/contrac
 export type CodexLaunchOptions = {
   command?: string;
   defaultProfile?: string;
+  defaultProfileV2?: string;
   defaultApprovalPolicy?: string;
   defaultSandboxMode?: string;
   noAltScreen?: boolean;
@@ -14,11 +15,13 @@ export function buildCodexLaunchPlan(
 ): HarnessLaunchPlan {
   const mode = request.mode ?? "interactive";
   const profile = request.profile ?? options.defaultProfile;
+  const profileV2 = options.defaultProfileV2;
   const approvalPolicy = request.approvalPolicy ?? options.defaultApprovalPolicy;
   const sandboxMode = request.sandboxMode ?? options.defaultSandboxMode;
   const args = mode === "exec" ? execArgs(request) : interactiveArgs(request);
   appendCodexOptions(args, {
     profile,
+    profileV2,
     approvalPolicy: mode === "exec" ? undefined : approvalPolicy,
     sandboxMode,
     noAltScreen: mode === "interactive" ? options.noAltScreen : undefined,
@@ -31,6 +34,7 @@ export function buildCodexLaunchPlan(
   const providerData = codexProviderData({
     mode,
     profile,
+    profileV2,
     approvalPolicy,
     sandboxMode,
     noAltScreen: mode === "interactive" ? options.noAltScreen : undefined,
@@ -63,6 +67,7 @@ function appendCodexOptions(
   args: string[],
   options: {
     profile?: string | undefined;
+    profileV2?: string | undefined;
     approvalPolicy?: string | undefined;
     sandboxMode?: string | undefined;
     noAltScreen?: boolean | undefined;
@@ -70,6 +75,9 @@ function appendCodexOptions(
 ): void {
   if (options.profile !== undefined) {
     args.push("--profile", options.profile);
+  }
+  if (options.profileV2 !== undefined) {
+    args.push("--profile-v2", options.profileV2);
   }
   if (options.sandboxMode !== undefined) {
     args.push("--sandbox", options.sandboxMode);
@@ -102,6 +110,7 @@ function codexLaunchEnv(request: BuildHarnessLaunchRequest): Record<string, stri
 function codexProviderData(input: {
   mode: "interactive" | "exec";
   profile?: string | undefined;
+  profileV2?: string | undefined;
   approvalPolicy?: string | undefined;
   sandboxMode?: string | undefined;
   noAltScreen?: boolean | undefined;
@@ -117,6 +126,9 @@ function codexProviderData(input: {
   }
   if (input.profile !== undefined) {
     providerData.profile = input.profile;
+  }
+  if (input.profileV2 !== undefined) {
+    providerData.profileV2 = input.profileV2;
   }
   if (input.approvalPolicy !== undefined) {
     providerData.approvalPolicy = input.approvalPolicy;

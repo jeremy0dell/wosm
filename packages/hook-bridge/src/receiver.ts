@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { compactCodexHookPayload } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
 import type {
   HarnessEventReport,
   HarnessEventReportReceipt,
+  HookPayloadSummary,
   HookReceipt,
+  ProviderHookAdapter,
   ProviderHookEvent,
   SafeError,
 } from "@wosm/contracts";
@@ -18,14 +19,16 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
-import { normalizeWorktrunkLifecycleEvent } from "@wosm/worktrunk";
 import { type HookObserverStartupDeps, startHookObserver } from "./observerStartup.js";
 import { type ObserverPaths, resolveObserverPaths } from "./paths.js";
 import {
-  type HookPayloadSummary,
+  compactProviderHookEventPayload,
+  decideProviderHookScope,
   harnessEventReportFromHookEvent,
+  inferProviderHookKind,
+  normalizeProviderHookEventName,
   shouldReportHarnessEvent,
-} from "./providerReports.js";
+} from "./providerAdapters.js";
 import { writeHarnessEventReportSpoolRecord, writeHookSpoolRecord } from "./spool.js";
 
 export type HookReceiverInput = {
@@ -37,6 +40,7 @@ export type HookReceiverInput = {
   config?: WosmConfig | undefined;
   configPath?: string | undefined;
   observerEntryPath?: string | undefined;
+  providerAdapters?: readonly ProviderHookAdapter[] | undefined;
   paths?: ObserverPaths | undefined;
   autoStart?: boolean | undefined;
   deliveryTimeoutMs?: number | undefined;
@@ -63,27 +67,32 @@ export async function receiveHookEvent(
   const clock = deps.clock ?? systemClock;
   const paths = input.paths ?? resolveObserverPaths(input.config);
   const hookId = input.hookId ?? deps.hookId?.() ?? defaultHookId();
+  const providerAdapters = input.providerAdapters ?? [];
   const event = ProviderHookEventSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId,
     provider: input.provider,
-    kind: input.kind ?? inferHookKind(input.provider),
-    event:
-      input.provider === "worktrunk" ? normalizeWorktrunkLifecycleEvent(input.event) : input.event,
+    kind: input.kind ?? inferProviderHookKind(input.provider, providerAdapters),
+    event: normalizeProviderHookEventName(input.provider, input.event, providerAdapters),
     receivedAt: toIsoTimestamp(clock.now()),
     ...(input.payload === undefined ? {} : { payload: input.payload }),
   });
-  const compacted = compactHookEventPayload(event);
+  const scopeDecision = decideProviderHookScope(event, providerAdapters);
+  if (scopeDecision.action === "ignore") {
+    return ignoredHookReceipt(event);
+  }
+  const compacted = compactProviderHookEventPayload(event, providerAdapters);
   const deliveryTimeoutMs = input.deliveryTimeoutMs ?? 750;
   const startupTimeoutMs = input.startupTimeoutMs ?? 1500;
   const rateLimitMs = input.rateLimitMs ?? 2000;
   const autoStart = input.autoStart ?? input.config?.observer?.autoStartFromHooks !== false;
 
-  if (shouldReportHarnessEvent(compacted.event)) {
+  if (shouldReportHarnessEvent(compacted.event, providerAdapters)) {
     const reportResult = harnessEventReportFromHookEvent(
       compacted.event,
       compacted.payloadSummary,
       defaultHookId,
+      providerAdapters,
     );
     if (!reportResult.ok) {
       return logAndReturn(
@@ -466,54 +475,6 @@ async function logAndReturn(
   return receipt;
 }
 
-function compactHookEventPayload(event: ProviderHookEvent): {
-  event: ProviderHookEvent;
-  payloadSummary: HookPayloadSummary;
-} {
-  if (event.payload === undefined) {
-    return {
-      event,
-      payloadSummary: {
-        present: false,
-        originalBytes: null,
-        compactedBytes: null,
-        compacted: false,
-        omittedFieldNames: [],
-      },
-    };
-  }
-
-  if (event.provider !== "codex") {
-    const byteCount = jsonByteCount(event.payload);
-    return {
-      event,
-      payloadSummary: {
-        present: true,
-        originalBytes: byteCount,
-        compactedBytes: byteCount,
-        compacted: false,
-        omittedFieldNames: [],
-      },
-    };
-  }
-
-  const compaction = compactCodexHookPayload(event.payload);
-  const compactedEvent = ProviderHookEventSchema.parse({
-    ...event,
-    payload: compaction.payload,
-  });
-  return {
-    event: compactedEvent,
-    payloadSummary: {
-      present: true,
-      originalBytes: compaction.originalByteCount,
-      compactedBytes: compaction.compactedByteCount,
-      compacted: compaction.compacted,
-      omittedFieldNames: compaction.omittedFieldNames,
-    },
-  };
-}
-
 function hookReceiptFromReportReceipt(receipt: HarnessEventReportReceipt): HookReceipt {
   const status = receipt.status === "accepted" ? "ingested" : receipt.status;
   const hookReceipt: HookReceipt = {
@@ -540,6 +501,18 @@ function hookReceiptFromReportReceipt(receipt: HarnessEventReportReceipt): HookR
   return HookReceiptSchema.parse(hookReceipt);
 }
 
+function ignoredHookReceipt(event: ProviderHookEvent): HookReceipt {
+  return HookReceiptSchema.parse({
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    hookId: event.hookId ?? defaultHookId(),
+    provider: event.provider,
+    event: event.event,
+    accepted: false,
+    status: "ignored",
+    receivedAt: event.receivedAt,
+  });
+}
+
 function rejectedHookReceiptForReportError(event: ProviderHookEvent, error: unknown): HookReceipt {
   return HookReceiptSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
@@ -558,22 +531,6 @@ function rejectedHookReceiptForReportError(event: ProviderHookEvent, error: unkn
   });
 }
 
-function jsonByteCount(value: unknown): number | null {
-  try {
-    const serialized = JSON.stringify(value);
-    if (serialized === undefined) {
-      return null;
-    }
-    return Buffer.byteLength(serialized, "utf8");
-  } catch {
-    return null;
-  }
-}
-
 function defaultClientFactory(socketPath: string) {
   return createObserverClient({ socketPath, timeoutMs: 500 });
-}
-
-function inferHookKind(provider: string): ProviderHookEvent["kind"] {
-  return provider === "worktrunk" ? "worktree" : "harness";
 }
