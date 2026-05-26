@@ -127,6 +127,157 @@ describe("Phase 1 contract schemas", () => {
     );
   });
 
+  it("parses normalized branch metadata and rejects raw provider metadata shapes", () => {
+    const checkedAt = "2026-05-20T12:00:00.000Z";
+    const normalizedObservation = {
+      id: "wt_web_feature_auth",
+      provider: "worktrunk",
+      projectId: "web",
+      branch: "feature/auth",
+      path: "/tmp/wosm-fixtures/web/worktrees/feature-auth",
+      state: "exists",
+      source: "worktrunk",
+      dirty: false,
+      pr: {
+        number: 42,
+        url: "https://github.com/example/web/pull/42",
+        host: "github",
+        state: "open",
+        baseRef: "main",
+        headRef: "feature/auth",
+        updatedAt: checkedAt,
+        checkedAt,
+        stale: false,
+      },
+      changeSummary: {
+        kind: "branch_diff",
+        additions: 12,
+        deletions: 3,
+        filesChanged: 4,
+        baseRef: "main",
+        headRef: "feature/auth",
+        source: "local_git",
+        checkedAt,
+      },
+      checks: {
+        state: "pass",
+        url: "https://github.com/example/web/actions/runs/1",
+        total: 5,
+        passed: 5,
+        failed: 0,
+        pending: 0,
+        source: "github",
+        checkedAt,
+      },
+      confidence: "high",
+      reason: "Provider listed the worktree.",
+      observedAt: checkedAt,
+    };
+
+    expectParses(WorktreeObservationSchema, normalizedObservation, "metadata observation");
+
+    const parsedWithoutMetadata = WorktreeObservationSchema.parse({
+      id: "wt_web_no_metadata",
+      provider: "worktrunk",
+      projectId: "web",
+      branch: "no-metadata",
+      path: "/tmp/wosm-fixtures/web/worktrees/no-metadata",
+      state: "exists",
+      source: "worktrunk",
+      observedAt: checkedAt,
+    });
+    expect(parsedWithoutMetadata).not.toHaveProperty("pr");
+    expect(parsedWithoutMetadata).not.toHaveProperty("changeSummary");
+    expect(parsedWithoutMetadata).not.toHaveProperty("checks");
+
+    const row = {
+      id: "wt_web_feature_auth",
+      projectId: "web",
+      projectLabel: "web",
+      branch: "feature/auth",
+      path: "/tmp/wosm-fixtures/web/worktrees/feature-auth",
+      worktree: {
+        state: "exists",
+        source: "worktrunk",
+        dirty: false,
+        pr: normalizedObservation.pr,
+        changeSummary: normalizedObservation.changeSummary,
+        checks: normalizedObservation.checks,
+      },
+      display: {
+        statusLabel: "no agent",
+        sortPriority: 70,
+        alert: false,
+      },
+    };
+    const snapshot = {
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      generatedAt: checkedAt,
+      observer: {
+        pid: 4242,
+        startedAt: "2026-05-20T11:55:00.000Z",
+        version: "0.0.0",
+        healthy: true,
+      },
+      providerHealth: {},
+      projects: [],
+      rows: [row],
+      sessions: [],
+      counts: {
+        projects: 0,
+        worktrees: 1,
+        agents: 0,
+        working: 0,
+        idle: 0,
+        attention: 0,
+        unknown: 0,
+      },
+      alerts: [],
+    };
+
+    expectParses(WosmSnapshotSchema, snapshot, "snapshot with normalized branch metadata");
+    expectFails(
+      WosmSnapshotSchema,
+      {
+        ...snapshot,
+        rows: [
+          {
+            ...row,
+            worktree: {
+              ...row.worktree,
+              pr: {
+                number: 42,
+                html_url: "https://github.com/example/web/pull/42",
+                state: "open",
+              },
+            },
+          },
+        ],
+      },
+      "snapshot with raw GitHub PR payload",
+    );
+    expectFails(
+      WosmSnapshotSchema,
+      {
+        ...snapshot,
+        rows: [
+          {
+            ...row,
+            worktree: {
+              ...row.worktree,
+              checks: {
+                status: "completed",
+                conclusion: "success",
+                html_url: "https://github.com/example/web/actions/runs/1",
+              },
+            },
+          },
+        ],
+      },
+      "snapshot with raw CI checks payload",
+    );
+  });
+
   it("parses one command fixture for each command union member", async () => {
     const commands = (await loadJson("commands/commands.json")) as Record<string, unknown>;
 

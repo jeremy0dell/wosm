@@ -138,6 +138,10 @@ export function worktreeObservationFromRow(
   if (row.worktree.ahead !== undefined) observation.ahead = row.worktree.ahead;
   if (row.worktree.behind !== undefined) observation.behind = row.worktree.behind;
   if (row.worktree.pr !== undefined) observation.pr = row.worktree.pr;
+  if (row.worktree.changeSummary !== undefined) {
+    observation.changeSummary = row.worktree.changeSummary;
+  }
+  if (row.worktree.checks !== undefined) observation.checks = row.worktree.checks;
   return observation;
 }
 

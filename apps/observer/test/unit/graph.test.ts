@@ -252,6 +252,62 @@ describe("observer graph derivation", () => {
     expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
   });
 
+  it("copies normalized branch metadata into worktree rows and omits unknown metadata", () => {
+    const observed = worktree("wt_web_metadata", "web", "metadata");
+    observed.pr = {
+      number: 17,
+      url: "https://github.com/example/web/pull/17",
+      host: "github",
+      state: "open",
+      baseRef: "main",
+      headRef: "metadata",
+      checkedAt: generatedAt,
+    };
+    observed.changeSummary = {
+      kind: "branch_diff",
+      additions: 14,
+      deletions: 2,
+      filesChanged: 3,
+      baseRef: "main",
+      headRef: "metadata",
+      source: "local_git",
+      checkedAt: generatedAt,
+    };
+    observed.checks = {
+      state: "running",
+      total: 4,
+      passed: 2,
+      pending: 2,
+      source: "github",
+      checkedAt: generatedAt,
+    };
+
+    const snapshot = build({
+      worktrees: [observed, worktree("wt_web_plain", "web", "plain")],
+    });
+
+    expect(snapshot.rows.find((row) => row.id === "wt_web_metadata")?.worktree).toMatchObject({
+      pr: {
+        number: 17,
+        host: "github",
+      },
+      changeSummary: {
+        kind: "branch_diff",
+        additions: 14,
+        deletions: 2,
+      },
+      checks: {
+        state: "running",
+        total: 4,
+      },
+    });
+    const plainWorktree = snapshot.rows.find((row) => row.id === "wt_web_plain")?.worktree;
+    expect(plainWorktree).not.toHaveProperty("pr");
+    expect(plainWorktree).not.toHaveProperty("changeSummary");
+    expect(plainWorktree).not.toHaveProperty("checks");
+    expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+  });
+
   it("reports orphaned terminal targets without forcing them into worktree rows", () => {
     const snapshot = build({
       worktrees: [],
