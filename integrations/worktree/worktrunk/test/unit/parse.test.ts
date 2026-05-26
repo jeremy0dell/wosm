@@ -53,6 +53,41 @@ describe("Worktrunk list parser", () => {
     expect(observations[1]?.dirty).toBe(false);
   });
 
+  it("uses modern working_tree diff as dirty evidence without creating branch summaries", () => {
+    const observations = parseWorktrunkListJson(
+      JSON.stringify([
+        {
+          branch: "feature/modern-status",
+          path: "/tmp/wosm/web/feature-modern-status",
+          working_tree: {
+            diff: {
+              added: 6,
+              deleted: 2,
+            },
+          },
+        },
+      ]),
+      {
+        project,
+        observedAt: now,
+      },
+    );
+
+    expect(observations[0]).toMatchObject({
+      branch: "feature/modern-status",
+      dirty: true,
+      providerData: {
+        worktrunk: {
+          workingTreeDiff: {
+            added: 6,
+            deleted: 2,
+          },
+        },
+      },
+    });
+    expect(observations[0]).not.toHaveProperty("changeSummary");
+  });
+
   it("rejects invalid structured output with a typed provider error", async () => {
     const source = await fixture("invalid-list.json");
 

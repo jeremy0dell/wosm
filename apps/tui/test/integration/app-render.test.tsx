@@ -1,10 +1,12 @@
+import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
 import { Box, renderToString } from "ink";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import { App } from "../../src/App.js";
 import { Dashboard } from "../../src/components/Dashboard.js";
+import { WorktreeRow as WorktreeRowView } from "../../src/components/WorktreeRow.js";
 import { TuiModeProvider } from "../../src/tuiMode.js";
-import { createDashboardSnapshot, createZeroWorktreeSnapshot } from "../fixtures/snapshots.js";
+import { createDashboardSnapshot, createZeroWorktreeSnapshot, row } from "../fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../support/fakeObserverService.js";
 
 describe("TUI app rendering", () => {
@@ -70,6 +72,41 @@ describe("TUI app rendering", () => {
     expect(frame).toContain("api");
     expect(frame).toContain("0 worktrees");
     instance.unmount();
+  });
+
+  it("renders compact branch metadata from snapshot rows", () => {
+    const base = row({
+      id: "wt_web_metadata",
+      projectId: "web",
+      branch: "branch-metadata",
+      state: "working",
+    });
+    const metadataRow: WorktreeRowModel = {
+      ...base,
+      worktree: {
+        ...base.worktree,
+        pr: {
+          number: 42,
+          stale: true,
+        },
+        changeSummary: {
+          kind: "branch_diff",
+          additions: 24,
+          deletions: 6,
+          source: "local_git",
+          checkedAt: "2026-05-20T12:00:00.000Z",
+        },
+        checks: {
+          state: "pass",
+          source: "github",
+          checkedAt: "2026-05-20T12:00:00.000Z",
+        },
+      },
+    };
+
+    const frame = renderToString(<WorktreeRowView row={metadataRow} slot="8" />);
+
+    expect(frame).toContain("[8] * branch-metadata  +24/-6  #42  ci:pass  codex  working  tmux");
   });
 
   it("labels q and escape as close in persistent popup mode", () => {
