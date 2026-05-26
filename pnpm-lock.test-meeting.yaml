@@ -77,9 +77,6 @@ importers:
 
   apps/hook-runner:
     dependencies:
-      '@wosm/codex':
-        specifier: workspace:*
-        version: link:../../integrations/harness/codex
       '@wosm/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -89,9 +86,6 @@ importers:
       '@wosm/hook-bridge':
         specifier: workspace:*
         version: link:../../packages/hook-bridge
-      '@wosm/worktrunk':
-        specifier: workspace:*
-        version: link:../../integrations/worktree/worktrunk
 
   apps/observer:
     dependencies:
@@ -245,6 +239,9 @@ importers:
 
   packages/hook-bridge:
     dependencies:
+      '@wosm/codex':
+        specifier: workspace:*
+        version: link:../../integrations/harness/codex
       '@wosm/config':
         specifier: workspace:*
         version: link:../config
@@ -260,6 +257,9 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../runtime
+      '@wosm/worktrunk':
+        specifier: workspace:*
+        version: link:../../integrations/worktree/worktrunk
 
   packages/observability:
     dependencies:
