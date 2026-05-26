@@ -154,8 +154,11 @@ describe("Phase 1 contract schemas", () => {
         additions: 12,
         deletions: 3,
         filesChanged: 4,
+        binaryFiles: 1,
         baseRef: "main",
+        baseSha: "1234567890abcdef1234567890abcdef12345678",
         headRef: "feature/auth",
+        headSha: "abcdef1234567890abcdef1234567890abcdef12",
         source: "local_git",
         checkedAt,
       },
@@ -275,6 +278,44 @@ describe("Phase 1 contract schemas", () => {
         ],
       },
       "snapshot with raw CI checks payload",
+    );
+    expectFails(
+      WosmSnapshotSchema,
+      {
+        ...snapshot,
+        rows: [
+          {
+            ...row,
+            worktree: {
+              ...row.worktree,
+              changeSummary: {
+                ...normalizedObservation.changeSummary,
+                binaryFiles: -1,
+              },
+            },
+          },
+        ],
+      },
+      "snapshot with invalid binary file count",
+    );
+    expectFails(
+      WosmSnapshotSchema,
+      {
+        ...snapshot,
+        rows: [
+          {
+            ...row,
+            worktree: {
+              ...row.worktree,
+              changeSummary: {
+                ...normalizedObservation.changeSummary,
+                headSha: "",
+              },
+            },
+          },
+        ],
+      },
+      "snapshot with invalid head sha",
     );
   });
 

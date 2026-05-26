@@ -15,6 +15,7 @@ import {
 import * as recoveryBreadcrumbStore from "./recoveryBreadcrumbs.js";
 import { providerObservationRetentionDays } from "./retention.js";
 import type { CreateObserverPersistenceOptions, ObserverPersistence } from "./types.js";
+import * as worktreeMetadataCurrentStore from "./worktreeMetadataCurrent.js";
 
 export type * from "./types.js";
 
@@ -115,6 +116,38 @@ export function createObserverPersistence(
     pruneExpiredProviderObservations: (expiresBefore, legacyObservedBefore) =>
       transaction((database) =>
         pruneExpiredProviderObservations(database, expiresBefore ?? now(), legacyObservedBefore),
+      ),
+
+    upsertWorktreeMetadataCurrent: (input) =>
+      transaction((database) =>
+        worktreeMetadataCurrentStore.upsertWorktreeMetadataCurrent(database, {
+          ...input,
+          updatedAt: input.updatedAt ?? now(),
+        }),
+      ),
+
+    listWorktreeMetadataCurrent: (listOptions = {}) =>
+      transaction((database) =>
+        worktreeMetadataCurrentStore.listWorktreeMetadataCurrent(database, {
+          ...(listOptions.kind === undefined ? {} : { kind: listOptions.kind }),
+          ...(listOptions.includeExpired === undefined
+            ? {}
+            : { includeExpired: listOptions.includeExpired }),
+          referenceTime: listOptions.now ?? now(),
+        }),
+      ),
+
+    deleteWorktreeMetadataCurrent: (input) =>
+      transaction((database) =>
+        worktreeMetadataCurrentStore.deleteWorktreeMetadataCurrent(database, input),
+      ),
+
+    pruneExpiredWorktreeMetadataCurrent: (expiresBefore) =>
+      transaction((database) =>
+        worktreeMetadataCurrentStore.pruneExpiredWorktreeMetadataCurrent(
+          database,
+          expiresBefore ?? now(),
+        ),
       ),
 
     persistReconcileResult: (input) =>
