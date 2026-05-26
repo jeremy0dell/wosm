@@ -1,14 +1,21 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { closeSync, openSync, writeSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cliEntry = join(repoRoot, "apps/cli/dist/main.js");
 const tuiWatchRunner = join(repoRoot, "scripts/tui-watch-runner.mjs");
-const defaultDevSessionName = "_wosm-ui-dev";
+const defaultDevSessionName = defaultDevSessionNameForRoot(repoRoot);
+const devPopupOptionNames = {
+  command: "@wosm_tui_dev_command",
+  owner: "@wosm_tui_dev_owner",
+  root: "@wosm_tui_dev_root",
+  sessionName: "@wosm_tui_dev_session_name",
+};
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   try {
@@ -24,6 +31,15 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
   const devTuiCommand =
     env.WOSM_TUI_COMMAND ??
     shellCommand(["env", "WOSM_TUI_DEV=1", process.execPath, tuiWatchRunner, cliEntry]);
+  const devOwner = `${process.pid}:${Date.now()}:${randomUUID()}`;
+  const registeredDevTuiCommand =
+    env.WOSM_TUI_REGISTERED_COMMAND ??
+    appendShellArgs(devTuiCommand, [
+      ...globalOptionsFromArgs(argv),
+      "tui",
+      "--popup",
+      "--persistent",
+    ]);
 
   const logPath = join(repoRoot, ".turbo/tui-dev-build.log");
   await mkdir(dirname(logPath), { recursive: true });
@@ -73,11 +89,21 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
     ...env,
     WOSM_TUI_DEV: "1",
     WOSM_TUI_COMMAND: devTuiCommand,
+    WOSM_TUI_DEV_OWNER: devOwner,
     WOSM_TUI_SESSION_NAME: devSessionName,
   };
   const runDirectTui = shouldRunDirectTui(argv, env);
   const keepAliveAfterLauncherExit = shouldKeepAliveAfterLauncherExit(argv, env);
   const nodeArgs = runDirectTui ? [tuiWatchRunner, cliEntry, ...argv] : [cliEntry, ...argv];
+  if (keepAliveAfterLauncherExit) {
+    registerDevPopupPreference({
+      env,
+      owner: devOwner,
+      root: repoRoot,
+      sessionName: devSessionName,
+      tuiCommand: registeredDevTuiCommand,
+    });
+  }
 
   process.stderr.write(`wosm:tui-dev build watcher: ${logPath}\n`);
   const wosm = spawn(process.execPath, nodeArgs, {
@@ -95,7 +121,8 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
     if (!launcherExited) {
       wosm.kill(signal);
     }
-    cleanupDevUiSession(devSessionName, env);
+    clearDevPopupPreference({ env, owner: devOwner });
+    cleanupDevUiSession(devSessionName, env, defaultDevSessionName);
     if (launcherExited) {
       closeLog();
       process.exitCode = 1;
@@ -113,7 +140,8 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
     if (!launcherExited) {
       wosm.kill("SIGTERM");
     }
-    cleanupDevUiSession(devSessionName, env);
+    clearDevPopupPreference({ env, owner: devOwner });
+    cleanupDevUiSession(devSessionName, env, defaultDevSessionName);
     closeLog();
     process.exitCode = signal === null ? (code ?? 1) : 1;
   });
@@ -129,7 +157,8 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
     if (!exiting) {
       exiting = true;
       buildWatcher.kill("SIGTERM");
-      cleanupDevUiSession(devSessionName, env);
+      clearDevPopupPreference({ env, owner: devOwner });
+      cleanupDevUiSession(devSessionName, env, defaultDevSessionName);
     }
     closeLog();
     if (signal !== null) {
@@ -152,6 +181,24 @@ export function commandFromArgs(argv) {
   return undefined;
 }
 
+export function globalOptionsFromArgs(argv) {
+  const options = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--config") {
+      const value = argv[index + 1];
+      if (value === undefined) {
+        break;
+      }
+      options.push(arg, value);
+      index += 1;
+      continue;
+    }
+    break;
+  }
+  return options;
+}
+
 export function shouldRunDirectTui(argv, env) {
   const command = commandFromArgs(argv);
   return command === "tui" || (command === undefined && !isInsideTmux(env));
@@ -167,8 +214,61 @@ export function isInsideTmux(env) {
   return tmux !== undefined && tmux.length > 0;
 }
 
-function cleanupDevUiSession(devSessionName, env) {
-  if (devSessionName !== defaultDevSessionName || !isInsideTmux(env)) {
+export function defaultDevSessionNameForRoot(root) {
+  const slug = basename(root)
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9_-]+/g, "-")
+    .replaceAll(/^-+|-+$/g, "")
+    .slice(0, 32);
+  const hash = createHash("sha256").update(root).digest("hex").slice(0, 8);
+  return `_wosm-ui-dev-${slug.length === 0 ? "checkout" : slug}-${hash}`;
+}
+
+function registerDevPopupPreference(options) {
+  if (!isInsideTmux(options.env)) {
+    return;
+  }
+  const tmux = options.env.WOSM_TMUX_BIN ?? "tmux";
+  const values = [
+    [devPopupOptionNames.command, options.tuiCommand],
+    [devPopupOptionNames.owner, options.owner],
+    [devPopupOptionNames.root, options.root],
+    [devPopupOptionNames.sessionName, options.sessionName],
+  ];
+  for (const [name, value] of values) {
+    spawnSync(tmux, ["set-option", "-gq", name, value], {
+      cwd: repoRoot,
+      stdio: "ignore",
+      env: options.env,
+    });
+  }
+}
+
+function clearDevPopupPreference(options) {
+  if (!isInsideTmux(options.env)) {
+    return;
+  }
+  const tmux = options.env.WOSM_TMUX_BIN ?? "tmux";
+  const currentOwner = spawnSync(tmux, ["show-options", "-gqv", devPopupOptionNames.owner], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+    env: options.env,
+  }).stdout.trim();
+  if (currentOwner !== options.owner) {
+    return;
+  }
+  for (const name of Object.values(devPopupOptionNames)) {
+    spawnSync(tmux, ["set-option", "-gq", "-u", name], {
+      cwd: repoRoot,
+      stdio: "ignore",
+      env: options.env,
+    });
+  }
+}
+
+function cleanupDevUiSession(devSessionName, env, ownedDefaultSessionName) {
+  if (devSessionName !== ownedDefaultSessionName || !isInsideTmux(env)) {
     return;
   }
   spawnSync(env.WOSM_TMUX_BIN ?? "tmux", ["kill-session", "-t", devSessionName], {
@@ -187,6 +287,13 @@ function formatError(error) {
 
 function shellCommand(parts) {
   return parts.map(shellQuote).join(" ");
+}
+
+function appendShellArgs(command, args) {
+  if (args.length === 0) {
+    return command;
+  }
+  return [command, ...args.map(shellQuote)].join(" ");
 }
 
 function shellQuote(value) {
