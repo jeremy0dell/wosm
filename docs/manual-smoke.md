@@ -74,7 +74,7 @@ include_main = false
 include_external = false
 ```
 
-With this policy, wosm-created worktrees are directed to `~/.worktrees/<project-id>/{{ branch | sanitize }}` through Worktrunk's `WORKTRUNK_WORKTREE_PATH` setting.
+With this policy, wosm derives a per-project root under `~/.worktrees`, adding a stable suffix only when project IDs would otherwise collide, then gives each create command a concrete `WORKTRUNK_WORKTREE_PATH` with a collision-resistant branch segment.
 
 A minimal config for the current manual test target is:
 

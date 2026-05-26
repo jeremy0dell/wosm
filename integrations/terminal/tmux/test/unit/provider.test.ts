@@ -1,6 +1,8 @@
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
+import { tmuxListTargetsFormat } from "../../src/parse";
 import { TmuxProvider } from "../../src/provider";
+import { buildWorkbenchWindowName } from "../../src/topology";
 
 const now = "2026-05-21T12:00:00.000Z";
 const project = {
@@ -27,6 +29,14 @@ const worktree = {
   source: "worktrunk" as const,
   observedAt: now,
 };
+const windowName = buildWorkbenchWindowName({
+  projectId: project.id,
+  branch: worktree.branch,
+  worktreeId: worktree.id,
+  path: worktree.path,
+});
+const windowTarget = `wosm:${windowName}`;
+const paneTarget = `${windowTarget}.0`;
 
 describe("TmuxProvider", () => {
   it("declares the reference tmux capabilities", () => {
@@ -82,30 +92,17 @@ describe("TmuxProvider", () => {
 
     expect(calls.map((call) => call.args)).toEqual([
       ["has-session", "-t", "wosm"],
-      ["new-session", "-d", "-s", "wosm", "-n", "web-feature-login", "-c", "/tmp/wosm/web/feature"],
+      ["new-session", "-d", "-s", "wosm", "-n", windowName, "-c", "/tmp/wosm/web/feature"],
       ["set-option", "-t", "wosm", "mouse", "on"],
       ["set-option", "-t", "wosm", "history-limit", "100000"],
       ["set-option", "-t", "wosm", "set-clipboard", "on"],
-      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.session_id", "ses_web_feature"],
-      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.project_id", "web"],
-      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.worktree_id", "wt_web_feature"],
-      [
-        "set-option",
-        "-w",
-        "-t",
-        "wosm:web-feature-login",
-        "@wosm.worktree_path",
-        "/tmp/wosm/web/feature",
-      ],
-      ["set-option", "-p", "-t", "wosm:web-feature-login.0", "@wosm.role", "main-agent"],
-      ["set-option", "-p", "-t", "wosm:web-feature-login.0", "@wosm.harness", "codex"],
-      [
-        "display-message",
-        "-p",
-        "-t",
-        "wosm:web-feature-login.0",
-        "#{session_name}\t#{window_id}\t#{pane_id}",
-      ],
+      ["set-option", "-w", "-t", windowTarget, "@wosm.session_id", "ses_web_feature"],
+      ["set-option", "-w", "-t", windowTarget, "@wosm.project_id", "web"],
+      ["set-option", "-w", "-t", windowTarget, "@wosm.worktree_id", "wt_web_feature"],
+      ["set-option", "-w", "-t", windowTarget, "@wosm.worktree_path", "/tmp/wosm/web/feature"],
+      ["set-option", "-p", "-t", paneTarget, "@wosm.role", "main-agent"],
+      ["set-option", "-p", "-t", paneTarget, "@wosm.harness", "codex"],
+      ["display-message", "-p", "-t", paneTarget, "#{session_name}\t#{window_id}\t#{pane_id}"],
     ]);
   });
 
@@ -141,31 +138,218 @@ describe("TmuxProvider", () => {
 
     expect(calls.map((call) => call.args)).toEqual([
       ["has-session", "-t", "wosm"],
+      ["list-panes", "-t", "wosm", "-F", tmuxListTargetsFormat],
       ["list-windows", "-t", "wosm", "-F", "#{window_name}"],
-      ["new-window", "-d", "-t", "wosm:", "-n", "web-feature-login", "-c", "/tmp/wosm/web/feature"],
+      ["new-window", "-d", "-t", "wosm:", "-n", windowName, "-c", "/tmp/wosm/web/feature"],
       ["set-option", "-t", "wosm", "mouse", "on"],
       ["set-option", "-t", "wosm", "history-limit", "100000"],
       ["set-option", "-t", "wosm", "set-clipboard", "on"],
-      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.session_id", "ses_web_feature"],
-      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.project_id", "web"],
-      ["set-option", "-w", "-t", "wosm:web-feature-login", "@wosm.worktree_id", "wt_web_feature"],
-      [
-        "set-option",
-        "-w",
-        "-t",
-        "wosm:web-feature-login",
-        "@wosm.worktree_path",
-        "/tmp/wosm/web/feature",
-      ],
-      ["set-option", "-p", "-t", "wosm:web-feature-login.0", "@wosm.role", "main-agent"],
-      ["set-option", "-p", "-t", "wosm:web-feature-login.0", "@wosm.harness", "codex"],
-      [
-        "display-message",
-        "-p",
-        "-t",
-        "wosm:web-feature-login.0",
-        "#{session_name}\t#{window_id}\t#{pane_id}",
-      ],
+      ["set-option", "-w", "-t", windowTarget, "@wosm.session_id", "ses_web_feature"],
+      ["set-option", "-w", "-t", windowTarget, "@wosm.project_id", "web"],
+      ["set-option", "-w", "-t", windowTarget, "@wosm.worktree_id", "wt_web_feature"],
+      ["set-option", "-w", "-t", windowTarget, "@wosm.worktree_path", "/tmp/wosm/web/feature"],
+      ["set-option", "-p", "-t", paneTarget, "@wosm.role", "main-agent"],
+      ["set-option", "-p", "-t", paneTarget, "@wosm.harness", "codex"],
+      ["display-message", "-p", "-t", paneTarget, "#{session_name}\t#{window_id}\t#{pane_id}"],
+    ]);
+  });
+
+  it("does not reuse an unmatched legacy window just because the window name collides", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const collidingWorktree = {
+      ...worktree,
+      id: "wt_web_feature-auth",
+      branch: "feature-auth",
+      path: "/tmp/wosm/web/feature-auth",
+    };
+    const collidingWindowName = buildWorkbenchWindowName({
+      projectId: project.id,
+      branch: collidingWorktree.branch,
+      worktreeId: collidingWorktree.id,
+      path: collidingWorktree.path,
+    });
+    const forcedWindowName = buildWorkbenchWindowName({
+      projectId: project.id,
+      branch: collidingWorktree.branch,
+      worktreeId: collidingWorktree.id,
+      path: collidingWorktree.path,
+      forceHash: true,
+    });
+    const forcedWindowTarget = `wosm:${forcedWindowName}`;
+    const forcedPaneTarget = `${forcedWindowTarget}.0`;
+    const provider = new TmuxProvider({
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        calls.push(input);
+        if (input.args?.[0] === "list-panes") {
+          return result(
+            input,
+            [
+              "wosm",
+              "@legacy",
+              "%legacy",
+              "1",
+              "0",
+              "",
+              "/tmp/wosm/web/feature-auth-legacy",
+              "12345",
+              "codex",
+              collidingWindowName,
+              "ses_web_feature_auth_legacy",
+              "web",
+              "wt_web_feature_auth_legacy",
+              "/tmp/wosm/web/feature-auth-legacy",
+              "main-agent",
+              "codex",
+            ].join("\t"),
+          );
+        }
+        if (input.args?.[0] === "list-windows") {
+          return result(input, `${collidingWindowName}\n`);
+        }
+        if (input.args?.[0] === "display-message") {
+          return result(input, "wosm\t@new\t%new");
+        }
+        return result(input, "");
+      },
+    });
+
+    await expect(
+      provider.openWorkspace({
+        project,
+        worktree: collidingWorktree,
+        harness: "codex",
+        layout: "agent-shell",
+        sessionId: "ses_web_feature_auth",
+      }),
+    ).resolves.toMatchObject({
+      target: {
+        targetId: "tmux:wosm:@new:%new",
+        worktreeId: collidingWorktree.id,
+        providerData: {
+          windowName: forcedWindowName,
+          windowTarget: forcedWindowTarget,
+          paneTarget: forcedPaneTarget,
+        },
+      },
+    });
+
+    expect(calls.map((call) => call.args)).toContainEqual([
+      "new-window",
+      "-d",
+      "-t",
+      "wosm:",
+      "-n",
+      forcedWindowName,
+      "-c",
+      collidingWorktree.path,
+    ]);
+    expect(calls.map((call) => call.args)).toContainEqual([
+      "set-option",
+      "-w",
+      "-t",
+      forcedWindowTarget,
+      "@wosm.worktree_id",
+      collidingWorktree.id,
+    ]);
+  });
+
+  it("reuses an existing workbench pane by stored worktree path during name transitions", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const transitionedWorktree = {
+      ...worktree,
+      id: "wt_web_feature_auth_7aa73790c8",
+      branch: "feature/auth",
+      path: "/tmp/wosm/web/feature-auth",
+    };
+    const nextWindowName = buildWorkbenchWindowName({
+      projectId: project.id,
+      branch: transitionedWorktree.branch,
+      worktreeId: transitionedWorktree.id,
+      path: transitionedWorktree.path,
+    });
+    const provider = new TmuxProvider({
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        calls.push(input);
+        if (input.args?.[0] === "list-windows") {
+          return result(input, "web-feature-auth\n");
+        }
+        if (input.args?.[0] === "list-panes") {
+          return result(
+            input,
+            [
+              "wosm",
+              "@old",
+              "%old",
+              "1",
+              "0",
+              "",
+              "/tmp/wosm/web/feature-auth",
+              "12345",
+              "codex",
+              "web-feature-auth",
+              "ses_web_feature",
+              "web",
+              "wt_web_feature_auth",
+              "/tmp/wosm/web/feature-auth",
+              "main-agent",
+              "codex",
+            ].join("\t"),
+          );
+        }
+        if (input.args?.[0] === "display-message") {
+          return result(input, "wosm\t@old\t%old");
+        }
+        return result(input, "");
+      },
+    });
+
+    await expect(
+      provider.openWorkspace({
+        project,
+        worktree: transitionedWorktree,
+        harness: "codex",
+        layout: "agent-shell",
+        sessionId: "ses_web_feature",
+      }),
+    ).resolves.toMatchObject({
+      target: {
+        targetId: "tmux:wosm:@old:%old",
+        worktreeId: transitionedWorktree.id,
+        providerData: {
+          windowName: "web-feature-auth",
+          windowTarget: "wosm:@old",
+          paneTarget: "%old",
+        },
+      },
+    });
+
+    expect(calls.map((call) => call.args)).not.toContainEqual([
+      "new-window",
+      "-d",
+      "-t",
+      "wosm:",
+      "-n",
+      nextWindowName,
+      "-c",
+      transitionedWorktree.path,
+    ]);
+    expect(calls.map((call) => call.args)).toContainEqual([
+      "set-option",
+      "-w",
+      "-t",
+      "wosm:@old",
+      "@wosm.worktree_id",
+      transitionedWorktree.id,
+    ]);
+    expect(calls.map((call) => call.args)).toContainEqual([
+      "set-option",
+      "-p",
+      "-t",
+      "%old",
+      "@wosm.role",
+      "main-agent",
     ]);
   });
 
