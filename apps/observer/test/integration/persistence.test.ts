@@ -335,4 +335,198 @@ describe("observer persistence", () => {
     ]);
     reopened.close();
   });
+
+  it("creates and manages current worktree metadata rows by kind", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+
+    expect(
+      sqlite.database
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+        .get("worktree_metadata_current"),
+    ).toMatchObject({ name: "worktree_metadata_current" });
+
+    await persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_main",
+      kind: "change_summary",
+      cacheKey: "first",
+      expiresAt: later,
+      payload: {
+        kind: "branch_diff",
+        additions: 1,
+        deletions: 2,
+        filesChanged: 1,
+        binaryFiles: 0,
+        baseRef: "main",
+        baseSha: "1111111111111111111111111111111111111111",
+        headRef: "feature",
+        headSha: "2222222222222222222222222222222222222222",
+        source: "local_git",
+        checkedAt: now,
+      },
+    });
+    await persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_main",
+      kind: "change_summary",
+      cacheKey: "second",
+      expiresAt: later,
+      payload: {
+        kind: "branch_diff",
+        additions: 3,
+        deletions: 4,
+        filesChanged: 2,
+        binaryFiles: 1,
+        baseRef: "main",
+        baseSha: "1111111111111111111111111111111111111111",
+        headRef: "feature",
+        headSha: "3333333333333333333333333333333333333333",
+        source: "local_git",
+        checkedAt: now,
+      },
+    });
+    await persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_main",
+      kind: "pull_request",
+      expiresAt: later,
+      payload: {
+        number: 12,
+        host: "github",
+        baseRef: "main",
+        headRef: "feature",
+        checkedAt: now,
+      },
+    });
+    await persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_main",
+      kind: "checks",
+      expiresAt: later,
+      payload: {
+        state: "running",
+        total: 3,
+        pending: 3,
+        source: "github",
+        checkedAt: now,
+      },
+    });
+    await persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_expired",
+      kind: "change_summary",
+      expiresAt: earlier,
+      payload: {
+        kind: "branch_diff",
+        additions: 9,
+        deletions: 0,
+        source: "local_git",
+        checkedAt: earlier,
+      },
+    });
+
+    expect(
+      (await persistence.listWorktreeMetadataCurrent({ kind: "change_summary", now })).map(
+        (row) => `${row.worktreeId}:${row.cacheKey}:${row.payload.additions}`,
+      ),
+    ).toEqual(["wt_web_main:second:3"]);
+    expect(
+      await persistence.listWorktreeMetadataCurrent({
+        kind: ["change_summary", "pull_request", "checks"],
+        includeExpired: true,
+        now,
+      }),
+    ).toHaveLength(4);
+    expect(await persistence.pruneExpiredWorktreeMetadataCurrent(now)).toBe(1);
+    expect(await persistence.deleteWorktreeMetadataCurrent({ worktreeId: "wt_web_main" })).toBe(3);
+    expect(await persistence.listWorktreeMetadataCurrent({ includeExpired: true, now })).toEqual(
+      [],
+    );
+    sqlite.close();
+  });
+
+  it("marks existing current metadata stale with a SafeError", async () => {
+    const safeError = toSafeError(undefined, {
+      tag: "LocalGitMetadataError",
+      code: "LOCAL_GIT_CHANGE_SUMMARY_FAILED",
+      message: "Local git change summary refresh failed.",
+    });
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const payload = {
+      kind: "branch_diff" as const,
+      additions: 1,
+      deletions: 0,
+      source: "local_git",
+      checkedAt: now,
+    };
+
+    await persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_main",
+      kind: "change_summary",
+      cacheKey: "cache",
+      expiresAt: later,
+      payload,
+    });
+    await persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_main",
+      kind: "change_summary",
+      cacheKey: "cache",
+      expiresAt: later,
+      payload: {
+        ...payload,
+        stale: true,
+      },
+      stale: true,
+      lastError: safeError,
+    });
+
+    await expect(
+      persistence.listWorktreeMetadataCurrent({ kind: "change_summary", now }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        worktreeId: "wt_web_main",
+        stale: true,
+        payload: expect.objectContaining({ stale: true }),
+        lastError: safeError,
+      }),
+    ]);
+    sqlite.close();
+  });
+
+  it("omits current metadata rows whose payload no longer parses", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    sqlite.database
+      .prepare(
+        `
+          INSERT INTO worktree_metadata_current
+            (worktree_id, kind, payload_json, updated_at)
+          VALUES (?, ?, ?, ?)
+        `,
+      )
+      .run(
+        "wt_web_invalid",
+        "change_summary",
+        JSON.stringify({ kind: "branch_diff", additions: -1 }),
+        now,
+      );
+
+    await expect(
+      persistence.listWorktreeMetadataCurrent({
+        kind: "change_summary",
+        includeExpired: true,
+        now,
+      }),
+    ).resolves.toEqual([]);
+    sqlite.close();
+  });
 });

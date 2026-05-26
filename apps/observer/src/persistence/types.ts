@@ -10,7 +10,10 @@ import type {
   SafeError,
   TerminalState,
   TerminalTargetObservation,
+  WorktreeChangeSummary,
+  WorktreeChecksSummary,
   WorktreeObservation,
+  WorktreePullRequest,
   WorktreeSource,
   WorktreeState,
   WosmCommand,
@@ -73,6 +76,17 @@ export type CurrentProviderObservationKind = Extract<
 
 export type ProviderObservationType = "worktree" | "terminal" | "harness" | "observer";
 
+export type WorktreeMetadataCurrentKind = "change_summary" | "pull_request" | "checks";
+
+export type WorktreeMetadataCurrentPayloadByKind = {
+  change_summary: WorktreeChangeSummary;
+  pull_request: WorktreePullRequest;
+  checks: WorktreeChecksSummary;
+};
+
+export type WorktreeMetadataCurrentPayload =
+  WorktreeMetadataCurrentPayloadByKind[WorktreeMetadataCurrentKind];
+
 export type PersistedProviderObservation = {
   id: string;
   provider: ProviderId;
@@ -83,6 +97,20 @@ export type PersistedProviderObservation = {
   observedAt: string;
   expiresAt?: string | undefined;
   expired: boolean;
+};
+
+export type PersistedWorktreeMetadataCurrent<
+  TKind extends WorktreeMetadataCurrentKind = WorktreeMetadataCurrentKind,
+> = {
+  worktreeId: string;
+  kind: TKind;
+  payload: WorktreeMetadataCurrentPayloadByKind[TKind];
+  updatedAt: string;
+  expired: boolean;
+  stale: boolean;
+  cacheKey?: string;
+  expiresAt?: string;
+  lastError?: SafeError;
 };
 
 export type PersistedProject = {
@@ -223,6 +251,26 @@ export type ObserverPersistence = {
     now?: string;
   }): Promise<PersistedProviderObservation[]>;
   pruneExpiredProviderObservations(now?: string, legacyObservedBefore?: string): Promise<number>;
+  upsertWorktreeMetadataCurrent<TKind extends WorktreeMetadataCurrentKind>(input: {
+    worktreeId: string;
+    kind: TKind;
+    payload: WorktreeMetadataCurrentPayloadByKind[TKind];
+    cacheKey?: string;
+    updatedAt?: string;
+    expiresAt?: string | undefined;
+    stale?: boolean;
+    lastError?: SafeError;
+  }): Promise<PersistedWorktreeMetadataCurrent<TKind>>;
+  listWorktreeMetadataCurrent<TKind extends WorktreeMetadataCurrentKind>(options?: {
+    kind?: TKind | readonly TKind[];
+    includeExpired?: boolean;
+    now?: string;
+  }): Promise<PersistedWorktreeMetadataCurrent<TKind>[]>;
+  deleteWorktreeMetadataCurrent(input: {
+    worktreeId: string;
+    kind?: WorktreeMetadataCurrentKind;
+  }): Promise<number>;
+  pruneExpiredWorktreeMetadataCurrent(now?: string): Promise<number>;
   persistReconcileResult(input: PersistReconcileResultInput): Promise<void>;
   listProjects(): Promise<PersistedProject[]>;
   listWorktrees(): Promise<PersistedWorktree[]>;

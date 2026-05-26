@@ -300,6 +300,110 @@ describe("observer reconcile persistence", () => {
     sqlite.close();
   });
 
+  it("attaches cached current change summaries to hot snapshots", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    await persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_main",
+      kind: "change_summary",
+      cacheKey: "cached",
+      expiresAt: "2026-05-20T12:05:00.000Z",
+      payload: {
+        kind: "branch_diff",
+        additions: 7,
+        deletions: 2,
+        filesChanged: 3,
+        binaryFiles: 1,
+        baseRef: "main",
+        baseSha: "1111111111111111111111111111111111111111",
+        headRef: "feature",
+        headSha: "2222222222222222222222222222222222222222",
+        source: "local_git",
+        checkedAt: now,
+      },
+    });
+    const core = createObserverCore({
+      config,
+      providers: providersWithOneSession(),
+      persistence,
+      sqlite,
+      clock: { now: () => new Date(now) },
+    });
+
+    const snapshot = await core.reconcile("cached-change-summary");
+
+    expect(snapshot.rows[0]?.worktree.changeSummary).toMatchObject({
+      additions: 7,
+      deletions: 2,
+      binaryFiles: 1,
+      source: "local_git",
+    });
+    sqlite.close();
+  });
+
+  it("reconciles successfully when the current metadata cache is empty", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const core = createObserverCore({
+      config,
+      providers: providersWithOneSession(),
+      persistence,
+      sqlite,
+      clock: { now: () => new Date(now) },
+    });
+
+    const snapshot = await core.reconcile("empty-current-metadata");
+
+    expect(snapshot.rows[0]?.worktree).not.toHaveProperty("changeSummary");
+    sqlite.close();
+  });
+
+  it("does not hydrate change summaries from provider observation history", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    await persistence.recordProviderObservation({
+      provider: "fake-worktree",
+      providerType: "worktree",
+      entityKind: "worktree",
+      entityKey: "wt_web_main",
+      observedAt: now,
+      payload: {
+        ...createFakeWorktree({ id: "wt_web_main", projectId: "web", now }),
+        changeSummary: {
+          kind: "branch_diff",
+          additions: 99,
+          deletions: 99,
+          source: "provider_observations",
+          checkedAt: now,
+        },
+      },
+    });
+    const core = createObserverCore({
+      config,
+      providers: providersWithOneSession(),
+      persistence,
+      sqlite,
+      clock: { now: () => new Date(now) },
+    });
+
+    const snapshot = await core.reconcile("ignore-provider-observation-metadata");
+
+    expect(snapshot.rows[0]?.worktree).not.toHaveProperty("changeSummary");
+    sqlite.close();
+  });
+
   it("leaves unmatched harness hook observations diagnostic-only during live reconcile", async () => {
     const dbPath = await tempDbPath();
     const sqlite = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(now) } });

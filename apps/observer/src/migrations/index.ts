@@ -4,6 +4,7 @@ import { diagnosticsTraceMigration } from "./003_diagnostics_trace.js";
 import { providerObservationLookupIndexesMigration } from "./004_provider_observation_lookup_indexes.js";
 import { providerObservationLatestLookupMigration } from "./005_provider_observation_latest_lookup.js";
 import { providerObservationKindLatestLookupMigration } from "./006_provider_observation_kind_latest_lookup.js";
+import { worktreeMetadataCurrentMigration } from "./007_worktree_metadata_current.js";
 
 export type ObserverSqliteMigration = {
   version: number;
@@ -18,6 +19,7 @@ export const migrations = [
   providerObservationLookupIndexesMigration,
   providerObservationLatestLookupMigration,
   providerObservationKindLatestLookupMigration,
+  worktreeMetadataCurrentMigration,
 ] as const;
 
 export const latestSchemaVersion = migrations[migrations.length - 1]?.version ?? 0;

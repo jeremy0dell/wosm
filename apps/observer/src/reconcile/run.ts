@@ -131,6 +131,18 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     harnessStatusInput.persistence = input.persistence;
   }
   const harnessRuns = await harnessRunsWithPersistedEventStatus(harnessStatusInput);
+  const metadataInput: {
+    persistence?: ObserverPersistence;
+    worktrees: WorktreeObservation[];
+    now: string;
+  } = {
+    worktrees: worktreeResult.worktrees,
+    now: finishedAt,
+  };
+  if (input.persistence !== undefined) {
+    metadataInput.persistence = input.persistence;
+  }
+  const worktreesForSnapshot = await worktreesWithCachedMetadata(metadataInput);
   const lastReconcile: ReconcileTiming = {
     reason: input.reason,
     startedAt: started,
@@ -150,7 +162,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     worktreeProviderId: input.providers.worktree.id,
     providerHealth,
     harnessCapabilities: harnessResult.harnessCapabilities,
-    worktrees: worktreeResult.worktrees,
+    worktrees: worktreesForSnapshot,
     terminalTargets: terminalResult.terminalTargets,
     harnessRuns,
   });
@@ -505,6 +517,36 @@ async function persistReconcileResult(input: {
   );
 
   return 1;
+}
+
+async function worktreesWithCachedMetadata(input: {
+  persistence?: ObserverPersistence;
+  worktrees: WorktreeObservation[];
+  now: string;
+}): Promise<WorktreeObservation[]> {
+  if (input.persistence === undefined || input.worktrees.length === 0) {
+    return input.worktrees;
+  }
+
+  const rows = await input.persistence.listWorktreeMetadataCurrent({
+    kind: "change_summary",
+    now: input.now,
+  });
+  if (rows.length === 0) {
+    return input.worktrees;
+  }
+
+  const changeSummaryByWorktree = new Map(rows.map((row) => [row.worktreeId, row.payload]));
+  return input.worktrees.map((worktree) => {
+    const changeSummary = changeSummaryByWorktree.get(worktree.id);
+    if (changeSummary === undefined) {
+      return worktree;
+    }
+    return {
+      ...worktree,
+      changeSummary,
+    };
+  });
 }
 
 async function readProviderHealth(input: {
