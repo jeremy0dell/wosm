@@ -142,6 +142,68 @@ describe("observer worktree metadata refresh", () => {
     fixture.sqlite.close();
   });
 
+  it("backs off repeated local git refresh failures without scheduling a reconcile loop", async () => {
+    const fixture = createFixture();
+    const reasons: string[] = [];
+    const calls: string[] = [];
+    await fixture.persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_feature",
+      kind: "change_summary",
+      cacheKey: "old",
+      expiresAt: "2026-05-20T11:59:00.000Z",
+      payload: {
+        kind: "branch_diff",
+        additions: 1,
+        deletions: 0,
+        source: "local_git",
+        checkedAt: now,
+      },
+    });
+    const runner = gitRunner(
+      {
+        "rev-parse --verify HEAD^{commit}": headSha,
+        remote: "",
+        "rev-parse --verify refs/heads/main^{commit}": baseSha,
+        "diff --numstat main...HEAD": "bad\t1\tsrc/a.ts\n",
+      },
+      calls,
+    );
+    const service = createWorktreeMetadataRefreshService({
+      projects: providerProjectsFromConfig(config),
+      persistence: fixture.persistence,
+      requestReconcile: (reason) => reasons.push(reason),
+      clock: fixture.clock,
+      runner,
+    });
+
+    const snapshot = await fixture.core.reconcile("metadata-refresh-failure-loop-before");
+    await service.refresh(snapshot);
+    const callsAfterFailure = calls.length;
+    await service.refresh(snapshot);
+
+    await expect(
+      fixture.persistence.listWorktreeMetadataCurrent({
+        kind: "change_summary",
+        includeExpired: true,
+        now,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        worktreeId: "wt_web_feature",
+        stale: true,
+        expired: false,
+        expiresAt: "2026-05-20T12:05:00.000Z",
+        lastError: expect.objectContaining({
+          tag: "LocalGitMetadataError",
+          code: "LOCAL_GIT_NUMSTAT_INVALID",
+        }),
+      }),
+    ]);
+    expect(calls.length).toBe(callsAfterFailure);
+    expect(reasons).toEqual(["metadata:change_summary"]);
+    fixture.sqlite.close();
+  });
+
   it("does not fail API reconcile when background metadata refresh fails", async () => {
     const fixture = createFixture();
     const eventBus = createObserverEventBus();
@@ -214,9 +276,10 @@ function createFixture() {
   };
 }
 
-function gitRunner(responses: Record<string, string>) {
+function gitRunner(responses: Record<string, string>, calls?: string[]) {
   return createFakeExternalCommandRunner((input: ExternalCommandInput): ExternalCommandResult => {
     const key = [input.command, ...(input.args ?? [])].slice(1).join(" ");
+    calls?.push(key);
     const stdout = responses[key];
     if (stdout === undefined) {
       throw Object.assign(new Error(`No fake git response for ${key}`), {
