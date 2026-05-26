@@ -22,7 +22,7 @@ export function runWatchRunner(argv, env = process.env) {
 
   const watchRoots = watchRootsFromEnv(env);
   const watchers = watchRoots.flatMap((root) => watchTree(root, () => scheduleRestart(root)));
-  let child = launchChild();
+  let child = launchChild({ clear: false });
   let restartTimer;
   let restartPending = false;
   let shuttingDown = false;
@@ -44,7 +44,7 @@ export function runWatchRunner(argv, env = process.env) {
       process.stderr.write(`Restarting after rebuild in ${relative(repoRoot, root) || root}\n`);
       if (child === undefined) {
         restartPending = false;
-        child = launchChild();
+        child = launchChild({ clear: true });
         return;
       }
       child.kill("SIGTERM");
@@ -72,7 +72,7 @@ export function runWatchRunner(argv, env = process.env) {
     }
     if (restartPending) {
       restartPending = false;
-      child = launchChild();
+      child = launchChild({ clear: true });
       return;
     }
     if (signal !== null || code !== 0) {
@@ -86,7 +86,10 @@ export function runWatchRunner(argv, env = process.env) {
     );
   }
 
-  function launchChild() {
+  function launchChild(options) {
+    if (options.clear) {
+      clearTerminal();
+    }
     const next = startChild(entry, entryArgs, env);
     next.on("exit", handleChildExit);
     return next;
@@ -167,6 +170,12 @@ function formatError(error) {
     return error.message;
   }
   return String(error);
+}
+
+function clearTerminal() {
+  if (process.stdout.isTTY) {
+    process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
+  }
 }
 
 function shellCommand(parts) {

@@ -22,7 +22,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
 export async function runTuiDev({ argv = process.argv.slice(2), env = process.env } = {}) {
   const devSessionName = env.WOSM_TUI_SESSION_NAME ?? defaultDevSessionName;
   const devTuiCommand =
-    env.WOSM_TUI_COMMAND ?? shellCommand([process.execPath, tuiWatchRunner, cliEntry]);
+    env.WOSM_TUI_COMMAND ??
+    shellCommand(["env", "WOSM_TUI_DEV=1", process.execPath, tuiWatchRunner, cliEntry]);
 
   const logPath = join(repoRoot, ".turbo/tui-dev-build.log");
   await mkdir(dirname(logPath), { recursive: true });
@@ -70,6 +71,7 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
 
   const childEnv = {
     ...env,
+    WOSM_TUI_DEV: "1",
     WOSM_TUI_COMMAND: devTuiCommand,
     WOSM_TUI_SESSION_NAME: devSessionName,
   };
