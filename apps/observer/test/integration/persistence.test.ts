@@ -188,6 +188,20 @@ describe("observer persistence", () => {
     expect(
       (await persistence.listProviderObservations({ now })).map((item) => item.entityKey),
     ).toEqual(["wt_legacy", "wt_active"]);
+    expect(
+      (
+        await persistence.listProviderObservations({
+          entityKind: "worktree",
+          now,
+        })
+      ).map((item) => item.entityKey),
+    ).toEqual(["wt_legacy", "wt_active"]);
+    expect(
+      await persistence.listProviderObservations({
+        entityKind: "harness_event",
+        now,
+      }),
+    ).toEqual([]);
     expect(await persistence.listProviderObservations({ includeExpired: true, now })).toHaveLength(
       3,
     );
@@ -195,6 +209,63 @@ describe("observer persistence", () => {
     expect(await persistence.listProviderObservations({ includeExpired: true, now })).toHaveLength(
       1,
     );
+    sqlite.close();
+  });
+
+  it("can return only the latest provider observation per entity", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const first = createFakeWorktree({ id: "wt_active", projectId: "web", now: earlier });
+    const second = createFakeWorktree({ id: "wt_active", projectId: "web", now });
+    const other = createFakeWorktree({ id: "wt_other", projectId: "web", now: later });
+    const sameTimestampFirst = createFakeWorktree({
+      id: "wt_tie",
+      projectId: "web",
+      now: later,
+    });
+    const sameTimestampSecond = {
+      ...sameTimestampFirst,
+      branch: "tie-latest",
+    };
+
+    for (const worktree of [first, second, other, sameTimestampFirst, sameTimestampSecond]) {
+      await persistence.recordProviderObservation({
+        provider: "fake-worktree",
+        providerType: "worktree",
+        entityKind: "worktree",
+        entityKey: worktree.id,
+        payload: worktree,
+        observedAt: worktree.observedAt,
+        expiresAt: "2026-05-21T12:00:00.000Z",
+      });
+    }
+
+    expect(
+      (
+        await persistence.listProviderObservations({
+          entityKind: "worktree",
+          latestOnly: true,
+          now,
+        })
+      ).map((item) => `${item.entityKey}:${item.observedAt}`),
+    ).toEqual([
+      "wt_active:2026-05-20T12:00:00.000Z",
+      "wt_other:2026-05-20T12:01:00.000Z",
+      "wt_tie:2026-05-20T12:01:00.000Z",
+    ]);
+    expect(
+      (
+        await persistence.listProviderObservations({
+          entityKind: "worktree",
+          latestOnly: true,
+          now,
+        })
+      ).find((item) => item.entityKey === "wt_tie")?.payload,
+    ).toMatchObject({ branch: "tie-latest" });
     sqlite.close();
   });
 
@@ -230,6 +301,14 @@ describe("observer persistence", () => {
       harnessRuns: [run],
       observedAt: now,
     });
+    expect(
+      (
+        await persistence.listCurrentProviderEntityObservations({
+          entityKind: ["worktree", "terminal_target"],
+          now,
+        })
+      ).map((item) => `${item.entityKind}:${item.entityKey}`),
+    ).toEqual(["worktree:wt_web_main", "terminal_target:term_web_main"]);
     sqlite.close();
 
     const reopened = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(later) } });

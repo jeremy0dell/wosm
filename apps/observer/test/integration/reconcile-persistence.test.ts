@@ -141,7 +141,11 @@ describe("observer reconcile persistence", () => {
       "2026-06-03T12:00:00.000Z",
       "2026-06-03T12:00:00.000Z",
     ]);
-    expect(await persistence.listEvents({ type: "observer.reconciled" })).toEqual([
+    await core.reconcile("persistence-test-repeat");
+    expect(await persistence.listProviderObservations()).toHaveLength(observations.length);
+    const reconcileEvents = await persistence.listEvents({ type: "observer.reconciled" });
+    expect(reconcileEvents).toHaveLength(2);
+    expect(reconcileEvents[0]).toEqual(
       expect.objectContaining({
         type: "observer.reconciled",
         event: {
@@ -150,7 +154,7 @@ describe("observer reconcile persistence", () => {
           changed: 0,
         },
       }),
-    ]);
+    );
     sqlite.close();
 
     const reopened = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(now) } });

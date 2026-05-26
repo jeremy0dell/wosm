@@ -54,6 +54,7 @@ export function persistReconcileResult(
       payload: worktree,
       observedAt: worktree.observedAt,
       expiresAt: expiresAtFor(input, worktree.observedAt),
+      coalesceUnchanged: true,
     });
   }
   for (const target of input.terminalTargets.map((value) =>
@@ -69,6 +70,7 @@ export function persistReconcileResult(
       payload: target,
       observedAt: target.observedAt,
       expiresAt: expiresAtFor(input, target.observedAt),
+      coalesceUnchanged: true,
     });
   }
   for (const run of input.harnessRuns.map((value) => HarnessRunObservationSchema.parse(value))) {
@@ -82,6 +84,7 @@ export function persistReconcileResult(
       payload: run,
       observedAt: run.observedAt,
       expiresAt: expiresAtFor(input, run.observedAt),
+      coalesceUnchanged: true,
     });
   }
   if (input.providerHealth !== undefined) {
@@ -95,6 +98,7 @@ export function persistReconcileResult(
         payload: health,
         observedAt: health.lastCheckedAt,
         expiresAt: expiresAtFor(input, health.lastCheckedAt),
+        coalesceUnchanged: true,
       });
     }
   }
