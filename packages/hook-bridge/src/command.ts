@@ -1,5 +1,5 @@
 import type { WosmConfig } from "@wosm/config";
-import type { HookReceipt } from "@wosm/contracts";
+import type { HookReceipt, ProviderHookAdapter } from "@wosm/contracts";
 import { HookReceiptSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { resolveObserverPaths } from "./paths.js";
@@ -12,6 +12,7 @@ export type HookBridgeCommandOptions = {
   stdin?: string | undefined;
   env?: Record<string, string | undefined> | undefined;
   observerEntryPath?: string | undefined;
+  providerAdapters?: readonly ProviderHookAdapter[] | undefined;
 };
 
 export async function runHookBridgeCommand(
@@ -57,11 +58,15 @@ export async function runHookBridgeCommand(
   if (options.observerEntryPath !== undefined) {
     input.observerEntryPath = options.observerEntryPath;
   }
+  if (options.providerAdapters !== undefined) {
+    input.providerAdapters = options.providerAdapters;
+  }
   if (payload.value !== undefined) {
     input.payload = enrichProviderHookPayload({
       provider,
       payload: payload.value,
       env: options.env ?? process.env,
+      adapters: options.providerAdapters,
     });
   }
 

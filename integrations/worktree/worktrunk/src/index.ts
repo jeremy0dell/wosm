@@ -1,5 +1,6 @@
 export * from "./dependency.js";
 export * from "./errors.js";
+export * from "./hookAdapter.js";
 export * from "./hooks.js";
 export * from "./metadata.js";
 export * from "./parse.js";

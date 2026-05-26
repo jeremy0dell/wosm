@@ -6,34 +6,34 @@ import {
   parseTomlDocument,
   removeGeneratedCodexHookCommands,
   stringifyTomlDocument,
-} from "./hookConfigEditor.js";
-import { CODEX_WOSM_PROFILE_NAME, type CodexHookEventName } from "./hookConstants.js";
+} from "./hooks/hookConfigEditor.js";
+import { CODEX_WOSM_PROFILE_NAME, type CodexHookEventName } from "./hooks/hookConstants.js";
 import {
   backupIfPresent,
   readOptionalFile,
   removeHookScriptIfPresent,
   writeHookConfig,
   writeHookScript,
-} from "./hookFiles.js";
+} from "./hooks/hookFiles.js";
 import {
   resolveCodexBaseConfigPath,
   resolveCodexConfigPath,
   resolveCodexHookScriptPath,
-} from "./hookPaths.js";
+} from "./hooks/hookPaths.js";
 import {
   type CodexHookScriptOptions,
   expectedCodexHookCommands,
   expectedCodexHookScript,
-} from "./hookScript.js";
+} from "./hooks/hookScript.js";
 
-export { CODEX_HOOK_EVENT_NAMES, type CodexHookEventName } from "./hookConstants.js";
-export { CodexHookSetupError, type CodexHookSetupErrorCode } from "./hookErrors.js";
+export { CODEX_HOOK_EVENT_NAMES, type CodexHookEventName } from "./hooks/hookConstants.js";
+export { CodexHookSetupError, type CodexHookSetupErrorCode } from "./hooks/hookErrors.js";
 export {
   resolveCodexBaseConfigPath,
   resolveCodexConfigPath,
   resolveCodexHookScriptPath,
-} from "./hookPaths.js";
-export { expectedCodexHookCommands, expectedCodexHookScript } from "./hookScript.js";
+} from "./hooks/hookPaths.js";
+export { expectedCodexHookCommands, expectedCodexHookScript } from "./hooks/hookScript.js";
 
 export type CodexHookPlanOptions = {
   codexConfigPath?: string;

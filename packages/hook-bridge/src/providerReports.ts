@@ -1,6 +1,2 @@
-export {
-  type HarnessEventReportResult,
-  type HookPayloadSummary,
-  harnessEventReportFromHookEvent,
-  shouldReportHarnessEvent,
-} from "./providerAdapters.js";
+export type { HarnessEventReportResult, HookPayloadSummary } from "@wosm/contracts";
+export { harnessEventReportFromHookEvent, shouldReportHarnessEvent } from "./providerAdapters.js";

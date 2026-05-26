@@ -1,11 +1,13 @@
 import { fileURLToPath } from "node:url";
+import { codexHookAdapter } from "@wosm/codex";
 import { loadConfig } from "@wosm/config";
-import type { HookReceipt } from "@wosm/contracts";
+import type { HookReceipt, ProviderHookAdapter } from "@wosm/contracts";
 import {
   type HookBridgeCommandOptions,
   type HookReceiverDeps,
   runHookBridgeCommand,
 } from "@wosm/hook-bridge";
+import { worktrunkHookAdapter } from "@wosm/worktrunk";
 
 export type HookRunnerOptions = {
   stdin?: string | undefined;
@@ -20,6 +22,11 @@ export type HookRunnerResult = {
   stderr: string;
 };
 
+const defaultProviderHookAdapters: readonly ProviderHookAdapter[] = [
+  codexHookAdapter,
+  worktrunkHookAdapter,
+];
+
 export async function runHookRunner(
   argv = process.argv.slice(2),
   options: HookRunnerOptions = {},
@@ -33,6 +40,7 @@ export async function runHookRunner(
       stdin: options.stdin,
       env: options.env,
       observerEntryPath: options.observerEntryPath ?? defaultHookObserverEntryPath(),
+      providerAdapters: defaultProviderHookAdapters,
     };
     const receipt = await runHookBridgeCommand(args, bridgeOptions, options.hookDeps);
     if (receipt.status === "rejected") {

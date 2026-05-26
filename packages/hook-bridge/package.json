@@ -14,12 +14,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@wosm/codex": "workspace:*",
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
     "@wosm/observability": "workspace:*",
     "@wosm/protocol": "workspace:*",
-    "@wosm/runtime": "workspace:*",
-    "@wosm/worktrunk": "workspace:*"
+    "@wosm/runtime": "workspace:*"
   }
 }

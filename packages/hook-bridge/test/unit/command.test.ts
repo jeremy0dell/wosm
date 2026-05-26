@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { codexHookAdapter } from "@wosm/codex";
 import type {
   HarnessEventReport,
   HarnessEventReportReceipt,
@@ -106,6 +107,7 @@ describe("hook bridge command", () => {
           tool_use_id: "call_test",
         }),
         env: {},
+        providerAdapters: [codexHookAdapter],
         observerEntryPath: "/tmp/wosm-observer.js",
       },
       {
@@ -197,6 +199,7 @@ describe("hook bridge command", () => {
           WOSM_TERMINAL_PROVIDER: "tmux",
           WOSM_TERMINAL_TARGET_ID: "tmux:wosm:@1:%2",
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
