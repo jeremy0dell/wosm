@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createObserverPersistence, openObserverSqlite } from "../../src/internal";
+import {
+  createObserverPersistence,
+  latestSchemaVersion,
+  migrations,
+  openObserverSqlite,
+} from "../../src/internal";
 
 const now = "2026-05-20T12:00:00.000Z";
 
@@ -16,10 +21,12 @@ describe("observer SQLite health", () => {
       path: ":memory:",
       open: true,
       status: "healthy",
-      schemaVersion: 3,
+      schemaVersion: latestSchemaVersion,
       lastCheckedAt: now,
     });
-    expect(sqlite.health().migrations.map((migration) => migration.version)).toEqual([1, 2, 3]);
+    expect(sqlite.health().migrations.map((migration) => migration.version)).toEqual(
+      migrations.map((migration) => migration.version),
+    );
 
     sqlite.close();
 
@@ -27,7 +34,7 @@ describe("observer SQLite health", () => {
       path: ":memory:",
       open: false,
       status: "closed",
-      schemaVersion: 3,
+      schemaVersion: latestSchemaVersion,
       lastCheckedAt: now,
     });
   });

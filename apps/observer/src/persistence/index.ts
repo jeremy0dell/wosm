@@ -8,6 +8,7 @@ import { eventCommandId, eventTimestamp, listEvents, recordEvent } from "./event
 import { defaultIdFactory } from "./idFactory.js";
 import {
   insertProviderObservation,
+  listCurrentProviderEntityObservations,
   listProviderObservations,
   pruneExpiredProviderObservations,
 } from "./observations.js";
@@ -91,6 +92,19 @@ export function createObserverPersistence(
     listProviderObservations: (listOptions = {}) =>
       transaction((database) =>
         listProviderObservations(database, {
+          ...(listOptions.entityKind === undefined ? {} : { entityKind: listOptions.entityKind }),
+          ...(listOptions.includeExpired === undefined
+            ? {}
+            : { includeExpired: listOptions.includeExpired }),
+          ...(listOptions.latestOnly === undefined ? {} : { latestOnly: listOptions.latestOnly }),
+          referenceTime: listOptions.now ?? now(),
+        }),
+      ),
+
+    listCurrentProviderEntityObservations: (listOptions = {}) =>
+      transaction((database) =>
+        listCurrentProviderEntityObservations(database, {
+          ...(listOptions.entityKind === undefined ? {} : { entityKind: listOptions.entityKind }),
           ...(listOptions.includeExpired === undefined
             ? {}
             : { includeExpired: listOptions.includeExpired }),
