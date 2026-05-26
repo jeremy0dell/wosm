@@ -94,11 +94,11 @@ function selectNewSessionProject(
 }
 
 function compareRows(left: WorktreeRow, right: WorktreeRow): number {
-  const priority = left.display.sortPriority - right.display.sortPriority;
-  if (priority !== 0) {
-    return priority;
-  }
-  return left.branch.localeCompare(right.branch);
+  return (
+    left.branch.localeCompare(right.branch) ||
+    left.path.localeCompare(right.path) ||
+    left.id.localeCompare(right.id)
+  );
 }
 
 function rowMatchesSearch(row: WorktreeRow, project: ProjectView, query: string): boolean {
