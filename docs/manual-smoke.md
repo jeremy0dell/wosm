@@ -214,7 +214,7 @@ wosm-created tmux workbench sessions set `mouse on`, `history-limit 100000`, and
 To make the old-style prefix binding call that same path, add a tmux binding and reload tmux:
 
 ```tmux
-bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID="#{client_name}" wosm popup'
+bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID="#{client_name}" wosm-tmux-popup'
 ```
 
 ```bash

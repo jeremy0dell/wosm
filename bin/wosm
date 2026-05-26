@@ -12,7 +12,13 @@ while [ -h "$script" ]; do
 done
 
 root=$(CDPATH= cd -- "$(dirname -- "$script")/.." && pwd)
+tmux_popup=$root/integrations/terminal/tmux/bin/wosm-popup
 entry=$root/apps/cli/dist/main.js
+
+# Keep popup toggle pre-Node, but leave tmux behavior in the tmux integration launcher.
+if [ -x "$tmux_popup" ] && "$tmux_popup" "$@"; then
+  exit 0
+fi
 
 if [ ! -f "$entry" ]; then
   printf '%s\n' "wosm has not been built. Run: pnpm build" >&2
