@@ -16,7 +16,7 @@ tmux_popup=$root/integrations/terminal/tmux/bin/wosm-popup
 entry=$root/apps/cli/dist/main.js
 
 # Keep popup toggle pre-Node, but leave tmux behavior in the tmux integration launcher.
-if [ -x "$tmux_popup" ] && "$tmux_popup" "$@"; then
+if [ -x "$tmux_popup" ] && WOSM_FAST_POPUP_NO_FALLBACK=1 "$tmux_popup" "$@"; then
   exit 0
 fi
 

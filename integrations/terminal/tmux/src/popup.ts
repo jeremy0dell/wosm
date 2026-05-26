@@ -36,10 +36,17 @@ export type TmuxRegisteredDevPopupUi = {
   root?: string;
   sessionName: string;
 };
+type TmuxPersistentPopupUi = {
+  command: string;
+  registerFastPopup: boolean;
+  sessionName: string;
+};
 
 const activePopupClientOption = "@wosm_popup_client";
 const focusPopupClientOption = "@wosm_popup_focus_client";
 const persistentUiSignatureOption = "@wosm_popup_ui_signature";
+const registeredPopupExpectedSignatureOption = "@wosm_popup_ui_expected_signature";
+const registeredPopupSessionNameOption = "@wosm_popup_ui_session_name";
 const registeredDevPopupCommandOption = "@wosm_tui_dev_command";
 const registeredDevPopupOwnerOption = "@wosm_tui_dev_owner";
 const registeredDevPopupRootOption = "@wosm_tui_dev_root";
@@ -158,6 +165,9 @@ export async function openTmuxPopup(options: TmuxPopupOptions = {}): Promise<Tmu
       tuiCommand: persistentUi.command,
       uiSessionName: persistentUi.sessionName,
     });
+    if (persistentUi.registerFastPopup) {
+      await registerFastPopupUi(tmuxCommand, persistentUi).catch(() => undefined);
+    }
   }
 
   const args = buildTmuxPopupArgs({
@@ -436,20 +446,34 @@ function popupCommandInput(
 async function resolvePersistentPopupUi(
   options: Pick<TmuxPopupOptions, "preferRegisteredDevPopup" | "tuiCommand" | "uiSessionName">,
   input: TmuxPopupCommandInput,
-): Promise<{ command: string; sessionName: string }> {
+): Promise<TmuxPersistentPopupUi> {
   if (options.preferRegisteredDevPopup === true) {
     const registered = await resolveRegisteredDevPopupUi(input);
     if (registered !== undefined) {
       return {
         command: registered.command,
+        registerFastPopup: false,
         sessionName: registered.sessionName,
       };
     }
   }
   return {
     command: options.tuiCommand ?? defaultPersistentPopupTuiCommand,
+    registerFastPopup: true,
     sessionName: options.uiSessionName ?? defaultPersistentPopupSessionName,
   };
+}
+
+async function registerFastPopupUi(
+  input: TmuxPopupCommandInput,
+  ui: TmuxPersistentPopupUi,
+): Promise<void> {
+  await setTmuxGlobalOption(input, registeredPopupSessionNameOption, ui.sessionName);
+  await setTmuxGlobalOption(
+    input,
+    registeredPopupExpectedSignatureOption,
+    persistentPopupSignature(ui.command),
+  );
 }
 
 async function resolveActivePopupClient(input: TmuxPopupCommandInput): Promise<string | undefined> {
@@ -664,6 +688,19 @@ async function setFocusPopupClient(
     operation: "provider.tmux.popup.setFocusClient",
     message: "tmux failed to record the wosm popup focus client.",
     timeoutMessage: "tmux popup focus client update timed out.",
+  });
+}
+
+async function setTmuxGlobalOption(
+  input: TmuxPopupCommandInput,
+  optionName: string,
+  value: string,
+): Promise<void> {
+  await runTmuxPopupCommand(input, {
+    args: ["set-option", "-gq", optionName, value],
+    operation: "provider.tmux.popup.setGlobalOption",
+    message: "tmux failed to record a wosm popup option.",
+    timeoutMessage: "tmux popup option update timed out.",
   });
 }
 

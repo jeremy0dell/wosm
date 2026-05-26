@@ -20,6 +20,30 @@ clear_popup_client_if_current() {
   fi
 }
 
+fallback_or_exit() {
+  case "${WOSM_FAST_POPUP_NO_FALLBACK:-}" in
+    1|true|yes) exit 1 ;;
+  esac
+  if [ -n "${WOSM_POPUP_FALLBACK_COMMAND:-}" ]; then
+    exec sh -lc "$WOSM_POPUP_FALLBACK_COMMAND"
+  fi
+  script=$0
+  while [ -h "$script" ]; do
+    script_dir=$(CDPATH= cd -- "$(dirname -- "$script")" && pwd)
+    link=$(readlink "$script")
+    case "$link" in
+      /*) script=$link ;;
+      *) script=$script_dir/$link ;;
+    esac
+  done
+  root=$(CDPATH= cd -- "$(dirname -- "$script")/../../../.." 2>/dev/null && pwd || true)
+  if [ -n "$root" ] && [ -x "$root/bin/wosm" ]; then
+    exec "$root/bin/wosm" popup
+  fi
+  command -v wosm >/dev/null 2>&1 || exit 1
+  exec wosm popup
+}
+
 owner_is_alive() {
   owner=$1
   pid=${owner%%:*}
@@ -29,11 +53,54 @@ owner_is_alive() {
   kill -0 "$pid" 2>/dev/null
 }
 
+signature_matches_expected() {
+  session_name=$1
+  expected_signature=$2
+  signature=$("$tmux_bin" show-options -t "$session_name" -qv @wosm_popup_ui_signature 2>/dev/null || true)
+  [ "$signature" = "$expected_signature" ]
+}
+
+try_ui_candidate() {
+  candidate_session=$1
+  candidate_signature=$2
+  candidate_owner=$3
+  [ -n "$candidate_session" ] || return 1
+  [ -n "$candidate_signature" ] || return 1
+  if [ -n "$candidate_owner" ] && ! owner_is_alive "$candidate_owner"; then
+    return 1
+  fi
+  "$tmux_bin" has-session -t "$candidate_session" >/dev/null 2>&1 || return 1
+  signature_matches_expected "$candidate_session" "$candidate_signature" || return 1
+  session_name=$candidate_session
+  return 0
+}
+
+try_registered_dev_ui() {
+  candidate_session=$("$tmux_bin" show-options -gqv @wosm_tui_dev_session_name 2>/dev/null || true)
+  candidate_command=$("$tmux_bin" show-options -gqv @wosm_tui_dev_command 2>/dev/null || true)
+  [ -n "$candidate_session" ] || return 1
+  [ -n "$candidate_command" ] || return 1
+  candidate_owner=$("$tmux_bin" show-options -gqv @wosm_tui_dev_owner 2>/dev/null || true)
+  try_ui_candidate "$candidate_session" "v1:$candidate_command" "$candidate_owner"
+}
+
+try_registered_normal_ui() {
+  candidate_session=$("$tmux_bin" show-options -gqv @wosm_popup_ui_session_name 2>/dev/null || true)
+  candidate_signature=$("$tmux_bin" show-options -gqv @wosm_popup_ui_expected_signature 2>/dev/null || true)
+  try_ui_candidate "$candidate_session" "$candidate_signature" ""
+}
+
+select_registered_ui() {
+  try_registered_dev_ui && return 0
+  try_registered_normal_ui && return 0
+  return 1
+}
+
 case "${WOSM_DISABLE_FAST_POPUP:-}" in
-  1|true|yes) exit 1 ;;
+  1|true|yes) fallback_or_exit ;;
 esac
 
-[ -n "${TMUX:-}${WOSM_FOCUS_CLIENT_ID:-}" ] || exit 1
+[ -n "${TMUX:-}${WOSM_FOCUS_CLIENT_ID:-}" ] || fallback_or_exit
 if [ "$#" -eq 0 ]; then
   :
 elif [ "$#" -eq 1 ] && [ "$1" = "popup" ]; then
@@ -43,25 +110,15 @@ else
 fi
 
 tmux_bin=${WOSM_TMUX_BIN:-tmux}
-command -v "$tmux_bin" >/dev/null 2>&1 || exit 1
+command -v "$tmux_bin" >/dev/null 2>&1 || fallback_or_exit
 
-session_name=$("$tmux_bin" show-options -gqv @wosm_tui_dev_session_name 2>/dev/null || true)
-registered_command=$("$tmux_bin" show-options -gqv @wosm_tui_dev_command 2>/dev/null || true)
-[ -n "$session_name" ] || exit 1
-[ -n "$registered_command" ] || exit 1
-
-owner=$("$tmux_bin" show-options -gqv @wosm_tui_dev_owner 2>/dev/null || true)
-if [ -n "$owner" ] && ! owner_is_alive "$owner"; then
-  exit 1
-fi
-
-"$tmux_bin" has-session -t "$session_name" >/dev/null 2>&1 || exit 1
+select_registered_ui || fallback_or_exit
 
 client_id=${WOSM_FOCUS_CLIENT_ID:-}
 if [ -z "$client_id" ]; then
   client_id=$("$tmux_bin" display-message -p "#{client_name}" 2>/dev/null || true)
 fi
-[ -n "$client_id" ] || exit 1
+[ -n "$client_id" ] || fallback_or_exit
 
 active_client=$("$tmux_bin" show-options -gqv @wosm_popup_client 2>/dev/null || true)
 if [ "$active_client" = "$client_id" ]; then
