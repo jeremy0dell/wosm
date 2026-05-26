@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2);
 const keepTemp = takeFlag(args, "--keep-temp");
-const vitestArgs = ["run", "--config", "vitest.real-e2e.config.ts", ...args];
+const vitestArgs = ["run", "--config", "config/vitest/vitest.real-e2e.config.ts", ...args];
 const env = {
   ...process.env,
   WOSM_REAL_DOGFOOD: "1",
