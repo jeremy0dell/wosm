@@ -155,7 +155,8 @@ async function harnessEventContext(options: IngestProviderHookEventOptions): Pro
   worktrees: WorktreeObservation[];
   terminalTargets: TerminalTargetObservation[];
 }> {
-  const persisted = await options.persistence.listProviderObservations({
+  const persisted = await options.persistence.listCurrentProviderEntityObservations({
+    entityKind: ["worktree", "terminal_target"],
     now: options.event.receivedAt,
   });
   return {

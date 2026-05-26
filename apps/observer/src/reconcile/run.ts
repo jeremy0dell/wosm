@@ -462,7 +462,10 @@ async function harnessRunsWithPersistedEventStatus(input: {
     return input.harnessRuns;
   }
 
-  const observations = await input.persistence.listProviderObservations({ now: input.now });
+  const observations = await input.persistence.listProviderObservations({
+    entityKind: "harness_event",
+    now: input.now,
+  });
   return applyHarnessEventStatusOverlays({
     runs: input.harnessRuns,
     observations,

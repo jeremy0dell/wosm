@@ -66,6 +66,10 @@ export type ProviderObservationKind =
   | "harness_run"
   | "harness_event"
   | "provider_health";
+export type CurrentProviderObservationKind = Extract<
+  ProviderObservationKind,
+  "worktree" | "terminal_target"
+>;
 
 export type ProviderObservationType = "worktree" | "terminal" | "harness" | "observer";
 
@@ -208,6 +212,13 @@ export type ObserverPersistence = {
     expiresAt?: string | undefined;
   }): Promise<PersistedProviderObservation>;
   listProviderObservations(options?: {
+    entityKind?: ProviderObservationKind | readonly ProviderObservationKind[];
+    includeExpired?: boolean;
+    latestOnly?: boolean;
+    now?: string;
+  }): Promise<PersistedProviderObservation[]>;
+  listCurrentProviderEntityObservations(options?: {
+    entityKind?: CurrentProviderObservationKind | readonly CurrentProviderObservationKind[];
     includeExpired?: boolean;
     now?: string;
   }): Promise<PersistedProviderObservation[]>;
