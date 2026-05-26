@@ -52,6 +52,85 @@ describe("hook bridge command", () => {
     await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
   });
 
+  it("still rejects malformed Codex JSON when the hook binary is invoked without ownership env", async () => {
+    const fixture = await createTempState();
+    let delivered = false;
+
+    const receipt = await runHookBridgeCommand(
+      ["codex", "PreToolUse"],
+      {
+        config: fixture.config,
+        stdin: "{ invalid json",
+        observerEntryPath: "/tmp/wosm-observer.js",
+      },
+      {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async () => {
+              delivered = true;
+              throw new Error("should not deliver malformed hook payload");
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt).toMatchObject({
+      status: "rejected",
+      error: {
+        code: "HOOK_PAYLOAD_INVALID",
+      },
+    });
+    expect(delivered).toBe(false);
+    await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
+  });
+
+  it("ignores Codex hooks without injected ownership env before observer delivery", async () => {
+    const fixture = await createTempState();
+    let delivered = false;
+
+    const receipt = await runHookBridgeCommand(
+      ["codex", "PreToolUse"],
+      {
+        config: fixture.config,
+        stdin: JSON.stringify({
+          session_id: "codex_session_1",
+          transcript_path: null,
+          cwd: "/tmp/wosm/web/task",
+          hook_event_name: "PreToolUse",
+          model: "gpt-5.4-codex",
+          permission_mode: "default",
+          turn_id: "turn_1",
+          tool_name: "Bash",
+          tool_input: { command: "pnpm test" },
+          tool_use_id: "call_test",
+        }),
+        env: {},
+        observerEntryPath: "/tmp/wosm-observer.js",
+      },
+      {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async () => {
+              delivered = true;
+              throw new Error("ignored hooks should not reach observer delivery");
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt).toMatchObject({
+      provider: "codex",
+      event: "PreToolUse",
+      accepted: false,
+      status: "ignored",
+    });
+    expect(receipt).not.toHaveProperty("error");
+    expect(delivered).toBe(false);
+    await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
+  });
+
   it("keeps absent stdin payload fields absent on delivered events", async () => {
     const fixture = await createTempState();
     let deliveredEvent: ProviderHookEvent | undefined;

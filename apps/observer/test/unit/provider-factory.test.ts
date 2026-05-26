@@ -126,6 +126,7 @@ describe("provider factory", () => {
           profile: "team-profile",
           approvalPolicy: "on-request",
           sandboxMode: "workspace-write",
+          installHooks: true,
         },
       },
     });
@@ -157,6 +158,8 @@ describe("provider factory", () => {
         "/tmp/wosm/web/task",
         "--profile",
         "team-profile",
+        "--profile-v2",
+        "wosm",
         "--sandbox",
         "workspace-write",
         "--ask-for-approval",

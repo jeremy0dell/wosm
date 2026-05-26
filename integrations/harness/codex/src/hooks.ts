@@ -3,6 +3,12 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parse, stringify } from "smol-toml";
 
+const CODEX_WOSM_PROFILE_NAME = "wosm";
+const CODEX_WOSM_PROFILE_CONFIG_FILE = "wosm.config.toml";
+const CODEX_BASE_CONFIG_FILE = "config.toml";
+const GENERATED_HOOK_STATUS_MESSAGE = "Notify wosm";
+const GENERATED_HOOK_SCRIPT_NAME = "wosm-codex-hook.sh";
+
 export const CODEX_HOOK_EVENT_NAMES = [
   "SessionStart",
   "UserPromptSubmit",
@@ -29,15 +35,30 @@ export type CodexHookPlanOptions = {
   homeDir?: string;
 };
 
+export type CodexLegacyGlobalCleanupStatus = {
+  configPath: string;
+  changed: boolean;
+  stale: CodexHookEventName[];
+  before: string;
+  after: string;
+  skipped?: boolean;
+  reason?: "same-as-profile";
+};
+
 export type CodexHookPlan = {
   provider: "codex";
   configPath: string;
+  profileName: typeof CODEX_WOSM_PROFILE_NAME;
+  profileConfigPath: string;
+  baseConfigPath: string;
   hookScriptPath: string;
   commands: Record<CodexHookEventName, string>;
   missing: CodexHookEventName[];
   changed: boolean;
   configChanged: boolean;
+  legacyGlobalChanged: boolean;
   scriptChanged: boolean;
+  legacyGlobalCleanup: CodexLegacyGlobalCleanupStatus;
   before: string;
   after: string;
 };
@@ -45,17 +66,24 @@ export type CodexHookPlan = {
 export type CodexHookInstallResult = CodexHookPlan & {
   installed: boolean;
   backupPath?: string;
+  profileBackupPath?: string;
+  baseBackupPath?: string;
+  backupPaths?: string[];
   scriptRemoved?: boolean;
 };
 
 export type CodexHookDoctorResult = {
   provider: "codex";
   configPath: string;
+  profileName: typeof CODEX_WOSM_PROFILE_NAME;
+  profileConfigPath: string;
+  baseConfigPath: string;
   hookScriptPath: string;
   status: "ok" | "warn";
   installed: boolean;
   missing: CodexHookEventName[];
   commands: Record<CodexHookEventName, string>;
+  legacyGlobalCleanup: CodexLegacyGlobalCleanupStatus;
   message: string;
 };
 
@@ -82,6 +110,7 @@ export class CodexHookSetupError extends Error {
 
 export async function planCodexHooks(options: CodexHookPlanOptions = {}): Promise<CodexHookPlan> {
   const configPath = resolveCodexConfigPath(options);
+  const baseConfigPath = resolveCodexBaseConfigPath(options);
   const hookScriptPath = resolveCodexHookScriptPath(options);
   const before = await readOptionalFile(configPath);
   const document = parseTomlDocument(before);
@@ -95,16 +124,26 @@ export async function planCodexHooks(options: CodexHookPlanOptions = {}): Promis
   const scriptBefore = await readOptionalFile(hookScriptPath);
   const configChanged = before.trim() !== after.trim();
   const scriptChanged = scriptBefore !== script;
+  const legacyGlobalCleanup = await planLegacyGlobalCleanup({
+    baseConfigPath,
+    profileConfigPath: configPath,
+    commands,
+  });
 
   return {
     provider: "codex",
     configPath,
+    profileName: CODEX_WOSM_PROFILE_NAME,
+    profileConfigPath: configPath,
+    baseConfigPath,
     hookScriptPath,
     commands,
     missing,
-    changed: configChanged || scriptChanged,
+    changed: configChanged || scriptChanged || legacyGlobalCleanup.changed,
     configChanged,
+    legacyGlobalChanged: legacyGlobalCleanup.changed,
     scriptChanged,
+    legacyGlobalCleanup,
     before,
     after,
   };
@@ -114,10 +153,15 @@ export async function installCodexHooks(
   options: CodexHookPlanOptions = {},
 ): Promise<CodexHookInstallResult> {
   const plan = await planCodexHooks(options);
-  let backupPath: string | undefined;
+  let profileBackupPath: string | undefined;
+  let baseBackupPath: string | undefined;
   if (plan.configChanged) {
-    backupPath = await backupIfPresent(plan.configPath);
+    profileBackupPath = await backupIfPresent(plan.configPath);
     await writeHookConfig(plan.configPath, plan.after);
+  }
+  if (plan.legacyGlobalCleanup.changed) {
+    baseBackupPath = await backupIfPresent(plan.baseConfigPath);
+    await writeHookConfig(plan.baseConfigPath, plan.legacyGlobalCleanup.after);
   }
   if (plan.scriptChanged) {
     await writeHookScript(
@@ -127,9 +171,7 @@ export async function installCodexHooks(
   }
 
   const result = installResultFromPlan(plan, true);
-  if (backupPath !== undefined) {
-    result.backupPath = backupPath;
-  }
+  assignBackupPaths(result, { profileBackupPath, baseBackupPath });
   return result;
 }
 
@@ -154,12 +196,17 @@ function installResultFromPlan(plan: CodexHookPlan, installed: boolean): CodexHo
   return {
     provider: plan.provider,
     configPath: plan.configPath,
+    profileName: plan.profileName,
+    profileConfigPath: plan.profileConfigPath,
+    baseConfigPath: plan.baseConfigPath,
     hookScriptPath: plan.hookScriptPath,
     commands: plan.commands,
     missing: plan.missing,
     changed: plan.changed,
     configChanged: plan.configChanged,
+    legacyGlobalChanged: plan.legacyGlobalChanged,
     scriptChanged: plan.scriptChanged,
+    legacyGlobalCleanup: plan.legacyGlobalCleanup,
     before: plan.before,
     after: plan.after,
     installed,
@@ -170,6 +217,7 @@ export async function uninstallCodexHooks(
   options: CodexHookPlanOptions = {},
 ): Promise<CodexHookInstallResult> {
   const configPath = resolveCodexConfigPath(options);
+  const baseConfigPath = resolveCodexBaseConfigPath(options);
   const hookScriptPath = resolveCodexHookScriptPath(options);
   const before = await readOptionalFile(configPath);
   const document = parseTomlDocument(before);
@@ -180,30 +228,44 @@ export async function uninstallCodexHooks(
     (eventName) => !hookContainsCommand(afterDocument, eventName, commands[eventName]),
   );
   const configChanged = before.trim() !== after.trim();
-  let backupPath: string | undefined;
+  const legacyGlobalCleanup = await planLegacyGlobalCleanup({
+    baseConfigPath,
+    profileConfigPath: configPath,
+    commands,
+  });
+  let profileBackupPath: string | undefined;
+  let baseBackupPath: string | undefined;
   if (configChanged) {
-    backupPath = await backupIfPresent(configPath);
+    profileBackupPath = await backupIfPresent(configPath);
     await writeHookConfig(configPath, after);
   }
-  const scriptRemoved = await removeHookScriptIfPresent(hookScriptPath);
+  if (legacyGlobalCleanup.changed) {
+    baseBackupPath = await backupIfPresent(baseConfigPath);
+    await writeHookConfig(baseConfigPath, legacyGlobalCleanup.after);
+  }
+  const scriptStillNeeded = documentContainsCommand(afterDocument, hookScriptPath);
+  const scriptRemoved = scriptStillNeeded ? false : await removeHookScriptIfPresent(hookScriptPath);
 
   const result: CodexHookInstallResult = {
     provider: "codex",
     configPath,
+    profileName: CODEX_WOSM_PROFILE_NAME,
+    profileConfigPath: configPath,
+    baseConfigPath,
     hookScriptPath,
     commands,
     missing,
-    changed: configChanged || scriptRemoved,
+    changed: configChanged || legacyGlobalCleanup.changed || scriptRemoved,
     configChanged,
+    legacyGlobalChanged: legacyGlobalCleanup.changed,
     scriptChanged: scriptRemoved,
+    legacyGlobalCleanup,
     before,
     after,
     installed: false,
     scriptRemoved,
   };
-  if (backupPath !== undefined) {
-    result.backupPath = backupPath;
-  }
+  assignBackupPaths(result, { profileBackupPath, baseBackupPath });
   return result;
 }
 
@@ -211,16 +273,23 @@ export async function doctorCodexHooks(
   options: CodexHookPlanOptions & { enabled?: boolean } = {},
 ): Promise<CodexHookDoctorResult> {
   const plan = await planCodexHooks(options);
+  const legacyGlobalInstalled = plan.legacyGlobalCleanup.stale.length > 0;
   if (options.enabled === false) {
     return {
       provider: "codex",
       configPath: plan.configPath,
+      profileName: plan.profileName,
+      profileConfigPath: plan.profileConfigPath,
+      baseConfigPath: plan.baseConfigPath,
       hookScriptPath: plan.hookScriptPath,
-      status: "ok",
+      status: legacyGlobalInstalled ? "warn" : "ok",
       installed: false,
       missing: plan.missing,
       commands: plan.commands,
-      message: "Codex hooks are not requested in wosm config.",
+      legacyGlobalCleanup: plan.legacyGlobalCleanup,
+      message: legacyGlobalInstalled
+        ? "Codex hooks are not requested in wosm config, but generated global Codex hooks remain in the base config."
+        : "Codex hooks are not requested in wosm config.",
     };
   }
 
@@ -228,14 +297,16 @@ export async function doctorCodexHooks(
   return {
     provider: "codex",
     configPath: plan.configPath,
+    profileName: plan.profileName,
+    profileConfigPath: plan.profileConfigPath,
+    baseConfigPath: plan.baseConfigPath,
     hookScriptPath: plan.hookScriptPath,
-    status: installed ? "ok" : "warn",
+    status: installed && !legacyGlobalInstalled ? "ok" : "warn",
     installed,
     missing: plan.missing,
     commands: plan.commands,
-    message: installed
-      ? "Codex hooks are installed."
-      : `Codex hooks are missing or stale: ${missingDescription(plan)}.`,
+    legacyGlobalCleanup: plan.legacyGlobalCleanup,
+    message: doctorMessage({ installed, legacyGlobalInstalled, plan }),
   };
 }
 
@@ -244,11 +315,11 @@ export function resolveCodexConfigPath(options: CodexHookPlanOptions = {}): stri
     return resolvePath(options.codexConfigPath, options.homeDir ?? homedir());
   }
 
-  const env = options.env ?? process.env;
-  if (env.CODEX_HOME !== undefined && env.CODEX_HOME.length > 0) {
-    return resolvePath(join(env.CODEX_HOME, "config.toml"), options.homeDir ?? homedir());
-  }
-  return resolvePath("~/.codex/config.toml", options.homeDir ?? homedir());
+  return join(resolveCodexHome(options), CODEX_WOSM_PROFILE_CONFIG_FILE);
+}
+
+export function resolveCodexBaseConfigPath(options: CodexHookPlanOptions = {}): string {
+  return join(resolveCodexHome(options), CODEX_BASE_CONFIG_FILE);
 }
 
 export function resolveCodexHookScriptPath(options: CodexHookPlanOptions = {}): string {
@@ -286,6 +357,9 @@ export function expectedCodexHookScript(input: {
   return [
     "#!/usr/bin/env bash",
     "set -euo pipefail",
+    `if [ -z "\${WOSM_SESSION_ID:-}" ] || [ -z "\${WOSM_WORKTREE_ID:-}" ]; then`,
+    "  exit 0",
+    "fi",
     `payload_file="$(mktemp "${shellTmpDir}/wosm-codex-hook.XXXXXX")"`,
     "trap 'rm -f \"$payload_file\"' EXIT",
     'cat > "$payload_file"',
@@ -333,12 +407,44 @@ function uninstallCommands(
   return next;
 }
 
+async function planLegacyGlobalCleanup(input: {
+  baseConfigPath: string;
+  profileConfigPath: string;
+  commands: Record<CodexHookEventName, string>;
+}): Promise<CodexLegacyGlobalCleanupStatus> {
+  if (input.baseConfigPath === input.profileConfigPath) {
+    return {
+      configPath: input.baseConfigPath,
+      changed: false,
+      stale: [],
+      before: "",
+      after: "",
+      skipped: true,
+      reason: "same-as-profile",
+    };
+  }
+
+  const before = await readOptionalFile(input.baseConfigPath);
+  const document = parseTomlDocument(before);
+  const stale = generatedWosmHookEvents(document, input.commands);
+  const afterDocument = uninstallCommands(document, input.commands);
+  const after = stringifyTomlDocument(afterDocument);
+  return {
+    configPath: input.baseConfigPath,
+    changed: before.trim() !== after.trim(),
+    stale,
+    before,
+    after,
+  };
+}
+
 function withGeneratedHookEntry(
   value: unknown,
   eventName: CodexHookEventName,
   command: string,
 ): unknown {
-  const entries = hookEntries(value);
+  const cleanedValue = withoutGeneratedHookEntry(value, command);
+  const entries = hookEntries(cleanedValue);
   if (entries.some((entry) => hookEntryContainsCommand(entry, command))) {
     return entries;
   }
@@ -353,7 +459,7 @@ function withoutGeneratedHookEntry(value: unknown, command: string): unknown {
     return value;
   }
   const nextEntries = entries
-    .map((entry) => withoutCommandFromEntry(entry, command))
+    .map((entry) => withoutGeneratedHooksFromEntry(entry, command))
     .filter((entry) => entry !== undefined);
   return nextEntries.length === 0 ? undefined : nextEntries;
 }
@@ -368,7 +474,7 @@ function generatedHookEntry(
         type: "command",
         command,
         timeout: 30,
-        statusMessage: "Notify wosm",
+        statusMessage: GENERATED_HOOK_STATUS_MESSAGE,
       },
     ],
   };
@@ -422,7 +528,62 @@ function hookEntryContainsCommand(entry: Record<string, unknown>, command: strin
   return hooks.some((hook) => isRecord(hook) && hook.command === command);
 }
 
-function withoutCommandFromEntry(
+function documentContainsCommand(document: Record<string, unknown>, command: string): boolean {
+  if (!isRecord(document.hooks)) {
+    return false;
+  }
+  return Object.values(document.hooks).some((value) =>
+    hookEntries(value).some((entry) => hookEntryContainsCommand(entry, command)),
+  );
+}
+
+function generatedWosmHookEvents(
+  document: Record<string, unknown>,
+  commands: Record<CodexHookEventName, string>,
+): CodexHookEventName[] {
+  if (!isRecord(document.hooks)) {
+    return [];
+  }
+  const hooks = document.hooks;
+  return CODEX_HOOK_EVENT_NAMES.filter((eventName) =>
+    hookEntries(hooks[eventName]).some((entry) =>
+      hookEntryContainsGeneratedWosmHook(entry, commands[eventName]),
+    ),
+  );
+}
+
+function hookEntryContainsGeneratedWosmHook(
+  entry: Record<string, unknown>,
+  command: string,
+): boolean {
+  const hooks = entry.hooks;
+  if (!Array.isArray(hooks)) {
+    return false;
+  }
+  return hooks.some((hook) => isGeneratedWosmHook(hook, command));
+}
+
+function isGeneratedWosmHook(hook: unknown, command: string): boolean {
+  if (!isRecord(hook) || typeof hook.command !== "string") {
+    return false;
+  }
+  if (hook.command === command) {
+    return true;
+  }
+  return (
+    hook.type === "command" &&
+    hook.statusMessage === GENERATED_HOOK_STATUS_MESSAGE &&
+    commandLooksLikeGeneratedHookScript(hook.command)
+  );
+}
+
+function commandLooksLikeGeneratedHookScript(command: string): boolean {
+  return (
+    command === GENERATED_HOOK_SCRIPT_NAME || command.endsWith(`/${GENERATED_HOOK_SCRIPT_NAME}`)
+  );
+}
+
+function withoutGeneratedHooksFromEntry(
   entry: Record<string, unknown>,
   command: string,
 ): Record<string, unknown> | undefined {
@@ -430,7 +591,7 @@ function withoutCommandFromEntry(
   if (!Array.isArray(hooks)) {
     return entry;
   }
-  const nextHooks = hooks.filter((hook) => !(isRecord(hook) && hook.command === command));
+  const nextHooks = hooks.filter((hook) => !isGeneratedWosmHook(hook, command));
   if (nextHooks.length === hooks.length) {
     return entry;
   }
@@ -451,6 +612,44 @@ function onlyGeneratedMatcherKeys(entry: Record<string, unknown>): boolean {
 function missingDescription(plan: CodexHookPlan): string {
   const missing = plan.missing.length === 0 ? "none" : plan.missing.join(", ");
   return plan.scriptChanged ? `${missing}; script is missing or stale` : missing;
+}
+
+function doctorMessage(input: {
+  installed: boolean;
+  legacyGlobalInstalled: boolean;
+  plan: CodexHookPlan;
+}): string {
+  if (input.installed && input.legacyGlobalInstalled) {
+    return "Codex hooks are installed in the wosm profile, but generated global Codex hooks remain in the base config.";
+  }
+  if (input.installed) {
+    return "Codex hooks are installed in the wosm profile.";
+  }
+
+  const missing = missingDescription(input.plan);
+  if (input.legacyGlobalInstalled) {
+    return `Codex hooks are missing or stale in the wosm profile: ${missing}; generated global hooks remain in the base config.`;
+  }
+  return `Codex hooks are missing or stale in the wosm profile: ${missing}.`;
+}
+
+function assignBackupPaths(
+  result: CodexHookInstallResult,
+  paths: { profileBackupPath: string | undefined; baseBackupPath: string | undefined },
+): void {
+  const backupPaths: string[] = [];
+  if (paths.profileBackupPath !== undefined) {
+    result.backupPath = paths.profileBackupPath;
+    result.profileBackupPath = paths.profileBackupPath;
+    backupPaths.push(paths.profileBackupPath);
+  }
+  if (paths.baseBackupPath !== undefined) {
+    result.baseBackupPath = paths.baseBackupPath;
+    backupPaths.push(paths.baseBackupPath);
+  }
+  if (backupPaths.length > 0) {
+    result.backupPaths = backupPaths;
+  }
 }
 
 function parseTomlDocument(source: string): Record<string, unknown> {
@@ -569,6 +768,15 @@ function defaultStateDir(options: CodexHookPlanOptions): string {
     return join(env.XDG_STATE_HOME, "wosm");
   }
   return join(options.homeDir ?? homedir(), ".local", "state", "wosm");
+}
+
+function resolveCodexHome(options: CodexHookPlanOptions): string {
+  const homeDir = options.homeDir ?? homedir();
+  const env = options.env ?? process.env;
+  if (env.CODEX_HOME !== undefined && env.CODEX_HOME.length > 0) {
+    return resolvePath(env.CODEX_HOME, homeDir);
+  }
+  return resolvePath("~/.codex", homeDir);
 }
 
 function resolvePath(input: string, homeDir: string): string {

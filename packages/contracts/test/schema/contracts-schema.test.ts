@@ -262,6 +262,20 @@ describe("Phase 1 contract schemas", () => {
     );
 
     expectParses(
+      HookReceiptSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        hookId: "hook_ignored_1",
+        provider: "codex",
+        event: "PreToolUse",
+        accepted: false,
+        status: "ignored",
+        receivedAt: "2026-05-20T12:02:00.000Z",
+      },
+      "ignored hook receipt",
+    );
+
+    expectParses(
       HookSpoolRecordSchema,
       {
         schemaVersion: WOSM_SCHEMA_VERSION,

@@ -6,3 +6,4 @@ export * from "./events.js";
 export * from "./hooks.js";
 export * from "./launch.js";
 export * from "./provider.js";
+export * from "./scope.js";

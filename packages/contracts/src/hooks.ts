@@ -39,7 +39,7 @@ export const HookReceiptSchema = z
     provider: ProviderIdSchema,
     event: nonEmptyStringSchema,
     accepted: z.boolean(),
-    status: z.enum(["ingested", "spooled", "rejected"]),
+    status: z.enum(["ingested", "spooled", "rejected", "ignored"]),
     receivedAt: TimestampSchema,
     reconciled: z.boolean().optional(),
     spooled: z.boolean().optional(),

@@ -19,6 +19,7 @@ export type WriteRealWosmConfigOptions = {
   projectId?: string;
   autoStartFromHooks?: boolean;
   codexCommand?: string;
+  installCodexHooks?: boolean;
   useLifecycleHooks?: boolean;
   tmuxSession?: string;
 };
@@ -64,6 +65,7 @@ export async function writeRealWosmConfig(
     `command = ${tomlString(options.codexCommand ?? requireToolPath(options.env, "codex"))}`,
     'sandbox_mode = "workspace-write"',
     'approval_policy = "never"',
+    `install_hooks = ${options.installCodexHooks === true ? "true" : "false"}`,
     "",
     "[[projects]]",
     `id = ${tomlString(projectId)}`,

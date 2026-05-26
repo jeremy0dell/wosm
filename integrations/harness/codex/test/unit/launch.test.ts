@@ -96,6 +96,27 @@ describe("buildCodexLaunchPlan", () => {
     expect(plan.providerData).not.toMatchObject({ initialPromptProvided: true });
   });
 
+  it("adds the wosm profile-v2 layer without replacing the configured profile", () => {
+    const plan = buildCodexLaunchPlan(request(), {
+      defaultProfile: "team-default",
+      defaultProfileV2: "wosm",
+    });
+
+    expect(plan.args).toEqual([
+      "--cd",
+      "/tmp/wosm/web/task",
+      "--profile",
+      "team-default",
+      "--profile-v2",
+      "wosm",
+      "Review the task.",
+    ]);
+    expect(plan.providerData).toMatchObject({
+      profile: "team-default",
+      profileV2: "wosm",
+    });
+  });
+
   it("builds non-interactive codex exec plans with JSON events", () => {
     const plan = buildCodexLaunchPlan(
       {

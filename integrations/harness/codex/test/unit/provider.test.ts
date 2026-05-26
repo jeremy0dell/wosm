@@ -79,6 +79,7 @@ describe("CodexHarnessProvider", () => {
       profile: "team-default",
       approvalPolicy: "on-request",
       sandboxMode: "workspace-write",
+      installHooks: true,
       noAltScreen: true,
       now: () => new Date(now),
     });
@@ -89,6 +90,8 @@ describe("CodexHarnessProvider", () => {
         "/tmp/wosm/web/task",
         "--profile",
         "team-default",
+        "--profile-v2",
+        "wosm",
         "--sandbox",
         "workspace-write",
         "--ask-for-approval",
