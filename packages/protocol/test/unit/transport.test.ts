@@ -53,4 +53,16 @@ describe("Unix socket NDJSON transport", () => {
 
     await server.close();
   });
+
+  it("closes even when a client connection is still open", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const server = await listenUnixSocket({
+      socketPath,
+      onConnection: () => undefined,
+    });
+    const client = await connectUnixSocket(socketPath);
+
+    await expect(server.close()).resolves.toBeUndefined();
+    await expect(client.closed).resolves.toBeUndefined();
+  });
 });

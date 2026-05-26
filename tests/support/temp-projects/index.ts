@@ -1,7 +1,11 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
+
+const tempRoots = new Set<string>();
+let exitCleanupRegistered = false;
 
 export async function createTempState(): Promise<{
   root: string;
@@ -9,8 +13,10 @@ export async function createTempState(): Promise<{
   socketPath: string;
   hookSpoolDir: string;
   config: WosmConfig;
+  cleanup(): Promise<void>;
 }> {
   const root = await mkdtemp(join(tmpdir(), "wosm-project-"));
+  registerTempRoot(root);
   const stateDir = join(root, "state");
   const socketPath = join(root, "run", "observer.sock");
   await mkdir(stateDir, { recursive: true });
@@ -34,6 +40,7 @@ export async function createTempState(): Promise<{
       },
       projects: [],
     },
+    cleanup: () => cleanupTempRoot(root),
   };
 }
 
@@ -74,4 +81,25 @@ export async function writeConfigToml(root: string, config: WosmConfig): Promise
     ].join("\n"),
   );
   return path;
+}
+
+async function cleanupTempRoot(root: string): Promise<void> {
+  tempRoots.delete(root);
+  await rm(root, { recursive: true, force: true });
+}
+
+function registerTempRoot(root: string): void {
+  tempRoots.add(root);
+  if (exitCleanupRegistered) {
+    return;
+  }
+  exitCleanupRegistered = true;
+  process.once("exit", cleanupTempRootsSync);
+}
+
+function cleanupTempRootsSync(): void {
+  for (const root of tempRoots) {
+    rmSync(root, { recursive: true, force: true });
+  }
+  tempRoots.clear();
 }

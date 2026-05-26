@@ -63,7 +63,13 @@ export async function listenUnixSocket(
   await ensureSocketDirectory(options.socketPath);
   await removeStaleSocket(options.socketPath);
 
+  const sockets = new Set<Socket>();
+
   const server = createServer((socket) => {
+    sockets.add(socket);
+    socket.once("close", () => {
+      sockets.delete(socket);
+    });
     const connection = ndjsonConnection(socket);
     void options.onConnection(connection);
   });
@@ -90,7 +96,7 @@ export async function listenUnixSocket(
 
   return {
     socketPath: options.socketPath,
-    close: () => closeServer(server, options.socketPath),
+    close: () => closeServer(server, options.socketPath, sockets),
   };
 }
 
@@ -270,8 +276,12 @@ function ndjsonConnection(socket: Socket): NdjsonConnection {
   };
 }
 
-async function closeServer(server: Server, socketPath: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+async function closeServer(
+  server: Server,
+  socketPath: string,
+  sockets: Set<Socket>,
+): Promise<void> {
+  const closed = new Promise<void>((resolve, reject) => {
     server.close((error) => {
       if (error !== undefined) {
         reject(error);
@@ -280,8 +290,13 @@ async function closeServer(server: Server, socketPath: string): Promise<void> {
       resolve();
     });
   });
+  for (const socket of sockets) {
+    socket.end();
+    socket.destroySoon();
+  }
+  await closed;
   try {
-    await unlink(socketPath);
+    await removeStaleSocket(socketPath);
   } catch {
     // The socket may already be gone after process teardown.
   }
