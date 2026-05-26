@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { WosmSnapshot } from "@wosm/contracts";
+import { buildWorkbenchWindowName } from "@wosm/tmux";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { findRowByBranch } from "../../support/real-wosm/assertions";
 import { writeRealWosmConfig } from "../../support/real-wosm/config";
@@ -103,7 +104,7 @@ describeReal("real tmux popup navigation dogfood", () => {
       throw new Error("Popup navigation row does not expose a primary agent target.");
     }
     const paneId = paneIdFromTargetId(targetId);
-    const windowName = expectedWindowName(config.projectId, branch);
+    const windowName = expectedWindowName(config.projectId, branch, agentRow.id, agentRow.path);
     const markerPath = join(repo.root, "popup-navigation.marker");
 
     await displayWosmPopupAndSendKey({
@@ -133,12 +134,11 @@ function paneIdFromTargetId(targetId: string): string {
   return paneId;
 }
 
-function expectedWindowName(projectId: string, branch: string): string {
-  const normalized = `${projectId}-${branch}`
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9._-]+/g, "-")
-    .replaceAll(/^-+|-+$/g, "")
-    .replaceAll(/-{2,}/g, "-");
-  const safe = normalized.length > 0 ? normalized : "worktree";
-  return safe.slice(0, 48).replaceAll(/-+$/g, "") || "worktree";
+function expectedWindowName(
+  projectId: string,
+  branch: string,
+  worktreeId: string,
+  path: string,
+): string {
+  return buildWorkbenchWindowName({ projectId, branch, worktreeId, path });
 }

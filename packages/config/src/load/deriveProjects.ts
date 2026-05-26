@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { stableName } from "@wosm/runtime";
 import type { z } from "zod";
 import { ConfigDefaultsSchema, ProjectDefaultsSchema } from "../schema.js";
 import type { MutableRecord } from "./common.js";
@@ -41,13 +42,20 @@ export function deriveProjectConfig(
     ? expandWorktreePaths(normalizedConfig.worktree, options)
     : normalizedConfig.worktree;
   const globalWorktrunkManagedRoot = globalManagedRoot(worktree);
+  const managedRootSegments = projectManagedRootSegments(rawProjects);
 
   return {
     ...normalizedConfig,
     observer,
     worktree,
     projects: rawProjects.map((project) =>
-      deriveSingleProject(project, defaultsResult.data, globalWorktrunkManagedRoot, options),
+      deriveSingleProject(
+        project,
+        defaultsResult.data,
+        globalWorktrunkManagedRoot,
+        managedRootSegments,
+        options,
+      ),
     ),
   };
 }
@@ -56,6 +64,7 @@ function deriveSingleProject(
   rawProject: unknown,
   globalDefaults: z.infer<typeof ConfigDefaultsSchema>,
   globalWorktrunkManagedRoot: string | undefined,
+  managedRootSegments: ReadonlyMap<string, string>,
   options: DeriveProjectOptions,
 ): unknown {
   if (!isRecord(rawProject)) {
@@ -84,8 +93,8 @@ function deriveSingleProject(
   derivedProject.worktrunk = deriveProjectWorktrunk(
     rawProject.worktrunk,
     resolvedRoot,
-    projectId,
     globalWorktrunkManagedRoot,
+    projectId === undefined ? undefined : managedRootSegments.get(projectId),
     options,
   );
 
@@ -99,8 +108,8 @@ function deriveSingleProject(
 function deriveProjectWorktrunk(
   rawWorktrunk: unknown,
   projectRoot: string | undefined,
-  projectId: string | undefined,
   globalWorktrunkManagedRoot: string | undefined,
+  managedRootSegment: string | undefined,
   options: DeriveProjectOptions,
 ): unknown {
   if (rawWorktrunk !== undefined && !isRecord(rawWorktrunk)) {
@@ -121,8 +130,8 @@ function deriveProjectWorktrunk(
     return worktrunk;
   }
 
-  if (globalWorktrunkManagedRoot !== undefined && projectId !== undefined) {
-    worktrunk.managedRoot = join(globalWorktrunkManagedRoot, projectManagedRootSegment(projectId));
+  if (globalWorktrunkManagedRoot !== undefined && managedRootSegment !== undefined) {
+    worktrunk.managedRoot = join(globalWorktrunkManagedRoot, managedRootSegment);
   }
 
   return worktrunk;
@@ -203,5 +212,38 @@ function globalManagedRoot(worktree: unknown): string | undefined {
 }
 
 function projectManagedRootSegment(projectId: string): string {
+  const legacySegment = legacyProjectManagedRootSegment(projectId);
+  return stableName({
+    profile: "path-segment",
+    display: [legacySegment],
+    unique: ["project-managed-root", projectId],
+    hash: "always",
+  });
+}
+
+function projectManagedRootSegments(rawProjects: readonly unknown[]): Map<string, string> {
+  const entries = rawProjects.flatMap((project) => {
+    if (!isRecord(project) || typeof project.id !== "string") {
+      return [];
+    }
+    return [{ projectId: project.id, legacySegment: legacyProjectManagedRootSegment(project.id) }];
+  });
+  const segmentCounts = new Map<string, number>();
+  for (const entry of entries) {
+    segmentCounts.set(entry.legacySegment, (segmentCounts.get(entry.legacySegment) ?? 0) + 1);
+  }
+  return new Map(
+    entries.map((entry) => [
+      entry.projectId,
+      (segmentCounts.get(entry.legacySegment) ?? 0) > 1
+        ? entry.projectId === entry.legacySegment
+          ? entry.legacySegment
+          : projectManagedRootSegment(entry.projectId)
+        : entry.legacySegment,
+    ]),
+  );
+}
+
+function legacyProjectManagedRootSegment(projectId: string): string {
   return projectId.replaceAll(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "") || "project";
 }

@@ -39,7 +39,7 @@ describe("observer reconcile with Worktrunk provider", () => {
 
     expect(snapshot.rows).toEqual([
       expect.objectContaining({
-        id: "wt_web_feature_auth",
+        id: expect.stringMatching(/^wt_web_feature_auth_[a-f0-9]{10}$/),
         projectId: "web",
         branch: "feature/auth",
         worktree: expect.objectContaining({
