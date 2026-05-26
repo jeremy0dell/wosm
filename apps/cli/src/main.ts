@@ -128,10 +128,18 @@ export async function runCli(
   if (command === "popup") {
     const popupEnv = options.popupDeps?.env ?? options.env;
     const defaultPopupEnv = popupEnv ?? process.env;
+    const hasExplicitPopupUi =
+      options.popupDeps?.tuiCommand !== undefined ||
+      options.popupDeps?.uiSessionName !== undefined ||
+      nonEmptyString(defaultPopupEnv.WOSM_TUI_COMMAND) !== undefined ||
+      nonEmptyString(defaultPopupEnv.WOSM_TUI_SESSION_NAME) !== undefined;
+    const insideTmux = nonEmptyString(defaultPopupEnv.TMUX) !== undefined;
     const tuiCommand =
       options.popupDeps?.tuiCommand ?? defaultPopupTuiCommand(resolvedConfigPath, defaultPopupEnv);
     const uiSessionName =
       options.popupDeps?.uiSessionName ?? popupUiSessionNameFromEnv(defaultPopupEnv);
+    const preferRegisteredDevPopup =
+      options.popupDeps?.preferRegisteredDevPopup ?? (!hasExplicitPopupUi && insideTmux);
     const popupDeps: PopupCommandDeps = {};
     if (options.popupDeps !== undefined) {
       Object.assign(popupDeps, options.popupDeps);
@@ -146,6 +154,7 @@ export async function runCli(
         configPath: resolvedConfigPath,
         tuiCommand,
         ...(popupEnv === undefined ? {} : { env: popupEnv }),
+        preferRegisteredDevPopup,
         ...(uiSessionName === undefined ? {} : { uiSessionName }),
       },
       popupDeps,

@@ -89,6 +89,7 @@ describe("CLI popup command", () => {
       env: {
         TMUX: "/tmp/tmux-501/default,123,0",
       },
+      preferRegisteredDevPopup: true,
     });
     expect(calls[0]?.tuiCommand).toContain("--config");
     expect(calls[0]?.tuiCommand).toContain(shellQuote(configPath));
@@ -125,6 +126,7 @@ describe("CLI popup command", () => {
 
     expect(reconciles).toEqual(["popup-open"]);
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.preferRegisteredDevPopup).toBe(true);
   });
 
   it("uses the configured TUI command and UI session name for dev popup placement", async () => {
@@ -166,6 +168,7 @@ describe("CLI popup command", () => {
         "--persistent",
       ].join(" "),
     );
+    expect(calls[0]?.preferRegisteredDevPopup).toBe(false);
     expect(calls[0]?.uiSessionName).toBe("_wosm-ui-dev");
   });
 
@@ -211,6 +214,7 @@ describe("CLI popup command", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.tuiCommand).toContain("node --watch apps/cli/dist/main.js");
     expect(calls[0]?.tuiCommand).toContain("tui --popup --persistent");
+    expect(calls[0]?.preferRegisteredDevPopup).toBe(false);
     expect(calls[0]?.uiSessionName).toBe("_wosm-ui-dev");
   });
 

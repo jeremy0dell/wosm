@@ -19,6 +19,7 @@ export type TmuxPopupOptions = {
   enterWorkbench?: boolean;
   env?: Record<string, string | undefined>;
   focusClientId?: string;
+  preferRegisteredDevPopup?: boolean;
   runner?: ExternalCommandRunner;
   timeoutMs?: number;
   tuiCommand?: string;
@@ -29,10 +30,20 @@ export type TmuxPopupOptions = {
 export type TmuxPopupResult = { opened: true } | { opened: false; closed: true };
 export type TmuxPopupDismissResult = { dismissed: true } | { dismissed: false };
 export type TmuxPersistentPopupSessionResult = { sessionName: string; created: boolean };
+export type TmuxRegisteredDevPopupUi = {
+  command: string;
+  owner?: string;
+  root?: string;
+  sessionName: string;
+};
 
 const activePopupClientOption = "@wosm_popup_client";
 const focusPopupClientOption = "@wosm_popup_focus_client";
 const persistentUiSignatureOption = "@wosm_popup_ui_signature";
+const registeredDevPopupCommandOption = "@wosm_tui_dev_command";
+const registeredDevPopupOwnerOption = "@wosm_tui_dev_owner";
+const registeredDevPopupRootOption = "@wosm_tui_dev_root";
+const registeredDevPopupSessionNameOption = "@wosm_tui_dev_session_name";
 const defaultPersistentPopupSessionName = "_wosm-ui";
 const defaultPersistentPopupTuiCommand = "wosm tui --popup --persistent";
 
@@ -76,7 +87,6 @@ export function buildTmuxPopupArgs(
 export async function openTmuxPopup(options: TmuxPopupOptions = {}): Promise<TmuxPopupResult> {
   const command = options.command ?? process.env.WOSM_TMUX_BIN ?? "tmux";
   const persistent = options.persistent !== false;
-  const uiSessionName = options.uiSessionName ?? defaultPersistentPopupSessionName;
   const currentClientInput: {
     command: string;
     env: Record<string, string | undefined>;
@@ -136,13 +146,17 @@ export async function openTmuxPopup(options: TmuxPopupOptions = {}): Promise<Tmu
     await clearFocusPopupClient(tmuxCommand);
   }
 
-  if (persistent) {
+  const persistentUi = persistent
+    ? await resolvePersistentPopupUi(options, tmuxCommand)
+    : undefined;
+
+  if (persistentUi !== undefined) {
     await ensurePersistentPopupSession({
       command,
       ...(options.runner === undefined ? {} : { runner: options.runner }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-      ...(options.tuiCommand === undefined ? {} : { tuiCommand: options.tuiCommand }),
-      uiSessionName,
+      tuiCommand: persistentUi.command,
+      uiSessionName: persistentUi.sessionName,
     });
   }
 
@@ -161,8 +175,14 @@ export async function openTmuxPopup(options: TmuxPopupOptions = {}): Promise<Tmu
             tmuxCommand: command,
           },
         }),
-    ...(options.tuiCommand === undefined ? {} : { tuiCommand: options.tuiCommand }),
-    uiSessionName,
+    ...(persistentUi === undefined
+      ? options.tuiCommand === undefined
+        ? {}
+        : { tuiCommand: options.tuiCommand }
+      : {
+          tuiCommand: persistentUi.command,
+          uiSessionName: persistentUi.sessionName,
+        }),
   });
   const result = await runRuntimeBoundaryWithRetry(
     {
@@ -246,6 +266,35 @@ export async function ensurePersistentPopupSession(
     signature,
   });
   return { sessionName, created: true };
+}
+
+export async function resolveRegisteredDevPopupUi(
+  options: Pick<TmuxPopupOptions, "command" | "runner" | "timeoutMs"> = {},
+): Promise<TmuxRegisteredDevPopupUi | undefined> {
+  const input = popupCommandInput(options, options.command ?? process.env.WOSM_TMUX_BIN ?? "tmux");
+  const sessionName = await resolveTmuxGlobalOption(input, registeredDevPopupSessionNameOption);
+  const command = await resolveTmuxGlobalOption(input, registeredDevPopupCommandOption);
+  if (sessionName === undefined || command === undefined) {
+    return undefined;
+  }
+
+  const owner = await resolveTmuxGlobalOption(input, registeredDevPopupOwnerOption);
+  if (owner !== undefined && !isRegisteredDevPopupOwnerAlive(owner)) {
+    return undefined;
+  }
+
+  const root = await resolveTmuxGlobalOption(input, registeredDevPopupRootOption);
+  const result: TmuxRegisteredDevPopupUi = {
+    command,
+    sessionName,
+  };
+  if (owner !== undefined) {
+    result.owner = owner;
+  }
+  if (root !== undefined) {
+    result.root = root;
+  }
+  return result;
 }
 
 export async function resolveTmuxPopupFocusOrigin(
@@ -384,6 +433,25 @@ function popupCommandInput(
   return input;
 }
 
+async function resolvePersistentPopupUi(
+  options: Pick<TmuxPopupOptions, "preferRegisteredDevPopup" | "tuiCommand" | "uiSessionName">,
+  input: TmuxPopupCommandInput,
+): Promise<{ command: string; sessionName: string }> {
+  if (options.preferRegisteredDevPopup === true) {
+    const registered = await resolveRegisteredDevPopupUi(input);
+    if (registered !== undefined) {
+      return {
+        command: registered.command,
+        sessionName: registered.sessionName,
+      };
+    }
+  }
+  return {
+    command: options.tuiCommand ?? defaultPersistentPopupTuiCommand,
+    sessionName: options.uiSessionName ?? defaultPersistentPopupSessionName,
+  };
+}
+
 async function resolveActivePopupClient(input: TmuxPopupCommandInput): Promise<string | undefined> {
   const result = await runRuntimeBoundaryWithRetryAndTimeout(
     {
@@ -421,6 +489,48 @@ async function resolveActivePopupClient(input: TmuxPopupCommandInput): Promise<s
   }
   const clientId = result.value.stdout.trim();
   return clientId.length === 0 ? undefined : clientId;
+}
+
+async function resolveTmuxGlobalOption(
+  input: TmuxPopupCommandInput,
+  optionName: string,
+): Promise<string | undefined> {
+  const result = await runRuntimeBoundaryWithRetryAndTimeout(
+    {
+      operation: "provider.tmux.popup.globalOption",
+      timeoutMs: input.timeoutMs ?? 5000,
+      error: {
+        tag: "TerminalProviderError",
+        code: "TERMINAL_POPUP_FAILED",
+        message: "tmux failed to resolve a wosm popup option.",
+        provider: "tmux",
+      },
+      timeoutError: {
+        tag: "TerminalProviderError",
+        code: "TERMINAL_TMUX_TIMEOUT",
+        message: "tmux popup option lookup timed out.",
+        provider: "tmux",
+      },
+      retry: {
+        retries: 0,
+      },
+    },
+    ({ signal }) =>
+      runExternalCommand(
+        {
+          command: input.command,
+          args: ["show-options", "-gqv", optionName],
+          signal,
+          maxOutputChars: 4096,
+        },
+        input.runner,
+      ),
+  );
+  if (!result.ok) {
+    return undefined;
+  }
+  const value = result.value.stdout.trim();
+  return value.length === 0 ? undefined : value;
 }
 
 async function resolvePersistentPopupSessionSignature(
@@ -824,6 +934,29 @@ function isPopupDismissed(error: unknown): boolean {
     "exitCode" in error &&
     (error as { exitCode?: unknown }).exitCode === 129
   );
+}
+
+function isRegisteredDevPopupOwnerAlive(owner: string): boolean {
+  const [pidText] = owner.split(":");
+  const pid = Number(pidText);
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return true;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      ((error as { code?: unknown }).code === "ESRCH" ||
+        (error as { code?: unknown }).code === "EINVAL")
+    ) {
+      return false;
+    }
+    return true;
+  }
 }
 
 function quoteEnvValue(value: string): string {

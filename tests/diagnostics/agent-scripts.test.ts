@@ -3,6 +3,8 @@ import { parseCleanupArgs } from "../../scripts/agent-cleanup.mjs";
 import { isUnder, normalizeConfig, parseResetArgs } from "../../scripts/agent-reset.mjs";
 import {
   commandFromArgs,
+  defaultDevSessionNameForRoot,
+  globalOptionsFromArgs,
   shouldKeepAliveAfterLauncherExit,
   shouldRunDirectTui,
 } from "../../scripts/tui-dev.mjs";
@@ -72,6 +74,10 @@ managed_root = "~/.worktrees"`);
 describe("tui dev script", () => {
   it("keeps default tmux popup mode alive after the opener exits", () => {
     expect(commandFromArgs(["--config", "/tmp/wosm.toml"])).toBeUndefined();
+    expect(globalOptionsFromArgs(["--config", "/tmp/wosm.toml", "popup"])).toEqual([
+      "--config",
+      "/tmp/wosm.toml",
+    ]);
     expect(shouldRunDirectTui([], { TMUX: "/tmp/tmux-501/default,123,0" })).toBe(false);
     expect(shouldKeepAliveAfterLauncherExit([], { TMUX: "/tmp/tmux-501/default,123,0" })).toBe(
       true,
@@ -81,6 +87,15 @@ describe("tui dev script", () => {
         TMUX: "/tmp/tmux-501/default,123,0",
       }),
     ).toBe(true);
+  });
+
+  it("uses a checkout-scoped default dev UI session name", () => {
+    const main = defaultDevSessionNameForRoot("/Users/example/Developer/wosm");
+    const worktree = defaultDevSessionNameForRoot("/Users/example/.worktrees/wosm/tui-layout");
+
+    expect(main).toMatch(/^_wosm-ui-dev-wosm-[a-f0-9]{8}$/);
+    expect(worktree).toMatch(/^_wosm-ui-dev-tui-layout-[a-f0-9]{8}$/);
+    expect(main).not.toBe(worktree);
   });
 
   it("does not keep direct TUI or one-shot utility commands alive", () => {

@@ -6,6 +6,7 @@ import {
   dismissTmuxPopup,
   ensurePersistentPopupSession,
   openTmuxPopup,
+  resolveRegisteredDevPopupUi,
   resolveTmuxPopupFocusOrigin,
 } from "../../src/popup";
 
@@ -190,6 +191,164 @@ describe("tmux popup", () => {
     const popupShellCommand = displayPopupArgs?.[displayPopupArgs.length - 1];
     expect(popupShellCommand).toContain("fi; if");
     expect(popupShellCommand).not.toContain("fi if");
+  });
+
+  it("prefers a registered dev popup UI when requested", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const devCommand =
+      "env WOSM_TUI_DEV=1 node /worktrees/tui-layout/scripts/tui-watch-runner.mjs /worktrees/tui-layout/apps/cli/dist/main.js tui --popup --persistent";
+    const devSession = "_wosm-ui-dev-tui-layout-1234abcd";
+
+    await expect(
+      openTmuxPopup({
+        preferRegisteredDevPopup: true,
+        runner: async (input) => {
+          calls.push(input);
+          if (input.args?.[0] === "display-message") {
+            return result(input, "client_1\n");
+          }
+          if (
+            input.args?.[0] === "show-options" &&
+            input.args.includes("@wosm_tui_dev_session_name")
+          ) {
+            return result(input, `${devSession}\n`);
+          }
+          if (input.args?.[0] === "show-options" && input.args.includes("@wosm_tui_dev_command")) {
+            return result(input, `${devCommand}\n`);
+          }
+          if (input.args?.[0] === "show-options" && input.args.includes("@wosm_tui_dev_owner")) {
+            return result(input, `${process.pid}:test\n`);
+          }
+          if (input.args?.[0] === "show-options" && input.args.includes("@wosm_tui_dev_root")) {
+            return result(input, "/worktrees/tui-layout\n");
+          }
+          if (
+            input.args?.[0] === "show-options" &&
+            input.args.includes("@wosm_popup_ui_signature")
+          ) {
+            return result(input, `v1:${devCommand}\n`);
+          }
+          return result(input);
+        },
+        env: {
+          TMUX: "/tmp/tmux-501/default,123,0",
+        },
+      }),
+    ).resolves.toEqual({ opened: true });
+
+    expect(calls.map((call) => call.args)).toEqual([
+      ["display-message", "-p", "#{client_name}"],
+      ["show-options", "-gqv", "@wosm_popup_client"],
+      ["set-option", "-gq", "@wosm_popup_client", "client_1"],
+      ["set-option", "-gq", "@wosm_popup_focus_client", "client_1"],
+      ["show-options", "-gqv", "@wosm_tui_dev_session_name"],
+      ["show-options", "-gqv", "@wosm_tui_dev_command"],
+      ["show-options", "-gqv", "@wosm_tui_dev_owner"],
+      ["show-options", "-gqv", "@wosm_tui_dev_root"],
+      ["has-session", "-t", devSession],
+      ["show-options", "-t", devSession, "-qv", "@wosm_popup_ui_signature"],
+      expect.arrayContaining(["display-popup", "-c", "client_1"]),
+    ]);
+    const displayPopupArgs = calls.at(-1)?.args;
+    expect(displayPopupArgs?.at(-1)).toContain(`attach-session -t ${devSession}`);
+  });
+
+  it("resolves registered dev popup metadata only for a live owner", async () => {
+    const devCommand = "env WOSM_TUI_DEV=1 node /wt/scripts/tui-watch-runner.mjs /wt/apps/cli";
+
+    await expect(
+      resolveRegisteredDevPopupUi({
+        runner: async (input) => {
+          if (input.args?.includes("@wosm_tui_dev_session_name")) {
+            return result(input, "_wosm-ui-dev-wt-1234abcd\n");
+          }
+          if (input.args?.includes("@wosm_tui_dev_command")) {
+            return result(input, `${devCommand}\n`);
+          }
+          if (input.args?.includes("@wosm_tui_dev_owner")) {
+            return result(input, `${process.pid}:test\n`);
+          }
+          if (input.args?.includes("@wosm_tui_dev_root")) {
+            return result(input, "/wt\n");
+          }
+          return result(input);
+        },
+      }),
+    ).resolves.toEqual({
+      command: devCommand,
+      owner: `${process.pid}:test`,
+      root: "/wt",
+      sessionName: "_wosm-ui-dev-wt-1234abcd",
+    });
+
+    await expect(
+      resolveRegisteredDevPopupUi({
+        runner: async (input) => {
+          if (input.args?.includes("@wosm_tui_dev_session_name")) {
+            return result(input, "_wosm-ui-dev-stale-1234abcd\n");
+          }
+          if (input.args?.includes("@wosm_tui_dev_command")) {
+            return result(input, `${devCommand}\n`);
+          }
+          if (input.args?.includes("@wosm_tui_dev_owner")) {
+            return result(input, "999999999:test\n");
+          }
+          return result(input);
+        },
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("falls back to the normal persistent UI when the registered dev owner is stale", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const devCommand = "env WOSM_TUI_DEV=1 node /stale/scripts/tui-watch-runner.mjs /stale/cli";
+
+    await expect(
+      openTmuxPopup({
+        preferRegisteredDevPopup: true,
+        tuiCommand: "node normal-wosm tui --popup --persistent",
+        runner: async (input) => {
+          calls.push(input);
+          if (input.args?.[0] === "display-message") {
+            return result(input, "client_1\n");
+          }
+          if (input.args?.includes("@wosm_tui_dev_session_name")) {
+            return result(input, "_wosm-ui-dev-stale-1234abcd\n");
+          }
+          if (input.args?.includes("@wosm_tui_dev_command")) {
+            return result(input, `${devCommand}\n`);
+          }
+          if (input.args?.includes("@wosm_tui_dev_owner")) {
+            return result(input, "999999999:test\n");
+          }
+          if (
+            input.args?.[0] === "show-options" &&
+            input.args.includes("@wosm_popup_ui_signature")
+          ) {
+            return result(input, "v1:node normal-wosm tui --popup --persistent\n");
+          }
+          return result(input);
+        },
+        env: {
+          TMUX: "/tmp/tmux-501/default,123,0",
+        },
+      }),
+    ).resolves.toEqual({ opened: true });
+
+    expect(calls.map((call) => call.args)).toEqual([
+      ["display-message", "-p", "#{client_name}"],
+      ["show-options", "-gqv", "@wosm_popup_client"],
+      ["set-option", "-gq", "@wosm_popup_client", "client_1"],
+      ["set-option", "-gq", "@wosm_popup_focus_client", "client_1"],
+      ["show-options", "-gqv", "@wosm_tui_dev_session_name"],
+      ["show-options", "-gqv", "@wosm_tui_dev_command"],
+      ["show-options", "-gqv", "@wosm_tui_dev_owner"],
+      ["has-session", "-t", "_wosm-ui"],
+      ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      expect.arrayContaining(["display-popup", "-c", "client_1"]),
+    ]);
+    const displayPopupArgs = calls.at(-1)?.args;
+    expect(displayPopupArgs?.at(-1)).toContain("attach-session -t _wosm-ui");
   });
 
   it("closes an active popup for the current client without killing the UI session", async () => {

@@ -9,7 +9,15 @@ import {
 import { type ObserverPaths, resolveObserverPaths } from "../paths.js";
 
 export type PopupCommandDeps = Partial<
-  Pick<TmuxPopupOptions, "enterWorkbench" | "env" | "runner" | "tuiCommand" | "uiSessionName">
+  Pick<
+    TmuxPopupOptions,
+    | "enterWorkbench"
+    | "env"
+    | "preferRegisteredDevPopup"
+    | "runner"
+    | "tuiCommand"
+    | "uiSessionName"
+  >
 > & {
   observer?: ObserverProcessDeps;
   openTmuxPopup?: (options: TmuxPopupOptions) => Promise<TmuxPopupResult>;
@@ -23,6 +31,7 @@ export type PopupCommandOptions = {
   enterWorkbench?: TmuxPopupOptions["enterWorkbench"] | undefined;
   env?: TmuxPopupOptions["env"] | undefined;
   observer?: ObserverProcessDeps | undefined;
+  preferRegisteredDevPopup?: TmuxPopupOptions["preferRegisteredDevPopup"] | undefined;
   tuiCommand?: TmuxPopupOptions["tuiCommand"] | undefined;
   uiSessionName?: TmuxPopupOptions["uiSessionName"] | undefined;
 };
@@ -53,6 +62,8 @@ export async function runPopupCommand(
   const runner = options.runner ?? deps.runner;
   const enterWorkbench = options.enterWorkbench ?? deps.enterWorkbench ?? false;
   const env = options.env ?? deps.env;
+  const preferRegisteredDevPopup =
+    options.preferRegisteredDevPopup ?? deps.preferRegisteredDevPopup;
   const tuiCommand = options.tuiCommand ?? deps.tuiCommand;
   const uiSessionName = options.uiSessionName ?? deps.uiSessionName;
   const observer = await reconcileBeforePopup(options, options.observer ?? deps.observer);
@@ -67,6 +78,7 @@ export async function runPopupCommand(
     enterWorkbench,
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     ...(env === undefined ? {} : { env }),
+    ...(preferRegisteredDevPopup === undefined ? {} : { preferRegisteredDevPopup }),
     ...(runner === undefined ? {} : { runner }),
     ...(tuiCommand === undefined ? {} : { tuiCommand }),
     ...(uiSessionName === undefined ? {} : { uiSessionName }),
