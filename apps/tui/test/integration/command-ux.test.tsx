@@ -206,6 +206,54 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
+  it("removes a picked slot after y confirmation", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("x");
+    await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
+
+    instance.stdin.write("4");
+    await waitFor(
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? y/N") === true,
+    );
+
+    instance.stdin.write("y");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toEqual({
+      type: "worktree.remove",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_idle",
+        force: true,
+      },
+    });
+    instance.unmount();
+  });
+
+  it("cancels picked-slot removal by default", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("x");
+    await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
+    instance.stdin.write("4");
+    await waitFor(
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? y/N") === true,
+    );
+
+    instance.stdin.write("\r");
+
+    await waitFor(
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? y/N") !== true,
+    );
+    expect(service.dispatched).toHaveLength(0);
+    instance.unmount();
+  });
+
   it("does not open cleanup confirmation from invisible selected-row commands", async () => {
     const snapshot = createCommandSnapshot("idle");
     const service = new FakeTuiObserverService(snapshot);

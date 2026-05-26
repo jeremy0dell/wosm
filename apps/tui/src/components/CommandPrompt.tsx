@@ -16,7 +16,7 @@ export function CommandPrompt({ prompt }: CommandPromptProps) {
       </Box>
     );
   }
-  const label = prompt.mode === "new-session" ? "new branch" : "search";
+  const label = textPromptLabel(prompt.mode);
   return (
     <Box marginTop={1}>
       <Text color="yellow">
@@ -24,4 +24,14 @@ export function CommandPrompt({ prompt }: CommandPromptProps) {
       </Text>
     </Box>
   );
+}
+
+function textPromptLabel(mode: Exclude<TuiPromptState["mode"], "confirm-cleanup">): string {
+  if (mode === "new-session") {
+    return "new branch";
+  }
+  if (mode === "remove-slot") {
+    return "remove slot";
+  }
+  return "search";
 }

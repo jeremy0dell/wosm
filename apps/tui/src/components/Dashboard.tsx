@@ -33,7 +33,7 @@ export function Dashboard({ snapshot, uiState, quitActionLabel = "quit" }: Dashb
         />
       ))}
       <Box marginTop={1}>
-        <Text color="gray">n:new bg 1-9:start/focus /:search r:refresh {quitHint}</Text>
+        <Text color="gray">n:new bg 1-9:start/focus x:remove /:search r:refresh {quitHint}</Text>
       </Box>
     </Box>
   );
