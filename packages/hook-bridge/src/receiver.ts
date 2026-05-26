@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { compactCodexHookPayload, extractCodexHookScopeContext } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
 import type {
   HarnessEventReport,
@@ -18,14 +17,16 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
-import { normalizeWorktrunkLifecycleEvent } from "@wosm/worktrunk";
 import { type HookObserverStartupDeps, startHookObserver } from "./observerStartup.js";
 import { type ObserverPaths, resolveObserverPaths } from "./paths.js";
 import {
+  compactProviderHookEventPayload,
+  decideProviderHookScope,
   type HookPayloadSummary,
   harnessEventReportFromHookEvent,
+  normalizeProviderHookEventName,
   shouldReportHarnessEvent,
-} from "./providerReports.js";
+} from "./providerAdapters.js";
 import { writeHarnessEventReportSpoolRecord, writeHookSpoolRecord } from "./spool.js";
 
 export type HookReceiverInput = {
@@ -53,29 +54,6 @@ export type HookReceiverDeps = HookObserverStartupDeps & {
   logger?: JsonlLogger;
 };
 
-type HookScopeContext = {
-  provider: string;
-  kind: ProviderHookEvent["kind"];
-  event: string;
-  cwd?: string;
-  wosmProjectId?: string;
-  wosmWorktreeId?: string;
-  wosmWorktreePath?: string;
-  wosmSessionId?: string;
-  wosmTerminalProvider?: string;
-  wosmTerminalTargetId?: string;
-};
-
-type HookScopeDecision =
-  | {
-      action: "accept";
-      reason: "not-required" | "wosm-env";
-    }
-  | {
-      action: "ignore";
-      reason: "missing-wosm-env";
-    };
-
 const lastStartByStateDir = new Map<string, number>();
 const defaultHookId = () => `hook_${Date.now()}_${randomUUID()}`;
 
@@ -91,16 +69,15 @@ export async function receiveHookEvent(
     hookId,
     provider: input.provider,
     kind: input.kind ?? inferHookKind(input.provider),
-    event:
-      input.provider === "worktrunk" ? normalizeWorktrunkLifecycleEvent(input.event) : input.event,
+    event: normalizeProviderHookEventName(input.provider, input.event),
     receivedAt: toIsoTimestamp(clock.now()),
     ...(input.payload === undefined ? {} : { payload: input.payload }),
   });
-  const scopeDecision = decideHookScope(event);
+  const scopeDecision = decideProviderHookScope(event);
   if (scopeDecision.action === "ignore") {
     return ignoredHookReceipt(event);
   }
-  const compacted = compactHookEventPayload(event);
+  const compacted = compactProviderHookEventPayload(event);
   const deliveryTimeoutMs = input.deliveryTimeoutMs ?? 750;
   const startupTimeoutMs = input.startupTimeoutMs ?? 1500;
   const rateLimitMs = input.rateLimitMs ?? 2000;
@@ -193,54 +170,6 @@ export async function receiveHookEvent(
     compacted.payloadSummary,
     deps,
   );
-}
-
-function decideHookScope(event: ProviderHookEvent): HookScopeDecision {
-  if (!requiresOwnedScope(event)) {
-    return { action: "accept", reason: "not-required" };
-  }
-
-  const context = normalizeHookScopeContext(event);
-  if (context.wosmSessionId !== undefined && context.wosmWorktreeId !== undefined) {
-    return { action: "accept", reason: "wosm-env" };
-  }
-  return { action: "ignore", reason: "missing-wosm-env" };
-}
-
-function requiresOwnedScope(event: ProviderHookEvent): boolean {
-  return event.kind === "harness" && event.provider === "codex";
-}
-
-function normalizeHookScopeContext(event: ProviderHookEvent): HookScopeContext {
-  const context: HookScopeContext = {
-    provider: event.provider,
-    kind: event.kind,
-    event: event.event,
-  };
-  if (event.provider !== "codex" || event.kind !== "harness") {
-    return context;
-  }
-
-  const codexContext = extractCodexHookScopeContext(event.payload);
-  assignScopeField(context, "cwd", codexContext.cwd);
-  assignScopeField(context, "wosmProjectId", codexContext.wosmProjectId);
-  assignScopeField(context, "wosmWorktreeId", codexContext.wosmWorktreeId);
-  assignScopeField(context, "wosmWorktreePath", codexContext.wosmWorktreePath);
-  assignScopeField(context, "wosmSessionId", codexContext.wosmSessionId);
-  assignScopeField(context, "wosmTerminalProvider", codexContext.wosmTerminalProvider);
-  assignScopeField(context, "wosmTerminalTargetId", codexContext.wosmTerminalTargetId);
-  return context;
-}
-
-function assignScopeField(
-  target: HookScopeContext,
-  key: keyof Omit<HookScopeContext, "provider" | "kind" | "event">,
-  value: string | undefined,
-) {
-  if (value === undefined) {
-    return;
-  }
-  target[key] = value;
 }
 
 async function receiveHarnessEventReport(
@@ -541,54 +470,6 @@ async function logAndReturn(
   return receipt;
 }
 
-function compactHookEventPayload(event: ProviderHookEvent): {
-  event: ProviderHookEvent;
-  payloadSummary: HookPayloadSummary;
-} {
-  if (event.payload === undefined) {
-    return {
-      event,
-      payloadSummary: {
-        present: false,
-        originalBytes: null,
-        compactedBytes: null,
-        compacted: false,
-        omittedFieldNames: [],
-      },
-    };
-  }
-
-  if (event.provider !== "codex") {
-    const byteCount = jsonByteCount(event.payload);
-    return {
-      event,
-      payloadSummary: {
-        present: true,
-        originalBytes: byteCount,
-        compactedBytes: byteCount,
-        compacted: false,
-        omittedFieldNames: [],
-      },
-    };
-  }
-
-  const compaction = compactCodexHookPayload(event.payload);
-  const compactedEvent = ProviderHookEventSchema.parse({
-    ...event,
-    payload: compaction.payload,
-  });
-  return {
-    event: compactedEvent,
-    payloadSummary: {
-      present: true,
-      originalBytes: compaction.originalByteCount,
-      compactedBytes: compaction.compactedByteCount,
-      compacted: compaction.compacted,
-      omittedFieldNames: compaction.omittedFieldNames,
-    },
-  };
-}
-
 function hookReceiptFromReportReceipt(receipt: HarnessEventReportReceipt): HookReceipt {
   const status = receipt.status === "accepted" ? "ingested" : receipt.status;
   const hookReceipt: HookReceipt = {
@@ -643,18 +524,6 @@ function rejectedHookReceiptForReportError(event: ProviderHookEvent, error: unkn
       provider: event.provider,
     }),
   });
-}
-
-function jsonByteCount(value: unknown): number | null {
-  try {
-    const serialized = JSON.stringify(value);
-    if (serialized === undefined) {
-      return null;
-    }
-    return Buffer.byteLength(serialized, "utf8");
-  } catch {
-    return null;
-  }
 }
 
 function defaultClientFactory(socketPath: string) {
