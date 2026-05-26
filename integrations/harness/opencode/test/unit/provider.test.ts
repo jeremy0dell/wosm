@@ -8,6 +8,9 @@ describe("OpenCodeHarnessProvider skeleton", () => {
   it("satisfies harness provider contracts without executing OpenCode", async () => {
     const provider = new OpenCodeHarnessProvider({
       command: "opencode",
+      permissionMode: "yolo",
+      approvalPolicy: "on-request",
+      sandboxMode: "workspace-write",
       now: () => new Date(now),
     });
 
@@ -39,6 +42,7 @@ describe("OpenCodeHarnessProvider skeleton", () => {
         skeleton: true,
         initialPromptProvided: true,
         profile: "default",
+        permissionMode: "yolo",
       },
     });
     await expect(

@@ -153,6 +153,39 @@ include_external = false
     });
   });
 
+  it("loads global and provider-specific harness permission modes", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+harness_permission_mode = "yolo"
+
+[harness.codex]
+permission_mode = "standard"
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.defaults.harnessPermissionMode).toBe("yolo");
+    expect(loaded.config.harness?.codex).toMatchObject({
+      permissionMode: "standard",
+      sandboxMode: "workspace-write",
+      approvalPolicy: "on-request",
+    });
+  });
+
   it("derives project Worktrunk roots from a global managed root", async () => {
     const tempDir = await makeTempDir();
     const webRoot = await makeProjectRoot(tempDir, "web");
@@ -478,12 +511,16 @@ trust = "explicit"
       `
 schema_version = 1
 
+[defaults]
+harness_permission_mode = "yolo"
+
 [[projects]]
 id = "shadow"
 label = "shadow"
 root = "/tmp/shadow"
 
 [harness.codex]
+permission_mode = "yolo"
 approval_policy = "never"
 `,
     );

@@ -6,6 +6,7 @@ import type {
   HarnessEventContext,
   HarnessEventObservation,
   HarnessLaunchPlan,
+  HarnessPermissionMode,
   HarnessProvider,
   HarnessRunObservation,
   HarnessStatusObservation,
@@ -34,6 +35,7 @@ const CODEX_WOSM_PROFILE_V2 = "wosm";
 export type CodexHarnessProviderOptions = {
   command?: string;
   profile?: string;
+  permissionMode?: HarnessPermissionMode;
   approvalPolicy?: string;
   sandboxMode?: string;
   noAltScreen?: boolean;
@@ -166,6 +168,9 @@ export class CodexHarnessProvider implements HarnessProvider {
     };
     if (this.#options.profile !== undefined) {
       options.defaultProfile = this.#options.profile;
+    }
+    if (this.#options.permissionMode !== undefined) {
+      options.defaultPermissionMode = this.#options.permissionMode;
     }
     if (this.#options.installHooks === true) {
       options.defaultProfileV2 = CODEX_WOSM_PROFILE_V2;

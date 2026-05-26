@@ -587,6 +587,7 @@ export class FakeHarnessProvider implements HarnessProvider {
         fake: true,
         ...(request.initialPrompt === undefined ? {} : { initialPromptProvided: true }),
         ...(request.profile === undefined ? {} : { profile: request.profile }),
+        ...(request.permissionMode === undefined ? {} : { permissionMode: request.permissionMode }),
         ...(request.approvalPolicy === undefined ? {} : { approvalPolicy: request.approvalPolicy }),
         ...(request.sandboxMode === undefined ? {} : { sandboxMode: request.sandboxMode }),
       },

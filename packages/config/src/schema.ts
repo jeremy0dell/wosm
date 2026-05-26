@@ -1,3 +1,4 @@
+import { HarnessPermissionModeSchema } from "@wosm/contracts";
 import { z } from "zod";
 
 const nonEmptyStringSchema = z.string().min(1);
@@ -102,6 +103,7 @@ export const ConfigDefaultsSchema = z
     terminal: providerIdSchema,
     harness: providerIdSchema,
     layout: nonEmptyStringSchema,
+    harnessPermissionMode: HarnessPermissionModeSchema.optional(),
   })
   .strict();
 
@@ -156,6 +158,7 @@ export const HarnessProviderConfigSchema = z
     enabled: z.boolean().optional(),
     command: nonEmptyStringSchema.optional(),
     profile: nonEmptyStringSchema.optional(),
+    permissionMode: HarnessPermissionModeSchema.optional(),
     sandboxMode: nonEmptyStringSchema.optional(),
     approvalPolicy: nonEmptyStringSchema.optional(),
     installHooks: z.boolean().optional(),

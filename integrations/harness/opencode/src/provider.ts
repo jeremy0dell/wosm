@@ -4,6 +4,7 @@ import type {
   HarnessClassificationContext,
   HarnessDiscoveryContext,
   HarnessLaunchPlan,
+  HarnessPermissionMode,
   HarnessProvider,
   HarnessRunObservation,
   HarnessStatusObservation,
@@ -15,6 +16,9 @@ import { buildOpenCodeLaunchPlan } from "./launch.js";
 
 export type OpenCodeHarnessProviderOptions = {
   command?: string;
+  permissionMode?: HarnessPermissionMode;
+  approvalPolicy?: string;
+  sandboxMode?: string;
   now?: () => Date | string;
 };
 
@@ -54,9 +58,20 @@ export class OpenCodeHarnessProvider implements HarnessProvider {
   }
 
   async buildLaunch(request: BuildHarnessLaunchRequest): Promise<HarnessLaunchPlan> {
-    return buildOpenCodeLaunchPlan(request, {
-      ...(this.#options.command === undefined ? {} : { command: this.#options.command }),
-    });
+    const options: Parameters<typeof buildOpenCodeLaunchPlan>[1] = {};
+    if (this.#options.command !== undefined) {
+      options.command = this.#options.command;
+    }
+    if (this.#options.permissionMode !== undefined) {
+      options.defaultPermissionMode = this.#options.permissionMode;
+    }
+    if (this.#options.approvalPolicy !== undefined) {
+      options.defaultApprovalPolicy = this.#options.approvalPolicy;
+    }
+    if (this.#options.sandboxMode !== undefined) {
+      options.defaultSandboxMode = this.#options.sandboxMode;
+    }
+    return buildOpenCodeLaunchPlan(request, options);
   }
 
   async discoverRuns(_context: HarnessDiscoveryContext): Promise<HarnessRunObservation[]> {

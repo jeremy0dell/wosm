@@ -96,6 +96,52 @@ describe("buildCodexLaunchPlan", () => {
     expect(plan.providerData).not.toMatchObject({ initialPromptProvided: true });
   });
 
+  it("maps yolo permission mode to the native Codex bypass flag", () => {
+    const plan = buildCodexLaunchPlan(request(), {
+      defaultProfile: "team-default",
+      defaultPermissionMode: "yolo",
+      defaultApprovalPolicy: "on-request",
+      defaultSandboxMode: "workspace-write",
+    });
+
+    expect(plan.args).toEqual([
+      "--cd",
+      "/tmp/wosm/web/task",
+      "--profile",
+      "team-default",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "Review the task.",
+    ]);
+    expect(plan.args).not.toContain("--sandbox");
+    expect(plan.args).not.toContain("--ask-for-approval");
+    expect(plan.providerData).toMatchObject({
+      permissionMode: "yolo",
+    });
+    expect(plan.providerData).not.toMatchObject({
+      approvalPolicy: "on-request",
+      sandboxMode: "workspace-write",
+    });
+  });
+
+  it("maps legacy explicit yolo args to the native Codex bypass flag", () => {
+    const plan = buildCodexLaunchPlan(request(), {
+      defaultApprovalPolicy: "never",
+      defaultSandboxMode: "danger-full-access",
+    });
+
+    expect(plan.args).toEqual([
+      "--cd",
+      "/tmp/wosm/web/task",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "Review the task.",
+    ]);
+    expect(plan.providerData).toMatchObject({
+      permissionMode: "yolo",
+    });
+    expect(plan.args).not.toContain("--sandbox");
+    expect(plan.args).not.toContain("--ask-for-approval");
+  });
+
   it("adds the wosm profile-v2 layer without replacing the configured profile", () => {
     const plan = buildCodexLaunchPlan(request(), {
       defaultProfile: "team-default",
@@ -146,6 +192,35 @@ describe("buildCodexLaunchPlan", () => {
     ]);
     expect(plan.args).not.toContain("--ask-for-approval");
     expect(plan.args).not.toContain("--no-alt-screen");
+  });
+
+  it("applies yolo permission mode to codex exec plans", () => {
+    const plan = buildCodexLaunchPlan(
+      {
+        ...request(),
+        mode: "exec",
+        initialPrompt: "Summarize the worktree.",
+      },
+      {
+        defaultPermissionMode: "yolo",
+        defaultApprovalPolicy: "never",
+        defaultSandboxMode: "danger-full-access",
+      },
+    );
+
+    expect(plan.args).toEqual([
+      "exec",
+      "--json",
+      "--cd",
+      "/tmp/wosm/web/task",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "Summarize the worktree.",
+    ]);
+    expect(plan.args).not.toContain("--sandbox");
+    expect(plan.args).not.toContain("--ask-for-approval");
+    expect(plan.providerData).toMatchObject({
+      permissionMode: "yolo",
+    });
   });
 });
 

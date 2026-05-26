@@ -167,6 +167,147 @@ describe("provider factory", () => {
       ],
     });
   });
+
+  it("applies global yolo harness permission mode to Codex launches", async () => {
+    const registry = createProviderRegistry({
+      ...config,
+      defaults: {
+        ...config.defaults,
+        harnessPermissionMode: "yolo",
+      },
+      harness: {
+        codex: {
+          approvalPolicy: "on-request",
+          sandboxMode: "workspace-write",
+        },
+      },
+    });
+    const provider = registry.harnesses.get("codex");
+    const project = config.projects[0];
+    if (project === undefined) {
+      throw new Error("provider factory fixture is missing a project.");
+    }
+
+    const plan = await provider?.buildLaunch({
+      project,
+      worktree: {
+        id: "wt_web_task",
+        provider: "worktrunk",
+        projectId: "web",
+        branch: "task",
+        path: "/tmp/wosm/web/task",
+        state: "exists",
+        source: "worktrunk",
+        observedAt: now,
+      },
+      mode: "interactive",
+    });
+
+    expect(plan?.args).toEqual([
+      "--cd",
+      "/tmp/wosm/web/task",
+      "--dangerously-bypass-approvals-and-sandbox",
+    ]);
+    expect(plan?.providerData).toMatchObject({
+      permissionMode: "yolo",
+    });
+    expect(plan?.args).not.toContain("--sandbox");
+    expect(plan?.args).not.toContain("--ask-for-approval");
+  });
+
+  it("treats legacy explicit Codex yolo config as yolo permission mode", async () => {
+    const registry = createProviderRegistry({
+      ...config,
+      harness: {
+        codex: {
+          approvalPolicy: "never",
+          sandboxMode: "danger-full-access",
+        },
+      },
+    });
+    const provider = registry.harnesses.get("codex");
+    const project = config.projects[0];
+    if (project === undefined) {
+      throw new Error("provider factory fixture is missing a project.");
+    }
+
+    const plan = await provider?.buildLaunch({
+      project,
+      worktree: {
+        id: "wt_web_task",
+        provider: "worktrunk",
+        projectId: "web",
+        branch: "task",
+        path: "/tmp/wosm/web/task",
+        state: "exists",
+        source: "worktrunk",
+        observedAt: now,
+      },
+      mode: "interactive",
+    });
+
+    expect(plan?.args).toEqual([
+      "--cd",
+      "/tmp/wosm/web/task",
+      "--dangerously-bypass-approvals-and-sandbox",
+    ]);
+    expect(plan?.providerData).toMatchObject({
+      permissionMode: "yolo",
+    });
+  });
+
+  it("lets provider permission mode override the global harness permission mode", async () => {
+    const registry = createProviderRegistry({
+      ...config,
+      defaults: {
+        ...config.defaults,
+        harnessPermissionMode: "yolo",
+      },
+      harness: {
+        codex: {
+          permissionMode: "standard",
+          approvalPolicy: "on-request",
+          sandboxMode: "workspace-write",
+        },
+      },
+    });
+    const provider = registry.harnesses.get("codex");
+    const project = config.projects[0];
+    if (project === undefined) {
+      throw new Error("provider factory fixture is missing a project.");
+    }
+
+    await expect(
+      provider?.buildLaunch({
+        project,
+        worktree: {
+          id: "wt_web_task",
+          provider: "worktrunk",
+          projectId: "web",
+          branch: "task",
+          path: "/tmp/wosm/web/task",
+          state: "exists",
+          source: "worktrunk",
+          observedAt: now,
+        },
+        mode: "interactive",
+      }),
+    ).resolves.toMatchObject({
+      args: [
+        "--cd",
+        "/tmp/wosm/web/task",
+        "--sandbox",
+        "workspace-write",
+        "--ask-for-approval",
+        "on-request",
+      ],
+      providerData: {
+        permissionMode: "standard",
+        approvalPolicy: "on-request",
+        sandboxMode: "workspace-write",
+      },
+    });
+  });
 });
 
 const config: WosmConfig = {
