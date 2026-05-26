@@ -175,6 +175,7 @@ describe("tmux popup", () => {
       ["set-option", "-gq", "@wosm_popup_focus_client", "client_1"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      ...fastPopupRegistrationCalls("_wosm-ui", "wosm tui --popup --persistent"),
       [
         "display-popup",
         "-c",
@@ -345,6 +346,7 @@ describe("tmux popup", () => {
       ["show-options", "-gqv", "@wosm_tui_dev_owner"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      ...fastPopupRegistrationCalls("_wosm-ui", "node normal-wosm tui --popup --persistent"),
       expect.arrayContaining(["display-popup", "-c", "client_1"]),
     ]);
     const displayPopupArgs = calls.at(-1)?.args;
@@ -414,6 +416,7 @@ describe("tmux popup", () => {
       ["set-option", "-gq", "@wosm_popup_focus_client", "client_2"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      ...fastPopupRegistrationCalls("_wosm-ui", "wosm tui --popup --persistent"),
       expect.arrayContaining(["display-popup", "-c", "client_2"]),
     ]);
   });
@@ -530,10 +533,18 @@ describe("tmux popup", () => {
       ["switch-client", "-c", "client_from_binding", "-t", "wosm"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      ...fastPopupRegistrationCalls("_wosm-ui", "wosm tui --popup --persistent"),
       expect.arrayContaining(["display-popup", "-c", "client_from_binding"]),
     ]);
   });
 });
+
+function fastPopupRegistrationCalls(sessionName: string, command: string): string[][] {
+  return [
+    ["set-option", "-gq", "@wosm_popup_ui_session_name", sessionName],
+    ["set-option", "-gq", "@wosm_popup_ui_expected_signature", `v1:${command}`],
+  ];
+}
 
 function result(input: ExternalCommandInput, stdout = ""): ExternalCommandResult {
   return {
