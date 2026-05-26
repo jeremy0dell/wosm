@@ -162,10 +162,13 @@ export class TmuxProvider implements TerminalProvider {
             windowNameOrId: windowName,
           });
         }
-        await this.#run(
+        const output = await this.#run(
           [
             "new-window",
             "-d",
+            "-P",
+            "-F",
+            tmuxPrimaryPaneIdentityFormat,
             "-t",
             tmuxNewWindowTarget(sessionName),
             "-n",
@@ -181,6 +184,12 @@ export class TmuxProvider implements TerminalProvider {
             },
           },
         );
+        const primaryPane = parsePrimaryPaneIdentity(output.stdout);
+        windowTarget = tmuxWindowTarget({
+          sessionId: sessionName,
+          windowNameOrId: primaryPane.windowId,
+        });
+        paneTarget = primaryPane.paneId;
       } else {
         windowName = existing.windowName;
         windowTarget = tmuxWindowTarget({
@@ -518,14 +527,7 @@ export class TmuxProvider implements TerminalProvider {
         },
       },
     );
-    const [sessionId = "", windowId = "", paneId = ""] = output.stdout.trim().split("\t");
-    if (sessionId.length === 0 || windowId.length === 0 || paneId.length === 0) {
-      throw new TmuxTerminalProviderError(
-        "TERMINAL_OPEN_FAILED",
-        "tmux returned an invalid primary pane identity.",
-      );
-    }
-    return { sessionId, windowId, paneId };
+    return parsePrimaryPaneIdentity(output.stdout);
   }
 
   async #run(
@@ -623,14 +625,33 @@ function targetMatchesWorkspace(
   if (target.projectId !== request.project.id) {
     return false;
   }
+  const boundPath = stringField(providerData, "worktreePath");
+  if (boundPath !== undefined) {
+    return pathIsSame(boundPath, request.worktree.path);
+  }
   if (target.worktreeId === request.worktree.id) {
     return true;
   }
-  const boundPath = stringField(providerData, "worktreePath");
-  if (boundPath !== undefined && pathIsSameOrInside(boundPath, request.worktree.path)) {
-    return true;
-  }
   return target.cwd !== undefined && pathIsSameOrInside(target.cwd, request.worktree.path);
+}
+
+function parsePrimaryPaneIdentity(stdout: string): {
+  sessionId: string;
+  windowId: string;
+  paneId: string;
+} {
+  const [sessionId = "", windowId = "", paneId = ""] = stdout.trim().split("\t");
+  if (sessionId.length === 0 || windowId.length === 0 || paneId.length === 0) {
+    throw new TmuxTerminalProviderError(
+      "TERMINAL_OPEN_FAILED",
+      "tmux returned an invalid primary pane identity.",
+    );
+  }
+  return { sessionId, windowId, paneId };
+}
+
+function pathIsSame(candidate: string, root: string): boolean {
+  return normalizeLocalPath(candidate) === normalizeLocalPath(root);
 }
 
 function pathIsSameOrInside(candidate: string, root: string): boolean {

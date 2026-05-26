@@ -1,5 +1,5 @@
+import { createHash } from "node:crypto";
 import type { CommandRecord, WosmCommand, WosmSnapshot } from "@wosm/contracts";
-import { buildWorkbenchWindowName } from "@wosm/tmux";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { findRowByBranch } from "../../support/real-wosm/assertions";
 import {
@@ -53,7 +53,9 @@ describeReal("real Codex session lifecycle dogfood", () => {
       await killTmuxSession(env, config.tmuxSession);
     });
 
-    const branch = uniqueBranch("codex-lifecycle");
+    const branch = uniqueBranch(
+      "codex-lifecycle-customer-account-permissions-rollout-for-enterprise-alpha",
+    );
     cleanup.defer(async () => {
       await removeRealWorktrunkWorktree({ env, config, repo, branch });
     });
@@ -146,5 +148,47 @@ function expectedWindowName(
   worktreeId: string,
   path: string,
 ): string {
-  return buildWorkbenchWindowName({ projectId, branch, worktreeId, path });
+  const display = [projectId, branch].map(normalizeTmuxWindowPart);
+  const base = trimTmuxSeparators(display.map((part) => part.value).join("-")) || "worktree";
+  const changed = display.some((part) => part.changed);
+  const needsHash = changed || base.length > 48;
+
+  if (!needsHash) {
+    return truncateTmuxWindowName(base, 48) || "worktree";
+  }
+
+  const hash = createHash("sha256")
+    .update(JSON.stringify(["tmux-window", projectId, worktreeId, path, branch].map(nfc)))
+    .digest("hex")
+    .slice(0, 10);
+  const suffix = `-${hash}`;
+  const head = truncateTmuxWindowName(base, 48 - suffix.length) || "worktree";
+  return `${head}${suffix}`;
+}
+
+function normalizeTmuxWindowPart(value: string): { value: string; changed: boolean } {
+  const raw = value.trim();
+  const prepared = raw.toLowerCase();
+  const normalized = trimTmuxSeparators(
+    Array.from(prepared, (character) => (/[a-z0-9._-]/.test(character) ? character : "-"))
+      .join("")
+      .replace(/-{2,}/g, "-"),
+  );
+  const safe = normalized.length === 0 ? "worktree" : normalized;
+  return {
+    value: safe,
+    changed: safe !== raw,
+  };
+}
+
+function truncateTmuxWindowName(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : trimTmuxSeparators(value.slice(0, maxLength));
+}
+
+function trimTmuxSeparators(value: string): string {
+  return value.replace(/^-+|-+$/g, "");
+}
+
+function nfc(value: string): string {
+  return value.normalize("NFC");
 }
