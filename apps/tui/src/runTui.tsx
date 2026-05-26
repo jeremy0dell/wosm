@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { App } from "./App.js";
 import { createTuiObserverService } from "./services/observerService.js";
 import type { TuiObserverService, TuiRunResult } from "./services/types.js";
+import { resolveTuiModeFromEnv, TuiModeProvider } from "./tuiMode.js";
 
 export type RunTuiOptions = {
   socketPath: string;
@@ -45,6 +46,10 @@ export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
     if (options.onDismiss !== undefined) {
       appProps.onDismiss = options.onDismiss;
     }
-    instance = render(<App {...appProps} />);
+    instance = render(
+      <TuiModeProvider mode={resolveTuiModeFromEnv(process.env)}>
+        <App {...appProps} />
+      </TuiModeProvider>,
+    );
   });
 }

@@ -1,6 +1,7 @@
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import { App } from "../../src/App.js";
+import { TuiModeProvider } from "../../src/tuiMode.js";
 import { createDashboardSnapshot, createZeroWorktreeSnapshot } from "../fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../support/fakeObserverService.js";
 
@@ -65,6 +66,19 @@ describe("TUI app rendering", () => {
 
     expect(frame).toContain("q/esc:close");
     expect(frame).not.toContain("q:quit");
+    instance.unmount();
+  });
+
+  it("marks the dashboard header in dev mode", () => {
+    const snapshot = createDashboardSnapshot();
+    const instance = render(
+      <TuiModeProvider mode="dev">
+        <App initialSnapshot={snapshot} service={new FakeTuiObserverService(snapshot)} />
+      </TuiModeProvider>,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("wosm dev 2 projects");
     instance.unmount();
   });
 });
