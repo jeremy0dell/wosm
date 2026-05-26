@@ -135,6 +135,21 @@ describe("CodexHarnessProvider", () => {
     ]);
   });
 
+  it("applies provider yolo permission mode to launch plans", async () => {
+    const provider = new CodexHarnessProvider({
+      permissionMode: "yolo",
+      approvalPolicy: "on-request",
+      sandboxMode: "workspace-write",
+    });
+
+    await expect(provider.buildLaunch(request())).resolves.toMatchObject({
+      args: ["--cd", "/tmp/wosm/web/task", "--dangerously-bypass-approvals-and-sandbox"],
+      providerData: {
+        permissionMode: "yolo",
+      },
+    });
+  });
+
   it("classifies and ingests Codex observations through provider-local parsing", async () => {
     const provider = new CodexHarnessProvider({ now: () => new Date(now) });
 

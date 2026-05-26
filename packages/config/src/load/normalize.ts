@@ -47,6 +47,7 @@ function normalizeObserverConfig(value: unknown): unknown {
 function normalizeGlobalDefaults(value: unknown): unknown {
   return normalizeObject(value, {
     worktree_provider: "worktreeProvider",
+    harness_permission_mode: "harnessPermissionMode",
   });
 }
 
@@ -94,6 +95,7 @@ function normalizeHarnessProvidersConfig(value: unknown): unknown {
 
 function normalizeHarnessProviderConfig(value: unknown): unknown {
   return normalizeObject(value, {
+    permission_mode: "permissionMode",
     sandbox_mode: "sandboxMode",
     approval_policy: "approvalPolicy",
     install_hooks: "installHooks",

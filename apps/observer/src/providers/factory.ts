@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { CodexHarnessProvider } from "@wosm/codex";
-import type { WosmConfig } from "@wosm/config";
+import type { HarnessProviderConfig, WosmConfig } from "@wosm/config";
 import type {
   HarnessCapabilities,
   HarnessProvider,
@@ -80,32 +80,38 @@ function createHarnessProviders(config: WosmConfig): HarnessProvider[] {
 }
 
 function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider {
+  const providerConfig = harnessProviderConfig(config, id);
+
   if (id === "scripted") {
     const options: ConstructorParameters<typeof ScriptedAgentHarnessProvider>[0] = {
       stateDir: join(config.observer?.stateDir ?? process.cwd(), "scripted"),
     };
-    if (config.harness?.scripted?.command !== undefined) {
-      options.nodeCommand = config.harness.scripted.command;
+    if (providerConfig?.command !== undefined) {
+      options.nodeCommand = providerConfig.command;
     }
     return new ScriptedAgentHarnessProvider(options);
   }
 
   if (id === "codex") {
     const options: ConstructorParameters<typeof CodexHarnessProvider>[0] = {};
-    if (config.harness?.codex?.command !== undefined) {
-      options.command = config.harness.codex.command;
+    if (providerConfig?.command !== undefined) {
+      options.command = providerConfig.command;
     }
-    if (config.harness?.codex?.profile !== undefined) {
-      options.profile = config.harness.codex.profile;
+    if (providerConfig?.profile !== undefined) {
+      options.profile = providerConfig.profile;
     }
-    if (config.harness?.codex?.approvalPolicy !== undefined) {
-      options.approvalPolicy = config.harness.codex.approvalPolicy;
+    const permissionMode = resolveHarnessPermissionMode(config, id);
+    if (permissionMode !== undefined) {
+      options.permissionMode = permissionMode;
     }
-    if (config.harness?.codex?.sandboxMode !== undefined) {
-      options.sandboxMode = config.harness.codex.sandboxMode;
+    if (providerConfig?.approvalPolicy !== undefined) {
+      options.approvalPolicy = providerConfig.approvalPolicy;
     }
-    if (config.harness?.codex?.installHooks !== undefined) {
-      options.installHooks = config.harness.codex.installHooks;
+    if (providerConfig?.sandboxMode !== undefined) {
+      options.sandboxMode = providerConfig.sandboxMode;
+    }
+    if (providerConfig?.installHooks !== undefined) {
+      options.installHooks = providerConfig.installHooks;
     }
     if (config.observer?.stateDir !== undefined) {
       options.stateDir = config.observer.stateDir;
@@ -115,8 +121,18 @@ function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider 
 
   if (id === "opencode") {
     const options: ConstructorParameters<typeof OpenCodeHarnessProvider>[0] = {};
-    if (config.harness?.opencode?.command !== undefined) {
-      options.command = config.harness.opencode.command;
+    if (providerConfig?.command !== undefined) {
+      options.command = providerConfig.command;
+    }
+    const permissionMode = resolveHarnessPermissionMode(config, id);
+    if (permissionMode !== undefined) {
+      options.permissionMode = permissionMode;
+    }
+    if (providerConfig?.approvalPolicy !== undefined) {
+      options.approvalPolicy = providerConfig.approvalPolicy;
+    }
+    if (providerConfig?.sandboxMode !== undefined) {
+      options.sandboxMode = providerConfig.sandboxMode;
     }
     return new OpenCodeHarnessProvider(options);
   }
@@ -126,6 +142,31 @@ function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider 
   }
 
   return new UnavailableHarnessProvider(id);
+}
+
+function harnessProviderConfig(config: WosmConfig, id: string): HarnessProviderConfig | undefined {
+  return config.harness?.[id];
+}
+
+function resolveHarnessPermissionMode(
+  config: WosmConfig,
+  id: string,
+): WosmConfig["defaults"]["harnessPermissionMode"] {
+  const providerConfig = harnessProviderConfig(config, id);
+  if (providerConfig?.permissionMode !== undefined) {
+    return providerConfig.permissionMode;
+  }
+  if (config.defaults.harnessPermissionMode !== undefined) {
+    return config.defaults.harnessPermissionMode;
+  }
+  return isLegacyYoloHarnessConfig(providerConfig) ? "yolo" : undefined;
+}
+
+function isLegacyYoloHarnessConfig(providerConfig: HarnessProviderConfig | undefined): boolean {
+  return (
+    providerConfig?.approvalPolicy === "never" &&
+    providerConfig.sandboxMode === "danger-full-access"
+  );
 }
 
 function health(providerId: string, providerType: ProviderHealth["providerType"]): ProviderHealth {

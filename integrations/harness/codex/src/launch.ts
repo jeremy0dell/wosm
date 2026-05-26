@@ -1,13 +1,20 @@
-import type { BuildHarnessLaunchRequest, HarnessLaunchPlan } from "@wosm/contracts";
+import type {
+  BuildHarnessLaunchRequest,
+  HarnessLaunchPlan,
+  HarnessPermissionMode,
+} from "@wosm/contracts";
 
 export type CodexLaunchOptions = {
   command?: string;
   defaultProfile?: string;
   defaultProfileV2?: string;
+  defaultPermissionMode?: HarnessPermissionMode;
   defaultApprovalPolicy?: string;
   defaultSandboxMode?: string;
   noAltScreen?: boolean;
 };
+
+const CODEX_YOLO_FLAG = "--dangerously-bypass-approvals-and-sandbox";
 
 export function buildCodexLaunchPlan(
   request: BuildHarnessLaunchRequest,
@@ -16,14 +23,18 @@ export function buildCodexLaunchPlan(
   const mode = request.mode ?? "interactive";
   const profile = request.profile ?? options.defaultProfile;
   const profileV2 = options.defaultProfileV2;
+  const permissionMode = request.permissionMode ?? options.defaultPermissionMode;
   const approvalPolicy = request.approvalPolicy ?? options.defaultApprovalPolicy;
   const sandboxMode = request.sandboxMode ?? options.defaultSandboxMode;
+  const yolo = isYoloPermissionMode({ permissionMode, approvalPolicy, sandboxMode });
+  const providerPermissionMode = yolo ? "yolo" : permissionMode;
   const args = mode === "exec" ? execArgs(request) : interactiveArgs(request);
   appendCodexOptions(args, {
     profile,
     profileV2,
-    approvalPolicy: mode === "exec" ? undefined : approvalPolicy,
-    sandboxMode,
+    permissionMode: providerPermissionMode,
+    approvalPolicy: yolo || mode === "exec" ? undefined : approvalPolicy,
+    sandboxMode: yolo ? undefined : sandboxMode,
     noAltScreen: mode === "interactive" ? options.noAltScreen : undefined,
   });
   if (request.initialPrompt !== undefined) {
@@ -35,8 +46,9 @@ export function buildCodexLaunchPlan(
     mode,
     profile,
     profileV2,
-    approvalPolicy,
-    sandboxMode,
+    permissionMode: providerPermissionMode,
+    approvalPolicy: yolo ? undefined : approvalPolicy,
+    sandboxMode: yolo ? undefined : sandboxMode,
     noAltScreen: mode === "interactive" ? options.noAltScreen : undefined,
     initialPromptProvided: request.initialPrompt !== undefined,
     terminalProvider: request.terminalTarget?.provider,
@@ -55,6 +67,17 @@ export function buildCodexLaunchPlan(
   };
 }
 
+function isYoloPermissionMode(input: {
+  permissionMode?: HarnessPermissionMode | undefined;
+  approvalPolicy?: string | undefined;
+  sandboxMode?: string | undefined;
+}): boolean {
+  if (input.permissionMode !== undefined) {
+    return input.permissionMode === "yolo";
+  }
+  return input.approvalPolicy === "never" && input.sandboxMode === "danger-full-access";
+}
+
 function interactiveArgs(request: BuildHarnessLaunchRequest): string[] {
   return ["--cd", request.worktree.path];
 }
@@ -68,6 +91,7 @@ function appendCodexOptions(
   options: {
     profile?: string | undefined;
     profileV2?: string | undefined;
+    permissionMode?: HarnessPermissionMode | undefined;
     approvalPolicy?: string | undefined;
     sandboxMode?: string | undefined;
     noAltScreen?: boolean | undefined;
@@ -78,6 +102,9 @@ function appendCodexOptions(
   }
   if (options.profileV2 !== undefined) {
     args.push("--profile-v2", options.profileV2);
+  }
+  if (options.permissionMode === "yolo") {
+    args.push(CODEX_YOLO_FLAG);
   }
   if (options.sandboxMode !== undefined) {
     args.push("--sandbox", options.sandboxMode);
@@ -111,6 +138,7 @@ function codexProviderData(input: {
   mode: "interactive" | "exec";
   profile?: string | undefined;
   profileV2?: string | undefined;
+  permissionMode?: HarnessPermissionMode | undefined;
   approvalPolicy?: string | undefined;
   sandboxMode?: string | undefined;
   noAltScreen?: boolean | undefined;
@@ -129,6 +157,9 @@ function codexProviderData(input: {
   }
   if (input.profileV2 !== undefined) {
     providerData.profileV2 = input.profileV2;
+  }
+  if (input.permissionMode !== undefined) {
+    providerData.permissionMode = input.permissionMode;
   }
   if (input.approvalPolicy !== undefined) {
     providerData.approvalPolicy = input.approvalPolicy;

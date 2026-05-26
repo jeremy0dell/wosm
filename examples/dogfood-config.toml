@@ -13,6 +13,7 @@ worktree_provider = "worktrunk"
 terminal = "tmux"
 harness = "codex"
 layout = "agent-shell"
+harness_permission_mode = "yolo"
 
 [worktree.worktrunk]
 command = "wt"

@@ -81,6 +81,10 @@ export const HarnessCapabilitiesSchema = z
 
 export type HarnessCapabilities = z.infer<typeof HarnessCapabilitiesSchema>;
 
+export const HarnessPermissionModeSchema = z.enum(["standard", "yolo"]);
+
+export type HarnessPermissionMode = z.infer<typeof HarnessPermissionModeSchema>;
+
 export const ProviderProjectDefaultsSchema = z
   .object({
     harness: ProviderIdSchema,
@@ -210,6 +214,7 @@ export type BuildHarnessLaunchRequest = {
   mode?: "interactive" | "exec";
   initialPrompt?: string;
   profile?: string;
+  permissionMode?: HarnessPermissionMode;
   approvalPolicy?: string;
   sandboxMode?: string;
 };

@@ -1,13 +1,31 @@
-import type { BuildHarnessLaunchRequest, HarnessLaunchPlan } from "@wosm/contracts";
+import type {
+  BuildHarnessLaunchRequest,
+  HarnessLaunchPlan,
+  HarnessPermissionMode,
+} from "@wosm/contracts";
 
 export type OpenCodeLaunchOptions = {
   command?: string;
+  defaultPermissionMode?: HarnessPermissionMode;
+  defaultApprovalPolicy?: string;
+  defaultSandboxMode?: string;
 };
 
 export function buildOpenCodeLaunchPlan(
   request: BuildHarnessLaunchRequest,
   options: OpenCodeLaunchOptions = {},
 ): HarnessLaunchPlan {
+  const permissionMode = request.permissionMode ?? options.defaultPermissionMode;
+  const approvalPolicy = request.approvalPolicy ?? options.defaultApprovalPolicy;
+  const sandboxMode = request.sandboxMode ?? options.defaultSandboxMode;
+  const providerPermissionMode = isYoloPermissionMode({
+    permissionMode,
+    approvalPolicy,
+    sandboxMode,
+  })
+    ? "yolo"
+    : permissionMode;
+
   return {
     provider: "opencode",
     command: options.command ?? "opencode",
@@ -26,8 +44,22 @@ export function buildOpenCodeLaunchPlan(
       skeleton: true,
       ...(request.initialPrompt === undefined ? {} : { initialPromptProvided: true }),
       ...(request.profile === undefined ? {} : { profile: request.profile }),
-      ...(request.approvalPolicy === undefined ? {} : { approvalPolicy: request.approvalPolicy }),
-      ...(request.sandboxMode === undefined ? {} : { sandboxMode: request.sandboxMode }),
+      ...(providerPermissionMode === undefined ? {} : { permissionMode: providerPermissionMode }),
+      ...(providerPermissionMode === "yolo" || approvalPolicy === undefined
+        ? {}
+        : { approvalPolicy }),
+      ...(providerPermissionMode === "yolo" || sandboxMode === undefined ? {} : { sandboxMode }),
     },
   };
+}
+
+function isYoloPermissionMode(input: {
+  permissionMode?: HarnessPermissionMode | undefined;
+  approvalPolicy?: string | undefined;
+  sandboxMode?: string | undefined;
+}): boolean {
+  if (input.permissionMode !== undefined) {
+    return input.permissionMode === "yolo";
+  }
+  return input.approvalPolicy === "never" && input.sandboxMode === "danger-full-access";
 }
