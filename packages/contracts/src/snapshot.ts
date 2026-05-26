@@ -14,6 +14,8 @@ import {
   ConfidenceSchema,
   ObservedStatusSchema,
   TerminalStateSchema,
+  WorktreeChangeSummarySchema,
+  WorktreeChecksSummarySchema,
   WorktreePullRequestSchema,
   WorktreeSourceSchema,
   WorktreeStateSchema,
@@ -59,6 +61,8 @@ export const WorktreeRuntimeSchema = z
     ahead: z.number().int().nonnegative().optional(),
     behind: z.number().int().nonnegative().optional(),
     pr: WorktreePullRequestSchema.optional(),
+    changeSummary: WorktreeChangeSummarySchema.optional(),
+    checks: WorktreeChecksSummarySchema.optional(),
   })
   .strict();
 

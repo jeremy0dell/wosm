@@ -229,6 +229,10 @@ function buildWorktreeRow(input: BuildWorktreeRowInput): WorktreeRow {
   if (input.worktree.ahead !== undefined) worktree.ahead = input.worktree.ahead;
   if (input.worktree.behind !== undefined) worktree.behind = input.worktree.behind;
   if (input.worktree.pr !== undefined) worktree.pr = input.worktree.pr;
+  if (input.worktree.changeSummary !== undefined) {
+    worktree.changeSummary = input.worktree.changeSummary;
+  }
+  if (input.worktree.checks !== undefined) worktree.checks = input.worktree.checks;
 
   const display: WorktreeRow["display"] = {
     statusLabel: policy.label,
