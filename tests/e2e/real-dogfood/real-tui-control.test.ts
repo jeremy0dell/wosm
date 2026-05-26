@@ -1,4 +1,5 @@
 import type { WosmSnapshot } from "@wosm/contracts";
+import { buildWorkbenchWindowName } from "@wosm/tmux";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { findRowByBranch } from "../../support/real-wosm/assertions";
 import { uniqueTmuxSession, writeRealWosmConfig } from "../../support/real-wosm/config";
@@ -85,7 +86,7 @@ describeReal("real TUI control dogfood", () => {
 
     await sendTmuxKeys({ env, target: tuiSession, keys: ["1"] });
     await expect(activeTmuxWindow(env, config.tmuxSession)).resolves.toBe(
-      expectedWindowName(config.projectId, branch),
+      expectedWindowName(config.projectId, branch, row.id, row.path),
     );
   }, 240_000);
 });
@@ -110,12 +111,11 @@ function findMaybeRow(snapshot: WosmSnapshot, branch: string) {
   return snapshot.rows.find((row) => row.branch === branch);
 }
 
-function expectedWindowName(projectId: string, branch: string): string {
-  const normalized = `${projectId}-${branch}`
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9._-]+/g, "-")
-    .replaceAll(/^-+|-+$/g, "")
-    .replaceAll(/-{2,}/g, "-");
-  const safe = normalized.length > 0 ? normalized : "worktree";
-  return safe.slice(0, 48).replaceAll(/-+$/g, "") || "worktree";
+function expectedWindowName(
+  projectId: string,
+  branch: string,
+  worktreeId: string,
+  path: string,
+): string {
+  return buildWorkbenchWindowName({ projectId, branch, worktreeId, path });
 }

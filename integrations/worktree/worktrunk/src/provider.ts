@@ -24,6 +24,7 @@ import {
   runExternalCommand,
   runRuntimeBoundaryWithRetryAndTimeout,
   safeErrorFromUnknown,
+  stableName,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
@@ -210,7 +211,7 @@ export class WorktrunkProvider implements WorktreeProvider {
         message: "Worktrunk failed to create a worktree.",
       },
       {},
-      worktreePathEnv(request.project),
+      worktreePathEnv(request.project, request.branch, request.path),
     );
 
     const observations = parseCommandObservation(output.stdout, {
@@ -561,13 +562,25 @@ function isMainWorktree(project: ProviderProjectConfig, observation: WorktreeObs
   );
 }
 
-function worktreePathEnv(project: ProviderProjectConfig): Record<string, string> | undefined {
+function worktreePathEnv(
+  project: ProviderProjectConfig,
+  branch: string,
+  requestedPath?: string,
+): Record<string, string> | undefined {
   const managedRoot = resolveManagedRoot(project);
   if (managedRoot === undefined) {
     return undefined;
   }
+  const path =
+    requestedPath === undefined
+      ? `${managedRoot}/${stableName({
+          profile: "path-segment",
+          display: [branch],
+          unique: ["worktree-path", project.id, managedRoot, branch],
+        })}`
+      : normalize(isAbsolute(requestedPath) ? requestedPath : resolve(project.root, requestedPath));
   return {
-    WORKTRUNK_WORKTREE_PATH: `${managedRoot}/{{ branch | sanitize }}`,
+    WORKTRUNK_WORKTREE_PATH: path,
   };
 }
 

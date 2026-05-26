@@ -132,24 +132,43 @@ export class TmuxProvider implements TerminalProvider {
 
   async openWorkspace(request: OpenWorkspaceRequest): Promise<OpenWorkspaceResult> {
     const sessionName = this.#config.workbenchSession;
-    const windowName = buildWorkbenchWindowName({
+    let windowName = buildWorkbenchWindowName({
       projectId: request.project.id,
       branch: request.worktree.branch,
+      worktreeId: request.worktree.id,
+      path: request.worktree.path,
     });
-    const windowTarget = tmuxWindowTarget({ sessionId: sessionName, windowNameOrId: windowName });
-    const paneTarget = tmuxPrimaryPaneTarget({
+    let windowTarget = tmuxWindowTarget({ sessionId: sessionName, windowNameOrId: windowName });
+    let paneTarget = tmuxPrimaryPaneTarget({
       sessionId: sessionName,
       windowNameOrId: windowName,
     });
     const sessionExists = await this.#hasSession(sessionName);
 
     if (sessionExists) {
-      const windowExists = await this.#hasWindow(sessionName, windowName);
-      if (!windowExists) {
-        await this.#run(
+      const existing = await this.#findExistingWorkspaceTarget(sessionName, request);
+      if (existing === undefined) {
+        if (await this.#hasWindow(sessionName, windowName)) {
+          windowName = buildWorkbenchWindowName({
+            projectId: request.project.id,
+            branch: request.worktree.branch,
+            worktreeId: request.worktree.id,
+            path: request.worktree.path,
+            forceHash: true,
+          });
+          windowTarget = tmuxWindowTarget({ sessionId: sessionName, windowNameOrId: windowName });
+          paneTarget = tmuxPrimaryPaneTarget({
+            sessionId: sessionName,
+            windowNameOrId: windowName,
+          });
+        }
+        const output = await this.#run(
           [
             "new-window",
             "-d",
+            "-P",
+            "-F",
+            tmuxPrimaryPaneIdentityFormat,
             "-t",
             tmuxNewWindowTarget(sessionName),
             "-n",
@@ -165,6 +184,19 @@ export class TmuxProvider implements TerminalProvider {
             },
           },
         );
+        const primaryPane = parsePrimaryPaneIdentity(output.stdout);
+        windowTarget = tmuxWindowTarget({
+          sessionId: sessionName,
+          windowNameOrId: primaryPane.windowId,
+        });
+        paneTarget = primaryPane.paneId;
+      } else {
+        windowName = existing.windowName;
+        windowTarget = tmuxWindowTarget({
+          sessionId: sessionName,
+          windowNameOrId: existing.windowId,
+        });
+        paneTarget = existing.paneId;
       }
     } else {
       await this.#run(
@@ -414,6 +446,40 @@ export class TmuxProvider implements TerminalProvider {
     }
   }
 
+  async #findExistingWorkspaceTarget(
+    sessionName: string,
+    request: OpenWorkspaceRequest,
+  ): Promise<{ windowName: string; windowId: string; paneId: string } | undefined> {
+    try {
+      const output = await this.#run(
+        ["list-panes", "-t", sessionName, "-F", tmuxListTargetsFormat],
+        {
+          operation: "provider.tmux.findExistingWorkspace",
+          fallback: {
+            code: "TERMINAL_LIST_FAILED",
+            message: "tmux failed to inspect existing workspace panes.",
+          },
+          mapErrors: false,
+        },
+      );
+      const targets = parseTmuxTargetLines(output.stdout, {
+        observedAt: toIsoTimestamp(this.#clock.now()),
+      });
+      const target = targets.find((candidate) => targetMatchesWorkspace(candidate, request));
+      if (target === undefined) {
+        return undefined;
+      }
+      const parsed = parseTmuxTargetId(target.id);
+      return {
+        windowName: target.title ?? parsed.windowId,
+        windowId: parsed.windowId,
+        paneId: parsed.paneId,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
   async #configureWorkbenchSession(sessionName: string): Promise<void> {
     for (const option of defaultTmuxWorkbenchSessionOptions) {
       await this.#run(tmuxSessionOptionArgs(sessionName, option), {
@@ -461,14 +527,7 @@ export class TmuxProvider implements TerminalProvider {
         },
       },
     );
-    const [sessionId = "", windowId = "", paneId = ""] = output.stdout.trim().split("\t");
-    if (sessionId.length === 0 || windowId.length === 0 || paneId.length === 0) {
-      throw new TmuxTerminalProviderError(
-        "TERMINAL_OPEN_FAILED",
-        "tmux returned an invalid primary pane identity.",
-      );
-    }
-    return { sessionId, windowId, paneId };
+    return parsePrimaryPaneIdentity(output.stdout);
   }
 
   async #run(
@@ -553,6 +612,73 @@ function parseTargetId(targetId: TerminalTargetId): {
       { cause },
     );
   }
+}
+
+function targetMatchesWorkspace(
+  target: TerminalTargetObservation,
+  request: OpenWorkspaceRequest,
+): boolean {
+  const providerData = asRecord(target.providerData);
+  if (stringField(providerData, "role") !== "main-agent") {
+    return false;
+  }
+  if (target.projectId !== request.project.id) {
+    return false;
+  }
+  const boundPath = stringField(providerData, "worktreePath");
+  if (boundPath !== undefined) {
+    return pathIsSame(boundPath, request.worktree.path);
+  }
+  if (target.worktreeId === request.worktree.id) {
+    return true;
+  }
+  return target.cwd !== undefined && pathIsSameOrInside(target.cwd, request.worktree.path);
+}
+
+function parsePrimaryPaneIdentity(stdout: string): {
+  sessionId: string;
+  windowId: string;
+  paneId: string;
+} {
+  const [sessionId = "", windowId = "", paneId = ""] = stdout.trim().split("\t");
+  if (sessionId.length === 0 || windowId.length === 0 || paneId.length === 0) {
+    throw new TmuxTerminalProviderError(
+      "TERMINAL_OPEN_FAILED",
+      "tmux returned an invalid primary pane identity.",
+    );
+  }
+  return { sessionId, windowId, paneId };
+}
+
+function pathIsSame(candidate: string, root: string): boolean {
+  return normalizeLocalPath(candidate) === normalizeLocalPath(root);
+}
+
+function pathIsSameOrInside(candidate: string, root: string): boolean {
+  const normalizedCandidate = normalizeLocalPath(candidate);
+  const normalizedRoot = normalizeLocalPath(root);
+  return (
+    normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}/`)
+  );
+}
+
+function normalizeLocalPath(value: string): string {
+  const trimmed = value.trim();
+  const withoutTrailingSlash = trimmed.length > 1 ? trimmed.replace(/\/+$/g, "") : trimmed;
+  return withoutTrailingSlash.startsWith("/private/var/")
+    ? `/var/${withoutTrailingSlash.slice("/private/var/".length)}`
+    : withoutTrailingSlash;
+}
+
+function stringField(record: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = record?.[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function launchExitedHint(command: string, status: string): string {

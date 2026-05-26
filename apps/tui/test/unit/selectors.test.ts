@@ -14,21 +14,60 @@ describe("TUI selectors", () => {
     ]);
   });
 
-  it("sorts unknown rows inside project groups before exited and no-agent rows", () => {
+  it("sorts rows inside project groups by stable branch identity, not live status", () => {
     const snapshot = createDashboardSnapshot();
     const web = selectProjectGroups(snapshot, createInitialUiState()).find(
       (group) => group.project.id === "web",
     );
 
+    expect(web?.rows.map((candidate) => candidate.branch)).toEqual([
+      "cache-refactor",
+      "checkout-copy",
+      "done-run",
+      "feature-auth",
+      "fix-nav-mobile",
+      "ghost-signal",
+      "slow-tests",
+    ]);
     expect(web?.rows.map((candidate) => candidate.display.statusLabel)).toEqual([
-      "needs attention",
-      "stuck",
       "working",
-      "idle",
-      "unknown",
+      "needs attention",
       "exited",
       "no agent",
+      "idle",
+      "unknown",
+      "stuck",
     ]);
+  });
+
+  it("keeps the same row position when status priority changes", () => {
+    const snapshot = createDashboardSnapshot();
+    const changed = {
+      ...snapshot,
+      rows: snapshot.rows.map((candidate) =>
+        candidate.id === "wt_web_no_agent"
+          ? {
+              ...candidate,
+              display: {
+                statusLabel: "needs attention" as const,
+                sortPriority: 10,
+                alert: true,
+              },
+            }
+          : candidate,
+      ),
+    };
+
+    const before = selectProjectGroups(snapshot, createInitialUiState()).find(
+      (group) => group.project.id === "web",
+    );
+    const after = selectProjectGroups(changed, createInitialUiState()).find(
+      (group) => group.project.id === "web",
+    );
+
+    expect(after?.rows.map((candidate) => candidate.id)).toEqual(
+      before?.rows.map((candidate) => candidate.id),
+    );
   });
 
   it("filters by search and collapses project groups without changing snapshot truth", () => {
@@ -51,6 +90,6 @@ describe("TUI selectors", () => {
     const state = createInitialUiState();
     const slots = selectKeySlots(snapshot, state);
 
-    expect(slots.get("4")?.id).toBe("wt_web_idle");
+    expect(slots.get("5")?.id).toBe("wt_web_idle");
   });
 });

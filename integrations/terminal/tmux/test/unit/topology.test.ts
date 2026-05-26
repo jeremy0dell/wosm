@@ -42,18 +42,56 @@ describe("tmux workbench topology", () => {
   });
 
   it("builds stable safe window names from project and branch", () => {
+    expect(buildWorkbenchWindowName({ projectId: "web", branch: "main" })).toBe("web-main");
     expect(
       buildWorkbenchWindowName({
         projectId: "web",
         branch: "feat/auth refresh!",
+        worktreeId: "wt_web_auth_refresh",
+        path: "/repo/.worktrees/auth-refresh",
       }),
-    ).toBe("web-feat-auth-refresh");
+    ).toMatch(/^web-feat-auth-refresh-[a-f0-9]{10}$/);
     expect(
       buildWorkbenchWindowName({
         projectId: "api",
         branch: "very/long/branch/name/with/many/parts/and-symbols",
+        worktreeId: "wt_api_long",
+        path: "/repo/.worktrees/very-long",
       }).length,
     ).toBeLessThanOrEqual(48);
+  });
+
+  it("can force a hash suffix when an existing unmatched tmux window owns the readable name", () => {
+    expect(
+      buildWorkbenchWindowName({
+        projectId: "web",
+        branch: "feature-auth",
+        worktreeId: "wt_web_feature-auth",
+        path: "/repo/.worktrees/feature-auth",
+        forceHash: true,
+      }),
+    ).toMatch(/^web-feature-auth-[a-f0-9]{10}$/);
+  });
+
+  it("keeps truncated workbench window names unique", () => {
+    const left = buildWorkbenchWindowName({
+      projectId: "web",
+      branch: "feature/customer-account-permissions-rollout-for-enterprise-alpha",
+      worktreeId: "wt_web_alpha",
+      path: "/repo/.worktrees/customer-account-permissions-alpha",
+    });
+    const right = buildWorkbenchWindowName({
+      projectId: "web",
+      branch: "feature/customer-account-permissions-rollout-for-enterprise-beta",
+      worktreeId: "wt_web_beta",
+      path: "/repo/.worktrees/customer-account-permissions-beta",
+    });
+
+    expect(left.length).toBeLessThanOrEqual(48);
+    expect(right.length).toBeLessThanOrEqual(48);
+    expect(left).not.toBe(right);
+    expect(left).toMatch(/-[a-f0-9]{10}$/);
+    expect(right).toMatch(/-[a-f0-9]{10}$/);
   });
 
   it("round-trips opaque provider target IDs without making core parse tmux fields", () => {

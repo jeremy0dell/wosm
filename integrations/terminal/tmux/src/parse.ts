@@ -15,6 +15,7 @@ export const tmuxListTargetsFormat = [
   "#{@wosm.session_id}",
   "#{@wosm.project_id}",
   "#{@wosm.worktree_id}",
+  "#{@wosm.worktree_path}",
   "#{@wosm.role}",
   "#{@wosm.harness}",
 ].join("\t");
@@ -53,9 +54,10 @@ function parseTmuxTargetLine(
     wosmSessionId = "",
     projectId = "",
     worktreeId = "",
-    role = "",
-    harness = "",
+    ...identityFields
   ] = line.split("\t");
+  const [worktreePath = "", role = "", harness = ""] =
+    identityFields.length >= 3 ? identityFields : ["", ...identityFields];
   const hasBinding = projectId.length > 0 && worktreeId.length > 0 && role === "main-agent";
   const isDead = paneDead === "1";
   const parsedPid = parsePositiveInteger(pid);
@@ -73,6 +75,9 @@ function parseTmuxTargetLine(
   }
   if (currentCommand.length > 0) {
     providerData.currentCommand = currentCommand;
+  }
+  if (worktreePath.length > 0) {
+    providerData.worktreePath = worktreePath;
   }
 
   return {
