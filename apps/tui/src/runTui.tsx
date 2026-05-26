@@ -50,6 +50,7 @@ export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
       <TuiModeProvider mode={resolveTuiModeFromEnv(process.env)}>
         <App {...appProps} />
       </TuiModeProvider>,
+      { alternateScreen: true },
     );
   });
 }

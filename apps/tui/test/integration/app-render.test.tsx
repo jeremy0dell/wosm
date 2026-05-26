@@ -1,6 +1,8 @@
+import { Box, renderToString } from "ink";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import { App } from "../../src/App.js";
+import { Dashboard } from "../../src/components/Dashboard.js";
 import { TuiModeProvider } from "../../src/tuiMode.js";
 import { createDashboardSnapshot, createZeroWorktreeSnapshot } from "../fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../support/fakeObserverService.js";
@@ -37,6 +39,24 @@ describe("TUI app rendering", () => {
     expect(frame).not.toContain("inspect");
     expect(frame).not.toContain("debug panel");
     instance.unmount();
+  });
+
+  it("anchors the keybinding footer to the bottom row of the dashboard frame", () => {
+    const snapshot = createZeroWorktreeSnapshot();
+    const frame = renderToString(
+      <Box flexDirection="column" height={12} width={100}>
+        <Dashboard
+          snapshot={snapshot}
+          uiState={{ searchQuery: "", collapsedProjectIds: new Set() }}
+        />
+      </Box>,
+      { columns: 100 },
+    );
+    const lines = frame.split("\n");
+
+    expect(lines).toHaveLength(12);
+    expect(lines.at(-1)).toContain("n:new bg 1-9:start/focus x:remove /:search r:refresh q:quit");
+    expect(lines.slice(0, -1).join("\n")).not.toContain("n:new bg");
   });
 
   it("renders configured projects even when they have zero worktrees", () => {

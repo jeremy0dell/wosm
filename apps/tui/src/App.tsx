@@ -1,6 +1,6 @@
 import type { TerminalFocusOrigin, WosmCommand, WosmSnapshot } from "@wosm/contracts";
-import { Box, Text, useInput } from "ink";
-import { useRef } from "react";
+import { Box, Text, useInput, useWindowSize } from "ink";
+import { type ReactNode, useRef } from "react";
 import { buildCleanupCommand, buildCreateSessionCommand, cleanupForceRequired } from "./actions.js";
 import { CommandPrompt } from "./components/CommandPrompt.js";
 import { Dashboard } from "./components/Dashboard.js";
@@ -48,6 +48,7 @@ export function App({
 }: AppProps) {
   const promptValueRef = useRef("");
   const promptModeRef = useRef<PromptMode | undefined>(undefined);
+  const { columns, rows } = useWindowSize();
   const dashboard = useObserverDashboard({
     service,
     ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
@@ -150,23 +151,47 @@ export function App({
 
   if (dashboard.loading || dashboard.snapshot === undefined) {
     return (
-      <Box flexDirection="column">
-        <Text>wosm</Text>
-        <Text color="gray">Loading observer snapshot...</Text>
-        <ToastStack toasts={dashboard.toasts} />
-      </Box>
+      <FullScreenFrame columns={columns} rows={rows}>
+        <Box flexDirection="column" flexGrow={1} overflow="hidden">
+          <Text>wosm</Text>
+          <Text color="gray">Loading observer snapshot...</Text>
+          <ToastStack toasts={dashboard.toasts} />
+        </Box>
+      </FullScreenFrame>
     );
   }
 
   return (
-    <Box flexDirection="column">
+    <FullScreenFrame columns={columns} rows={rows}>
       <Dashboard
         snapshot={dashboard.snapshot}
         uiState={dashboard.uiState}
         quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
-      />
-      <CommandPrompt prompt={dashboard.uiState.prompt} />
-      <ToastStack toasts={dashboard.toasts} />
+      >
+        <CommandPrompt prompt={dashboard.uiState.prompt} />
+        <ToastStack toasts={dashboard.toasts} />
+      </Dashboard>
+    </FullScreenFrame>
+  );
+}
+
+function FullScreenFrame({
+  children,
+  columns,
+  rows,
+}: {
+  children: ReactNode;
+  columns: number;
+  rows: number;
+}) {
+  return (
+    <Box
+      flexDirection="column"
+      height={Math.max(1, rows)}
+      overflow="hidden"
+      width={Math.max(1, columns)}
+    >
+      {children}
     </Box>
   );
 }
