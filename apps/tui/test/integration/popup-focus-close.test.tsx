@@ -19,7 +19,7 @@ describe("TUI transient focus-and-close navigation", () => {
       />,
     );
 
-    instance.stdin.write("4");
+    instance.stdin.write("5");
 
     await waitFor(() => exits.length === 1);
     expect(service.dispatched[0]).toEqual({
@@ -59,7 +59,7 @@ describe("TUI transient focus-and-close navigation", () => {
       />,
     );
 
-    instance.stdin.write("4");
+    instance.stdin.write("5");
 
     await waitFor(() => dismissCount === 1);
     expect(service.dispatched[0]).toEqual({
@@ -170,7 +170,7 @@ describe("TUI transient focus-and-close navigation", () => {
       />,
     );
 
-    instance.stdin.write("4");
+    instance.stdin.write("5");
 
     await waitFor(() => instance.lastFrame()?.includes("The terminal target is stale.") === true);
     expect(instance.lastFrame()).toContain("diagnostic diag_terminal_stale");
@@ -206,7 +206,7 @@ describe("TUI transient focus-and-close navigation", () => {
       />,
     );
 
-    instance.stdin.write("4");
+    instance.stdin.write("5");
 
     await waitFor(() => instance.lastFrame()?.includes("The terminal target is stale.") === true);
     expect(instance.lastFrame()).toContain("diagnostic diag_terminal_stale");
@@ -223,7 +223,7 @@ describe("TUI transient focus-and-close navigation", () => {
       <App initialSnapshot={snapshot} onExit={(code) => exits.push(code)} service={service} />,
     );
 
-    instance.stdin.write("4");
+    instance.stdin.write("5");
 
     await waitFor(() => service.dispatched.length === 1);
     expect(exits).toEqual([]);

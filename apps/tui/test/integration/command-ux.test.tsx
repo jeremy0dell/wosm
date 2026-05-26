@@ -10,7 +10,7 @@ describe("TUI command UX", () => {
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
-    instance.stdin.write("4");
+    instance.stdin.write("5");
 
     await waitFor(() => service.dispatched.length === 1);
     expect(service.dispatched[0]).toEqual({
@@ -124,7 +124,7 @@ describe("TUI command UX", () => {
     };
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
-    instance.stdin.write("4");
+    instance.stdin.write("5");
 
     await waitFor(() => instance.lastFrame()?.includes("diagnostic diag_terminal_stale") === true);
     expect(instance.lastFrame()).toContain("The terminal target is stale.");
@@ -214,7 +214,7 @@ describe("TUI command UX", () => {
     instance.stdin.write("x");
     await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
 
-    instance.stdin.write("4");
+    instance.stdin.write("5");
     await waitFor(
       () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? y/N") === true,
     );
@@ -240,7 +240,7 @@ describe("TUI command UX", () => {
 
     instance.stdin.write("x");
     await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
-    instance.stdin.write("4");
+    instance.stdin.write("5");
     await waitFor(
       () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? y/N") === true,
     );
