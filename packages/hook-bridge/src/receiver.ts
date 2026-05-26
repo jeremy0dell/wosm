@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { compactCodexHookPayload } from "@wosm/codex";
+import { compactCodexHookPayload, extractCodexHookScopeContext } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
 import type {
   HarnessEventReport,
@@ -53,6 +53,29 @@ export type HookReceiverDeps = HookObserverStartupDeps & {
   logger?: JsonlLogger;
 };
 
+type HookScopeContext = {
+  provider: string;
+  kind: ProviderHookEvent["kind"];
+  event: string;
+  cwd?: string;
+  wosmProjectId?: string;
+  wosmWorktreeId?: string;
+  wosmWorktreePath?: string;
+  wosmSessionId?: string;
+  wosmTerminalProvider?: string;
+  wosmTerminalTargetId?: string;
+};
+
+type HookScopeDecision =
+  | {
+      action: "accept";
+      reason: "not-required" | "wosm-env";
+    }
+  | {
+      action: "ignore";
+      reason: "missing-wosm-env";
+    };
+
 const lastStartByStateDir = new Map<string, number>();
 const defaultHookId = () => `hook_${Date.now()}_${randomUUID()}`;
 
@@ -73,6 +96,10 @@ export async function receiveHookEvent(
     receivedAt: toIsoTimestamp(clock.now()),
     ...(input.payload === undefined ? {} : { payload: input.payload }),
   });
+  const scopeDecision = decideHookScope(event);
+  if (scopeDecision.action === "ignore") {
+    return ignoredHookReceipt(event);
+  }
   const compacted = compactHookEventPayload(event);
   const deliveryTimeoutMs = input.deliveryTimeoutMs ?? 750;
   const startupTimeoutMs = input.startupTimeoutMs ?? 1500;
@@ -166,6 +193,54 @@ export async function receiveHookEvent(
     compacted.payloadSummary,
     deps,
   );
+}
+
+function decideHookScope(event: ProviderHookEvent): HookScopeDecision {
+  if (!requiresOwnedScope(event)) {
+    return { action: "accept", reason: "not-required" };
+  }
+
+  const context = normalizeHookScopeContext(event);
+  if (context.wosmSessionId !== undefined && context.wosmWorktreeId !== undefined) {
+    return { action: "accept", reason: "wosm-env" };
+  }
+  return { action: "ignore", reason: "missing-wosm-env" };
+}
+
+function requiresOwnedScope(event: ProviderHookEvent): boolean {
+  return event.kind === "harness" && event.provider === "codex";
+}
+
+function normalizeHookScopeContext(event: ProviderHookEvent): HookScopeContext {
+  const context: HookScopeContext = {
+    provider: event.provider,
+    kind: event.kind,
+    event: event.event,
+  };
+  if (event.provider !== "codex" || event.kind !== "harness") {
+    return context;
+  }
+
+  const codexContext = extractCodexHookScopeContext(event.payload);
+  assignScopeField(context, "cwd", codexContext.cwd);
+  assignScopeField(context, "wosmProjectId", codexContext.wosmProjectId);
+  assignScopeField(context, "wosmWorktreeId", codexContext.wosmWorktreeId);
+  assignScopeField(context, "wosmWorktreePath", codexContext.wosmWorktreePath);
+  assignScopeField(context, "wosmSessionId", codexContext.wosmSessionId);
+  assignScopeField(context, "wosmTerminalProvider", codexContext.wosmTerminalProvider);
+  assignScopeField(context, "wosmTerminalTargetId", codexContext.wosmTerminalTargetId);
+  return context;
+}
+
+function assignScopeField(
+  target: HookScopeContext,
+  key: keyof Omit<HookScopeContext, "provider" | "kind" | "event">,
+  value: string | undefined,
+) {
+  if (value === undefined) {
+    return;
+  }
+  target[key] = value;
 }
 
 async function receiveHarnessEventReport(
@@ -538,6 +613,18 @@ function hookReceiptFromReportReceipt(receipt: HarnessEventReportReceipt): HookR
     hookReceipt.error = receipt.error;
   }
   return HookReceiptSchema.parse(hookReceipt);
+}
+
+function ignoredHookReceipt(event: ProviderHookEvent): HookReceipt {
+  return HookReceiptSchema.parse({
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    hookId: event.hookId ?? defaultHookId(),
+    provider: event.provider,
+    event: event.event,
+    accepted: false,
+    status: "ignored",
+    receivedAt: event.receivedAt,
+  });
 }
 
 function rejectedHookReceiptForReportError(event: ProviderHookEvent, error: unknown): HookReceipt {

@@ -29,6 +29,8 @@ import { normalizeCodexRawEvent } from "./events.js";
 import { doctorCodexHooks } from "./hooks.js";
 import { buildCodexLaunchPlan, type CodexLaunchOptions } from "./launch.js";
 
+const CODEX_WOSM_PROFILE_V2 = "wosm";
+
 export type CodexHarnessProviderOptions = {
   command?: string;
   profile?: string;
@@ -140,7 +142,7 @@ export class CodexHarnessProvider implements HarnessProvider {
       checks.push({
         name: "codex-hooks",
         status: hookResult.status,
-        message: `${hookResult.message} Config: ${hookResult.configPath}. Script: ${hookResult.hookScriptPath}.`,
+        message: `${hookResult.message} Profile config: ${hookResult.profileConfigPath}. Base config: ${hookResult.baseConfigPath}. Script: ${hookResult.hookScriptPath}.`,
       });
     } catch (cause) {
       checks.push({
@@ -164,6 +166,9 @@ export class CodexHarnessProvider implements HarnessProvider {
     };
     if (this.#options.profile !== undefined) {
       options.defaultProfile = this.#options.profile;
+    }
+    if (this.#options.installHooks === true) {
+      options.defaultProfileV2 = CODEX_WOSM_PROFILE_V2;
     }
     if (this.#options.approvalPolicy !== undefined) {
       options.defaultApprovalPolicy = this.#options.approvalPolicy;

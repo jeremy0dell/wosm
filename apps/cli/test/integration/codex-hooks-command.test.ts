@@ -8,22 +8,27 @@ describe("CLI Codex hook commands", () => {
   it("plans Codex hook changes without applying them", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-cli-codex-hooks-"));
     const configPath = await writeConfig(root, true);
-    const codexConfigPath = join(root, "codex", "config.toml");
+    const env = codexEnv(root);
+    const codexConfigPath = join(root, "codex", "wosm.config.toml");
+    const baseConfigPath = join(root, "codex-home", "config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
 
-    const result = await runCli([
-      "--config",
-      configPath,
-      "hooks",
-      "plan",
-      "codex",
-      "--codex-config",
-      codexConfigPath,
-      "--hook-script",
-      hookScriptPath,
-      "--hook-bin",
-      "/opt/wosm-hook",
-    ]);
+    const result = await runCli(
+      [
+        "--config",
+        configPath,
+        "hooks",
+        "plan",
+        "codex",
+        "--codex-config",
+        codexConfigPath,
+        "--hook-script",
+        hookScriptPath,
+        "--hook-bin",
+        "/opt/wosm-hook",
+      ],
+      { env },
+    );
 
     expect(result).toMatchObject({
       code: 0,
@@ -31,6 +36,9 @@ describe("CLI Codex hook commands", () => {
         provider: "codex",
         changed: true,
         configPath: codexConfigPath,
+        profileName: "wosm",
+        profileConfigPath: codexConfigPath,
+        baseConfigPath,
         hookScriptPath,
       },
     });
@@ -50,82 +58,109 @@ describe("CLI Codex hook commands", () => {
   it("installs and uninstalls through the generic hooks command", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-cli-codex-hooks-"));
     const configPath = await writeConfig(root, true);
-    const codexConfigPath = join(root, "codex", "config.toml");
+    const env = codexEnv(root);
+    const codexConfigPath = join(root, "codex", "wosm.config.toml");
+    const baseConfigPath = join(root, "codex-home", "config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
+    await mkdir(join(root, "codex-home"), { recursive: true });
+    await writeFile(baseConfigPath, legacyGlobalCodexConfig(hookScriptPath), "utf8");
 
-    const installed = await runCli([
-      "--config",
-      configPath,
-      "hooks",
-      "install",
-      "codex",
-      "--yes",
-      "--codex-config",
-      codexConfigPath,
-      "--hook-script",
-      hookScriptPath,
-      "--hook-bin",
-      "/opt/wosm-hook",
-    ]);
+    const installed = await runCli(
+      [
+        "--config",
+        configPath,
+        "hooks",
+        "install",
+        "codex",
+        "--yes",
+        "--codex-config",
+        codexConfigPath,
+        "--hook-script",
+        hookScriptPath,
+        "--hook-bin",
+        "/opt/wosm-hook",
+      ],
+      { env },
+    );
     expect(installed).toMatchObject({
       code: 0,
       output: {
         provider: "codex",
         installed: true,
+        profileConfigPath: codexConfigPath,
+        baseConfigPath,
+        legacyGlobalCleanup: {
+          changed: true,
+          stale: ["PreToolUse"],
+        },
       },
     });
     await expect(readFile(hookScriptPath, "utf8")).resolves.toContain("/opt/wosm-hook --config");
-    const uninstalled = await runCli([
-      "--config",
-      configPath,
-      "hooks",
-      "uninstall",
-      "codex",
-      "--yes",
-      "--codex-config",
-      codexConfigPath,
-      "--hook-script",
-      hookScriptPath,
-    ]);
+    await expect(readFile(baseConfigPath, "utf8")).resolves.not.toContain(hookScriptPath);
+    await writeFile(baseConfigPath, legacyGlobalCodexConfig(hookScriptPath), "utf8");
+    const uninstalled = await runCli(
+      [
+        "--config",
+        configPath,
+        "hooks",
+        "uninstall",
+        "codex",
+        "--yes",
+        "--codex-config",
+        codexConfigPath,
+        "--hook-script",
+        hookScriptPath,
+      ],
+      { env },
+    );
 
     expect(uninstalled).toMatchObject({
       code: 0,
       output: {
         provider: "codex",
         installed: false,
+        legacyGlobalChanged: true,
       },
     });
+    await expect(readFile(baseConfigPath, "utf8")).resolves.not.toContain(hookScriptPath);
   });
 
   it("warns on doctor only when install_hooks requested Codex hooks", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-cli-codex-hooks-"));
     const requestedConfigPath = await writeConfig(join(root, "requested"), true);
     const passiveConfigPath = await writeConfig(join(root, "passive"), false);
-    const codexConfigPath = join(root, "codex", "config.toml");
+    const env = codexEnv(root);
+    const codexConfigPath = join(root, "codex", "wosm.config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
 
-    const requested = await runCli([
-      "--config",
-      requestedConfigPath,
-      "hooks",
-      "doctor",
-      "codex",
-      "--codex-config",
-      codexConfigPath,
-      "--hook-script",
-      hookScriptPath,
-    ]);
-    const passive = await runCli([
-      "--config",
-      passiveConfigPath,
-      "hooks",
-      "doctor",
-      "codex",
-      "--codex-config",
-      codexConfigPath,
-      "--hook-script",
-      hookScriptPath,
-    ]);
+    const requested = await runCli(
+      [
+        "--config",
+        requestedConfigPath,
+        "hooks",
+        "doctor",
+        "codex",
+        "--codex-config",
+        codexConfigPath,
+        "--hook-script",
+        hookScriptPath,
+      ],
+      { env },
+    );
+    const passive = await runCli(
+      [
+        "--config",
+        passiveConfigPath,
+        "hooks",
+        "doctor",
+        "codex",
+        "--codex-config",
+        codexConfigPath,
+        "--hook-script",
+        hookScriptPath,
+      ],
+      { env },
+    );
 
     expect(requested).toMatchObject({
       code: 1,
@@ -142,7 +177,65 @@ describe("CLI Codex hook commands", () => {
       },
     });
   });
+
+  it("warns when doctor finds stale generated global Codex hooks", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-cli-codex-hooks-"));
+    const configPath = await writeConfig(root, true);
+    const env = codexEnv(root);
+    const codexConfigPath = join(root, "codex", "wosm.config.toml");
+    const baseConfigPath = join(root, "codex-home", "config.toml");
+    const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
+    await runCli(
+      [
+        "--config",
+        configPath,
+        "hooks",
+        "install",
+        "codex",
+        "--yes",
+        "--codex-config",
+        codexConfigPath,
+        "--hook-script",
+        hookScriptPath,
+      ],
+      { env },
+    );
+    await mkdir(join(root, "codex-home"), { recursive: true });
+    await writeFile(baseConfigPath, legacyGlobalCodexConfig(hookScriptPath), "utf8");
+
+    const doctor = await runCli(
+      [
+        "--config",
+        configPath,
+        "hooks",
+        "doctor",
+        "codex",
+        "--codex-config",
+        codexConfigPath,
+        "--hook-script",
+        hookScriptPath,
+      ],
+      { env },
+    );
+
+    expect(doctor).toMatchObject({
+      code: 1,
+      output: {
+        provider: "codex",
+        status: "warn",
+        installed: true,
+        legacyGlobalCleanup: {
+          changed: true,
+          stale: ["PreToolUse"],
+        },
+      },
+    });
+  });
 });
+
+function codexEnv(root: string): Record<string, string> {
+  return { CODEX_HOME: join(root, "codex-home") };
+}
 
 async function writeConfig(root: string, installHooks: boolean): Promise<string> {
   const configPath = join(root, "config.toml");
@@ -170,4 +263,17 @@ async function writeConfig(root: string, installHooks: boolean): Promise<string>
     ].join("\n"),
   );
   return configPath;
+}
+
+function legacyGlobalCodexConfig(hookScriptPath: string): string {
+  return [
+    "[[hooks.PreToolUse]]",
+    'matcher = ".*"',
+    "[[hooks.PreToolUse.hooks]]",
+    'type = "command"',
+    `command = ${JSON.stringify(hookScriptPath)}`,
+    "timeout = 30",
+    'statusMessage = "Notify wosm"',
+    "",
+  ].join("\n");
 }
