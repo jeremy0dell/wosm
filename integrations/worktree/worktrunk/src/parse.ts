@@ -161,28 +161,47 @@ function stateFromItem(item: WorktrunkListItem): WorktreeObservation["state"] {
 }
 
 function dirtyFromItem(item: WorktrunkListItem): boolean | undefined {
-  const dirty = booleanField(item, "dirty") ?? booleanField(recordField(item, "git"), "dirty");
+  const workingTree = recordField(item, "working_tree");
+  const dirty =
+    booleanField(item, "dirty") ??
+    booleanField(recordField(item, "git"), "dirty") ??
+    booleanField(workingTree, "dirty") ??
+    booleanField(workingTree, "is_dirty") ??
+    booleanField(workingTree, "has_changes");
   if (dirty !== undefined) {
     return dirty;
   }
 
   const worktree = recordField(item, "worktree");
-  const changes = [
-    numberField(worktree, "staged"),
-    numberField(worktree, "modified"),
-    numberField(worktree, "untracked"),
-    numberField(worktree, "renamed"),
-    numberField(worktree, "deleted"),
-    numberField(recordField(worktree, "diff"), "added"),
-    numberField(recordField(worktree, "diff"), "deleted"),
-  ].filter((value): value is number => value !== undefined);
+  const changes: number[] = [];
+  appendWorktreeChangeCounts(changes, worktree);
+  appendWorktreeChangeCounts(changes, workingTree);
 
   return changes.length === 0 ? undefined : changes.some((value) => value > 0);
+}
+
+function appendWorktreeChangeCounts(
+  changes: number[],
+  worktree: Record<string, unknown> | undefined,
+): void {
+  appendNumber(changes, numberField(worktree, "staged"));
+  appendNumber(changes, numberField(worktree, "modified"));
+  appendNumber(changes, numberField(worktree, "untracked"));
+  appendNumber(changes, numberField(worktree, "renamed"));
+  appendNumber(changes, numberField(worktree, "deleted"));
+  const diff = recordField(worktree, "diff");
+  appendNumber(changes, numberField(diff, "added"));
+  appendNumber(changes, numberField(diff, "deleted"));
+}
+
+function appendNumber(values: number[], value: number | undefined): void {
+  if (value !== undefined) values.push(value);
 }
 
 function safeProviderData(item: WorktrunkListItem): Record<string, unknown> {
   // Keep providerData small and schema-neutral instead of storing the full Worktrunk payload.
   const metadata = providerNativeMetadataFromWorktrunkItem(item);
+  const workingTreeDiff = safeWorkingTreeDiff(item);
   const kind = stringField(item, "kind");
   const state = stringField(item, "state");
   const isCurrentSnake = booleanField(item, "is_current");
@@ -199,11 +218,26 @@ function safeProviderData(item: WorktrunkListItem): Record<string, unknown> {
   if (isPrevious !== undefined) providerData.isPrevious = isPrevious;
   if (symbols !== undefined) providerData.symbols = symbols;
   if (metadata !== undefined) providerData.metadata = safeMetadata(metadata);
+  if (workingTreeDiff !== undefined) providerData.workingTreeDiff = workingTreeDiff;
   return providerData;
 }
 
 function safeMetadata(metadata: WorktrunkMetadata): WorktrunkMetadata {
   return metadata;
+}
+
+function safeWorkingTreeDiff(item: WorktrunkListItem): Record<string, number> | undefined {
+  const diff = recordField(recordField(item, "working_tree"), "diff");
+  const added = numberField(diff, "added");
+  const deleted = numberField(diff, "deleted");
+  if (added === undefined && deleted === undefined) {
+    return undefined;
+  }
+
+  const workingTreeDiff: Record<string, number> = {};
+  if (added !== undefined) workingTreeDiff.added = added;
+  if (deleted !== undefined) workingTreeDiff.deleted = deleted;
+  return workingTreeDiff;
 }
 
 function hasWorktreePath(item: unknown): item is WorktrunkListItem {

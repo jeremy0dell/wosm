@@ -46,8 +46,52 @@ export const WorktreePullRequestSchema = z
   .object({
     number: z.number().int().positive(),
     url: z.string().url().optional(),
+    host: nonEmptyStringSchema.optional(),
+    state: z.enum(["open", "closed", "merged", "draft", "unknown"]).optional(),
+    baseRef: nonEmptyStringSchema.optional(),
+    headRef: nonEmptyStringSchema.optional(),
+    updatedAt: TimestampSchema.optional(),
+    checkedAt: TimestampSchema.optional(),
+    stale: z.boolean().optional(),
   })
   .strict();
+
+export const WorktreeChangeSummarySchema = z
+  .object({
+    kind: z.literal("branch_diff"),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    filesChanged: z.number().int().nonnegative().optional(),
+    baseRef: nonEmptyStringSchema.optional(),
+    headRef: nonEmptyStringSchema.optional(),
+    source: nonEmptyStringSchema,
+    checkedAt: TimestampSchema,
+    stale: z.boolean().optional(),
+  })
+  .strict();
+
+export const WorktreeChecksStateSchema = z.enum(["pass", "fail", "running", "none", "unknown"]);
+
+export const WorktreeChecksSummarySchema = z
+  .object({
+    state: WorktreeChecksStateSchema,
+    url: z.string().url().optional(),
+    total: z.number().int().nonnegative().optional(),
+    passed: z.number().int().nonnegative().optional(),
+    failed: z.number().int().nonnegative().optional(),
+    pending: z.number().int().nonnegative().optional(),
+    skipped: z.number().int().nonnegative().optional(),
+    reason: nonEmptyStringSchema.optional(),
+    source: nonEmptyStringSchema,
+    checkedAt: TimestampSchema,
+    stale: z.boolean().optional(),
+  })
+  .strict();
+
+export type WorktreePullRequest = z.infer<typeof WorktreePullRequestSchema>;
+export type WorktreeChangeSummary = z.infer<typeof WorktreeChangeSummarySchema>;
+export type WorktreeChecksState = z.infer<typeof WorktreeChecksStateSchema>;
+export type WorktreeChecksSummary = z.infer<typeof WorktreeChecksSummarySchema>;
 
 export const ObservedStatusSchema = z
   .object({
@@ -74,6 +118,8 @@ export const WorktreeObservationSchema = z
     ahead: z.number().int().nonnegative().optional(),
     behind: z.number().int().nonnegative().optional(),
     pr: WorktreePullRequestSchema.optional(),
+    changeSummary: WorktreeChangeSummarySchema.optional(),
+    checks: WorktreeChecksSummarySchema.optional(),
     confidence: ConfidenceSchema.optional(),
     reason: nonEmptyStringSchema.optional(),
     observedAt: TimestampSchema,
