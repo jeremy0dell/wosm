@@ -1,13 +1,13 @@
 import type { TerminalFocusOrigin, WosmCommand, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useInput } from "ink";
 import { useRef } from "react";
-import { buildCleanupCommand, buildCreateSessionCommand } from "./actions.js";
+import { buildCleanupCommand, buildCreateSessionCommand, cleanupForceRequired } from "./actions.js";
 import { CommandPrompt } from "./components/CommandPrompt.js";
 import { Dashboard } from "./components/Dashboard.js";
 import { ToastStack } from "./components/ToastStack.js";
 import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
 import { intentForDashboardKey } from "./keymap.js";
-import { selectNewSessionAvailability } from "./selectors.js";
+import { selectKeySlots, selectNewSessionAvailability } from "./selectors.js";
 import { safeErrorToToast, toSafeError } from "./services/errors.js";
 import type { TuiObserverService } from "./services/types.js";
 import {
@@ -82,6 +82,12 @@ export function App({
       return;
     }
     if (dashboard.snapshot === undefined) {
+      return;
+    }
+    if (input === "x") {
+      promptValueRef.current = "";
+      promptModeRef.current = "remove-slot";
+      dashboard.setUiState((current) => openPrompt(current, "remove-slot"));
       return;
     }
     const dashboardKey = key.return === true || input === "\r" || input === "\n" ? "enter" : input;
@@ -334,6 +340,26 @@ function handlePromptInput({
     dashboard.setUiState((current) => updatePromptValue(current, promptValueRef.current));
     return;
   }
+  if (mode === "remove-slot") {
+    if (/^[1-9]$/.test(input)) {
+      openRemoveConfirmationForSlot(dashboard, input, promptValueRef, promptModeRef);
+    }
+    return;
+  }
+  if (mode === "confirm-cleanup") {
+    if (input === "y" || input === "Y") {
+      submitCleanupPrompt(dashboard);
+      promptValueRef.current = "";
+      promptModeRef.current = undefined;
+      return;
+    }
+    if (input === "n" || input === "N" || key.return === true || input === "\r" || input === "\n") {
+      promptValueRef.current = "";
+      promptModeRef.current = undefined;
+      dashboard.setUiState((current) => closePrompt(current));
+    }
+    return;
+  }
   if (key.return === true || input === "\r" || input === "\n") {
     if (mode === "search") {
       dashboard.setUiState((current) =>
@@ -343,24 +369,44 @@ function handlePromptInput({
       promptModeRef.current = undefined;
       return;
     }
-    if (mode === "confirm-cleanup") {
-      submitCleanupPrompt(dashboard);
-      promptValueRef.current = "";
-      promptModeRef.current = undefined;
-      return;
-    }
     submitNewSessionPrompt(dashboard, promptValueRef.current.trim());
     promptValueRef.current = "";
     promptModeRef.current = undefined;
-    return;
-  }
-  if (mode === "confirm-cleanup") {
     return;
   }
   if (input.length > 0) {
     promptValueRef.current = `${promptValueRef.current}${input}`;
     dashboard.setUiState((current) => updatePromptValue(current, promptValueRef.current));
   }
+}
+
+function openRemoveConfirmationForSlot(
+  dashboard: ReturnType<typeof useObserverDashboard>,
+  slot: string,
+  promptValueRef: { current: string },
+  promptModeRef: { current: PromptMode | undefined },
+): void {
+  if (dashboard.snapshot === undefined) {
+    dashboard.setUiState((current) => closePrompt(current));
+    promptValueRef.current = "";
+    promptModeRef.current = undefined;
+    return;
+  }
+  const row = selectKeySlots(dashboard.snapshot, dashboard.uiState).get(slot);
+  if (row === undefined) {
+    return;
+  }
+  const action = "remove-worktree" as const;
+  promptValueRef.current = "";
+  promptModeRef.current = "confirm-cleanup";
+  dashboard.setUiState((current) =>
+    openCleanupPrompt(current, {
+      action,
+      rowId: row.id,
+      forceRequired: cleanupForceRequired(row, action),
+      label: `remove ${row.branch}? y/N`,
+    }),
+  );
 }
 
 function submitCleanupPrompt(dashboard: ReturnType<typeof useObserverDashboard>): void {
