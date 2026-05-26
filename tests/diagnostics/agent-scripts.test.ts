@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { parseCleanupArgs } from "../../scripts/agent-cleanup.mjs";
 import { isUnder, normalizeConfig, parseResetArgs } from "../../scripts/agent-reset.mjs";
+import {
+  commandFromArgs,
+  shouldKeepAliveAfterLauncherExit,
+  shouldRunDirectTui,
+} from "../../scripts/tui-dev.mjs";
+import { shouldRestartForPath } from "../../scripts/tui-watch-runner.mjs";
 
 describe("agent cleanup/reset scripts", () => {
   it("defaults cleanup and reset to dry-run mode", () => {
@@ -60,5 +66,41 @@ managed_root = "~/.worktrees"`);
   it("checks managed roots without prefix false positives", () => {
     expect(isUnder("/tmp/wosm/.worktrees/branch", "/tmp/wosm/.worktrees")).toBe(true);
     expect(isUnder("/tmp/wosm/.worktrees-other/branch", "/tmp/wosm/.worktrees")).toBe(false);
+  });
+});
+
+describe("tui dev script", () => {
+  it("keeps default tmux popup mode alive after the opener exits", () => {
+    expect(commandFromArgs(["--config", "/tmp/wosm.toml"])).toBeUndefined();
+    expect(shouldRunDirectTui([], { TMUX: "/tmp/tmux-501/default,123,0" })).toBe(false);
+    expect(shouldKeepAliveAfterLauncherExit([], { TMUX: "/tmp/tmux-501/default,123,0" })).toBe(
+      true,
+    );
+    expect(
+      shouldKeepAliveAfterLauncherExit(["--config", "/tmp/wosm.toml", "popup"], {
+        TMUX: "/tmp/tmux-501/default,123,0",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not keep direct TUI or one-shot utility commands alive", () => {
+    expect(shouldRunDirectTui([], {})).toBe(true);
+    expect(shouldRunDirectTui(["tui"], { TMUX: "/tmp/tmux-501/default,123,0" })).toBe(true);
+    expect(shouldKeepAliveAfterLauncherExit(["tui"], { TMUX: "/tmp/tmux-501/default,123,0" })).toBe(
+      false,
+    );
+    expect(
+      shouldKeepAliveAfterLauncherExit(["observer", "stop"], {
+        TMUX: "/tmp/tmux-501/default,123,0",
+      }),
+    ).toBe(false);
+  });
+
+  it("restarts the dev TUI only for runtime dist files", () => {
+    expect(shouldRestartForPath(undefined)).toBe(true);
+    expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/App.js")).toBe(true);
+    expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/package.json")).toBe(true);
+    expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/App.d.ts")).toBe(false);
+    expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/App.js.map")).toBe(false);
   });
 });
