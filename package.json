@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "wosm": "./bin/wosm",
-    "wosm-hook": "./bin/wosm-hook"
+    "wosm-hook": "./bin/wosm-hook",
+    "wosm-tmux-popup": "./integrations/terminal/tmux/bin/wosm-popup"
   },
   "packageManager": "pnpm@11.0.0",
   "engines": {

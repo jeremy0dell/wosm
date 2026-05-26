@@ -60,11 +60,16 @@ export async function runTuiCommand(
     };
   }
 
-  await reconcileBeforeTui({
+  const startupReconcile = {
     paths: observer.paths,
     deps: deps.observer,
     timeoutMs: parsed.timeoutMs,
-  });
+  };
+  if (parsed.popupMode) {
+    scheduleReconcileBeforeTui(startupReconcile);
+  } else {
+    await reconcileBeforeTui(startupReconcile);
+  }
   const runOptions: RunTuiOptions = { socketPath: observer.paths.socketPath };
   if (parsed.popupMode) {
     const env = deps.env ?? process.env;
@@ -85,6 +90,19 @@ export async function runTuiCommand(
     }
   }
   return (deps.runTui ?? runTui)(runOptions);
+}
+
+function scheduleReconcileBeforeTui(input: {
+  paths: ObserverPaths;
+  deps?: ObserverProcessDeps | undefined;
+  timeoutMs?: number | undefined;
+}): void {
+  const timer = setTimeout(() => {
+    void reconcileBeforeTui(input).catch(() => undefined);
+  }, 250);
+  if (typeof timer === "object" && "unref" in timer && typeof timer.unref === "function") {
+    timer.unref();
+  }
 }
 
 async function reconcileBeforeTui(input: {

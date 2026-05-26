@@ -66,7 +66,7 @@ export async function runPopupCommand(
     options.preferRegisteredDevPopup ?? deps.preferRegisteredDevPopup;
   const tuiCommand = options.tuiCommand ?? deps.tuiCommand;
   const uiSessionName = options.uiSessionName ?? deps.uiSessionName;
-  const observer = await reconcileBeforePopup(options, options.observer ?? deps.observer);
+  const observer = await prepareObserverForPopup(options, options.observer ?? deps.observer);
   if (observer !== undefined) {
     return observer;
   }
@@ -85,7 +85,7 @@ export async function runPopupCommand(
   });
 }
 
-async function reconcileBeforePopup(
+async function prepareObserverForPopup(
   options: Pick<PopupCommandOptions, "config" | "configPath" | "timeoutMs">,
   deps: ObserverProcessDeps = {},
 ): Promise<PopupCommandUnavailableResult | undefined> {
@@ -117,6 +117,6 @@ async function reconcileBeforePopup(
       socketPath: observer.paths.socketPath,
       timeoutMs: options.timeoutMs ?? 30_000,
     });
-  await client.reconcile("popup-open");
+  void client.reconcile("popup-open").catch(() => undefined);
   return undefined;
 }

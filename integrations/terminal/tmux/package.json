@@ -9,6 +9,9 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "wosm-tmux-popup": "./bin/wosm-popup"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"

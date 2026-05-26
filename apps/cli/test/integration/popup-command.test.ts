@@ -58,6 +58,37 @@ describe("CLI popup command", () => {
     ]);
   });
 
+  it("does not block popup opening on observer reconcile", async () => {
+    const fixture = await createTempState();
+    fixture.config.defaults.terminal = "tmux";
+    const calls: TmuxPopupOptions[] = [];
+    const reconciles: string[] = [];
+
+    const result = await expectWithin(
+      runPopupCommand(
+        [],
+        {
+          config: fixture.config,
+          env: {
+            TMUX: "/tmp/tmux-501/default,123,0",
+          },
+        },
+        {
+          observer: nonCompletingReconcileObserverDeps(reconciles),
+          openTmuxPopup: async (options) => {
+            calls.push(options);
+            return { opened: true };
+          },
+        },
+      ),
+      100,
+    );
+
+    expect(result).toEqual({ opened: true });
+    expect(reconciles).toEqual(["popup-open"]);
+    expect(calls).toHaveLength(1);
+  });
+
   it("routes runCli popup through global --config parsing", async () => {
     const fixture = await createTempState();
     fixture.config.defaults.terminal = "tmux";
@@ -240,6 +271,22 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
+async function expectWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+  }
+}
+
 function runningObserverDeps(reconciles: string[]): ObserverProcessDeps {
   return {
     clientFactory: () =>
@@ -277,6 +324,26 @@ function runningObserverDeps(reconciles: string[]): ObserverProcessDeps {
               alerts: [],
             },
           };
+        },
+      }) as never,
+    sleep: async () => undefined,
+  };
+}
+
+function nonCompletingReconcileObserverDeps(reconciles: string[]): ObserverProcessDeps {
+  return {
+    clientFactory: () =>
+      ({
+        health: async () => ({
+          schemaVersion: "0.3.0",
+          status: "healthy",
+          pid: 1234,
+          startedAt: now,
+          version: "0.0.0",
+        }),
+        reconcile: (reason: string) => {
+          reconciles.push(reason);
+          return new Promise(() => undefined);
         },
       }) as never,
     sleep: async () => undefined,
