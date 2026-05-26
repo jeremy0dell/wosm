@@ -223,6 +223,61 @@ describe("CLI tui command", () => {
     ]);
   });
 
+  it("does not block popup TUI startup on observer reconcile", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const runOptions: unknown[] = [];
+    const reconciles: string[] = [];
+    let running = false;
+
+    const result = await expectWithin(
+      runCli(["--config", configPath, "tui", "--popup"], {
+        observerDeps: {
+          spawnObserver: async () => {
+            running = true;
+            return { pid: 1234, unref: () => undefined };
+          },
+          clientFactory: () =>
+            ({
+              health: async () => {
+                if (!running) throw new Error("stopped");
+                return {
+                  schemaVersion: "0.3.0",
+                  status: "healthy",
+                  pid: 1234,
+                  startedAt: now,
+                  version: "0.0.0",
+                };
+              },
+              reconcile: (reason: string) => {
+                reconciles.push(reason);
+                return new Promise(() => undefined);
+              },
+            }) as never,
+          sleep: async () => undefined,
+        },
+        tuiDeps: {
+          env: {
+            WOSM_FOCUS_PROVIDER: "tmux",
+            WOSM_FOCUS_CLIENT_ID: "client_1",
+          },
+          runTui: async (options) => {
+            runOptions.push(options);
+            return { status: "exited", code: 0 };
+          },
+        },
+      }),
+      100,
+    );
+
+    expect(result).toEqual({
+      code: 0,
+      output: { status: "exited", code: 0 },
+    });
+    expect(runOptions).toHaveLength(1);
+    expect(reconciles).toEqual([]);
+  });
+
   it("maps --popup --persistent to popup lifecycle hooks", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);
@@ -349,3 +404,19 @@ describe("CLI tui command", () => {
     });
   });
 });
+
+async function expectWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+  }
+}

@@ -3,6 +3,23 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const roots = ["apps", "packages", "integrations"];
+const providerNeutralSourceRoots = [
+  "apps/tui/src",
+  "packages/contracts/src",
+  "packages/hook-bridge/src",
+  "packages/observability/src",
+  "packages/protocol/src",
+  "packages/runtime/src",
+];
+
+const tmuxImplementationMarkers = [
+  "@wosm/tmux",
+  "display-popup",
+  "@wosm_popup",
+  "@wosm_tui_dev",
+  "WOSM_FOCUS_PROVIDER=tmux",
+  "WOSM_TMUX_BIN",
+];
 
 const setTimeoutAllowlist = new Map([
   [
@@ -12,6 +29,10 @@ const setTimeoutAllowlist = new Map([
   [
     "apps/tui/src/hooks/useObserverDashboard.ts",
     "Short reconnect backoff is the TUI observer-client subscription boundary, kept out of React presentation components.",
+  ],
+  [
+    "apps/cli/src/commands/tui.ts",
+    "Short popup-mode startup defer lets the TUI render a cached snapshot before requesting a nonblocking reconcile.",
   ],
 ]);
 
@@ -41,12 +62,33 @@ describe("boundary inventory guard", () => {
     expect(violations).toEqual([]);
     expect([...setTimeoutAllowlist.values()].every((reason) => reason.length > 20)).toBe(true);
   });
+
+  it("keeps tmux implementation details out of provider-neutral source packages", async () => {
+    const files = (
+      await Promise.all(
+        providerNeutralSourceRoots.map((root) => sourceFilesAt(join(process.cwd(), root))),
+      )
+    ).flat();
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const source = await readFile(file, "utf8");
+      const path = relative(process.cwd(), file);
+      for (const marker of tmuxImplementationMarkers) {
+        if (source.includes(marker)) {
+          violations.push(`${path}: tmux implementation marker ${marker}`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
 });
 
 async function sourceFiles(): Promise<string[]> {
   const files: string[] = [];
   for (const root of roots) {
-    files.push(...(await walk(join(process.cwd(), root))));
+    files.push(...(await sourceFilesAt(join(process.cwd(), root))));
   }
   return files.filter(
     (file) =>
@@ -57,12 +99,12 @@ async function sourceFiles(): Promise<string[]> {
   );
 }
 
-async function walk(dir: string): Promise<string[]> {
+async function sourceFilesAt(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = await Promise.all(
     entries.map((entry) => {
       const path = join(dir, entry.name);
-      return entry.isDirectory() ? walk(path) : [path];
+      return entry.isDirectory() ? sourceFilesAt(path) : [path];
     }),
   );
   return files.flat();
