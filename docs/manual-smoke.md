@@ -159,9 +159,10 @@ pnpm wosm:tui-dev
 
 This performs an initial build, keeps a Turbo build watcher running in the background, and runs
 normal `wosm` placement with a watch-mode TUI command. Outside tmux it opens the full TUI in the
-current terminal. Inside tmux it uses the normal popup path, but the persistent UI process runs under
-Node watch mode so changes to rebuilt TUI code reload in place. Build watcher output is written to
-`.turbo/tui-dev-build.log`.
+current terminal. Inside tmux it uses the normal popup path, but the persistent UI process runs under a
+debounced watch runner so changes to rebuilt TUI code reload in place without restart storms. Keep the
+`pnpm wosm:tui-dev` process running while developing; press Ctrl-C there to stop the build watcher and
+dev popup session. Build watcher output is written to `.turbo/tui-dev-build.log`.
 
 Background-first create/start should keep the dashboard as the cockpit:
 

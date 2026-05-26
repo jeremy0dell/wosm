@@ -3,98 +3,142 @@ import { spawn, spawnSync } from "node:child_process";
 import { closeSync, openSync, writeSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cliEntry = join(repoRoot, "apps/cli/dist/main.js");
-const args = process.argv.slice(2);
-const devSessionName = process.env.WOSM_TUI_SESSION_NAME ?? "_wosm-ui-dev";
-const devTuiCommand =
-  process.env.WOSM_TUI_COMMAND ??
-  shellCommand([process.execPath, "--watch", "--watch-preserve-output", cliEntry]);
+const tuiWatchRunner = join(repoRoot, "scripts/tui-watch-runner.mjs");
+const defaultDevSessionName = "_wosm-ui-dev";
 
-const logPath = join(repoRoot, ".turbo/tui-dev-build.log");
-await mkdir(dirname(logPath), { recursive: true });
-
-const initialBuild = spawnSync(
-  "pnpm",
-  ["exec", "turbo", "run", "build", "--filter=@wosm/cli", "--output-logs=errors-only"],
-  {
-    cwd: repoRoot,
-    stdio: "inherit",
-    env: process.env,
-  },
-);
-if (initialBuild.status !== 0) {
-  process.exit(initialBuild.status ?? 1);
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  try {
+    await runTuiDev();
+  } catch (error) {
+    process.stderr.write(`${formatError(error)}\n`);
+    process.exitCode = 1;
+  }
 }
 
-const logFd = openSync(logPath, "a");
-writeSync(logFd, `\n--- wosm:tui-dev ${new Date().toISOString()} ---\n`);
-const buildWatcher = spawn(
-  "pnpm",
-  [
-    "exec",
-    "turbo",
-    "watch",
-    "build",
-    "--filter=@wosm/cli",
-    "--ui=stream",
-    "--output-logs=errors-only",
-    "--continue=always",
-  ],
-  {
+export async function runTuiDev({ argv = process.argv.slice(2), env = process.env } = {}) {
+  const devSessionName = env.WOSM_TUI_SESSION_NAME ?? defaultDevSessionName;
+  const devTuiCommand =
+    env.WOSM_TUI_COMMAND ?? shellCommand([process.execPath, tuiWatchRunner, cliEntry]);
+
+  const logPath = join(repoRoot, ".turbo/tui-dev-build.log");
+  await mkdir(dirname(logPath), { recursive: true });
+
+  const initialBuild = spawnSync(
+    "pnpm",
+    ["exec", "turbo", "run", "build", "--filter=@wosm/cli", "--output-logs=errors-only"],
+    {
+      cwd: repoRoot,
+      stdio: "inherit",
+      env,
+    },
+  );
+  if (initialBuild.status !== 0) {
+    process.exit(initialBuild.status ?? 1);
+  }
+
+  const logFd = openSync(logPath, "a");
+  let logOpen = true;
+  const closeLog = () => {
+    if (!logOpen) return;
+    logOpen = false;
+    closeSync(logFd);
+  };
+
+  writeSync(logFd, `\n--- wosm:tui-dev ${new Date().toISOString()} ---\n`);
+  const buildWatcher = spawn(
+    "pnpm",
+    [
+      "exec",
+      "turbo",
+      "watch",
+      "build",
+      "--filter=@wosm/cli",
+      "--ui=stream",
+      "--output-logs=errors-only",
+      "--continue=always",
+    ],
+    {
+      cwd: repoRoot,
+      stdio: ["ignore", logFd, logFd],
+      env,
+    },
+  );
+
+  const childEnv = {
+    ...env,
+    WOSM_TUI_COMMAND: devTuiCommand,
+    WOSM_TUI_SESSION_NAME: devSessionName,
+  };
+  const runDirectTui = shouldRunDirectTui(argv, env);
+  const keepAliveAfterLauncherExit = shouldKeepAliveAfterLauncherExit(argv, env);
+  const nodeArgs = runDirectTui ? [tuiWatchRunner, cliEntry, ...argv] : [cliEntry, ...argv];
+
+  process.stderr.write(`wosm:tui-dev build watcher: ${logPath}\n`);
+  const wosm = spawn(process.execPath, nodeArgs, {
     cwd: repoRoot,
-    stdio: ["ignore", logFd, logFd],
-    env: process.env,
-  },
-);
+    stdio: "inherit",
+    env: childEnv,
+  });
 
-const env = {
-  ...process.env,
-  WOSM_TUI_COMMAND: devTuiCommand,
-  WOSM_TUI_SESSION_NAME: devSessionName,
-};
-const command = commandFromArgs(args);
-const runDirectTui = command === "tui" || (command === undefined && !isInsideTmux(process.env));
-const nodeArgs = runDirectTui
-  ? ["--watch", "--watch-preserve-output", cliEntry, ...args]
-  : [cliEntry, ...args];
-
-process.stderr.write(`wosm:tui-dev build watcher: ${logPath}\n`);
-const wosm = spawn(process.execPath, nodeArgs, {
-  cwd: repoRoot,
-  stdio: "inherit",
-  env,
-});
-
-let exiting = false;
-const shutdown = (signal) => {
-  if (exiting) return;
-  exiting = true;
-  buildWatcher.kill(signal);
-  wosm.kill(signal);
-  cleanupDevUiSession();
-};
-
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-
-wosm.on("exit", (code, signal) => {
-  if (!exiting) {
+  let exiting = false;
+  let launcherExited = false;
+  const shutdown = (signal) => {
+    if (exiting) return;
     exiting = true;
-    buildWatcher.kill("SIGTERM");
-    cleanupDevUiSession();
-  }
-  closeSync(logFd);
-  if (signal !== null) {
-    process.exitCode = 1;
-    return;
-  }
-  process.exitCode = code ?? 0;
-});
+    buildWatcher.kill(signal);
+    if (!launcherExited) {
+      wosm.kill(signal);
+    }
+    cleanupDevUiSession(devSessionName, env);
+    if (launcherExited) {
+      closeLog();
+      process.exitCode = 1;
+    }
+  };
 
-function commandFromArgs(argv) {
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+  buildWatcher.on("exit", (code, signal) => {
+    if (exiting) {
+      return;
+    }
+    exiting = true;
+    if (!launcherExited) {
+      wosm.kill("SIGTERM");
+    }
+    cleanupDevUiSession(devSessionName, env);
+    closeLog();
+    process.exitCode = signal === null ? (code ?? 1) : 1;
+  });
+
+  wosm.on("exit", (code, signal) => {
+    launcherExited = true;
+    if (keepAliveAfterLauncherExit && code === 0 && signal === null && !exiting) {
+      process.stderr.write(
+        "wosm:tui-dev popup launcher exited; build watcher remains active. Press Ctrl-C to stop.\n",
+      );
+      return;
+    }
+    if (!exiting) {
+      exiting = true;
+      buildWatcher.kill("SIGTERM");
+      cleanupDevUiSession(devSessionName, env);
+    }
+    closeLog();
+    if (signal !== null) {
+      process.exitCode = 1;
+      return;
+    }
+    process.exitCode = code ?? 0;
+  });
+}
+
+export function commandFromArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--config") {
@@ -106,20 +150,37 @@ function commandFromArgs(argv) {
   return undefined;
 }
 
-function isInsideTmux(env) {
+export function shouldRunDirectTui(argv, env) {
+  const command = commandFromArgs(argv);
+  return command === "tui" || (command === undefined && !isInsideTmux(env));
+}
+
+export function shouldKeepAliveAfterLauncherExit(argv, env) {
+  const command = commandFromArgs(argv);
+  return !shouldRunDirectTui(argv, env) && (command === undefined || command === "popup");
+}
+
+export function isInsideTmux(env) {
   const tmux = env.TMUX;
   return tmux !== undefined && tmux.length > 0;
 }
 
-function cleanupDevUiSession() {
-  if (devSessionName !== "_wosm-ui-dev" || !isInsideTmux(process.env)) {
+function cleanupDevUiSession(devSessionName, env) {
+  if (devSessionName !== defaultDevSessionName || !isInsideTmux(env)) {
     return;
   }
-  spawnSync(process.env.WOSM_TMUX_BIN ?? "tmux", ["kill-session", "-t", devSessionName], {
+  spawnSync(env.WOSM_TMUX_BIN ?? "tmux", ["kill-session", "-t", devSessionName], {
     cwd: repoRoot,
     stdio: "ignore",
-    env: process.env,
+    env,
   });
+}
+
+function formatError(error) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }
 
 function shellCommand(parts) {
