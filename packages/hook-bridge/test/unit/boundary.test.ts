@@ -2,11 +2,19 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const forbiddenPackages = ["@wosm/cli", "@wosm/observer", "@wosm/tui"] as const;
+const forbiddenPackages = [
+  "@wosm/cli",
+  "@wosm/observer",
+  "@wosm/tui",
+  "@wosm/codex",
+  "@wosm/worktrunk",
+  "@wosm/tmux",
+  "@wosm/opencode",
+] as const;
 const packageRoot = new URL("../..", import.meta.url);
 
 describe("hook bridge package boundaries", () => {
-  it("does not depend on CLI, observer, or TUI packages", async () => {
+  it("does not depend on app or provider packages", async () => {
     const manifest = JSON.parse(await readFile(new URL("package.json", packageRoot), "utf8")) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
@@ -21,7 +29,7 @@ describe("hook bridge package boundaries", () => {
     }
   });
 
-  it("does not import CLI, observer, or TUI source", async () => {
+  it("does not import app or provider source", async () => {
     const sourceFiles = await listSourceFiles(new URL("src", packageRoot));
     const sources = await Promise.all(sourceFiles.map((file) => readFile(file, "utf8")));
     const source = sources.join("\n");

@@ -3,6 +3,7 @@ import { SafeErrorSchema } from "./errors.js";
 import {
   HarnessRunIdSchema,
   ProjectIdSchema,
+  type ProviderId,
   ProviderIdSchema,
   SchemaVersionSchema,
   SessionIdSchema,
@@ -31,6 +32,7 @@ export const ProviderHookEventSchema = z
   .strict();
 
 export type ProviderHookEvent = z.infer<typeof ProviderHookEventSchema>;
+export type ProviderHookKind = z.infer<typeof ProviderHookKindSchema>;
 
 export const HookReceiptSchema = z
   .object({
@@ -111,6 +113,64 @@ export const HarnessEventReportReceiptSchema = z
   .strict();
 
 export type HarnessEventReportReceipt = z.infer<typeof HarnessEventReportReceiptSchema>;
+
+export const HookPayloadSummarySchema = z
+  .object({
+    present: z.boolean(),
+    originalBytes: z.number().int().nonnegative().nullable(),
+    compactedBytes: z.number().int().nonnegative().nullable(),
+    compacted: z.boolean(),
+    omittedFieldNames: z.array(nonEmptyStringSchema),
+  })
+  .strict();
+
+export type HookPayloadSummary = z.infer<typeof HookPayloadSummarySchema>;
+
+export type HookScopeDecision =
+  | {
+      action: "accept";
+      reason: "not-required" | "wosm-env";
+    }
+  | {
+      action: "ignore";
+      reason: "missing-wosm-env";
+    };
+
+export type ProviderHookPayloadEnrichmentInput = {
+  payload: unknown;
+  env: Record<string, string | undefined>;
+};
+
+export type ProviderHookPayloadCompactionResult = {
+  event: ProviderHookEvent;
+  payloadSummary: HookPayloadSummary;
+};
+
+export type HarnessEventReportResult =
+  | {
+      ok: true;
+      report: HarnessEventReport;
+    }
+  | {
+      ok: false;
+      error: unknown;
+    };
+
+export type ProviderHookReportInput = {
+  event: ProviderHookEvent;
+  payloadSummary: HookPayloadSummary;
+  fallbackReportId: () => string;
+};
+
+export type ProviderHookAdapter = {
+  provider: ProviderId;
+  kind?: ProviderHookKind;
+  normalizeEventName?: (event: string) => string;
+  enrichPayload?: (input: ProviderHookPayloadEnrichmentInput) => unknown;
+  decideScope?: (event: ProviderHookEvent) => HookScopeDecision;
+  compactPayload?: (event: ProviderHookEvent) => ProviderHookPayloadCompactionResult;
+  toHarnessEventReport?: (input: ProviderHookReportInput) => HarnessEventReportResult;
+};
 
 export const HookSpoolRecordSchema = z
   .object({

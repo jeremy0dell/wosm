@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { codexHookAdapter } from "@wosm/codex";
 import type { HarnessEventReport, HarnessEventReportReceipt, HookReceipt } from "@wosm/contracts";
 import { receiveHookEvent } from "@wosm/hook-bridge";
 import { componentLogPath, readJsonlLog } from "@wosm/observability";
@@ -70,6 +71,7 @@ describe("hook bridge receiver", () => {
           wosm_session_id: "ses_web_task",
         },
         config: fixture.config,
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
@@ -146,6 +148,7 @@ describe("hook bridge receiver", () => {
           event: "UnknownFutureEvent",
           payload,
           config: fixture.config,
+          providerAdapters: [codexHookAdapter],
           rateLimitMs: 0,
         },
         {
@@ -210,6 +213,7 @@ describe("hook bridge receiver", () => {
           event: payload.hook_event_name,
           payload,
           config: fixture.config,
+          providerAdapters: [codexHookAdapter],
         },
         {
           clock: { now: () => new Date(now) },
@@ -409,6 +413,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
@@ -463,6 +468,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
@@ -525,6 +531,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
         deliveryTimeoutMs: 5,
       },
       {
@@ -577,6 +584,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
@@ -641,6 +649,7 @@ describe("hook bridge receiver", () => {
             autoStartFromHooks: false,
           },
         },
+        providerAdapters: [codexHookAdapter],
       },
       {
         clock: { now: () => new Date(now) },
