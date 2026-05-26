@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { ConfigError, loadConfig, loadConfigFromToml } from "@wosm/config";
 import { SafeErrorSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
@@ -272,14 +272,13 @@ managed_root = "/var/tmp/wosm-api"
     });
   });
 
-  it("rejects duplicate effective Worktrunk managed roots", async () => {
+  it("keeps derived Worktrunk managed roots unique when project ID segments would sanitize together", async () => {
     const tempDir = await makeTempDir();
     const apiSlashRoot = await makeProjectRoot(tempDir, "api-slash");
     const apiUnderscoreRoot = await makeProjectRoot(tempDir, "api-underscore");
 
-    await expect(
-      loadConfigFromToml(
-        `
+    const loaded = await loadConfigFromToml(
+      `
 schema_version = 1
 
 [defaults]
@@ -294,12 +293,39 @@ managed_root = "~/.worktrees"
 ${projectToml("api/service", apiSlashRoot)}
 ${projectToml("api_service", apiUnderscoreRoot)}
 `,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    const slashRoot = loaded.config.projects.find((project) => project.id === "api/service")
+      ?.worktrunk.managedRoot;
+    const underscoreRoot = loaded.config.projects.find((project) => project.id === "api_service")
+      ?.worktrunk.managedRoot;
+    expect(basename(slashRoot ?? "")).toMatch(/^api_service-[a-f0-9]{10}$/);
+    expect(basename(underscoreRoot ?? "")).toBe("api_service");
+    expect(slashRoot).not.toBe(underscoreRoot);
+  });
+
+  it("rejects duplicate explicit Worktrunk managed roots", async () => {
+    const tempDir = await makeTempDir();
+    const apiRoot = await makeProjectRoot(tempDir, "api");
+    const webRoot = await makeProjectRoot(tempDir, "web");
+    const sharedRoot = join(tempDir, "shared-worktrees");
+
+    await expect(
+      loadConfigFromToml(
+        baseToml(
+          `${projectToml("api", apiRoot, {
+            worktrunk: `managed_root = ${quoteTomlString(sharedRoot)}`,
+          })}${projectToml("web", webRoot, {
+            worktrunk: `managed_root = ${quoteTomlString(sharedRoot)}`,
+          })}`,
+        ),
         { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
       ),
     ).rejects.toMatchObject({
       tag: "ConfigError",
       code: "CONFIG_DUPLICATE_WORKTREE_MANAGED_ROOT",
-      projectId: "api_service",
+      projectId: "web",
     });
   });
 

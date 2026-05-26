@@ -1,4 +1,5 @@
 import type { TmuxConfig } from "@wosm/config";
+import { stableName } from "@wosm/runtime";
 
 export type TmuxWorkbenchConfig = {
   topology: "workbench";
@@ -51,14 +52,25 @@ export function tmuxNewWindowTarget(sessionId: string): string {
   return `${sessionId}:`;
 }
 
-export function buildWorkbenchWindowName(input: { projectId: string; branch: string }): string {
-  const normalized = `${input.projectId}-${input.branch}`
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-  const safe = normalized.length > 0 ? normalized : "worktree";
-  return safe.slice(0, 48).replace(/-+$/g, "") || "worktree";
+export function buildWorkbenchWindowName(input: {
+  projectId: string;
+  branch: string;
+  worktreeId?: string;
+  path?: string;
+  forceHash?: boolean;
+}): string {
+  return stableName({
+    profile: "tmux-window",
+    display: [input.projectId, input.branch],
+    unique: [
+      "tmux-window",
+      input.projectId,
+      input.worktreeId ?? "",
+      input.path ?? "",
+      input.branch,
+    ],
+    hash: input.forceHash === true ? "always" : "auto",
+  });
 }
 
 export function buildTmuxTargetId(input: {

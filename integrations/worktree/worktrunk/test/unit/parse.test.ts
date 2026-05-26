@@ -107,6 +107,25 @@ describe("Worktrunk list parser", () => {
     ]);
   });
 
+  it("keeps branch-derived worktree IDs unique when sanitized names collide", () => {
+    const observations = parseWorktrunkListJson(
+      JSON.stringify([
+        { path: "/tmp/wosm/web/worktrees/feature-auth", branch: "feature/auth" },
+        { path: "/tmp/wosm/web/worktrees/feature_auth", branch: "feature_auth" },
+      ]),
+      {
+        project,
+        observedAt: now,
+      },
+    );
+
+    expect(new Set(observations.map((observation) => observation.id)).size).toBe(2);
+    expect(observations.map((observation) => observation.id)).toEqual([
+      expect.stringMatching(/^wt_web_feature_auth_[a-f0-9]{10}$/),
+      "wt_web_feature_auth",
+    ]);
+  });
+
   it("rejects non-JSON output with a typed provider error", () => {
     expect(() =>
       parseWorktrunkListJson("not-json", {

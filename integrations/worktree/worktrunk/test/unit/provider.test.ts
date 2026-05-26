@@ -183,7 +183,7 @@ describe("WorktrunkProvider", () => {
       path: "/tmp/wosm/web/.worktrees/feature",
     });
     expect(calls[0]?.env).toEqual({
-      WORKTRUNK_WORKTREE_PATH: "/tmp/wosm/web/.worktrees/{{ branch | sanitize }}",
+      WORKTRUNK_WORKTREE_PATH: "/tmp/wosm/web/.worktrees/feature",
     });
   });
 
@@ -217,7 +217,43 @@ describe("WorktrunkProvider", () => {
       path: "/tmp/home/.worktrees/web/feature",
     });
     expect(calls[0]?.env).toEqual({
-      WORKTRUNK_WORKTREE_PATH: "/tmp/home/.worktrees/web/{{ branch | sanitize }}",
+      WORKTRUNK_WORKTREE_PATH: "/tmp/home/.worktrees/web/feature",
+    });
+  });
+
+  it("uses collision-resistant managed paths for lossy branch names", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const managedProject = {
+      ...project,
+      worktrunk: {
+        ...project.worktrunk,
+        managedRoot: ".worktrees",
+        includeMain: false,
+        includeExternal: false,
+      },
+    };
+    const provider = new WorktrunkProvider({
+      command: "wt",
+      clock: { now: () => new Date(now) },
+      runner: async (input) => {
+        calls.push(input);
+        return result(
+          input,
+          JSON.stringify([{ path: input.env?.WORKTRUNK_WORKTREE_PATH, branch: "feature/auth" }]),
+        );
+      },
+    });
+
+    await expect(
+      provider.createWorktree({ project: managedProject, branch: "feature/auth" }),
+    ).resolves.toMatchObject({
+      id: expect.stringMatching(/^wt_web_feature_auth_[a-f0-9]{10}$/),
+      path: expect.stringMatching(/^\/tmp\/wosm\/web\/\.worktrees\/feature-auth-[a-f0-9]{10}$/),
+    });
+    expect(calls[0]?.env).toEqual({
+      WORKTRUNK_WORKTREE_PATH: expect.stringMatching(
+        /^\/tmp\/wosm\/web\/\.worktrees\/feature-auth-[a-f0-9]{10}$/,
+      ),
     });
   });
 
