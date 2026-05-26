@@ -36,6 +36,10 @@ import {
   type HookIngestion,
 } from "../hooks/ingestion.js";
 import { drainHookSpool, hookSpoolDepth } from "../hooks/spool.js";
+import {
+  createWorktreeMetadataRefreshService,
+  type WorktreeMetadataRefreshService,
+} from "../metadata/refresh.js";
 import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import { type ObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
@@ -63,6 +67,7 @@ export type CreateObserverApiOptions = {
   config?: WosmConfig;
   configPath?: string;
   configDiagnostics?: ConfigDiagnostic[];
+  metadataRefresh?: WorktreeMetadataRefreshService;
   onStop?: () => Promise<void> | void;
   hookReconcileDebounceMs?: number;
 };
@@ -84,6 +89,17 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     };
   }
   const reconcileScheduler = createReconcileScheduler(schedulerOptions);
+  const metadataRefresh =
+    options.metadataRefresh ??
+    (options.config === undefined
+      ? undefined
+      : createWorktreeMetadataRefreshService({
+          projects: providerProjectsFromConfig(options.config),
+          persistence: options.persistence,
+          requestReconcile: reconcileScheduler.request,
+          clock,
+          ...(options.logger === undefined ? {} : { logger: options.logger }),
+        }));
   const hookIngestion =
     options.hookIngestion ??
     createHookIngestion({
@@ -239,6 +255,11 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       changed: 0,
     };
     options.eventBus.publish(event);
+    if (metadataRefresh !== undefined) {
+      void metadataRefresh.refresh(result.value).catch(async (error: unknown) => {
+        await options.logger?.error("Worktree metadata refresh failed.", { error });
+      });
+    }
     return {
       schemaVersion: WOSM_SCHEMA_VERSION,
       reason,

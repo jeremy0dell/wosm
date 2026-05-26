@@ -56,14 +56,19 @@ export const WorktreePullRequestSchema = z
   })
   .strict();
 
+const GitShaSchema = z.string().regex(/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/);
+
 export const WorktreeChangeSummarySchema = z
   .object({
     kind: z.literal("branch_diff"),
     additions: z.number().int().nonnegative(),
     deletions: z.number().int().nonnegative(),
     filesChanged: z.number().int().nonnegative().optional(),
+    binaryFiles: z.number().int().nonnegative().optional(),
     baseRef: nonEmptyStringSchema.optional(),
+    baseSha: GitShaSchema.optional(),
     headRef: nonEmptyStringSchema.optional(),
+    headSha: GitShaSchema.optional(),
     source: nonEmptyStringSchema,
     checkedAt: TimestampSchema,
     stale: z.boolean().optional(),
