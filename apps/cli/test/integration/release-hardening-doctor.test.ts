@@ -1,27 +1,31 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { runCli } from "@wosm/cli";
 import type { DoctorReport } from "@wosm/contracts";
 import { afterEach, describe, expect, it } from "vitest";
+import { waitForSocketClosed } from "../../../../tests/support/sockets";
+
+const execFileAsync = promisify(execFile);
 
 describe("Phase 18 CLI release doctor", () => {
-  const configPaths: string[] = [];
+  const tempRoots: string[] = [];
 
   afterEach(async () => {
-    await Promise.all(
-      configPaths
-        .splice(0)
-        .map((configPath) =>
-          runCli(["--config", configPath, "observer", "stop"]).catch(() => undefined),
-        ),
-    );
+    const roots = tempRoots.splice(0);
+    for (const root of roots) {
+      await stopReleaseDoctorObserver(root);
+      await killObserverProcessesForRoot(root);
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("reports project-local config diagnostics, missing Worktrunk, hooks, SQLite, and bundle availability", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-release-doctor-cli-"));
+    tempRoots.push(root);
     const configPath = await writeReleaseDoctorConfig(root);
-    configPaths.push(configPath);
 
     const result = await runCli(["--config", configPath, "doctor"]);
     const report = result.output as DoctorReport;
@@ -118,4 +122,31 @@ async function writeReleaseDoctorConfig(root: string): Promise<string> {
     ].join("\n"),
   );
   return configPath;
+}
+
+async function stopReleaseDoctorObserver(root: string): Promise<void> {
+  const configPath = join(root, "config.toml");
+  const socketPath = join(root, "run", "observer.sock");
+  await runCli(["--config", configPath, "observer", "stop"]).catch(() => undefined);
+  await waitForSocketClosed(socketPath, { timeoutMs: 1000 }).catch(() => undefined);
+}
+
+async function killObserverProcessesForRoot(root: string): Promise<void> {
+  const result = await execFileAsync("ps", ["-axo", "pid=,command="], { encoding: "utf8" });
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const match = line.match(/^\s*(\d+)\s+(.*)$/);
+    if (match === null) {
+      continue;
+    }
+    const pid = Number(match[1]);
+    const command = match[2] ?? "";
+    if (!command.includes(root) || !command.includes("apps/observer/dist/runtime/main.js")) {
+      continue;
+    }
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Already exited is a successful cleanup outcome.
+    }
+  }
 }
