@@ -1,15 +1,10 @@
-import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
 import { Box, renderToString } from "ink";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import { App } from "../../src/App.js";
 import { Dashboard } from "../../src/components/Dashboard.js";
-import {
-  metadataSegments,
-  WorktreeRow as WorktreeRowView,
-} from "../../src/components/WorktreeRow.js";
 import { TuiModeProvider } from "../../src/tuiMode.js";
-import { createDashboardSnapshot, createZeroWorktreeSnapshot, row } from "../fixtures/snapshots.js";
+import { createDashboardSnapshot, createZeroWorktreeSnapshot } from "../fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../support/fakeObserverService.js";
 
 describe("TUI app rendering", () => {
@@ -30,17 +25,18 @@ describe("TUI app rendering", () => {
     expect(frame).toContain("unknown");
     expect(frame).toContain("exited");
     expect(frame).toContain("no agent");
-    expect(frame).toContain("[1] * cache-refactor");
-    expect(frame).toContain("[2] ! checkout-copy");
-    expect(frame).toContain("[3] x done-run");
-    expect(frame).toContain("[4] - feature-auth");
-    expect(frame).toContain("[5] . fix-nav-mobile");
-    expect(frame).toContain("[6] ? ghost-signal");
-    expect(frame).toContain("[7] ! slow-tests");
+    expect(frame).toContain(" [1] * cache-refactor");
+    expect(frame).toContain(" [2] ! checkout-copy");
+    expect(frame).toContain(" [3] x done-run");
+    expect(frame).toContain(" [4] - feature-auth");
+    expect(frame).toContain(" [5] ○ fix-nav-mobile");
+    expect(frame).toContain(" [6] ? ghost-signal");
+    expect(frame).toContain(" [7] ! slow-tests");
     expect(frame).not.toContain(">");
     expect(frame).not.toContain("s:start bg");
     expect(frame).not.toContain("enter/1-9");
     expect(frame).not.toContain("providerData");
+    expect(frame).not.toContain("tmux");
     expect(frame).not.toContain("inspect");
     expect(frame).not.toContain("debug panel");
     instance.unmount();
@@ -111,73 +107,6 @@ describe("TUI app rendering", () => {
     expect(frame).toContain("api");
     expect(frame).toContain("0 worktrees");
     instance.unmount();
-  });
-
-  it("renders compact branch metadata from snapshot rows", () => {
-    const base = row({
-      id: "wt_web_metadata",
-      projectId: "web",
-      branch: "branch-metadata",
-      state: "working",
-    });
-    const metadataRow: WorktreeRowModel = {
-      ...base,
-      worktree: {
-        ...base.worktree,
-        pr: {
-          number: 42,
-          stale: true,
-        },
-        changeSummary: {
-          kind: "branch_diff",
-          additions: 24,
-          deletions: 6,
-          source: "local_git",
-          checkedAt: "2026-05-20T12:00:00.000Z",
-        },
-        checks: {
-          state: "pass",
-          source: "github",
-          checkedAt: "2026-05-20T12:00:00.000Z",
-        },
-      },
-    };
-
-    const frame = renderToString(<WorktreeRowView row={metadataRow} slot="8" />);
-
-    expect(frame).toContain("[8] * branch-metadata  +24/-6  #42  ci:pass  codex  working  tmux");
-  });
-
-  it("renders PR links, compact CI labels, and stale metadata dimming", () => {
-    const base = row({
-      id: "wt_web_metadata_link",
-      projectId: "web",
-      branch: "branch-metadata-link",
-      state: "working",
-    });
-    const metadataRow: WorktreeRowModel = {
-      ...base,
-      worktree: {
-        ...base.worktree,
-        pr: {
-          number: 123,
-          url: "https://github.com/example/web/pull/123",
-        },
-        checks: {
-          state: "skipped",
-          source: "github",
-          checkedAt: "2026-05-20T12:00:00.000Z",
-          stale: true,
-        },
-      },
-    };
-
-    const frame = renderToString(<WorktreeRowView row={metadataRow} slot="9" />);
-    const staleSegments = metadataSegments(metadataRow).filter((segment) => segment.stale);
-
-    expect(frame).toContain("\u001B]8;;https://github.com/example/web/pull/123\u0007#123");
-    expect(frame).toContain("ci:skip");
-    expect(staleSegments).toEqual([{ text: "ci:skip", stale: true }]);
   });
 
   it("labels q and escape as close in persistent popup mode", () => {
