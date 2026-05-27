@@ -9,6 +9,7 @@ export type RealDogfoodRequirements = {
   worktrunk?: boolean;
   tmux?: boolean;
   codex?: boolean;
+  pi?: boolean;
 };
 
 export type RealDogfoodEnvironment = {
@@ -18,6 +19,7 @@ export type RealDogfoodEnvironment = {
   worktrunkBin?: string;
   tmuxBin?: string;
   codexBin?: string;
+  piBin?: string;
 };
 
 export function realDogfoodEnabled(): boolean {
@@ -67,15 +69,25 @@ export async function requireRealDogfoodEnvironment(
     env.codexBin = codexBin;
   }
 
+  if (requirements.pi === true) {
+    if (process.env.WOSM_REAL_PI !== "1") {
+      throw new Error("Set WOSM_REAL_PI=1 to run real Pi dogfood tests.");
+    }
+    const piBin = process.env.WOSM_PI_BIN ?? "pi";
+    await execFileAsync(piBin, ["--version"], { timeout: 20_000 });
+    env.piBin = piBin;
+  }
+
   return env;
 }
 
 export function requireToolPath(
   env: RealDogfoodEnvironment,
-  tool: "worktrunk" | "tmux" | "codex",
+  tool: "worktrunk" | "tmux" | "codex" | "pi",
 ): string {
   if (tool === "worktrunk" && env.worktrunkBin !== undefined) return env.worktrunkBin;
   if (tool === "tmux" && env.tmuxBin !== undefined) return env.tmuxBin;
   if (tool === "codex" && env.codexBin !== undefined) return env.codexBin;
+  if (tool === "pi" && env.piBin !== undefined) return env.piBin;
   throw new Error(`Real dogfood environment is missing ${tool}.`);
 }

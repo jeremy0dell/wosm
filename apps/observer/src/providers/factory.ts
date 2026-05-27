@@ -18,17 +18,25 @@ import type {
 } from "@wosm/contracts";
 import { GithubRepositoryProvider } from "@wosm/github-repository";
 import { OpenCodeHarnessProvider } from "@wosm/opencode";
+import { PiHarnessProvider } from "@wosm/pi";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
 import { TmuxProvider } from "@wosm/tmux";
 import { WorktrunkProvider } from "@wosm/worktrunk";
 import { ProviderRegistry } from "./registry.js";
 
-export function createProviderRegistry(config: WosmConfig): ProviderRegistry {
+export type CreateProviderRegistryOptions = {
+  configPath?: string;
+};
+
+export function createProviderRegistry(
+  config: WosmConfig,
+  options: CreateProviderRegistryOptions = {},
+): ProviderRegistry {
   return new ProviderRegistry({
     worktree: createWorktreeProvider(config),
     terminal: createTerminalProvider(config),
-    harnesses: createHarnessProviders(config),
+    harnesses: createHarnessProviders(config, options),
     repositories: createRepositoryProviders(config),
   });
 }
@@ -71,7 +79,10 @@ function createTerminalProvider(config: WosmConfig): TerminalProvider {
   return new UnavailableTerminalProvider(config.defaults.terminal);
 }
 
-function createHarnessProviders(config: WosmConfig): HarnessProvider[] {
+function createHarnessProviders(
+  config: WosmConfig,
+  options: CreateProviderRegistryOptions,
+): HarnessProvider[] {
   const ids = new Set<string>();
   ids.add(config.defaults.harness);
   for (const project of config.projects) {
@@ -80,10 +91,14 @@ function createHarnessProviders(config: WosmConfig): HarnessProvider[] {
   for (const providerId of Object.keys(config.harness ?? {})) {
     ids.add(providerId);
   }
-  return Array.from(ids).map((id) => createHarnessProvider(id, config));
+  return Array.from(ids).map((id) => createHarnessProvider(id, config, options));
 }
 
-function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider {
+function createHarnessProvider(
+  id: string,
+  config: WosmConfig,
+  registryOptions: CreateProviderRegistryOptions,
+): HarnessProvider {
   const providerConfig = harnessProviderConfig(config, id);
 
   if (id === "scripted") {
@@ -139,6 +154,17 @@ function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider 
       options.sandboxMode = providerConfig.sandboxMode;
     }
     return new OpenCodeHarnessProvider(options);
+  }
+
+  if (id === "pi") {
+    const options: ConstructorParameters<typeof PiHarnessProvider>[0] = {};
+    if (providerConfig?.command !== undefined) {
+      options.command = providerConfig.command;
+    }
+    if (registryOptions.configPath !== undefined) {
+      options.configPath = registryOptions.configPath;
+    }
+    return new PiHarnessProvider(options);
   }
 
   if (id === "noop-harness") {

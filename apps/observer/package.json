@@ -24,6 +24,7 @@
     "@wosm/github-repository": "workspace:*",
     "@wosm/opencode": "workspace:*",
     "@wosm/observability": "workspace:*",
+    "@wosm/pi": "workspace:*",
     "@wosm/protocol": "workspace:*",
     "@wosm/runtime": "workspace:*",
     "@wosm/scripted-harness": "workspace:*",

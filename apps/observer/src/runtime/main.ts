@@ -57,7 +57,11 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     providerObservationLegacyCutoff(pruneAt, retentionDays),
   );
   const commandQueue = createCommandQueue({ persistence, clock, eventBus, logger });
-  const providers = createProviderRegistry(config);
+  const providerOptions: Parameters<typeof createProviderRegistry>[1] = {};
+  if (options.configPath !== undefined) {
+    providerOptions.configPath = loadedConfig.configPath;
+  }
+  const providers = createProviderRegistry(config, providerOptions);
   const core = createObserverCore({
     config,
     providers,
