@@ -16,6 +16,7 @@ export type WorktrunkHookPlanOptions = {
   worktrunkConfigPath?: string;
   wosmConfigPath?: string;
   hookBin?: string;
+  /** @deprecated Use `hookBin`; `wosmBin` generates the legacy `wosm hook ...` command. */
   wosmBin?: string;
   env?: NodeJS.ProcessEnv;
   homeDir?: string;

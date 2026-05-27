@@ -55,6 +55,7 @@ type ParsedCodexHookFlags = {
   codexConfigPath?: string;
   hookScriptPath?: string;
   hookBin?: string;
+  /** @deprecated Use `hookBin`; `wosmBin` generates the legacy `wosm hook ...` command. */
   wosmBin?: string;
 };
 
@@ -132,6 +133,7 @@ function parseFlags(args: string[]): ParsedCodexHookFlags {
       continue;
     }
     if (arg === "--wosm-bin" && value !== undefined) {
+      // Deprecated compatibility for older generated hook commands.
       flags.wosmBin = value;
       index += 1;
       continue;

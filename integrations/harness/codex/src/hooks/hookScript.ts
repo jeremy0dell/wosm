@@ -4,6 +4,7 @@ export type CodexHookScriptOptions = {
   hookScriptPath: string;
   wosmConfigPath?: string;
   hookBin?: string;
+  /** @deprecated Use `hookBin`; `wosmBin` generates the legacy `wosm hook ...` command. */
   wosmBin?: string;
 };
 
