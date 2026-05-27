@@ -97,7 +97,7 @@ function DashboardBody({
 function DashboardFooter({ quitHint }: { quitHint: string }) {
   return (
     <Box flexShrink={0}>
-      <Text color="gray">n:new 1-9:start/focus x:remove /:search r:refresh h:help {quitHint}</Text>
+      <Text color="gray">n:new 1-9:start/focus x:remove /:search r:refresh H:help {quitHint}</Text>
     </Box>
   );
 }
