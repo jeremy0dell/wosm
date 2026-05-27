@@ -1,10 +1,11 @@
 import type { TerminalFocusOrigin, WosmCommand, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useInput, useWindowSize } from "ink";
-import { type ReactNode, useRef } from "react";
+import { useRef } from "react";
 import { buildCleanupCommand, buildCreateSessionCommand, cleanupForceRequired } from "./actions.js";
 import { CommandPrompt } from "./components/CommandPrompt.js";
 import { Dashboard } from "./components/Dashboard.js";
 import { ToastStack } from "./components/ToastStack.js";
+import { TuiFrame } from "./components/TuiFrame.js";
 import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
 import { intentForDashboardKey } from "./keymap.js";
 import { selectKeySlots, selectNewSessionAvailability } from "./selectors.js";
@@ -151,19 +152,20 @@ export function App({
 
   if (dashboard.loading || dashboard.snapshot === undefined) {
     return (
-      <FullScreenFrame columns={columns} rows={rows}>
+      <TuiFrame columns={columns} rows={rows}>
         <Box flexDirection="column" flexGrow={1} overflow="hidden">
           <Text>wosm</Text>
           <Text color="gray">Loading observer snapshot...</Text>
           <ToastStack toasts={dashboard.toasts} />
         </Box>
-      </FullScreenFrame>
+      </TuiFrame>
     );
   }
 
   return (
-    <FullScreenFrame columns={columns} rows={rows}>
+    <TuiFrame columns={columns} rows={rows}>
       <Dashboard
+        columns={columns}
         snapshot={dashboard.snapshot}
         uiState={dashboard.uiState}
         quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
@@ -171,28 +173,7 @@ export function App({
         <CommandPrompt prompt={dashboard.uiState.prompt} />
         <ToastStack toasts={dashboard.toasts} />
       </Dashboard>
-    </FullScreenFrame>
-  );
-}
-
-function FullScreenFrame({
-  children,
-  columns,
-  rows,
-}: {
-  children: ReactNode;
-  columns: number;
-  rows: number;
-}) {
-  return (
-    <Box
-      flexDirection="column"
-      height={Math.max(1, rows)}
-      overflow="hidden"
-      width={Math.max(1, columns)}
-    >
-      {children}
-    </Box>
+    </TuiFrame>
   );
 }
 
