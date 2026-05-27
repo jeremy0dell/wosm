@@ -28,7 +28,8 @@ describe("discoverCodexRuns", () => {
             paneId: "%2",
             role: "main-agent",
             harness: "codex",
-            currentCommand: "codex",
+            currentCommand: "node",
+            worktreePath: "/tmp/wosm/web/task",
             attached: true,
             dead: false,
           },
@@ -53,7 +54,7 @@ describe("discoverCodexRuns", () => {
         terminalTargetId: "tmux:wosm:@1:%2",
         terminalProvider: "tmux",
         process: {
-          command: "codex",
+          command: "node",
         },
       },
     });

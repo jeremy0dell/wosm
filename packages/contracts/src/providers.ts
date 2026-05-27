@@ -10,18 +10,20 @@ import type {
   TerminalTargetId,
   WorktreeId,
 } from "./ids.js";
-import { ProjectIdSchema, ProviderIdSchema, TimestampSchema } from "./ids.js";
+import { ProjectIdSchema, ProviderIdSchema, TimestampSchema, WorktreeIdSchema } from "./ids.js";
 import type {
   HarnessEventObservation,
   HarnessRunObservation,
   HarnessStatusObservation,
   TerminalIdentityBinding,
   TerminalTargetObservation,
+  WorktreeChecksSummary,
   WorktreeObservation,
+  WorktreePullRequest,
 } from "./observations.js";
 import { nonEmptyStringSchema } from "./shared.js";
 
-export const ProviderTypeSchema = z.enum(["worktree", "terminal", "harness"]);
+export const ProviderTypeSchema = z.enum(["worktree", "terminal", "harness", "repository"]);
 export const ProviderHealthStatusSchema = z.enum(["healthy", "degraded", "unavailable", "unknown"]);
 
 export const ProviderHealthSchema = z
@@ -80,6 +82,16 @@ export const HarnessCapabilitiesSchema = z
   .strict();
 
 export type HarnessCapabilities = z.infer<typeof HarnessCapabilitiesSchema>;
+
+export const RepositoryCapabilitiesSchema = z
+  .object({
+    canDiscoverPullRequests: z.boolean(),
+    canReadChecks: z.boolean(),
+    canUseCliAuth: z.boolean(),
+  })
+  .strict();
+
+export type RepositoryCapabilities = z.infer<typeof RepositoryCapabilitiesSchema>;
 
 export const HarnessPermissionModeSchema = z.enum(["standard", "yolo"]);
 
@@ -286,6 +298,52 @@ export type HarnessStopResult = {
   reason?: string;
 };
 
+export const RepositoryRemoteSchema = z
+  .object({
+    host: nonEmptyStringSchema,
+    owner: nonEmptyStringSchema,
+    repo: nonEmptyStringSchema,
+    url: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
+export type RepositoryRemote = z.infer<typeof RepositoryRemoteSchema>;
+
+export const RepositoryPullRequestRequestSchema = z
+  .object({
+    remote: RepositoryRemoteSchema,
+    branch: nonEmptyStringSchema,
+    headSha: z
+      .string()
+      .regex(/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/)
+      .optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    projectId: ProjectIdSchema.optional(),
+  })
+  .strict();
+
+export type RepositoryPullRequestRequest = z.infer<typeof RepositoryPullRequestRequestSchema> & {
+  signal?: AbortSignal;
+};
+
+export const RepositoryChecksRequestSchema = z
+  .object({
+    remote: RepositoryRemoteSchema,
+    pullRequestNumber: z.number().int().positive(),
+    branch: nonEmptyStringSchema.optional(),
+    headSha: z
+      .string()
+      .regex(/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/)
+      .optional(),
+    worktreeId: WorktreeIdSchema.optional(),
+    projectId: ProjectIdSchema.optional(),
+  })
+  .strict();
+
+export type RepositoryChecksRequest = z.infer<typeof RepositoryChecksRequestSchema> & {
+  signal?: AbortSignal;
+};
+
 export interface WorktreeProvider {
   id: ProviderId;
   capabilities(): WorktreeCapabilities;
@@ -335,4 +393,13 @@ export interface HarnessProvider {
     context: HarnessEventContext,
   ): Promise<HarnessEventObservation[]>;
   stop?(request: HarnessStopRequest): Promise<HarnessStopResult>;
+}
+
+export interface RepositoryProvider {
+  id: ProviderId;
+  capabilities(): RepositoryCapabilities;
+  health(): Promise<ProviderHealth>;
+  doctorChecks?(context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]>;
+  discoverPullRequest(request: RepositoryPullRequestRequest): Promise<WorktreePullRequest | null>;
+  readChecks(request: RepositoryChecksRequest): Promise<WorktreeChecksSummary | null>;
 }

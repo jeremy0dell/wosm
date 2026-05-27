@@ -12,6 +12,7 @@ const TmuxCodexProviderDataSchema = z
     attached: z.boolean().optional(),
     dead: z.boolean().optional(),
     deadStatus: z.string().min(1).optional(),
+    worktreePath: z.string().min(1).optional(),
   })
   .strict();
 

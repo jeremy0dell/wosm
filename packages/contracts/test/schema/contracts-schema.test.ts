@@ -20,13 +20,19 @@ import {
   ProviderHealthSchema,
   ProviderHookEventSchema,
   ProviderProjectConfigSchema,
+  ProviderTypeSchema,
   ReconcileReceiptSchema,
+  RepositoryCapabilitiesSchema,
+  RepositoryChecksRequestSchema,
+  RepositoryPullRequestRequestSchema,
+  RepositoryRemoteSchema,
   SafeErrorSchema,
   TerminalCapabilitiesSchema,
   TerminalIdentityBindingSchema,
   TerminalTargetObservationSchema,
   WOSM_SCHEMA_VERSION,
   WorktreeCapabilitiesSchema,
+  WorktreeChecksStateSchema,
   type WorktreeId,
   WorktreeObservationSchema,
   WosmCommandSchema,
@@ -317,6 +323,61 @@ describe("Phase 1 contract schemas", () => {
       },
       "snapshot with invalid head sha",
     );
+  });
+
+  it("parses provider-neutral repository contracts", () => {
+    expect(ProviderTypeSchema.parse("repository")).toBe("repository");
+    expectFails(ProviderTypeSchema, "code_host", "legacy code host provider type");
+
+    expectParses(
+      RepositoryCapabilitiesSchema,
+      {
+        canDiscoverPullRequests: true,
+        canReadChecks: true,
+        canUseCliAuth: true,
+      },
+      "repository capabilities",
+    );
+    expectParses(
+      RepositoryRemoteSchema,
+      {
+        host: "github.com",
+        owner: "example",
+        repo: "web",
+        url: "git@github.com:example/web.git",
+      },
+      "repository remote",
+    );
+    expectParses(
+      RepositoryPullRequestRequestSchema,
+      {
+        remote: {
+          host: "github.com",
+          owner: "example",
+          repo: "web",
+        },
+        branch: "feature/auth",
+        headSha: "abcdef1234567890abcdef1234567890abcdef12",
+        projectId: "web",
+        worktreeId: "wt_web_feature_auth",
+      },
+      "repository PR request",
+    );
+    expectParses(
+      RepositoryChecksRequestSchema,
+      {
+        remote: {
+          host: "github.com",
+          owner: "example",
+          repo: "web",
+        },
+        pullRequestNumber: 42,
+        branch: "feature/auth",
+      },
+      "repository checks request",
+    );
+    expect(WorktreeChecksStateSchema.parse("skipped")).toBe("skipped");
+    expect(WorktreeChecksStateSchema.parse("cancelled")).toBe("cancelled");
   });
 
   it("parses one command fixture for each command union member", async () => {
