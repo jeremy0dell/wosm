@@ -11,7 +11,7 @@ export * from "./hooks/breadcrumbs.js";
 export * from "./hooks/ingestion.js";
 export * from "./hooks/providerIngest.js";
 export * from "./hooks/spool.js";
-export * from "./metadata/gitWatch.js";
+export * from "./metadata/gitRefInvalidation.js";
 export * from "./metadata/localGitChangeSummary.js";
 export * from "./metadata/refresh.js";
 export * from "./metadata/repositoryGit.js";

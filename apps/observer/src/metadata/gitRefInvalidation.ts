@@ -3,19 +3,21 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import type { WorktreeRow, WosmSnapshot } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 
-export type WorktreeGitWatchService = {
+// A Git ref move invalidates all metadata keyed to HEAD: local diff, PR identity, and checks.
+// This trigger only requests reconcile; observer runtime remains the only UI event publisher.
+export type WorktreeGitRefInvalidationService = {
   update(snapshot: WosmSnapshot): void;
   shutdown(): void;
 };
 
-export type CreateWorktreeGitWatchServiceOptions = {
+export type CreateWorktreeGitRefInvalidationServiceOptions = {
   requestReconcile(reason: string): void;
   debounceMs?: number;
   logger?: JsonlLogger;
   watchDirectory?: WatchDirectory;
 };
 
-export type GitWatchTarget = {
+export type GitRefInvalidationTarget = {
   path: string;
 };
 
@@ -30,9 +32,9 @@ type WatchDirectory = (
 
 const defaultDebounceMs = 100;
 
-export function createWorktreeGitWatchService(
-  options: CreateWorktreeGitWatchServiceOptions,
-): WorktreeGitWatchService {
+export function createWorktreeGitRefInvalidationService(
+  options: CreateWorktreeGitRefInvalidationServiceOptions,
+): WorktreeGitRefInvalidationService {
   const debounceMs = options.debounceMs ?? defaultDebounceMs;
   const watchers = new Map<string, DirectoryWatcher>();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -45,7 +47,7 @@ export function createWorktreeGitWatchService(
         if (row.worktree.state !== "exists") {
           continue;
         }
-        for (const target of gitWatchTargetsForRow(row)) {
+        for (const target of gitRefInvalidationTargetsForRow(row)) {
           const key = watcherKey(row.id, target.path);
           nextKeys.add(key);
           if (watchers.has(key)) {
@@ -78,7 +80,10 @@ export function createWorktreeGitWatchService(
     },
   };
 
-  function watchTarget(worktreeId: string, target: GitWatchTarget): DirectoryWatcher | undefined {
+  function watchTarget(
+    worktreeId: string,
+    target: GitRefInvalidationTarget,
+  ): DirectoryWatcher | undefined {
     const directory = dirname(target.path);
     if (!existsSync(directory)) {
       return undefined;
@@ -118,24 +123,27 @@ export function createWorktreeGitWatchService(
 
     const timer = setTimeout(() => {
       timers.delete(worktreeId);
-      options.requestReconcile(`metadata:git:${worktreeId}`);
+      options.requestReconcile(`metadata:git-ref:${worktreeId}`);
     }, debounceMs);
     timers.set(worktreeId, timer);
   }
 }
 
-export function gitWatchTargetsForRow(row: WorktreeRow): GitWatchTarget[] {
-  return gitWatchTargetsForWorktree(row.path, row.branch);
+export function gitRefInvalidationTargetsForRow(row: WorktreeRow): GitRefInvalidationTarget[] {
+  return gitRefInvalidationTargetsForWorktree(row.path, row.branch);
 }
 
-export function gitWatchTargetsForWorktree(worktreePath: string, branch: string): GitWatchTarget[] {
+export function gitRefInvalidationTargetsForWorktree(
+  worktreePath: string,
+  branch: string,
+): GitRefInvalidationTarget[] {
   const dotGit = join(worktreePath, ".git");
   const gitDir = resolveGitDir(dotGit);
   if (gitDir === undefined) {
     return [];
   }
 
-  const targets: GitWatchTarget[] = [{ path: dotGit }, { path: join(gitDir, "HEAD") }];
+  const targets: GitRefInvalidationTarget[] = [{ path: dotGit }, { path: join(gitDir, "HEAD") }];
   const headRef = readHeadRef(join(gitDir, "HEAD"));
   const commonDir = resolveCommonDir(gitDir);
   const refName = headRef ?? `refs/heads/${branch}`;
@@ -189,9 +197,9 @@ function resolveCommonDir(gitDir: string): string {
   }
 }
 
-function uniqueTargets(targets: GitWatchTarget[]): GitWatchTarget[] {
+function uniqueTargets(targets: GitRefInvalidationTarget[]): GitRefInvalidationTarget[] {
   const seen = new Set<string>();
-  const unique: GitWatchTarget[] = [];
+  const unique: GitRefInvalidationTarget[] = [];
   for (const target of targets) {
     if (seen.has(target.path)) {
       continue;
