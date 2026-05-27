@@ -10,6 +10,7 @@ export type DashboardProps = {
   snapshot: WosmSnapshot;
   uiState: TuiUiState;
   quitActionLabel?: "close" | "quit";
+  columns?: number;
   children?: ReactNode;
 };
 
@@ -17,6 +18,7 @@ export function Dashboard({
   snapshot,
   uiState,
   quitActionLabel = "quit",
+  columns = 80,
   children,
 }: DashboardProps) {
   const groups = selectProjectGroups(snapshot, uiState);
@@ -25,28 +27,77 @@ export function Dashboard({
   const mode = useTuiMode();
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";
   return (
-    <Box flexDirection="column" height="100%" overflow="hidden">
-      <Box flexDirection="column" flexGrow={1} flexShrink={1} overflowY="hidden">
-        <Text bold>
-          {productLabel} {snapshot.counts.projects} projects | {snapshot.counts.worktrees} worktrees
-          | {snapshot.counts.working} working | {snapshot.counts.attention} attention
-        </Text>
-        {groups.map((group) => (
-          <ProjectGroup
-            key={group.project.id}
-            project={group.project}
-            rows={group.rows}
-            collapsed={group.collapsed}
-            slots={slots}
-          />
-        ))}
+    <DashboardLayout>
+      <DashboardHeader productLabel={productLabel} />
+      <DashboardDivider columns={columns} />
+      <ReservedIndicatorRow />
+      <DashboardBody groups={groups} slots={slots}>
         {children}
-      </Box>
-      {/* Keep the footer outside the scrollable group so dashboard rows can clip
-          while command hints stay pinned to the bottom of the terminal frame. */}
-      <Box flexShrink={0} marginTop={1}>
-        <Text color="gray">n:new bg 1-9:start/focus x:remove /:search r:refresh {quitHint}</Text>
-      </Box>
+      </DashboardBody>
+      <ReservedIndicatorRow />
+      <DashboardDivider columns={columns} />
+      <DashboardFooter quitHint={quitHint} />
+    </DashboardLayout>
+  );
+}
+
+function DashboardLayout({ children }: { children: ReactNode }) {
+  return (
+    <Box flexDirection="column" height="100%" overflow="hidden">
+      {children}
+    </Box>
+  );
+}
+
+function DashboardHeader({ productLabel }: { productLabel: string }) {
+  return (
+    <Box flexShrink={0}>
+      <Text bold>{productLabel}</Text>
+    </Box>
+  );
+}
+
+function DashboardDivider({ columns }: { columns: number }) {
+  return (
+    <Box flexShrink={0}>
+      <Text color="gray">{"─".repeat(Math.max(1, columns))}</Text>
+    </Box>
+  );
+}
+
+function ReservedIndicatorRow() {
+  return <Box flexShrink={0} height={1} />;
+}
+
+function DashboardBody({
+  groups,
+  slots,
+  children,
+}: {
+  groups: ReturnType<typeof selectProjectGroups>;
+  slots: ReturnType<typeof selectKeySlots>;
+  children: ReactNode;
+}) {
+  return (
+    <Box flexDirection="column" flexGrow={1} flexShrink={1} overflowY="hidden">
+      {groups.map((group) => (
+        <ProjectGroup
+          key={group.project.id}
+          project={group.project}
+          rows={group.rows}
+          collapsed={group.collapsed}
+          slots={slots}
+        />
+      ))}
+      {children}
+    </Box>
+  );
+}
+
+function DashboardFooter({ quitHint }: { quitHint: string }) {
+  return (
+    <Box flexShrink={0}>
+      <Text color="gray">n:new 1-9:start/focus x:remove /:search r:refresh h:help {quitHint}</Text>
     </Box>
   );
 }
