@@ -1,11 +1,15 @@
 # Release Readiness
 
-Use this as the first dogfood/release gate.
+Use GitHub `standard-ci` as the normal deterministic gate for pull requests and
+`main` pushes. Keep release smoke, e2e, and real dogfood checks as local or
+manual release gates.
 
-## Deterministic Gate
+## Standard CI Gate
+
+The `standard-ci` workflow runs:
 
 ```bash
-pnpm smoke:release
+pnpm install --frozen-lockfile
 pnpm build
 pnpm typecheck
 pnpm lint
@@ -14,11 +18,30 @@ pnpm test:contracts
 pnpm test:integration
 pnpm test:diagnostics
 pnpm test:agent:scripted
-pnpm test:e2e
+```
+
+`standard-ci` must remain deterministic and must not require Worktrunk, tmux,
+Codex login, model access, or network beyond dependency installation.
+
+For local parity with the deterministic test lane:
+
+```bash
+CI=true pnpm install --frozen-lockfile --ignore-scripts
 pnpm test:all
 ```
 
-`pnpm test:all` must remain deterministic and must not require Worktrunk, tmux, Codex login, model access, or network.
+## Manual Release Gate
+
+Run these locally or from an explicit release workflow when preparing a release
+or dogfood checkpoint:
+
+```bash
+pnpm smoke:release
+pnpm test:e2e
+```
+
+`pnpm smoke:release` and `pnpm test:e2e` use fake or scripted dependencies, but
+they are release-readiness checks rather than the default PR gate.
 
 ## Real Dogfood Gate
 
