@@ -1,6 +1,6 @@
 # PR 1 - Branch Metadata Contracts, Worktrunk Parser, and TUI Row
 
-Status: planned
+Status: completed planning record; current code and tests are authoritative.
 
 Related research: `docs/planning/branch/branch_pr_ci_metadata_research.md`
 

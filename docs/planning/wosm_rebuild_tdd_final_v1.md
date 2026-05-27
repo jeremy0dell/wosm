@@ -1,5 +1,7 @@
 # wosm Rebuild Technical Design Document - Final V1
 
+> Historical V1 baseline. This document is deprecated as mandatory agent startup context and is retained for original rationale. For ordinary work, current code/tests plus `docs/architecture.md`, `docs/development.md`, and `docs/debugging.md` supersede it.
+
 **Document status:** Final V1  
 **Date:** 2026-05-20  
 **Product:** wosm, greenfield rebuild  
