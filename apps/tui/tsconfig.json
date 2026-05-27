@@ -11,5 +11,6 @@
       "@wosm/runtime": ["../../packages/runtime/dist/index.d.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/**/__test__/**"]
 }
