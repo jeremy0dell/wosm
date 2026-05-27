@@ -1,5 +1,10 @@
 import type { WosmConfig } from "@wosm/config";
-import type { BuildHarnessLaunchRequest, HarnessLaunchPlan } from "@wosm/contracts";
+import type {
+  BuildHarnessLaunchRequest,
+  HarnessLaunchPlan,
+  HarnessProvider,
+} from "@wosm/contracts";
+import { PiHarnessProvider } from "@wosm/pi";
 import {
   createFakeHarnessRun,
   createFakeWorktree,
@@ -126,6 +131,71 @@ describe("session command vertical slice", () => {
       worktreeId: "wt_web_feature",
       sessionId: "ses_web_feature",
       state: "open",
+    });
+    fixture.sqlite.close();
+  });
+
+  it("routes Pi session.create through observer command launch wiring", async () => {
+    const terminal = new FakeTerminalProvider({ now });
+    const fixture = createFixture({
+      terminal,
+      harness: new PiHarnessProvider({
+        command: "pi-test",
+        extensionPath: "/tmp/wosm/piExtension.js",
+        configPath: "/tmp/wosm/config.toml",
+        now: () => new Date(now),
+      }),
+      sessionIds: ["ses_web_feature"],
+    });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "feature",
+        harness: {
+          provider: "pi",
+          mode: "interactive",
+        },
+        terminal: {
+          provider: "fake-terminal",
+          layout: "agent-build-shell",
+          focus: false,
+        },
+        initialPrompt: "Review the task.",
+      },
+    });
+    await fixture.queue.drain();
+
+    const launch = terminal.snapshot().launches[0];
+    expect(launch?.launchPlan).toMatchObject({
+      provider: "pi",
+      command: "pi-test",
+      args: ["--extension", "/tmp/wosm/piExtension.js", "Review the task."],
+      cwd: "/tmp/wosm/web/feature",
+      mode: "interactive",
+      env: {
+        WOSM_PROJECT_ID: "web",
+        WOSM_WORKTREE_ID: "wt_web_feature",
+        WOSM_WORKTREE_PATH: "/tmp/wosm/web/feature",
+        WOSM_HARNESS_PROVIDER: "pi",
+        WOSM_SESSION_ID: "ses_web_feature",
+        WOSM_TERMINAL_PROVIDER: "fake-terminal",
+        WOSM_TERMINAL_TARGET_ID: "term_fake",
+        WOSM_CONFIG_PATH: "/tmp/wosm/config.toml",
+      },
+      providerData: {
+        interactive: true,
+        extensionPath: "/tmp/wosm/piExtension.js",
+        initialPromptProvided: true,
+        configPathProvided: true,
+        terminalProvider: "fake-terminal",
+        terminalTargetId: "term_fake",
+      },
+    });
+    expect(JSON.stringify(launch?.launchPlan.providerData)).not.toContain("Review the task.");
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
     });
     fixture.sqlite.close();
   });
@@ -693,7 +763,7 @@ function createFixture(
   options: {
     worktree?: FakeWorktreeProvider;
     terminal?: FakeTerminalProvider;
-    harness?: FakeHarnessProvider;
+    harness?: HarnessProvider;
     sessionIds?: string[];
   } = {},
 ) {

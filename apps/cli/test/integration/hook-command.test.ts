@@ -162,6 +162,82 @@ describe("CLI hook command", () => {
     expect(JSON.stringify(observedReport)).not.toContain("pnpm test");
   });
 
+  it("routes legacy wosm hook Pi events through the shared provider-event adapters", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let observedReport: HarnessEventReport | undefined;
+
+    const result = await runCli(["--config", configPath, "hook", "pi", "tool_execution_start"], {
+      stdin: JSON.stringify({
+        event_type: "tool_execution_start",
+        cwd: "/tmp/wosm/web/task",
+        tool_call_id: "toolu_1",
+        tool_name: "bash",
+        args: {
+          command: "echo raw command body",
+        },
+      }),
+      env: {
+        WOSM_PROJECT_ID: "web",
+        WOSM_WORKTREE_ID: "wt_web_task",
+        WOSM_WORKTREE_PATH: "/tmp/wosm/web/task",
+        WOSM_SESSION_ID: "ses_web_task",
+        WOSM_TERMINAL_PROVIDER: "tmux",
+        WOSM_TERMINAL_TARGET_ID: "tmux:wosm:@1:%2",
+      },
+      hookDeps: {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => {
+              observedReport = report;
+              return {
+                schemaVersion: "0.3.0",
+                reportId: report.reportId,
+                provider: report.provider,
+                eventType: report.eventType,
+                accepted: true,
+                status: "accepted",
+                receivedAt: report.observedAt,
+                projected: false,
+                scheduledReconcile: true,
+              };
+            },
+          }) as never,
+      },
+    });
+
+    expect(result.code).toBe(0);
+    expect(observedReport).toMatchObject({
+      provider: "pi",
+      eventType: "tool_execution_start",
+      status: {
+        source: "harness_event",
+      },
+      correlation: {
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        terminalTargetId: "tmux:wosm:@1:%2",
+        harnessRunId: "pi:tmux:wosm:@1:%2",
+      },
+      diagnostics: {
+        compacted: true,
+        omittedFieldNames: expect.arrayContaining(["args"]),
+      },
+      providerData: {
+        toolCallId: "toolu_1",
+        toolName: "bash",
+      },
+    });
+    expect(observedReport?.providerData).not.toMatchObject({
+      wosmProjectId: "web",
+      wosmWorktreeId: "wt_web_task",
+      wosmSessionId: "ses_web_task",
+    });
+    expect(JSON.stringify(observedReport)).not.toContain("raw command body");
+  });
+
   it("exits 0 with an ignored receipt for Codex hooks without ownership env", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);

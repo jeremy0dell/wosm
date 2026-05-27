@@ -19,7 +19,11 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
-import { type HookObserverStartupDeps, startHookObserver } from "./observerStartup.js";
+import {
+  deliverProviderHookWithSpooling,
+  type ProviderDeliveryAttempt,
+  type ProviderDeliveryPolicyDeps,
+} from "./deliveryPolicy.js";
 import { type ObserverPaths, resolveObserverPaths } from "./paths.js";
 import {
   compactProviderHookEventPayload,
@@ -48,7 +52,7 @@ export type HookReceiverInput = {
   rateLimitMs?: number | undefined;
 };
 
-export type HookReceiverDeps = HookObserverStartupDeps & {
+export type HookReceiverDeps = ProviderDeliveryPolicyDeps & {
   clientFactory?: (socketPath: string) => ReturnType<typeof createObserverClient>;
   clock?: RuntimeClock;
   writeSpool?: typeof writeHookSpoolRecord;
@@ -57,7 +61,6 @@ export type HookReceiverDeps = HookObserverStartupDeps & {
   logger?: JsonlLogger;
 };
 
-const lastStartByStateDir = new Map<string, number>();
 const defaultHookId = () => `hook_${Date.now()}_${randomUUID()}`;
 
 export async function receiveHookEvent(
@@ -121,60 +124,22 @@ export async function receiveHookEvent(
     );
   }
 
-  const onlineDelivery = await deliverHook(paths, compacted.event, deliveryTimeoutMs, deps);
-  if (onlineDelivery.ok && onlineDelivery.value.status === "ingested") {
-    return logAndReturn(
-      paths,
-      compacted.event,
-      onlineDelivery.value,
-      compacted.payloadSummary,
-      deps,
-    );
-  }
-
-  const deliveryError = onlineDelivery.ok ? onlineDelivery.value.error : onlineDelivery.error;
-
-  if (autoStart) {
-    const startResult = await maybeStartObserver({
-      paths,
-      config: input.config,
-      configPath: input.configPath,
-      observerEntryPath: input.observerEntryPath,
-      timeoutMs: startupTimeoutMs,
-      rateLimitMs,
-      deps,
-    });
-    if (startResult.ok) {
-      const retryDelivery = await deliverHook(paths, compacted.event, deliveryTimeoutMs, deps);
-      if (retryDelivery.ok && retryDelivery.value.status === "ingested") {
-        return logAndReturn(
-          paths,
-          compacted.event,
-          retryDelivery.value,
-          compacted.payloadSummary,
-          deps,
-        );
-      }
-      const retryError = retryDelivery.ok ? retryDelivery.value.error : retryDelivery.error;
-      const spooled = await spool(paths, compacted.event, retryError, deps);
-      return logAndReturn(paths, compacted.event, spooled, compacted.payloadSummary, deps);
-    }
-    return logAndReturn(
-      paths,
-      compacted.event,
-      await spool(paths, compacted.event, startResult.error, deps),
-      compacted.payloadSummary,
-      deps,
-    );
-  }
-
-  return logAndReturn(
+  return deliverProviderHookWithSpooling({
     paths,
-    compacted.event,
-    await spool(paths, compacted.event, deliveryError, deps),
-    compacted.payloadSummary,
+    event: compacted.event,
+    payloadSummary: compacted.payloadSummary,
+    autoStart,
+    startupTimeoutMs,
+    rateLimitMs,
+    config: input.config,
+    configPath: input.configPath,
+    observerEntryPath: input.observerEntryPath,
     deps,
-  );
+    deliver: () => attemptHookDelivery(paths, compacted.event, deliveryTimeoutMs, deps),
+    spoolReceipt: (error) => spool(paths, compacted.event, error, deps),
+    recordReceipt: ({ paths, event, payloadSummary, receipt }) =>
+      logAndReturn(paths, event, receipt, payloadSummary, deps),
+  });
 }
 
 async function receiveHarnessEventReport(
@@ -193,83 +158,66 @@ async function receiveHarnessEventReport(
   },
   deps: HookReceiverDeps,
 ): Promise<HookReceipt> {
-  const onlineDelivery = await deliverHarnessEventReport(
-    input.paths,
-    input.report,
-    input.deliveryTimeoutMs,
+  return deliverProviderHookWithSpooling({
+    paths: input.paths,
+    event: input.event,
+    payloadSummary: input.payloadSummary,
+    autoStart: input.autoStart,
+    startupTimeoutMs: input.startupTimeoutMs,
+    rateLimitMs: input.rateLimitMs,
+    config: input.config,
+    configPath: input.configPath,
+    observerEntryPath: input.observerEntryPath,
     deps,
-  );
-  if (onlineDelivery.ok && onlineDelivery.value.status === "accepted") {
-    return logAndReturn(
-      input.paths,
-      input.event,
-      hookReceiptFromReportReceipt(onlineDelivery.value),
-      input.payloadSummary,
-      deps,
-    );
+    deliver: () =>
+      attemptHarnessEventReportDelivery(input.paths, input.report, input.deliveryTimeoutMs, deps),
+    spoolReceipt: async (error) =>
+      hookReceiptFromReportReceipt(
+        await spoolHarnessEventReport(input.paths, input.report, error, deps),
+      ),
+    recordReceipt: ({ paths, event, payloadSummary, receipt }) =>
+      logAndReturn(paths, event, receipt, payloadSummary, deps),
+  });
+}
+
+async function attemptHookDelivery(
+  paths: ObserverPaths,
+  event: ProviderHookEvent,
+  timeoutMs: number,
+  deps: HookReceiverDeps,
+): Promise<ProviderDeliveryAttempt> {
+  const delivery = await deliverHook(paths, event, timeoutMs, deps);
+  if (delivery.ok && delivery.value.status === "ingested") {
+    return { receipt: delivery.value };
   }
-
-  const deliveryError = onlineDelivery.ok ? onlineDelivery.value.error : onlineDelivery.error;
-
-  if (input.autoStart) {
-    const startResult = await maybeStartObserver({
-      paths: input.paths,
-      config: input.config,
-      configPath: input.configPath,
-      observerEntryPath: input.observerEntryPath,
-      timeoutMs: input.startupTimeoutMs,
-      rateLimitMs: input.rateLimitMs,
-      deps,
-    });
-    if (startResult.ok) {
-      const retryDelivery = await deliverHarnessEventReport(
-        input.paths,
-        input.report,
-        input.deliveryTimeoutMs,
-        deps,
-      );
-      if (retryDelivery.ok && retryDelivery.value.status === "accepted") {
-        return logAndReturn(
-          input.paths,
-          input.event,
-          hookReceiptFromReportReceipt(retryDelivery.value),
-          input.payloadSummary,
-          deps,
-        );
-      }
-      const retryError = retryDelivery.ok ? retryDelivery.value.error : retryDelivery.error;
-      const spooled = await spoolHarnessEventReport(input.paths, input.report, retryError, deps);
-      return logAndReturn(
-        input.paths,
-        input.event,
-        hookReceiptFromReportReceipt(spooled),
-        input.payloadSummary,
-        deps,
-      );
+  if (delivery.ok) {
+    const attempt: ProviderDeliveryAttempt = {};
+    if (delivery.value.error !== undefined) {
+      attempt.error = delivery.value.error;
     }
-    const spooled = await spoolHarnessEventReport(
-      input.paths,
-      input.report,
-      startResult.error,
-      deps,
-    );
-    return logAndReturn(
-      input.paths,
-      input.event,
-      hookReceiptFromReportReceipt(spooled),
-      input.payloadSummary,
-      deps,
-    );
+    return attempt;
   }
+  return { error: delivery.error };
+}
 
-  const spooled = await spoolHarnessEventReport(input.paths, input.report, deliveryError, deps);
-  return logAndReturn(
-    input.paths,
-    input.event,
-    hookReceiptFromReportReceipt(spooled),
-    input.payloadSummary,
-    deps,
-  );
+async function attemptHarnessEventReportDelivery(
+  paths: ObserverPaths,
+  report: HarnessEventReport,
+  timeoutMs: number,
+  deps: HookReceiverDeps,
+): Promise<ProviderDeliveryAttempt> {
+  const delivery = await deliverHarnessEventReport(paths, report, timeoutMs, deps);
+  if (delivery.ok && delivery.value.status === "accepted") {
+    return { receipt: hookReceiptFromReportReceipt(delivery.value) };
+  }
+  if (delivery.ok) {
+    const attempt: ProviderDeliveryAttempt = {};
+    if (delivery.value.error !== undefined) {
+      attempt.error = delivery.value.error;
+    }
+    return attempt;
+  }
+  return { error: delivery.error };
 }
 
 async function deliverHook(
@@ -356,54 +304,6 @@ async function deliverHarnessEventReport(
       return receipt;
     },
   );
-}
-
-async function maybeStartObserver(input: {
-  paths: ObserverPaths;
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  observerEntryPath?: string | undefined;
-  timeoutMs: number;
-  rateLimitMs: number;
-  deps: HookReceiverDeps;
-}) {
-  const now = (input.deps.clock ?? systemClock).now().getTime();
-  const lastStart = lastStartByStateDir.get(input.paths.stateDir) ?? 0;
-  if (now - lastStart < input.rateLimitMs) {
-    return {
-      ok: false as const,
-      error: safeErrorFromUnknown(undefined, {
-        tag: "HookAutoStartRateLimitError",
-        code: "HOOK_AUTOSTART_RATE_LIMITED",
-        message: "Observer auto-start from hooks is rate-limited.",
-      }),
-    };
-  }
-  lastStartByStateDir.set(input.paths.stateDir, now);
-
-  const started = await startHookObserver(
-    {
-      config: input.config,
-      configPath: input.configPath,
-      paths: input.paths,
-      timeoutMs: input.timeoutMs,
-      observerEntryPath: input.observerEntryPath,
-    },
-    input.deps,
-  );
-  if (started.status === "running") {
-    return { ok: true as const };
-  }
-  return {
-    ok: false as const,
-    error:
-      started.error ??
-      safeErrorFromUnknown(undefined, {
-        tag: "ObserverStartupError",
-        code: "OBSERVER_START_FAILED",
-        message: "Observer could not be started for hook delivery.",
-      }),
-  };
 }
 
 async function spool(

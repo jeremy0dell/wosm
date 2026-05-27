@@ -17,10 +17,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@wosm/codex": "workspace:*",
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
     "@wosm/hook-bridge": "workspace:*",
-    "@wosm/worktrunk": "workspace:*"
+    "@wosm/provider-hooks": "workspace:*"
   }
 }

@@ -78,7 +78,7 @@ function run(): HarnessRunObservation {
     cwd: "/tmp/wosm/web/task",
     state: "unknown",
     confidence: "low",
-    reason: "tmux terminal target is bound to Codex; no reliable lifecycle signal yet.",
+    reason: "terminal target is bound to Codex; no reliable lifecycle signal yet.",
     observedAt: now,
     providerData: {
       terminalTargetId: "tmux:wosm:@1:%2",

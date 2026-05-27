@@ -31,6 +31,10 @@ export const wosmAliases = {
   "@wosm/observability": fileURLToPath(
     new URL("../../packages/observability/src/index.ts", import.meta.url),
   ),
+  "@wosm/pi": fileURLToPath(new URL("../../integrations/harness/pi/src/index.ts", import.meta.url)),
+  "@wosm/provider-events": fileURLToPath(
+    new URL("../../packages/provider-events/src/index.ts", import.meta.url),
+  ),
   "@wosm/protocol": fileURLToPath(new URL("../../packages/protocol/src/index.ts", import.meta.url)),
   "@wosm/runtime": fileURLToPath(new URL("../../packages/runtime/src/index.ts", import.meta.url)),
   "@wosm/scripted-harness": fileURLToPath(
