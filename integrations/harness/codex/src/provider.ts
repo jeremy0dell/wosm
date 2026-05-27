@@ -30,7 +30,7 @@ import { normalizeCodexRawEvent } from "./events.js";
 import { doctorCodexHooks } from "./hooks.js";
 import { buildCodexLaunchPlan, type CodexLaunchOptions } from "./launch.js";
 
-const CODEX_WOSM_PROFILE_V2 = "wosm";
+const CODEX_WOSM_PROFILE = "wosm";
 
 export type CodexHarnessProviderOptions = {
   command?: string;
@@ -173,7 +173,7 @@ export class CodexHarnessProvider implements HarnessProvider {
       options.defaultPermissionMode = this.#options.permissionMode;
     }
     if (this.#options.installHooks === true) {
-      options.defaultProfileV2 = CODEX_WOSM_PROFILE_V2;
+      options.defaultHookProfile = CODEX_WOSM_PROFILE;
     }
     if (this.#options.approvalPolicy !== undefined) {
       options.defaultApprovalPolicy = this.#options.approvalPolicy;

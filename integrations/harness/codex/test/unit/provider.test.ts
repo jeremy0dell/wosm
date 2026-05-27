@@ -89,8 +89,6 @@ describe("CodexHarnessProvider", () => {
         "--cd",
         "/tmp/wosm/web/task",
         "--profile",
-        "team-default",
-        "--profile-v2",
         "wosm",
         "--sandbox",
         "workspace-write",
