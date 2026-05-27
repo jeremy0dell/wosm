@@ -7,7 +7,7 @@ import type {
 export type CodexLaunchOptions = {
   command?: string;
   defaultProfile?: string;
-  defaultProfileV2?: string;
+  defaultHookProfile?: string;
   defaultPermissionMode?: HarnessPermissionMode;
   defaultApprovalPolicy?: string;
   defaultSandboxMode?: string;
@@ -21,8 +21,9 @@ export function buildCodexLaunchPlan(
   options: CodexLaunchOptions = {},
 ): HarnessLaunchPlan {
   const mode = request.mode ?? "interactive";
-  const profile = request.profile ?? options.defaultProfile;
-  const profileV2 = options.defaultProfileV2;
+  const configuredProfile = request.profile ?? options.defaultProfile;
+  const hookProfile = options.defaultHookProfile;
+  const profile = hookProfile ?? configuredProfile;
   const permissionMode = request.permissionMode ?? options.defaultPermissionMode;
   const approvalPolicy = request.approvalPolicy ?? options.defaultApprovalPolicy;
   const sandboxMode = request.sandboxMode ?? options.defaultSandboxMode;
@@ -31,7 +32,6 @@ export function buildCodexLaunchPlan(
   const args = mode === "exec" ? execArgs(request) : interactiveArgs(request);
   appendCodexOptions(args, {
     profile,
-    profileV2,
     permissionMode: providerPermissionMode,
     approvalPolicy: yolo || mode === "exec" ? undefined : approvalPolicy,
     sandboxMode: yolo ? undefined : sandboxMode,
@@ -42,18 +42,40 @@ export function buildCodexLaunchPlan(
   }
 
   const env = codexLaunchEnv(request);
-  const providerData = codexProviderData({
+  const providerDataInput: CodexProviderDataInput = {
     mode,
-    profile,
-    profileV2,
-    permissionMode: providerPermissionMode,
-    approvalPolicy: yolo ? undefined : approvalPolicy,
-    sandboxMode: yolo ? undefined : sandboxMode,
-    noAltScreen: mode === "interactive" ? options.noAltScreen : undefined,
     initialPromptProvided: request.initialPrompt !== undefined,
-    terminalProvider: request.terminalTarget?.provider,
-    terminalTargetId: request.terminalTarget?.id,
-  });
+  };
+  if (profile !== undefined) {
+    providerDataInput.profile = profile;
+  }
+  if (hookProfile !== undefined) {
+    providerDataInput.hookProfile = hookProfile;
+  }
+  if (
+    hookProfile !== undefined &&
+    configuredProfile !== undefined &&
+    configuredProfile !== hookProfile
+  ) {
+    providerDataInput.configuredProfile = configuredProfile;
+  }
+  if (providerPermissionMode !== undefined) {
+    providerDataInput.permissionMode = providerPermissionMode;
+  }
+  if (!yolo && approvalPolicy !== undefined) {
+    providerDataInput.approvalPolicy = approvalPolicy;
+  }
+  if (!yolo && sandboxMode !== undefined) {
+    providerDataInput.sandboxMode = sandboxMode;
+  }
+  if (mode === "interactive" && options.noAltScreen !== undefined) {
+    providerDataInput.noAltScreen = options.noAltScreen;
+  }
+  if (request.terminalTarget !== undefined) {
+    providerDataInput.terminalProvider = request.terminalTarget.provider;
+    providerDataInput.terminalTargetId = request.terminalTarget.id;
+  }
+  const providerData = codexProviderData(providerDataInput);
 
   return {
     provider: "codex",
@@ -90,7 +112,6 @@ function appendCodexOptions(
   args: string[],
   options: {
     profile?: string | undefined;
-    profileV2?: string | undefined;
     permissionMode?: HarnessPermissionMode | undefined;
     approvalPolicy?: string | undefined;
     sandboxMode?: string | undefined;
@@ -99,9 +120,6 @@ function appendCodexOptions(
 ): void {
   if (options.profile !== undefined) {
     args.push("--profile", options.profile);
-  }
-  if (options.profileV2 !== undefined) {
-    args.push("--profile-v2", options.profileV2);
   }
   if (options.permissionMode === "yolo") {
     args.push(CODEX_YOLO_FLAG);
@@ -134,10 +152,11 @@ function codexLaunchEnv(request: BuildHarnessLaunchRequest): Record<string, stri
   return env;
 }
 
-function codexProviderData(input: {
+type CodexProviderDataInput = {
   mode: "interactive" | "exec";
   profile?: string | undefined;
-  profileV2?: string | undefined;
+  hookProfile?: string | undefined;
+  configuredProfile?: string | undefined;
   permissionMode?: HarnessPermissionMode | undefined;
   approvalPolicy?: string | undefined;
   sandboxMode?: string | undefined;
@@ -145,7 +164,9 @@ function codexProviderData(input: {
   initialPromptProvided: boolean;
   terminalProvider?: string | undefined;
   terminalTargetId?: string | undefined;
-}): Record<string, unknown> {
+};
+
+function codexProviderData(input: CodexProviderDataInput): Record<string, unknown> {
   const providerData: Record<string, unknown> = {
     interactive: input.mode === "interactive",
   };
@@ -155,8 +176,11 @@ function codexProviderData(input: {
   if (input.profile !== undefined) {
     providerData.profile = input.profile;
   }
-  if (input.profileV2 !== undefined) {
-    providerData.profileV2 = input.profileV2;
+  if (input.hookProfile !== undefined) {
+    providerData.hookProfile = input.hookProfile;
+  }
+  if (input.configuredProfile !== undefined) {
+    providerData.configuredProfile = input.configuredProfile;
   }
   if (input.permissionMode !== undefined) {
     providerData.permissionMode = input.permissionMode;

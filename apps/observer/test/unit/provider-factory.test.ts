@@ -157,8 +157,6 @@ describe("provider factory", () => {
         "--cd",
         "/tmp/wosm/web/task",
         "--profile",
-        "team-profile",
-        "--profile-v2",
         "wosm",
         "--sandbox",
         "workspace-write",

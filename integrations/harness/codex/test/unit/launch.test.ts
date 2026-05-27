@@ -142,24 +142,23 @@ describe("buildCodexLaunchPlan", () => {
     expect(plan.args).not.toContain("--ask-for-approval");
   });
 
-  it("adds the wosm profile-v2 layer without replacing the configured profile", () => {
+  it("uses the wosm hook profile with the current Codex profile flag", () => {
     const plan = buildCodexLaunchPlan(request(), {
       defaultProfile: "team-default",
-      defaultProfileV2: "wosm",
+      defaultHookProfile: "wosm",
     });
 
     expect(plan.args).toEqual([
       "--cd",
       "/tmp/wosm/web/task",
       "--profile",
-      "team-default",
-      "--profile-v2",
       "wosm",
       "Review the task.",
     ]);
     expect(plan.providerData).toMatchObject({
-      profile: "team-default",
-      profileV2: "wosm",
+      profile: "wosm",
+      hookProfile: "wosm",
+      configuredProfile: "team-default",
     });
   });
 
