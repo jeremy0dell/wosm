@@ -5,7 +5,10 @@ import { buildCleanupCommand, buildCreateSessionCommand, cleanupForceRequired } 
 import { CommandPrompt } from "./components/CommandPrompt.js";
 import { Dashboard } from "./components/Dashboard.js";
 import { ToastStack } from "./components/ToastStack.js";
-import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
+import {
+  type UseObserverDashboardOptions,
+  useObserverDashboard,
+} from "./hooks/useObserverDashboard.js";
 import { intentForDashboardKey } from "./keymap.js";
 import { selectKeySlots, selectNewSessionAvailability } from "./selectors.js";
 import { safeErrorToToast, toSafeError } from "./services/errors.js";
@@ -31,6 +34,7 @@ export type AppProps = {
   onFocusSuccess?: () => Promise<void>;
   onDismiss?: () => Promise<void>;
   persistentPopup?: boolean;
+  autoRefreshMs?: number | false;
   onExit?: (code: number) => void;
 };
 
@@ -44,16 +48,19 @@ export function App({
   onFocusSuccess,
   onDismiss,
   persistentPopup = false,
+  autoRefreshMs,
   onExit,
 }: AppProps) {
   const promptValueRef = useRef("");
   const promptModeRef = useRef<PromptMode | undefined>(undefined);
   const { columns, rows } = useWindowSize();
-  const dashboard = useObserverDashboard({
+  const dashboardOptions: UseObserverDashboardOptions = {
     service,
-    ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
     initialUiState: initialUiState ?? createInitialUiState(),
-  });
+  };
+  if (initialSnapshot !== undefined) dashboardOptions.initialSnapshot = initialSnapshot;
+  if (autoRefreshMs !== undefined) dashboardOptions.autoRefreshMs = autoRefreshMs;
+  const dashboard = useObserverDashboard(dashboardOptions);
 
   useInput((input, key) => {
     if (key.ctrl && input === "c") {

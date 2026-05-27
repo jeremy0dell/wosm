@@ -6,11 +6,13 @@ import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { createInitialUiState, type TuiUiState } from "../uiState.js";
 
 const EVENT_STREAM_RECONNECT_DELAY_MS = 100;
+const DEFAULT_AUTO_REFRESH_MS = 15_000;
 
 export type UseObserverDashboardOptions = {
   service: TuiObserverService;
   initialSnapshot?: WosmSnapshot;
   initialUiState?: TuiUiState;
+  autoRefreshMs?: number | false;
 };
 
 export type ObserverDashboardState = {
@@ -134,6 +136,45 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
       void iterator?.return?.();
     };
   }, [options.service]);
+
+  useEffect(() => {
+    const intervalMs =
+      options.autoRefreshMs === undefined ? DEFAULT_AUTO_REFRESH_MS : options.autoRefreshMs;
+    if (intervalMs === false || intervalMs <= 0) {
+      return;
+    }
+
+    let active = true;
+    let inFlight = false;
+    let reportedRefreshError = false;
+
+    const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const loaded = await options.service.reconcile("tui-auto-refresh");
+        if (!active) return;
+        reportedRefreshError = false;
+        setSnapshot(loaded);
+        setLoading(false);
+      } catch (error: unknown) {
+        if (!active || reportedRefreshError) return;
+        reportedRefreshError = true;
+        setToasts((current) => [...current, safeErrorToToast(toSafeError(error))]);
+        setLoading(false);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const timer = setInterval(() => {
+      void refresh();
+    }, intervalMs);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [options.autoRefreshMs, options.service]);
 
   const dispatchCommand = useCallback(
     async (command: WosmCommand) => {
