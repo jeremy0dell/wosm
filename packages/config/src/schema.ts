@@ -167,6 +167,24 @@ export const HarnessProviderConfigSchema = z
 
 export type HarnessProviderConfig = z.infer<typeof HarnessProviderConfigSchema>;
 
+export const GithubRepositoryConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    command: nonEmptyStringSchema.optional(),
+    timeoutMs: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export type GithubRepositoryConfig = z.infer<typeof GithubRepositoryConfigSchema>;
+
+export const RepositoryProvidersConfigSchema = z
+  .object({
+    github: GithubRepositoryConfigSchema.optional(),
+  })
+  .strict();
+
+export type RepositoryProvidersConfig = z.infer<typeof RepositoryProvidersConfigSchema>;
+
 export const ObservabilityRetentionComponentsSchema = z
   .object({
     observerMaxMb: z.number().int().positive().optional(),
@@ -255,6 +273,7 @@ export const ParsedWosmConfigSchema = z
     worktree: WorktreeProvidersConfigSchema.optional(),
     terminal: TerminalProvidersConfigSchema.optional(),
     harness: z.record(providerIdSchema, HarnessProviderConfigSchema).optional(),
+    repository: RepositoryProvidersConfigSchema.optional(),
     observability: ObservabilityConfigSchema.optional(),
     projects: z.array(ProjectConfigSchema),
   })

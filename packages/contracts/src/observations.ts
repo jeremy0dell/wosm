@@ -75,7 +75,15 @@ export const WorktreeChangeSummarySchema = z
   })
   .strict();
 
-export const WorktreeChecksStateSchema = z.enum(["pass", "fail", "running", "none", "unknown"]);
+export const WorktreeChecksStateSchema = z.enum([
+  "pass",
+  "fail",
+  "running",
+  "none",
+  "unknown",
+  "skipped",
+  "cancelled",
+]);
 
 export const WorktreeChecksSummarySchema = z
   .object({
@@ -86,6 +94,7 @@ export const WorktreeChecksSummarySchema = z
     failed: z.number().int().nonnegative().optional(),
     pending: z.number().int().nonnegative().optional(),
     skipped: z.number().int().nonnegative().optional(),
+    cancelled: z.number().int().nonnegative().optional(),
     reason: nonEmptyStringSchema.optional(),
     source: nonEmptyStringSchema,
     checkedAt: TimestampSchema,

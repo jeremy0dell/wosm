@@ -35,6 +35,7 @@ export type ExternalCommandInput = {
   timeoutMs?: number;
   maxOutputChars?: number;
   signal?: AbortSignal;
+  allowedExitCodes?: number[];
 };
 
 export async function runExternalCommand(
@@ -51,6 +52,10 @@ export async function runExternalCommand(
           ...(linked.signal === undefined ? {} : { signal: linked.signal }),
         });
       } catch (error) {
+        const allowedResult = allowedExitCodeResultFromUnknown(error, input);
+        if (allowedResult !== undefined) {
+          return allowedResult;
+        }
         throw externalCommandErrorFromUnknown(error, input);
       }
     } finally {
@@ -221,6 +226,31 @@ function outputSnippet(
   }
   const redacted = redactCommandOutput(value).slice(0, outputSnippetMaxChars);
   return redacted.length === 0 ? undefined : redacted;
+}
+
+function allowedExitCodeResultFromUnknown(
+  error: unknown,
+  input: Pick<ExternalCommandInput, "allowedExitCodes" | "args" | "command">,
+): ExternalCommandResult | undefined {
+  if (isAbortLikeError(error)) {
+    return undefined;
+  }
+  if (!isRecord(error)) {
+    return undefined;
+  }
+
+  const exitCode = numericField(error, "exitCode") ?? numericField(error, "code");
+  if (exitCode === undefined || input.allowedExitCodes?.includes(exitCode) !== true) {
+    return undefined;
+  }
+
+  return {
+    command: input.command,
+    args: input.args ?? [],
+    stdout: stringField(error, "stdout") ?? "",
+    stderr: stringField(error, "stderr") ?? "",
+    exitCode,
+  };
 }
 
 function copySafeErrorContext(target: ExternalCommandError, safeError: RuntimeSafeError): void {

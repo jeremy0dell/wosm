@@ -8,6 +8,7 @@
       "@wosm/config": ["../../packages/config/dist/index.d.ts"],
       "@wosm/contracts": ["../../packages/contracts/dist/index.d.ts"],
       "@wosm/codex": ["../../integrations/harness/codex/dist/index.d.ts"],
+      "@wosm/github-repository": ["../../integrations/repository/github/dist/index.d.ts"],
       "@wosm/opencode": ["../../integrations/harness/opencode/dist/index.d.ts"],
       "@wosm/observability": ["../../packages/observability/dist/index.d.ts"],
       "@wosm/protocol": ["../../packages/protocol/dist/index.d.ts"],

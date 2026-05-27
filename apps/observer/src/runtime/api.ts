@@ -89,17 +89,24 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     };
   }
   const reconcileScheduler = createReconcileScheduler(schedulerOptions);
-  const metadataRefresh =
-    options.metadataRefresh ??
-    (options.config === undefined
-      ? undefined
-      : createWorktreeMetadataRefreshService({
-          projects: providerProjectsFromConfig(options.config),
-          persistence: options.persistence,
-          requestReconcile: reconcileScheduler.request,
-          clock,
-          ...(options.logger === undefined ? {} : { logger: options.logger }),
-        }));
+  let defaultMetadataRefresh: WorktreeMetadataRefreshService | undefined;
+  if (options.metadataRefresh === undefined && options.config !== undefined) {
+    const metadataRefreshOptions: Parameters<typeof createWorktreeMetadataRefreshService>[0] = {
+      projects: providerProjectsFromConfig(options.config),
+      persistence: options.persistence,
+      requestReconcile: reconcileScheduler.request,
+      clock,
+      watchGitRefs: true,
+    };
+    if (options.logger !== undefined) {
+      metadataRefreshOptions.logger = options.logger;
+    }
+    if (options.providers !== undefined) {
+      metadataRefreshOptions.repositoryProviders = options.providers.repositories;
+    }
+    defaultMetadataRefresh = createWorktreeMetadataRefreshService(metadataRefreshOptions);
+  }
+  const metadataRefresh = options.metadataRefresh ?? defaultMetadataRefresh;
   const hookIngestion =
     options.hookIngestion ??
     createHookIngestion({
@@ -152,6 +159,7 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       return health;
     },
     stop: async (): Promise<ObserverStopReceipt> => {
+      await metadataRefresh?.shutdown?.();
       await options.onStop?.();
       return {
         schemaVersion: WOSM_SCHEMA_VERSION,

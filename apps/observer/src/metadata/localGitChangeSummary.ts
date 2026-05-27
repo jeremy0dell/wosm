@@ -30,6 +30,7 @@ export type LocalGitChangeSummaryInput = {
   timeoutMs?: number;
   clock?: RuntimeClock;
   runner?: ExternalCommandRunner;
+  signal?: AbortSignal;
 };
 
 export type LocalGitChangeSummaryResult = {
@@ -48,6 +49,7 @@ type GitCommandContext = {
   cwd: string;
   timeoutMs: number;
   runner?: ExternalCommandRunner;
+  signal?: AbortSignal;
 };
 
 type ResolvedBase = {
@@ -69,8 +71,9 @@ export async function readLocalGitChangeSummary(
   const command: GitCommandContext = {
     cwd: input.worktree.path,
     timeoutMs: input.timeoutMs ?? defaultGitTimeoutMs,
-    ...(input.runner === undefined ? {} : { runner: input.runner }),
   };
+  if (input.runner !== undefined) command.runner = input.runner;
+  if (input.signal !== undefined) command.signal = input.signal;
 
   const headSha = await resolveRequiredRef(command, "HEAD", "HEAD");
   const remotes = await listRemotes(command);
@@ -363,16 +366,15 @@ async function runOptionalGit(
 }
 
 async function runGit(command: GitCommandContext, args: string[]) {
-  const result = await runExternalCommand(
-    {
-      command: "git",
-      args,
-      cwd: command.cwd,
-      timeoutMs: command.timeoutMs,
-      maxOutputChars: 64 * 1024,
-    },
-    command.runner,
-  );
+  const input: Parameters<typeof runExternalCommand>[0] = {
+    command: "git",
+    args,
+    cwd: command.cwd,
+    timeoutMs: command.timeoutMs,
+    maxOutputChars: 64 * 1024,
+  };
+  if (command.signal !== undefined) input.signal = command.signal;
+  const result = await runExternalCommand(input, command.runner);
   if (result.exitCode !== 0) {
     throw localGitMetadataError("LOCAL_GIT_COMMAND_FAILED", "Git command failed.");
   }

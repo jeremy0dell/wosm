@@ -57,7 +57,7 @@ function MetadataText({
   return color === undefined ? <Text>{text}</Text> : <Text color={color}>{text}</Text>;
 }
 
-function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
+export function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
   const segments: MetadataSegment[] = [];
   const { changeSummary, pr, checks } = row.worktree;
   if (changeSummary !== undefined) {
@@ -68,7 +68,7 @@ function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
   }
   if (pr !== undefined) {
     segments.push({
-      text: `#${pr.number}`,
+      text: pr.url === undefined ? `#${pr.number}` : osc8(pr.url, `#${pr.number}`),
       stale: pr.stale === true,
     });
   }
@@ -83,6 +83,12 @@ function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
 
 function checksStateLabel(state: NonNullable<WorktreeRowModel["worktree"]["checks"]>["state"]) {
   if (state === "running") return "run";
+  if (state === "skipped") return "skip";
+  if (state === "cancelled") return "cancel";
   if (state === "unknown") return "?";
   return state;
+}
+
+function osc8(url: string, text: string): string {
+  return `\u001B]8;;${url}\u0007${text}\u001B]8;;\u0007`;
 }

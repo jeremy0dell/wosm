@@ -6,6 +6,8 @@ import type {
   HarnessProvider,
   HarnessRunObservation,
   ProviderHealth,
+  RepositoryCapabilities,
+  RepositoryProvider,
   SafeError,
   TerminalCapabilities,
   TerminalProvider,
@@ -14,6 +16,7 @@ import type {
   WorktreeObservation,
   WorktreeProvider,
 } from "@wosm/contracts";
+import { GithubRepositoryProvider } from "@wosm/github-repository";
 import { OpenCodeHarnessProvider } from "@wosm/opencode";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
@@ -26,6 +29,7 @@ export function createProviderRegistry(config: WosmConfig): ProviderRegistry {
     worktree: createWorktreeProvider(config),
     terminal: createTerminalProvider(config),
     harnesses: createHarnessProviders(config),
+    repositories: createRepositoryProviders(config),
   });
 }
 
@@ -142,6 +146,21 @@ function createHarnessProvider(id: string, config: WosmConfig): HarnessProvider 
   }
 
   return new UnavailableHarnessProvider(id);
+}
+
+function createRepositoryProviders(config: WosmConfig): RepositoryProvider[] {
+  if (config.repository?.github?.enabled === false) {
+    return [];
+  }
+
+  const options: ConstructorParameters<typeof GithubRepositoryProvider>[0] = {};
+  if (config.repository?.github?.command !== undefined) {
+    options.command = config.repository.github.command;
+  }
+  if (config.repository?.github?.timeoutMs !== undefined) {
+    options.timeoutMs = config.repository.github.timeoutMs;
+  }
+  return [new GithubRepositoryProvider(options)];
 }
 
 function harnessProviderConfig(config: WosmConfig, id: string): HarnessProviderConfig | undefined {
@@ -394,6 +413,30 @@ class UnavailableHarnessProvider implements HarnessProvider {
   }
 
   async classifyRun(): Promise<never> {
+    throw providerUnavailableError(this.id);
+  }
+}
+
+export class UnavailableRepositoryProvider implements RepositoryProvider {
+  constructor(readonly id: string) {}
+
+  capabilities(): RepositoryCapabilities {
+    return {
+      canDiscoverPullRequests: false,
+      canReadChecks: false,
+      canUseCliAuth: false,
+    };
+  }
+
+  async health(): Promise<ProviderHealth> {
+    return unavailableHealth(this.id, "repository", this.capabilities());
+  }
+
+  async discoverPullRequest(): Promise<never> {
+    throw providerUnavailableError(this.id);
+  }
+
+  async readChecks(): Promise<never> {
     throw providerUnavailableError(this.id);
   }
 }

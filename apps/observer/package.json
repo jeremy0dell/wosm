@@ -21,6 +21,7 @@
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
     "@wosm/codex": "workspace:*",
+    "@wosm/github-repository": "workspace:*",
     "@wosm/opencode": "workspace:*",
     "@wosm/observability": "workspace:*",
     "@wosm/protocol": "workspace:*",

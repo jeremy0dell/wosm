@@ -13,6 +13,7 @@ import type {
   ProviderDoctorCheck,
   ProviderDoctorContext,
   ProviderHealth,
+  RepositoryProvider,
   SafeError,
   TerminalProvider,
   WorktreeProvider,
@@ -542,7 +543,7 @@ async function collectProviderHealth(
 }
 
 type DoctorProviderEntry = {
-  provider: WorktreeProvider | TerminalProvider | HarnessProvider;
+  provider: WorktreeProvider | TerminalProvider | HarnessProvider | RepositoryProvider;
   providerType: ProviderHealth["providerType"];
 };
 
@@ -553,6 +554,10 @@ function providerEntries(providers: ProviderRegistry): DoctorProviderEntry[] {
     ...[...providers.harnesses.values()].map((provider) => ({
       provider,
       providerType: "harness" as const,
+    })),
+    ...[...providers.repositories.values()].map((provider) => ({
+      provider,
+      providerType: "repository" as const,
     })),
   ];
 }

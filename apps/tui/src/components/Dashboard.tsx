@@ -42,6 +42,8 @@ export function Dashboard({
         ))}
         {children}
       </Box>
+      {/* Keep the footer outside the scrollable group so dashboard rows can clip
+          while command hints stay pinned to the bottom of the terminal frame. */}
       <Box flexShrink={0} marginTop={1}>
         <Text color="gray">n:new bg 1-9:start/focus x:remove /:search r:refresh {quitHint}</Text>
       </Box>
