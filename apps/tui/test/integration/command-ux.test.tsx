@@ -150,6 +150,26 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
+  it("quietly auto-refreshes the snapshot while open", async () => {
+    const staleSnapshot = createCommandSnapshot("none");
+    const refreshedSnapshot = createCommandSnapshot("idle");
+    const service = new FakeTuiObserverService(staleSnapshot);
+    const instance = render(
+      <App initialSnapshot={staleSnapshot} service={service} autoRefreshMs={25} />,
+    );
+
+    service.setSnapshot(refreshedSnapshot);
+
+    await waitFor(
+      () =>
+        service.reconcileReasons.includes("tui-auto-refresh") &&
+        instance.lastFrame()?.includes("fix-nav-mobile") === true,
+    );
+    expect(instance.lastFrame()).toContain("idle");
+    expect(instance.lastFrame()).not.toContain("observer.reconcile refreshed");
+    instance.unmount();
+  });
+
   it("reconnects the event stream and reloads a snapshot when the stream ends", async () => {
     const staleSnapshot = createCommandSnapshot("none");
     const refreshedSnapshot = createCommandSnapshot("idle");
