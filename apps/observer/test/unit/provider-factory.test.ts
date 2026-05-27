@@ -168,6 +168,30 @@ describe("provider factory", () => {
     });
   });
 
+  it("registers GitHub as an optional repository provider without eager health alerts", async () => {
+    const registry = createProviderRegistry(config);
+    const provider = registry.repositories.get("github");
+
+    await expect(provider?.health()).resolves.toMatchObject({
+      providerId: "github",
+      providerType: "repository",
+      status: "unknown",
+    });
+  });
+
+  it("allows GitHub repository enrichment to be disabled", () => {
+    const registry = createProviderRegistry({
+      ...config,
+      repository: {
+        github: {
+          enabled: false,
+        },
+      },
+    });
+
+    expect(registry.repositories.size).toBe(0);
+  });
+
   it("applies global yolo harness permission mode to Codex launches", async () => {
     const registry = createProviderRegistry({
       ...config,

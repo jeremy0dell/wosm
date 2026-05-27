@@ -186,6 +186,37 @@ ${projectToml("web", root)}
     });
   });
 
+  it("loads optional GitHub repository provider config", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[repository.github]
+enabled = true
+command = "gh-custom"
+timeout_ms = 2500
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.repository?.github).toEqual({
+      enabled: true,
+      command: "gh-custom",
+      timeoutMs: 2500,
+    });
+  });
+
   it("derives project Worktrunk roots from a global managed root", async () => {
     const tempDir = await makeTempDir();
     const webRoot = await makeProjectRoot(tempDir, "web");

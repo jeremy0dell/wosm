@@ -1,7 +1,14 @@
-import type { ProviderProjectConfig, WosmSnapshot } from "@wosm/contracts";
+import type {
+  ProviderProjectConfig,
+  RepositoryProvider,
+  WorktreeChangeSummary,
+  WorktreePullRequest,
+  WosmSnapshot,
+} from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import {
   type ExternalCommandRunner,
+  forEachConcurrent,
   type RuntimeClock,
   systemClock,
   toIsoTimestamp,
@@ -12,9 +19,14 @@ import type {
   PersistedWorktreeMetadataCurrent,
 } from "../persistence/index.js";
 import { type LocalGitWorktree, readLocalGitChangeSummary } from "./localGitChangeSummary.js";
+import {
+  type CreateRepositoryMetadataRefresherOptions,
+  createRepositoryMetadataRefresher,
+} from "./repositoryRefresh.js";
 
 export type WorktreeMetadataRefreshService = {
   refresh(snapshot: WosmSnapshot): Promise<void>;
+  shutdown?(): Promise<void>;
 };
 
 export type CreateWorktreeMetadataRefreshServiceOptions = {
@@ -24,9 +36,12 @@ export type CreateWorktreeMetadataRefreshServiceOptions = {
   clock?: RuntimeClock;
   logger?: JsonlLogger;
   runner?: ExternalCommandRunner;
+  repositoryProviders?: Iterable<RepositoryProvider> | Map<string, RepositoryProvider>;
   gitTimeoutMs?: number;
   ttlMs?: number;
   concurrency?: number;
+  repositoryConcurrency?: number;
+  repositoryNegativeBackoffMs?: number;
 };
 
 const defaultGitTimeoutMs = 200;
@@ -39,35 +54,68 @@ export function createWorktreeMetadataRefreshService(
   const clock = options.clock ?? systemClock;
   const projectsById = new Map(options.projects.map((project) => [project.id, project]));
   const concurrency = options.concurrency ?? defaultConcurrency;
+  const repositoryOptions: CreateRepositoryMetadataRefresherOptions = {
+    projectsById,
+    persistence: options.persistence,
+    requestReconcile: options.requestReconcile,
+    clock,
+  };
+  if (options.logger !== undefined) repositoryOptions.logger = options.logger;
+  if (options.runner !== undefined) repositoryOptions.runner = options.runner;
+  if (options.repositoryProviders !== undefined) {
+    repositoryOptions.repositoryProviders = options.repositoryProviders;
+  }
+  if (options.gitTimeoutMs !== undefined) repositoryOptions.gitTimeoutMs = options.gitTimeoutMs;
+  if (options.repositoryConcurrency !== undefined) {
+    repositoryOptions.repositoryConcurrency = options.repositoryConcurrency;
+  }
+  if (options.repositoryNegativeBackoffMs !== undefined) {
+    repositoryOptions.negativeBackoffMs = options.repositoryNegativeBackoffMs;
+  }
+  const repositoryRefresher = createRepositoryMetadataRefresher(repositoryOptions);
   let pendingSnapshot: WosmSnapshot | undefined;
   let running: Promise<void> | undefined;
+  let shutdownRequested = false;
+  let controller: AbortController | undefined;
 
   return {
     refresh: async (snapshot) => {
+      if (shutdownRequested) {
+        return;
+      }
+
       pendingSnapshot = snapshot;
       if (running !== undefined) {
         await running;
         return;
       }
 
-      running = runPendingRefreshes().finally(() => {
+      controller = new AbortController();
+      running = runPendingRefreshes(controller.signal).finally(() => {
         running = undefined;
+        controller = undefined;
       });
       await running;
     },
+    shutdown: async () => {
+      shutdownRequested = true;
+      pendingSnapshot = undefined;
+      controller?.abort();
+      await running?.catch(() => undefined);
+    },
   };
 
-  async function runPendingRefreshes(): Promise<void> {
-    while (pendingSnapshot !== undefined) {
+  async function runPendingRefreshes(signal: AbortSignal): Promise<void> {
+    while (pendingSnapshot !== undefined && !signal.aborted) {
       const snapshot = pendingSnapshot;
       pendingSnapshot = undefined;
-      await refreshSnapshot(snapshot);
+      await refreshSnapshot(snapshot, signal);
     }
   }
 
-  async function refreshSnapshot(snapshot: WosmSnapshot): Promise<void> {
+  async function refreshSnapshot(snapshot: WosmSnapshot, signal: AbortSignal): Promise<void> {
     const referenceTime = toIsoTimestamp(clock.now());
-    const [changeRows, pullRequestRows] = await Promise.all([
+    const [changeRows, pullRequestRows, checksRows] = await Promise.all([
       options.persistence.listWorktreeMetadataCurrent({
         kind: "change_summary",
         includeExpired: true,
@@ -75,42 +123,60 @@ export function createWorktreeMetadataRefreshService(
       }),
       options.persistence.listWorktreeMetadataCurrent({
         kind: "pull_request",
+        includeExpired: true,
+        now: referenceTime,
+      }),
+      options.persistence.listWorktreeMetadataCurrent({
+        kind: "checks",
+        includeExpired: true,
         now: referenceTime,
       }),
     ]);
-    const changeByWorktree = new Map(changeRows.map((row) => [row.worktreeId, row]));
-    const pullRequestByWorktree = new Map(
-      pullRequestRows.map((row) => [row.worktreeId, row.payload]),
-    );
 
-    await runWithConcurrency(snapshot.rows, concurrency, async (row) => {
+    const changeByWorktree = new Map(changeRows.map((row) => [row.worktreeId, row]));
+    const pullRequestByWorktree = new Map(pullRequestRows.map((row) => [row.worktreeId, row]));
+    const checksByWorktree = new Map(checksRows.map((row) => [row.worktreeId, row]));
+
+    await forEachConcurrent(snapshot.rows, { concurrency }, async (row) => {
+      if (signal.aborted) {
+        return;
+      }
       const project = projectsById.get(row.projectId);
       if (project === undefined) {
         return;
       }
-
-      const refreshInput: {
+      const localInput: {
         project: ProviderProjectConfig;
         row: WosmSnapshot["rows"][number];
+        signal: AbortSignal;
         existing?: PersistedWorktreeMetadataCurrent<"change_summary">;
-        cachedPullRequest?: WosmSnapshot["rows"][number]["worktree"]["pr"];
+        cachedPullRequest?: WorktreePullRequest;
       } = {
         project,
         row,
+        signal,
       };
       const existing = changeByWorktree.get(row.id);
-      const cachedPullRequest = pullRequestByWorktree.get(row.id);
-      if (existing !== undefined) refreshInput.existing = existing;
-      if (cachedPullRequest !== undefined) refreshInput.cachedPullRequest = cachedPullRequest;
-      await refreshRow(refreshInput);
+      const cachedPullRequest = pullRequestByWorktree.get(row.id)?.payload;
+      if (existing !== undefined) localInput.existing = existing;
+      if (cachedPullRequest !== undefined) localInput.cachedPullRequest = cachedPullRequest;
+      await refreshLocalGitRow(localInput);
+    });
+
+    await repositoryRefresher.refresh({
+      snapshot,
+      pullRequestByWorktree,
+      checksByWorktree,
+      signal,
     });
   }
 
-  async function refreshRow(input: {
+  async function refreshLocalGitRow(input: {
     project: ProviderProjectConfig;
     row: WosmSnapshot["rows"][number];
+    signal: AbortSignal;
     existing?: PersistedWorktreeMetadataCurrent<"change_summary">;
-    cachedPullRequest?: WosmSnapshot["rows"][number]["worktree"]["pr"];
+    cachedPullRequest?: WorktreePullRequest;
   }): Promise<void> {
     if (shouldBackOffFailedRefresh(input.existing)) {
       return;
@@ -128,27 +194,23 @@ export function createWorktreeMetadataRefreshService(
         worktree.pr = input.row.worktree.pr;
       }
 
-      const result = await readLocalGitChangeSummary({
+      const summaryInput: Parameters<typeof readLocalGitChangeSummary>[0] = {
         project: input.project,
         worktree,
-        ...(input.cachedPullRequest === undefined
-          ? {}
-          : { cachedPullRequest: input.cachedPullRequest }),
         timeoutMs: options.gitTimeoutMs ?? defaultGitTimeoutMs,
         clock,
-        ...(options.runner === undefined ? {} : { runner: options.runner }),
-      });
+        signal: input.signal,
+      };
+      if (input.cachedPullRequest !== undefined) {
+        summaryInput.cachedPullRequest = input.cachedPullRequest;
+      }
+      if (options.runner !== undefined) {
+        summaryInput.runner = options.runner;
+      }
+      const result = await readLocalGitChangeSummary(summaryInput);
 
       if (result === undefined) {
-        if (input.existing !== undefined) {
-          const deleted = await options.persistence.deleteWorktreeMetadataCurrent({
-            worktreeId: input.row.id,
-            kind: "change_summary",
-          });
-          if (deleted > 0) {
-            options.requestReconcile("metadata:change_summary");
-          }
-        }
+        await deleteExistingChangeSummary(input.row.id, input.existing);
         return;
       }
 
@@ -170,11 +232,29 @@ export function createWorktreeMetadataRefreshService(
       });
       options.requestReconcile("metadata:change_summary");
     } catch (error) {
-      await handleRefreshFailure(input, error);
+      if (!input.signal.aborted) {
+        await handleLocalRefreshFailure(input, error);
+      }
     }
   }
 
-  async function handleRefreshFailure(
+  async function deleteExistingChangeSummary(
+    worktreeId: string,
+    existing: PersistedWorktreeMetadataCurrent<"change_summary"> | undefined,
+  ): Promise<void> {
+    if (existing === undefined) {
+      return;
+    }
+    const deleted = await options.persistence.deleteWorktreeMetadataCurrent({
+      worktreeId,
+      kind: "change_summary",
+    });
+    if (deleted > 0) {
+      options.requestReconcile("metadata:change_summary");
+    }
+  }
+
+  async function handleLocalRefreshFailure(
     input: {
       row: WosmSnapshot["rows"][number];
       existing?: PersistedWorktreeMetadataCurrent<"change_summary">;
@@ -196,19 +276,29 @@ export function createWorktreeMetadataRefreshService(
 
     if (input.existing !== undefined) {
       const failedAt = toIsoTimestamp(clock.now());
-      await options.persistence.upsertWorktreeMetadataCurrent({
+      const stalePayload = staleChangeSummary(input.existing.payload);
+      const upsertInput: {
+        worktreeId: string;
+        kind: "change_summary";
+        payload: WorktreeChangeSummary;
+        cacheKey?: string;
+        expiresAt: string;
+        updatedAt: string;
+        stale: boolean;
+        lastError: typeof safeError;
+      } = {
         worktreeId: input.row.id,
         kind: "change_summary",
-        payload: {
-          ...input.existing.payload,
-          stale: true,
-        },
-        ...(input.existing.cacheKey === undefined ? {} : { cacheKey: input.existing.cacheKey }),
+        payload: stalePayload,
         expiresAt: addMs(failedAt, options.ttlMs ?? defaultTtlMs),
         updatedAt: failedAt,
         stale: true,
         lastError: safeError,
-      });
+      };
+      if (input.existing.cacheKey !== undefined) {
+        upsertInput.cacheKey = input.existing.cacheKey;
+      }
+      await options.persistence.upsertWorktreeMetadataCurrent(upsertInput);
       options.requestReconcile("metadata:change_summary");
       return;
     }
@@ -227,24 +317,22 @@ function shouldBackOffFailedRefresh(
   return existing?.stale === true && existing.lastError !== undefined && !existing.expired;
 }
 
-async function runWithConcurrency<T>(
-  items: readonly T[],
-  concurrency: number,
-  task: (item: T) => Promise<void>,
-): Promise<void> {
-  let index = 0;
-  const workerCount = Math.max(1, Math.min(concurrency, items.length));
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (index < items.length) {
-      const item = items[index];
-      index += 1;
-      if (item === undefined) {
-        return;
-      }
-      await task(item);
-    }
-  });
-  await Promise.all(workers);
+function staleChangeSummary(payload: WorktreeChangeSummary): WorktreeChangeSummary {
+  const stale: WorktreeChangeSummary = {
+    kind: payload.kind,
+    additions: payload.additions,
+    deletions: payload.deletions,
+    source: payload.source,
+    checkedAt: payload.checkedAt,
+    stale: true,
+  };
+  if (payload.filesChanged !== undefined) stale.filesChanged = payload.filesChanged;
+  if (payload.binaryFiles !== undefined) stale.binaryFiles = payload.binaryFiles;
+  if (payload.baseRef !== undefined) stale.baseRef = payload.baseRef;
+  if (payload.baseSha !== undefined) stale.baseSha = payload.baseSha;
+  if (payload.headRef !== undefined) stale.headRef = payload.headRef;
+  if (payload.headSha !== undefined) stale.headSha = payload.headSha;
+  return stale;
 }
 
 function addMs(timestamp: string, ms: number): string {

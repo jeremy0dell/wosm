@@ -13,6 +13,7 @@ export * from "./hooks/providerIngest.js";
 export * from "./hooks/spool.js";
 export * from "./metadata/localGitChangeSummary.js";
 export * from "./metadata/refresh.js";
+export * from "./metadata/repositoryGit.js";
 export * from "./migrations/index.js";
 export * from "./persistence/index.js";
 export * from "./providers/factory.js";
