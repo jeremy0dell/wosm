@@ -34,6 +34,10 @@ const setTimeoutAllowlist = new Map([
     "apps/cli/src/commands/tui.ts",
     "Short popup-mode startup defer lets the TUI render a cached snapshot before requesting a nonblocking reconcile.",
   ],
+  [
+    "apps/observer/src/metadata/gitRefInvalidation.ts",
+    "Short debounce coalesces noisy Git ref watch events before requesting an observer-owned metadata reconcile.",
+  ],
 ]);
 
 describe("boundary inventory guard", () => {
