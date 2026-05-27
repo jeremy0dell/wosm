@@ -71,7 +71,11 @@ These recommendations synthesize common patterns from mature TUIs such as LazyGi
 
 ## Component Hierarchy
 
-This is the target UI hierarchy implied by the mockups. Names are conceptual; implementation can reuse existing `apps/tui` components or rename them as long as the ownership and layout relationships stay clear. Cross-cutting state should be modeled as providers that wrap the app, not as controller components embedded beside the view tree.
+This is the target UI hierarchy implied by the mockups. Names are conceptual; implementation can reuse existing `apps/tui` components or rename them as long as the ownership and layout relationships stay clear.
+
+Important distinction: overlay state and overlay rendering are separate concerns. Cross-cutting state should be modeled as providers that wrap the app, but the rendered overlay layer should be a root-level visual layer, sibling to the dashboard frame, not a child of the scroll viewport or dashboard body.
+
+In this document, `Provider` means a React/Ink state provider. It does not mean a wosm integration provider such as Worktrunk, tmux, Codex, or OpenCode. To avoid that collision in implementation, prefer names such as `OverlayStateProvider`, `DashboardStateProvider`, `KeymapProvider`, and `UiOrchestrationProvider` for UI state.
 
 ```text
 App
@@ -108,69 +112,70 @@ App
                      ├─ WidgetRegistry
                      ├─ WidgetDataCache
                      ├─ WidgetRenderPolicy
-                     └─ DashboardFrame
-                        ├─ TopBar
-                        │  ├─ ProductTitle
-                        │  │  └─ "wosm" | "wosm dev"
-                        │  ├─ TopBarSpacer
-                        │  └─ WidgetStrip
-                        │     ├─ Widget(Time)
-                        │     ├─ Widget(Weather)
-                        │     ├─ Widget(Memory)
-                        │     └─ Widget(Stock)
-                        ├─ TopDivider
-                        ├─ TopScrollIndicator
-                        │  └─ HiddenRowsAbove | Blank
-                        ├─ ScrollViewport
-                        │  └─ DashboardBody
-                        │     └─ ProjectList
-                        │        └─ ProjectGroup[]
-                        │           ├─ ProjectHeader
-                        │           │  ├─ DisclosureMarker
-                        │           │  ├─ ProjectName
-                        │           │  ├─ ProjectSummary
-                        │           │  │  ├─ WorktreeCount
-                        │           │  │  ├─ WorkingCount
-                        │           │  │  └─ AttentionCount
-                        │           │  └─ DefaultHarnessLabel
-                        │           ├─ WorktreeRow[]
-                        │           │  ├─ RowSlot
-                        │           │  ├─ RowStateMarker
-                        │           │  │  ├─ AgentWorkingThrobber
-                        │           │  │  ├─ OptimisticOperationThrobber
-                        │           │  │  ├─ IdleMarker
-                        │           │  │  ├─ AttentionMarker
-                        │           │  │  └─ UnknownOrExitedMarker
-                        │           │  ├─ RowPrimary
-                        │           │  │  ├─ BranchName
-                        │           │  │  ├─ HarnessLabel
-                        │           │  │  └─ AgentStatusLabel
-                        │           │  └─ RowMetadata
-                        │           │     ├─ GitMetadata
-                        │           │     │  ├─ LineDelta
-                        │           │     │  ├─ PullRequestNumber
-                        │           │     │  └─ CheckStatus
-                        │           │     └─ WarningReason
-                        │           ├─ OptimisticRow[]
-                        │           │  ├─ RowSlotOrBlank
-                        │           │  ├─ Targetability
-                        │           │  ├─ OptimisticOperationThrobber
-                        │           │  ├─ BranchName
-                        │           │  └─ OperationLabel
-                        │           └─ EmptyProjectState
-                        ├─ BottomScrollIndicator
-                        │  └─ HiddenRowsBelow | Blank
-                        ├─ BottomDivider
-                        ├─ Footer
-                        │  ├─ ContextualCommandHints
-                        │  │  ├─ NewHint
-                        │  │  ├─ SlotJumpHint
-                        │  │  ├─ RemoveHint
-                        │  │  ├─ SearchHint
-                        │  │  ├─ RefreshHint
-                        │  │  ├─ HelpHint
-                        │  │  └─ QuitOrCloseHint
-                        │  └─ FooterOverflowPolicy
+                     └─ TuiShell
+                        ├─ DashboardFrame
+                        │  ├─ TopBar
+                        │  │  ├─ ProductTitle
+                        │  │  │  └─ "wosm" | "wosm dev"
+                        │  │  ├─ TopBarSpacer
+                        │  │  └─ WidgetStrip
+                        │  │     ├─ Widget(Time)
+                        │  │     ├─ Widget(Weather)
+                        │  │     ├─ Widget(Memory)
+                        │  │     └─ Widget(Stock)
+                        │  ├─ TopDivider
+                        │  ├─ TopScrollIndicator
+                        │  │  └─ HiddenRowsAbove | Blank
+                        │  ├─ ScrollViewport
+                        │  │  └─ DashboardBody
+                        │  │     └─ ProjectList
+                        │  │        └─ ProjectGroup[]
+                        │  │           ├─ ProjectHeader
+                        │  │           │  ├─ DisclosureMarker
+                        │  │           │  ├─ ProjectName
+                        │  │           │  ├─ ProjectSummary
+                        │  │           │  │  ├─ WorktreeCount
+                        │  │           │  │  ├─ WorkingCount
+                        │  │           │  │  └─ AttentionCount
+                        │  │           │  └─ DefaultHarnessLabel
+                        │  │           ├─ WorktreeRow[]
+                        │  │           │  ├─ RowSlot
+                        │  │           │  ├─ RowStateMarker
+                        │  │           │  │  ├─ AgentWorkingThrobber
+                        │  │           │  │  ├─ OptimisticOperationThrobber
+                        │  │           │  │  ├─ IdleMarker
+                        │  │           │  │  ├─ AttentionMarker
+                        │  │           │  │  └─ UnknownOrExitedMarker
+                        │  │           │  ├─ RowPrimary
+                        │  │           │  │  ├─ BranchName
+                        │  │           │  │  ├─ HarnessLabel
+                        │  │           │  │  └─ AgentStatusLabel
+                        │  │           │  └─ RowMetadata
+                        │  │           │     ├─ GitMetadata
+                        │  │           │     │  ├─ LineDelta
+                        │  │           │     │  ├─ PullRequestNumber
+                        │  │           │     │  └─ CheckStatus
+                        │  │           │     └─ WarningReason
+                        │  │           ├─ OptimisticRow[]
+                        │  │           │  ├─ RowSlotOrBlank
+                        │  │           │  ├─ Targetability
+                        │  │           │  ├─ OptimisticOperationThrobber
+                        │  │           │  ├─ BranchName
+                        │  │           │  └─ OperationLabel
+                        │  │           └─ EmptyProjectState
+                        │  ├─ BottomScrollIndicator
+                        │  │  └─ HiddenRowsBelow | Blank
+                        │  ├─ BottomDivider
+                        │  └─ Footer
+                        │     ├─ ContextualCommandHints
+                        │     │  ├─ NewHint
+                        │     │  ├─ SlotJumpHint
+                        │     │  ├─ RemoveHint
+                        │     │  ├─ SearchHint
+                        │     │  ├─ RefreshHint
+                        │     │  ├─ HelpHint
+                        │     │  └─ QuitOrCloseHint
+                        │     └─ FooterOverflowPolicy
                         └─ OverlayLayer
                            ├─ HelpOverlay
                            │  ├─ OverlayBackdrop
@@ -197,6 +202,7 @@ App
 - `WidgetProvider` owns widget registration, caches, and render priority. Widgets remain independent of observer reconcile unless they choose to consume the global orchestration layer for action awareness.
 - `DashboardFrame` owns terminal geometry. It is responsible for reserving fixed rows and ensuring the footer hugs the bottom of the terminal.
 - `ScrollViewport` is the only vertically scrolling dashboard region. Top bar, dividers, scroll indicators, footer, and overlays stay fixed.
+- `TuiShell` is the root visual composition inside the full terminal frame. It renders `DashboardFrame` and `OverlayLayer` as siblings so overlays can sit above the dashboard without becoming part of the dashboard layout.
 - `VisibleRowSlotMap` is derived from rows visible inside `ScrollViewport`; it must update after scroll, search, collapse, and optimistic row changes.
 - `ProjectGroup` owns expand/collapse state display, but the actual collapsed project ids live in UI state so keyboard and mouse can update the same source of truth.
 - `WorktreeRow` renders normalized snapshot data only. It should not call providers, inspect git, or query terminal details.
@@ -204,6 +210,21 @@ App
 - `RowMetadata` is right-aligned and optional. It should disappear before `RowPrimary` when width is constrained.
 - `OverlayLayer` is above all frame regions. Overlays never consume rows inside `ScrollViewport`.
 - `Footer` reads the active keymap mode. It should not duplicate every binding when `HelpOverlay` can show the full list.
+
+### Overlay Implementation Plan
+
+Start with help as the first overlay and use it to establish the reusable shape for prompts, confirmations, command palette, and toasts.
+
+Recommended first slice:
+
+1. Extend local UI state with an overlay/mode value for help, keeping it separate from observer snapshot state.
+2. Update input handling so `H` or `?` opens help from dashboard mode, and `H`, `?`, `Q`, or `Esc` closes it from help mode.
+3. Introduce a root-level `TuiShell` that renders `DashboardFrame` plus `OverlayLayer` inside the existing full-size `TuiFrame`.
+4. Render `HelpOverlay` from `OverlayLayer`, not as `Dashboard` children and not inside `DashboardBody`.
+5. Move `CommandPrompt` and `ToastStack` toward `OverlayLayer` after help proves the root layer works, so prompt/toast placement cannot be clipped by the scroll viewport.
+6. Add fixed-height render tests that prove opening help does not move the header, scroll rows, body, dividers, or footer.
+
+The help overlay is a TUI concern. It must not call worktree, terminal, or harness providers. It can read keymap/help definitions from local UI state and, later, from config-derived command metadata already exposed to the TUI.
 
 ## UI Orchestration
 
