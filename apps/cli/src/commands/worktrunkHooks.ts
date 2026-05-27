@@ -20,6 +20,14 @@ export type WorktrunkHooksCommandResult =
   | WorktrunkHookInstallResult
   | WorktrunkHookDoctorResult;
 
+type ParsedWorktrunkHookFlags = {
+  yes: boolean;
+  worktrunkConfigPath?: string;
+  hookBin?: string;
+  /** @deprecated Use `hookBin`; `wosmBin` generates the legacy `wosm hook ...` command. */
+  wosmBin?: string;
+};
+
 export async function runWorktrunkHooksCommand(
   args: string[],
   options: WorktrunkHooksCommandOptions = {},
@@ -56,18 +64,8 @@ export async function runWorktrunkHooksCommand(
   throw new Error("Usage: wosm worktrunk hooks plan|install|uninstall|doctor [--yes]");
 }
 
-function parseFlags(args: string[]): {
-  yes: boolean;
-  worktrunkConfigPath?: string;
-  hookBin?: string;
-  wosmBin?: string;
-} {
-  const flags: {
-    yes: boolean;
-    worktrunkConfigPath?: string;
-    hookBin?: string;
-    wosmBin?: string;
-  } = { yes: false };
+function parseFlags(args: string[]): ParsedWorktrunkHookFlags {
+  const flags: ParsedWorktrunkHookFlags = { yes: false };
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -82,6 +80,7 @@ function parseFlags(args: string[]): {
       continue;
     }
     if (arg === "--wosm-bin" && value !== undefined) {
+      // Deprecated compatibility for older generated hook commands.
       flags.wosmBin = value;
       index += 1;
       continue;

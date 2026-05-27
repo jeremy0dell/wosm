@@ -8,6 +8,11 @@ import {
 } from "@wosm/hook-bridge";
 import { worktrunkHookAdapter } from "@wosm/worktrunk";
 
+/**
+ * @deprecated `wosm hook` is the legacy JSON-receipt wrapper. Generated provider
+ * hooks should invoke `wosm-hook`, and internal callers should use
+ * `@wosm/hook-bridge` directly.
+ */
 export type HookCommandOptions = HookBridgeCommandOptions;
 
 const defaultProviderHookAdapters: readonly ProviderHookAdapter[] = [
@@ -15,6 +20,10 @@ const defaultProviderHookAdapters: readonly ProviderHookAdapter[] = [
   worktrunkHookAdapter,
 ];
 
+/**
+ * @deprecated Compatibility wrapper for older generated hooks and explicit manual
+ * receipt checks. New hook entrypoints should go through `wosm-hook`.
+ */
 export async function runHookCommand(
   args: string[],
   options: HookCommandOptions = {},

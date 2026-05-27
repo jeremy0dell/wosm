@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
+import type { HookReceiverDeps } from "@wosm/hook-bridge";
 import { runCodexHooksCommand } from "./commands/codexHooks.js";
 import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
 import {
@@ -18,7 +19,6 @@ import { runReconcileCommand } from "./commands/reconcile.js";
 import { runSnapshotCommand } from "./commands/snapshot.js";
 import { runTuiCommand, type TuiCommandDeps } from "./commands/tui.js";
 import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
-import type { HookReceiverDeps } from "./hookReceiver.js";
 import type { ObserverProcessDeps } from "./observerProcess.js";
 
 export type CliRunResult = {
@@ -104,6 +104,8 @@ export async function runCli(
   }
 
   if (command === "hook") {
+    // Deprecated compatibility wrapper for older generated hooks. New provider
+    // hook processes should invoke `wosm-hook` instead of the user-facing CLI.
     const stdin = options.stdin ?? (await readStdinIfAvailable());
     const result = await runHookCommand(
       commandArgs,
