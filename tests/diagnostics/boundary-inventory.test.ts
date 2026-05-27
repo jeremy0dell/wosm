@@ -21,6 +21,7 @@ const tmuxImplementationMarkers = [
   "WOSM_TMUX_BIN",
 ];
 
+// Every raw timer exception needs a reason here so new timeout plumbing stays intentional.
 const setTimeoutAllowlist = new Map([
   [
     "apps/observer/src/runtime/main.ts",
