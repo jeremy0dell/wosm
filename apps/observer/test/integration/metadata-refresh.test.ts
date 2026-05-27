@@ -1,5 +1,14 @@
 import type { WosmConfig } from "@wosm/config";
-import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
+import type {
+  ProviderHealth,
+  RepositoryCapabilities,
+  RepositoryChecksRequest,
+  RepositoryProvider,
+  RepositoryPullRequestRequest,
+  WorktreeChecksSummary,
+  WorktreePullRequest,
+} from "@wosm/contracts";
+import type { ExternalCommandInput, ExternalCommandResult, RuntimeClock } from "@wosm/runtime";
 import { createFakeExternalCommandRunner } from "@wosm/runtime";
 import {
   createFakeWorktree,
@@ -51,6 +60,49 @@ const config: WosmConfig = {
 };
 
 describe("observer worktree metadata refresh", () => {
+  it("merges cached pull request and checks metadata into hot snapshots, including stale rows", async () => {
+    const fixture = createFixture();
+    await fixture.persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_feature",
+      kind: "pull_request",
+      cacheKey: "pr-cache",
+      expiresAt: "2026-05-20T11:59:00.000Z",
+      payload: {
+        number: 123,
+        url: "https://github.com/example/web/pull/123",
+        host: "github.com",
+        baseRef: "main",
+        headRef: "feature",
+        checkedAt: "2026-05-20T11:55:00.000Z",
+      },
+    });
+    await fixture.persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_feature",
+      kind: "checks",
+      cacheKey: "checks-cache",
+      expiresAt: "2026-05-20T11:59:00.000Z",
+      payload: {
+        state: "running",
+        pending: 1,
+        source: "github",
+        checkedAt: "2026-05-20T11:55:00.000Z",
+      },
+    });
+
+    const snapshot = await fixture.core.reconcile("metadata-hot-cache");
+    const row = snapshot.rows.find((candidate) => candidate.id === "wt_web_feature");
+
+    expect(row?.worktree.pr).toMatchObject({
+      number: 123,
+      stale: true,
+    });
+    expect(row?.worktree.checks).toMatchObject({
+      state: "running",
+      stale: true,
+    });
+    fixture.sqlite.close();
+  });
+
   it("writes changed local git change summary metadata and requests a metadata reconcile", async () => {
     const fixture = createFixture();
     const reasons: string[] = [];
@@ -235,6 +287,171 @@ describe("observer worktree metadata refresh", () => {
     });
     fixture.sqlite.close();
   });
+
+  it("refreshes GitHub repository metadata in the background", async () => {
+    const fixture = createFixture();
+    const reasons: string[] = [];
+    const repository = new FakeRepositoryProvider({
+      clock: fixture.clock,
+      pullRequest: {
+        number: 77,
+        url: "https://github.com/example/web/pull/77",
+        host: "github.com",
+        baseRef: "main",
+        headRef: "feature",
+        checkedAt: now,
+      },
+      checks: {
+        state: "pass",
+        total: 1,
+        passed: 1,
+        source: "github",
+        checkedAt: now,
+      },
+    });
+    const runner = gitRunner({
+      "rev-parse --verify HEAD^{commit}": headSha,
+      remote: "origin\n",
+      "rev-parse --verify refs/heads/main^{commit}": baseSha,
+      "diff --numstat main...HEAD": "1\t0\tsrc/a.ts\n",
+      "remote get-url origin": "git@github.com:example/web.git\n",
+    });
+    const service = createWorktreeMetadataRefreshService({
+      projects: providerProjectsFromConfig(config),
+      persistence: fixture.persistence,
+      requestReconcile: (reason) => reasons.push(reason),
+      clock: fixture.clock,
+      runner,
+      repositoryProviders: [repository],
+    });
+
+    const snapshot = await fixture.core.reconcile("metadata-repository-before");
+    await service.refresh(snapshot);
+
+    await expect(
+      fixture.persistence.listWorktreeMetadataCurrent({
+        kind: ["pull_request", "checks"],
+        now,
+      }),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "pull_request",
+          payload: expect.objectContaining({ number: 77 }),
+        }),
+        expect.objectContaining({
+          kind: "checks",
+          payload: expect.objectContaining({ state: "pass" }),
+        }),
+      ]),
+    );
+    expect(reasons).toEqual([
+      "metadata:change_summary",
+      "metadata:pull_request",
+      "metadata:checks",
+    ]);
+    fixture.sqlite.close();
+  });
+
+  it("marks existing repository metadata stale when remote refresh fails", async () => {
+    const fixture = createFixture();
+    await fixture.persistence.upsertWorktreeMetadataCurrent({
+      worktreeId: "wt_web_feature",
+      kind: "pull_request",
+      cacheKey: "old",
+      expiresAt: "2026-05-20T11:59:00.000Z",
+      payload: {
+        number: 77,
+        host: "github.com",
+        checkedAt: now,
+      },
+    });
+    const repository = new FakeRepositoryProvider({
+      clock: fixture.clock,
+      error: {
+        tag: "RepositoryProviderError",
+        code: "GITHUB_NETWORK_FAILED",
+        message: "GitHub CLI network request failed.",
+        provider: "github",
+      },
+    });
+    const runner = gitRunner({
+      "rev-parse --verify HEAD^{commit}": headSha,
+      remote: "origin\n",
+      "rev-parse --verify refs/heads/main^{commit}": baseSha,
+      "diff --numstat main...HEAD": "1\t0\tsrc/a.ts\n",
+      "remote get-url origin": "git@github.com:example/web.git\n",
+    });
+    const service = createWorktreeMetadataRefreshService({
+      projects: providerProjectsFromConfig(config),
+      persistence: fixture.persistence,
+      requestReconcile: () => undefined,
+      clock: fixture.clock,
+      runner,
+      repositoryProviders: [repository],
+    });
+
+    const snapshot = await fixture.core.reconcile("metadata-repository-failure-before");
+    await expect(service.refresh(snapshot)).resolves.toBeUndefined();
+
+    await expect(
+      fixture.persistence.listWorktreeMetadataCurrent({
+        kind: "pull_request",
+        includeExpired: true,
+        now,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        stale: true,
+        payload: expect.objectContaining({ stale: true }),
+        lastError: expect.objectContaining({ code: "GITHUB_NETWORK_FAILED" }),
+      }),
+    ]);
+    fixture.sqlite.close();
+  });
+
+  it("aborts in-flight repository refresh work on shutdown", async () => {
+    const fixture = createFixture();
+    let started = false;
+    let aborted = false;
+    const repository = new FakeRepositoryProvider({
+      clock: fixture.clock,
+      discover: async (request) => {
+        started = true;
+        await new Promise<void>((_resolve, reject) => {
+          request.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(new Error("aborted"));
+          });
+        });
+        return null;
+      },
+    });
+    const runner = gitRunner({
+      "rev-parse --verify HEAD^{commit}": headSha,
+      remote: "origin\n",
+      "rev-parse --verify refs/heads/main^{commit}": baseSha,
+      "diff --numstat main...HEAD": "1\t0\tsrc/a.ts\n",
+      "remote get-url origin": "git@github.com:example/web.git\n",
+    });
+    const service = createWorktreeMetadataRefreshService({
+      projects: providerProjectsFromConfig(config),
+      persistence: fixture.persistence,
+      requestReconcile: () => undefined,
+      clock: fixture.clock,
+      runner,
+      repositoryProviders: [repository],
+    });
+
+    const snapshot = await fixture.core.reconcile("metadata-repository-shutdown-before");
+    const refresh = service.refresh(snapshot);
+    await waitFor(() => started);
+    await service.shutdown?.();
+    await refresh;
+
+    expect(aborted).toBe(true);
+    fixture.sqlite.close();
+  });
 });
 
 function createFixture() {
@@ -308,4 +525,81 @@ function ids() {
     observationId: () => `obs_${++observation}`,
     breadcrumbId: () => `crumb_${++breadcrumb}`,
   };
+}
+
+class FakeRepositoryProvider implements RepositoryProvider {
+  readonly id = "github";
+
+  readonly #clock: RuntimeClock;
+  readonly #pullRequest: WorktreePullRequest | null;
+  readonly #checks: WorktreeChecksSummary | null;
+  readonly #error: unknown;
+  readonly #discover:
+    | ((request: RepositoryPullRequestRequest) => Promise<WorktreePullRequest | null>)
+    | undefined;
+
+  constructor(input: {
+    clock: RuntimeClock;
+    pullRequest?: WorktreePullRequest | null;
+    checks?: WorktreeChecksSummary | null;
+    error?: unknown;
+    discover?: (request: RepositoryPullRequestRequest) => Promise<WorktreePullRequest | null>;
+  }) {
+    this.#clock = input.clock;
+    this.#pullRequest = input.pullRequest ?? null;
+    this.#checks = input.checks ?? null;
+    this.#error = input.error;
+    this.#discover = input.discover;
+  }
+
+  capabilities(): RepositoryCapabilities {
+    return {
+      canDiscoverPullRequests: true,
+      canReadChecks: true,
+      canUseCliAuth: true,
+    };
+  }
+
+  async health(): Promise<ProviderHealth> {
+    return {
+      providerId: this.id,
+      providerType: "repository",
+      status: "unknown",
+      lastCheckedAt: toIso(this.#clock),
+      capabilities: this.capabilities(),
+    };
+  }
+
+  async discoverPullRequest(
+    request: RepositoryPullRequestRequest,
+  ): Promise<WorktreePullRequest | null> {
+    if (this.#discover !== undefined) {
+      return this.#discover(request);
+    }
+    if (this.#error !== undefined) {
+      throw this.#error;
+    }
+    return this.#pullRequest;
+  }
+
+  async readChecks(_request: RepositoryChecksRequest): Promise<WorktreeChecksSummary | null> {
+    if (this.#error !== undefined) {
+      throw this.#error;
+    }
+    return this.#checks;
+  }
+}
+
+function toIso(clock: RuntimeClock): string {
+  return clock.now().toISOString();
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error("Timed out waiting for predicate.");
 }

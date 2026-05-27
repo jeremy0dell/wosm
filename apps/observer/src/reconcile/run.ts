@@ -8,7 +8,10 @@ import type {
   ProviderProjectConfig,
   SafeError,
   TerminalTargetObservation,
+  WorktreeChangeSummary,
+  WorktreeChecksSummary,
   WorktreeObservation,
+  WorktreePullRequest,
   WosmSnapshot,
 } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
@@ -113,6 +116,12 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     projects: input.projects,
     worktrees: worktreeResult.worktrees,
     terminalTargets: terminalResult.terminalTargets,
+    read: input.read,
+    providerHealth,
+    errors,
+  });
+  await readRepositoryProviderHealth({
+    providers: input.providers,
     read: input.read,
     providerHealth,
     errors,
@@ -407,6 +416,27 @@ async function readHarnessObservations(input: {
   return { harnessRuns, harnessCapabilities };
 }
 
+async function readRepositoryProviderHealth(input: {
+  providers: ProviderRegistry;
+  read: ProviderReadOptions;
+  providerHealth: Record<string, ProviderHealth>;
+  errors: SafeError[];
+}): Promise<void> {
+  for (const provider of input.providers.repositories.values()) {
+    const capabilities = provider.capabilities();
+    input.providerHealth[provider.id] = await readProviderHealth({
+      providerId: provider.id,
+      providerType: "repository",
+      capabilities,
+      clock: input.read.clock,
+      timeoutMs: input.read.timeoutMs,
+      retries: input.read.retries,
+      health: () => provider.health(),
+      errors: input.errors,
+    });
+  }
+}
+
 async function classifyHarnessRuns(input: {
   provider: HarnessProvider;
   capabilities: HarnessCapabilities;
@@ -528,25 +558,107 @@ async function worktreesWithCachedMetadata(input: {
     return input.worktrees;
   }
 
-  const rows = await input.persistence.listWorktreeMetadataCurrent({
-    kind: "change_summary",
-    now: input.now,
-  });
-  if (rows.length === 0) {
+  const [changeRows, pullRequestRows, checksRows] = await Promise.all([
+    input.persistence.listWorktreeMetadataCurrent({
+      kind: "change_summary",
+      includeExpired: true,
+      now: input.now,
+    }),
+    input.persistence.listWorktreeMetadataCurrent({
+      kind: "pull_request",
+      includeExpired: true,
+      now: input.now,
+    }),
+    input.persistence.listWorktreeMetadataCurrent({
+      kind: "checks",
+      includeExpired: true,
+      now: input.now,
+    }),
+  ]);
+  if (changeRows.length === 0 && pullRequestRows.length === 0 && checksRows.length === 0) {
     return input.worktrees;
   }
 
-  const changeSummaryByWorktree = new Map(rows.map((row) => [row.worktreeId, row.payload]));
+  const changeByWorktree = new Map(changeRows.map((row) => [row.worktreeId, row]));
+  const pullRequestByWorktree = new Map(pullRequestRows.map((row) => [row.worktreeId, row]));
+  const checksByWorktree = new Map(checksRows.map((row) => [row.worktreeId, row]));
+
   return input.worktrees.map((worktree) => {
-    const changeSummary = changeSummaryByWorktree.get(worktree.id);
-    if (changeSummary === undefined) {
+    const change = changeByWorktree.get(worktree.id);
+    const pullRequest = pullRequestByWorktree.get(worktree.id);
+    const checks = checksByWorktree.get(worktree.id);
+    if (change === undefined && pullRequest === undefined && checks === undefined) {
       return worktree;
     }
-    return {
-      ...worktree,
-      changeSummary,
-    };
+
+    const enriched: WorktreeObservation = { ...worktree };
+    if (change !== undefined) {
+      enriched.changeSummary =
+        change.expired || change.stale ? staleChangeSummary(change.payload) : change.payload;
+    }
+    if (pullRequest !== undefined) {
+      enriched.pr =
+        pullRequest.expired || pullRequest.stale
+          ? stalePullRequest(pullRequest.payload)
+          : pullRequest.payload;
+    }
+    if (checks !== undefined) {
+      enriched.checks =
+        checks.expired || checks.stale ? staleChecks(checks.payload) : checks.payload;
+    }
+    return enriched;
   });
+}
+
+function staleChangeSummary(payload: WorktreeChangeSummary): WorktreeChangeSummary {
+  const stale: WorktreeChangeSummary = {
+    kind: payload.kind,
+    additions: payload.additions,
+    deletions: payload.deletions,
+    source: payload.source,
+    checkedAt: payload.checkedAt,
+    stale: true,
+  };
+  if (payload.filesChanged !== undefined) stale.filesChanged = payload.filesChanged;
+  if (payload.binaryFiles !== undefined) stale.binaryFiles = payload.binaryFiles;
+  if (payload.baseRef !== undefined) stale.baseRef = payload.baseRef;
+  if (payload.baseSha !== undefined) stale.baseSha = payload.baseSha;
+  if (payload.headRef !== undefined) stale.headRef = payload.headRef;
+  if (payload.headSha !== undefined) stale.headSha = payload.headSha;
+  return stale;
+}
+
+function stalePullRequest(payload: WorktreePullRequest): WorktreePullRequest {
+  const stale: WorktreePullRequest = {
+    number: payload.number,
+    stale: true,
+  };
+  if (payload.url !== undefined) stale.url = payload.url;
+  if (payload.host !== undefined) stale.host = payload.host;
+  if (payload.state !== undefined) stale.state = payload.state;
+  if (payload.baseRef !== undefined) stale.baseRef = payload.baseRef;
+  if (payload.headRef !== undefined) stale.headRef = payload.headRef;
+  if (payload.updatedAt !== undefined) stale.updatedAt = payload.updatedAt;
+  if (payload.checkedAt !== undefined) stale.checkedAt = payload.checkedAt;
+  return stale;
+}
+
+function staleChecks(payload: WorktreeChecksSummary): WorktreeChecksSummary {
+  const stale: WorktreeChecksSummary = {
+    state: payload.state,
+    source: payload.source,
+    checkedAt: payload.checkedAt,
+    stale: true,
+  };
+  if (payload.url !== undefined) stale.url = payload.url;
+  if (payload.total !== undefined) stale.total = payload.total;
+  if (payload.passed !== undefined) stale.passed = payload.passed;
+  if (payload.failed !== undefined) stale.failed = payload.failed;
+  if (payload.pending !== undefined) stale.pending = payload.pending;
+  if (payload.skipped !== undefined) stale.skipped = payload.skipped;
+  if (payload.cancelled !== undefined) stale.cancelled = payload.cancelled;
+  if (payload.reason !== undefined) stale.reason = payload.reason;
+  return stale;
 }
 
 async function readProviderHealth(input: {
