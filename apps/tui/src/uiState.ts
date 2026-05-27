@@ -19,10 +19,13 @@ export type TuiCleanupPromptState = {
 
 export type TuiPromptState = TuiTextPromptState | TuiCleanupPromptState;
 
+export type TuiOverlayState = "help";
+
 export type TuiUiState = {
   searchQuery: string;
   collapsedProjectIds: ReadonlySet<string>;
   prompt?: TuiPromptState;
+  activeOverlay?: TuiOverlayState;
 };
 
 export type CreateInitialUiStateOptions = {
@@ -40,11 +43,14 @@ export function createInitialUiState(options: CreateInitialUiStateOptions = {}):
 
 export function setSearchQuery(state: TuiUiState, searchQuery: string): TuiUiState {
   const next: TuiUiState = {
-    ...state,
     searchQuery,
+    collapsedProjectIds: state.collapsedProjectIds,
   };
   if (state.prompt !== undefined) {
     next.prompt = state.prompt;
+  }
+  if (state.activeOverlay !== undefined) {
+    next.activeOverlay = state.activeOverlay;
   }
   return next;
 }
@@ -58,11 +64,14 @@ export function toggleProjectCollapsed(state: TuiUiState, projectId: string): Tu
   }
 
   const next: TuiUiState = {
-    ...state,
+    searchQuery: state.searchQuery,
     collapsedProjectIds,
   };
   if (state.prompt !== undefined) {
     next.prompt = state.prompt;
+  }
+  if (state.activeOverlay !== undefined) {
+    next.activeOverlay = state.activeOverlay;
   }
   return next;
 }
@@ -72,7 +81,8 @@ export function openPrompt(state: TuiUiState, mode: PromptMode): TuiUiState {
     return state;
   }
   const next: TuiUiState = {
-    ...state,
+    searchQuery: state.searchQuery,
+    collapsedProjectIds: state.collapsedProjectIds,
     prompt: { mode, value: "" },
   };
   return next;
@@ -83,7 +93,8 @@ export function openCleanupPrompt(
   prompt: Omit<TuiCleanupPromptState, "mode" | "value">,
 ): TuiUiState {
   const next: TuiUiState = {
-    ...state,
+    searchQuery: state.searchQuery,
+    collapsedProjectIds: state.collapsedProjectIds,
     prompt: {
       mode: "confirm-cleanup",
       value: "",
@@ -104,18 +115,48 @@ export function updatePromptValue(state: TuiUiState, value: string): TuiUiState 
     return state;
   }
   const next: TuiUiState = {
-    ...state,
+    searchQuery: state.searchQuery,
+    collapsedProjectIds: state.collapsedProjectIds,
     prompt: {
       ...state.prompt,
       value,
     },
   };
+  if (state.activeOverlay !== undefined) {
+    next.activeOverlay = state.activeOverlay;
+  }
   return next;
 }
 
 export function closePrompt(state: TuiUiState): TuiUiState {
-  return {
+  const next: TuiUiState = {
     searchQuery: state.searchQuery,
     collapsedProjectIds: state.collapsedProjectIds,
   };
+  if (state.activeOverlay !== undefined) {
+    next.activeOverlay = state.activeOverlay;
+  }
+  return next;
+}
+
+export function openHelpOverlay(state: TuiUiState): TuiUiState {
+  if (state.prompt !== undefined) {
+    return state;
+  }
+  return {
+    searchQuery: state.searchQuery,
+    collapsedProjectIds: state.collapsedProjectIds,
+    activeOverlay: "help",
+  };
+}
+
+export function closeOverlay(state: TuiUiState): TuiUiState {
+  const next: TuiUiState = {
+    searchQuery: state.searchQuery,
+    collapsedProjectIds: state.collapsedProjectIds,
+  };
+  if (state.prompt !== undefined) {
+    next.prompt = state.prompt;
+  }
+  return next;
 }

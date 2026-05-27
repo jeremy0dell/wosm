@@ -79,7 +79,7 @@ export class FakeTuiObserverService implements TuiObserverService {
       if (waiter === undefined) {
         subscriber.queue.push(event);
       } else {
-        waiter({ done: false, value: event });
+        waiter.resolve({ done: false, value: event });
       }
     }
   }

@@ -70,7 +70,7 @@ describe("TUI app rendering", () => {
     expect(lines.at(-3)?.trim()).toBe("");
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain(
-      "n:new 1-9:start/focus x:remove /:search r:refresh h:help q:quit",
+      "n:new 1-9:start/focus x:remove /:search r:refresh H:help q:quit",
     );
     expect(lines.slice(0, -1).join("\n")).not.toContain("n:new 1-9");
   });
@@ -96,7 +96,7 @@ describe("TUI app rendering", () => {
     expect(lines[1]).toMatch(/^─+$/);
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain("n:new");
-    expect(lines.at(-1)).toContain("h:help");
+    expect(lines.at(-1)).toContain("H:help");
     expect(lines.at(-1)).toContain("q/esc:close");
   });
 

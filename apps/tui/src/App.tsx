@@ -4,17 +4,21 @@ import { useRef } from "react";
 import { buildCleanupCommand, buildCreateSessionCommand, cleanupForceRequired } from "./actions.js";
 import { CommandPrompt } from "./components/CommandPrompt.js";
 import { Dashboard } from "./components/Dashboard.js";
+import { OverlayLayer } from "./components/OverlayLayer/OverlayLayer.js";
 import { ToastStack } from "./components/ToastStack.js";
 import { TuiFrame } from "./components/TuiFrame.js";
+import { TuiShell } from "./components/TuiShell/TuiShell.js";
 import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
 import { intentForDashboardKey } from "./keymap.js";
 import { selectKeySlots, selectNewSessionAvailability } from "./selectors.js";
 import { safeErrorToToast, toSafeError } from "./services/errors.js";
 import type { TuiObserverService } from "./services/types.js";
 import {
+  closeOverlay,
   closePrompt,
   createInitialUiState,
   openCleanupPrompt,
+  openHelpOverlay,
   openPrompt,
   type PromptMode,
   setSearchQuery,
@@ -63,6 +67,16 @@ export function App({
     }
     if (dashboard.uiState.prompt !== undefined || promptModeRef.current !== undefined) {
       handlePromptInput({ input, key, dashboard, promptValueRef, promptModeRef });
+      return;
+    }
+    if (dashboard.uiState.activeOverlay === "help") {
+      if (input === "H" || input === "?" || input === "Q" || key.escape === true) {
+        dashboard.setUiState((current) => closeOverlay(current));
+      }
+      return;
+    }
+    if (input === "H" || input === "?") {
+      dashboard.setUiState((current) => openHelpOverlay(current));
       return;
     }
     if (persistentPopup && onDismiss !== undefined && (input === "q" || key.escape === true)) {
@@ -164,15 +178,22 @@ export function App({
 
   return (
     <TuiFrame columns={columns} rows={rows}>
-      <Dashboard
-        columns={columns}
-        snapshot={dashboard.snapshot}
-        uiState={dashboard.uiState}
-        quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
-      >
-        <CommandPrompt prompt={dashboard.uiState.prompt} />
-        <ToastStack toasts={dashboard.toasts} />
-      </Dashboard>
+      <TuiShell>
+        <Dashboard
+          columns={columns}
+          snapshot={dashboard.snapshot}
+          uiState={dashboard.uiState}
+          quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
+        >
+          <CommandPrompt prompt={dashboard.uiState.prompt} />
+          <ToastStack toasts={dashboard.toasts} />
+        </Dashboard>
+        <OverlayLayer
+          activeOverlay={dashboard.uiState.activeOverlay}
+          columns={columns}
+          rows={rows}
+        />
+      </TuiShell>
     </TuiFrame>
   );
 }
