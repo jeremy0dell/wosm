@@ -51,6 +51,7 @@ describe("TUI app rendering", () => {
     const frame = renderToString(
       <Box flexDirection="column" height={12} width={100}>
         <Dashboard
+          columns={100}
           snapshot={snapshot}
           uiState={{ searchQuery: "", collapsedProjectIds: new Set() }}
         />
@@ -58,10 +59,45 @@ describe("TUI app rendering", () => {
       { columns: 100 },
     );
     const lines = frame.split("\n");
+    const body = lines.slice(3, -3).join("\n");
 
     expect(lines).toHaveLength(12);
-    expect(lines.at(-1)).toContain("n:new bg 1-9:start/focus x:remove /:search r:refresh q:quit");
-    expect(lines.slice(0, -1).join("\n")).not.toContain("n:new bg");
+    expect(lines[0]).toBe("wosm");
+    expect(lines[1]).toMatch(/^─+$/);
+    expect(lines[2]?.trim()).toBe("");
+    expect(body).toContain("web");
+    expect(body).toContain("api");
+    expect(lines.at(-3)?.trim()).toBe("");
+    expect(lines.at(-2)).toMatch(/^─+$/);
+    expect(lines.at(-1)).toContain(
+      "n:new 1-9:start/focus x:remove /:search r:refresh h:help q:quit",
+    );
+    expect(lines.slice(0, -1).join("\n")).not.toContain("n:new 1-9");
+  });
+
+  it("renders the dashboard layout scaffold with dev label, dividers, and close hint", () => {
+    const snapshot = createZeroWorktreeSnapshot();
+    const frame = renderToString(
+      <TuiModeProvider mode="dev">
+        <Box flexDirection="column" height={10} width={72}>
+          <Dashboard
+            columns={72}
+            snapshot={snapshot}
+            uiState={{ searchQuery: "", collapsedProjectIds: new Set() }}
+            quitActionLabel="close"
+          />
+        </Box>
+      </TuiModeProvider>,
+      { columns: 72 },
+    );
+    const lines = frame.split("\n");
+
+    expect(lines[0]).toBe("wosm dev");
+    expect(lines[1]).toMatch(/^─+$/);
+    expect(lines.at(-2)).toMatch(/^─+$/);
+    expect(lines.at(-1)).toContain("n:new");
+    expect(lines.at(-1)).toContain("h:help");
+    expect(lines.at(-1)).toContain("q/esc:close");
   });
 
   it("renders configured projects even when they have zero worktrees", () => {
@@ -170,7 +206,8 @@ describe("TUI app rendering", () => {
     );
     const frame = instance.lastFrame() ?? "";
 
-    expect(frame).toContain("wosm dev 2 projects");
+    expect(frame).toContain("wosm dev");
+    expect(frame).not.toContain("wosm dev 2 projects");
     instance.unmount();
   });
 });
