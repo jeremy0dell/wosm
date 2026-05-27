@@ -5,8 +5,3 @@ packages:
 allowBuilds:
   esbuild: true
   lefthook: true
-
-gitBranchLockfile: true
-mergeGitBranchLockfilesBranchPattern:
-  - main
-  - release*

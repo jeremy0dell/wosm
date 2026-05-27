@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
-describe("Phase 18 release readiness docs", () => {
+describe("release readiness docs", () => {
   it("documents install, smoke, known issues, release notes, and deterministic versus real gates", async () => {
     const [
       readme,
@@ -38,8 +38,10 @@ describe("Phase 18 release readiness docs", () => {
     expect(knownIssues).toContain("Real E2E remains opt-in");
     expect(releaseNotes).toContain("Phase 18 dogfood milestone");
     expect(releaseNotes).toContain("No public npm package");
+    expect(releaseReadiness).toContain("standard-ci");
     expect(releaseReadiness).toContain("pnpm smoke:release");
-    expect(releaseReadiness).toContain("Deterministic Gate");
+    expect(releaseReadiness).toContain("Standard CI Gate");
+    expect(releaseReadiness).toContain("Manual Release Gate");
     expect(releaseReadiness).toContain("Real Dogfood Gate");
     expect(dogfoodChecklist).toContain("examples/dogfood-config.toml");
     expect(manualSmoke).toContain("pnpm smoke:release");
