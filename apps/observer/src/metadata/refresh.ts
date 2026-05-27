@@ -19,9 +19,9 @@ import type {
   PersistedWorktreeMetadataCurrent,
 } from "../persistence/index.js";
 import {
-  type CreateWorktreeGitWatchServiceOptions,
-  createWorktreeGitWatchService,
-} from "./gitWatch.js";
+  type CreateWorktreeGitRefInvalidationServiceOptions,
+  createWorktreeGitRefInvalidationService,
+} from "./gitRefInvalidation.js";
 import { type LocalGitWorktree, readLocalGitChangeSummary } from "./localGitChangeSummary.js";
 import {
   type CreateRepositoryMetadataRefresherOptions,
@@ -46,7 +46,7 @@ export type CreateWorktreeMetadataRefreshServiceOptions = {
   concurrency?: number;
   repositoryConcurrency?: number;
   repositoryNegativeBackoffMs?: number;
-  watchGit?: boolean;
+  watchGitRefs?: boolean;
 };
 
 const defaultGitTimeoutMs = 200;
@@ -78,12 +78,14 @@ export function createWorktreeMetadataRefreshService(
     repositoryOptions.negativeBackoffMs = options.repositoryNegativeBackoffMs;
   }
   const repositoryRefresher = createRepositoryMetadataRefresher(repositoryOptions);
-  const gitWatchOptions: CreateWorktreeGitWatchServiceOptions = {
+  const gitRefInvalidationOptions: CreateWorktreeGitRefInvalidationServiceOptions = {
     requestReconcile: options.requestReconcile,
   };
-  if (options.logger !== undefined) gitWatchOptions.logger = options.logger;
-  const gitWatcher =
-    options.watchGit === true ? createWorktreeGitWatchService(gitWatchOptions) : undefined;
+  if (options.logger !== undefined) gitRefInvalidationOptions.logger = options.logger;
+  const gitRefInvalidation =
+    options.watchGitRefs === true
+      ? createWorktreeGitRefInvalidationService(gitRefInvalidationOptions)
+      : undefined;
   let pendingSnapshot: WosmSnapshot | undefined;
   let running: Promise<void> | undefined;
   let shutdownRequested = false;
@@ -112,7 +114,7 @@ export function createWorktreeMetadataRefreshService(
       shutdownRequested = true;
       pendingSnapshot = undefined;
       controller?.abort();
-      gitWatcher?.shutdown();
+      gitRefInvalidation?.shutdown();
       await running?.catch(() => undefined);
     },
   };
@@ -126,7 +128,7 @@ export function createWorktreeMetadataRefreshService(
   }
 
   async function refreshSnapshot(snapshot: WosmSnapshot, signal: AbortSignal): Promise<void> {
-    gitWatcher?.update(snapshot);
+    gitRefInvalidation?.update(snapshot);
 
     const referenceTime = toIsoTimestamp(clock.now());
     const [changeRows, pullRequestRows, checksRows] = await Promise.all([

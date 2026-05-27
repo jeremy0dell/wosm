@@ -4,13 +4,13 @@ import { join } from "node:path";
 import type { WosmSnapshot } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import {
-  createWorktreeGitWatchService,
-  gitWatchTargetsForWorktree,
-} from "../../src/metadata/gitWatch.js";
+  createWorktreeGitRefInvalidationService,
+  gitRefInvalidationTargetsForWorktree,
+} from "../../src/metadata/gitRefInvalidation.js";
 
-describe("worktree git watcher", () => {
+describe("worktree git ref invalidation", () => {
   it("resolves linked-worktree git ref targets", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "wosm-git-watch-"));
+    const tempDir = await mkdtemp(join(tmpdir(), "wosm-git-ref-invalidation-"));
     try {
       const worktree = join(tempDir, "worktree");
       const commonGitDir = join(tempDir, "repo", ".git");
@@ -21,7 +21,7 @@ describe("worktree git watcher", () => {
       await writeFile(join(gitDir, "HEAD"), "ref: refs/heads/pr-info-1\n");
       await writeFile(join(gitDir, "commondir"), "../..\n");
 
-      const targets = gitWatchTargetsForWorktree(worktree, "pr-info-1").map(
+      const targets = gitRefInvalidationTargetsForWorktree(worktree, "pr-info-1").map(
         (target) => target.path,
       );
 
@@ -35,13 +35,13 @@ describe("worktree git watcher", () => {
   });
 
   it("requests reconcile when a watched branch ref changes", async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "wosm-git-watch-"));
+    const tempDir = await mkdtemp(join(tmpdir(), "wosm-git-ref-invalidation-"));
     const reasons: string[] = [];
     const directoryWatches: Array<{
       directory: string;
       listener: (changedFile: string | undefined) => void;
     }> = [];
-    const watcher = createWorktreeGitWatchService({
+    const watcher = createWorktreeGitRefInvalidationService({
       debounceMs: 10,
       requestReconcile: (reason) => {
         reasons.push(reason);
@@ -73,7 +73,7 @@ describe("worktree git watcher", () => {
       const refWatch = directoryWatches.find((entry) => entry.directory === refDir);
       expect(refWatch).toBeDefined();
       refWatch?.listener("main");
-      await waitFor(() => reasons.includes("metadata:git:wt_1"));
+      await waitFor(() => reasons.includes("metadata:git-ref:wt_1"));
     } finally {
       watcher.shutdown();
       await rm(tempDir, { recursive: true, force: true });
