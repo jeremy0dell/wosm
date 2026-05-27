@@ -1,6 +1,6 @@
 # PR 2 - Local Branch Diff Enrichment and Current-State Cache
 
-Status: planned
+Status: completed planning record; current code and tests are authoritative.
 
 Related research: `docs/planning/branch/branch_pr_ci_metadata_research.md`
 

@@ -1,0 +1,80 @@
+# Development
+
+Status: current living doc for development, test, and documentation workflow.
+
+## Environment
+
+- Use Node.js 24.x and pnpm 11. The root `package.json` pins `node: 24.x`, `pnpm: 11.0.0`, and `packageManager: pnpm@11.0.0`.
+- Use the repo-local command during development: `pnpm wosm ...`.
+- Use `pnpm wosm:link` only when you intentionally want the current checkout linked as the global `wosm`.
+- External tools are optional unless the lane needs them: Worktrunk for real worktree workflows, tmux for the reference terminal provider, and Codex/OpenCode for real harness workflows.
+
+## Deterministic Gates
+
+The deterministic local gate is:
+
+```bash
+pnpm test:all
+```
+
+It runs build, typecheck, lint, unit tests, contract tests, integration tests, diagnostics tests, and the scripted-agent lane. It intentionally excludes real provider lanes.
+
+Useful focused commands:
+
+```bash
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test:unit
+pnpm test:contracts
+pnpm test:integration
+pnpm test:diagnostics
+pnpm test:agent:scripted
+pnpm smoke:release
+```
+
+For CI install parity, use:
+
+```bash
+CI=true pnpm install --frozen-lockfile --ignore-scripts
+pnpm test:all
+```
+
+## Real And E2E Lanes
+
+Real provider and broader e2e lanes are opt-in:
+
+```bash
+pnpm test:e2e
+pnpm test:e2e:real
+pnpm test:e2e:worktrunk:real
+pnpm test:e2e:codex:real
+pnpm test:e2e:real:local
+```
+
+Use `pnpm setup:system:check` before real lanes. Real lanes may require `WOSM_REAL_*` flags, installed provider CLIs, credentials, tmux, model access, and isolated temporary projects. They must not become required for ordinary PR or `main` CI.
+
+## Implementation Discipline
+
+- For meaningful behavior changes, work red-first: write or update focused tests, observe the expected failure or characterize current behavior, implement, and keep the relevant gate green.
+- Keep slices narrow. Prefer one contract, provider, observer, TUI, or diagnostics change at a time unless the behavior requires a vertical path.
+- Current code, tests, runtime traces, and deterministic fixtures are stronger evidence than historical plans.
+- Do not introduce production behavior through docs-only changes.
+
+## TypeScript And Data Rules
+
+- `exactOptionalPropertyTypes` is intentional. Preserve the difference between an absent optional field and a field set to `undefined`.
+- For complex mappers, persistence row conversion, diagnostics construction, error shaping, and provider payload parsing, prefer typed local builders with explicit `if` assignments.
+- Small conditional spreads are acceptable when local and obvious.
+- Do not use `...(await somePromise)` in production array or object construction. Await into a named local first.
+- Use strict schemas for untrusted input and shared payload formats. Avoid parallel hand-written validators for the same shape.
+- Provider-specific diagnostics and behavior must stay behind provider or integration boundaries.
+- Do not move raw provider payloads into contracts, normal TUI rendering, protocol-facing shapes, or observer core logic.
+
+## Agent Guidance Maintenance
+
+- Keep always-loaded guidance concise. `AGENTS.md` should route agents and preserve hard repo quirks, not duplicate long plans.
+- Use just-in-time references. Put detailed architecture, development, and debugging guidance in living docs that agents open only for relevant tasks.
+- Scope guidance by task and path when possible. A terminal-boundary rule, docs workflow, or runtime-debug procedure should not force every agent to read an old rebuild plan.
+- Review instructions periodically. Remove stale mandates, classify historical docs clearly, and update living docs when current code/tests prove a different truth.
+- Avoid conflicting instructions. If an old plan, current doc, current test, and runtime evidence disagree, resolve the conflict explicitly instead of adding another overlapping rule.

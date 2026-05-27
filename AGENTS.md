@@ -1,8 +1,12 @@
 # Agent Guidance
 
-Before making architecture or boundary decisions, read `docs/planning/wosm_rebuild_tdd_final_v1.md`.
+For architecture or boundary decisions, read `docs/architecture.md`.
 
-Before implementing any phase, read `docs/planning/wosm_phased_development_cycle_final_v1.md`.
+For development, test, and documentation workflow, read `docs/development.md`.
+
+For runtime trace IDs, command IDs, diagnostic IDs, or live debugging, read `docs/debugging.md`.
+
+The old rebuild TDD and phased plan in `docs/planning/` are historical V1 baselines. Use them only for explicit rebuild-phase archaeology or original rationale. For ordinary work, current code, current tests, runtime evidence, and the living docs above supersede them.
 
 ## Optional Object Construction
 

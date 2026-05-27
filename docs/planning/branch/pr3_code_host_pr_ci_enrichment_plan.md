@@ -1,6 +1,6 @@
 # PR 3 - Code Host PR and CI Enrichment
 
-Status: planned
+Status: completed planning record; current code and tests are authoritative.
 
 Related research: `docs/planning/branch/branch_pr_ci_metadata_research.md`
 

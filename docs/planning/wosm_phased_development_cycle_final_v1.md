@@ -1,5 +1,7 @@
 # wosm Phased Development Cycle - Final V1
 
+> Historical V1 baseline. This document is deprecated as mandatory agent startup context and is retained for original rationale. For ordinary work, current code/tests plus `docs/architecture.md`, `docs/development.md`, and `docs/debugging.md` supersede it.
+
 Companion to `wosm Rebuild Technical Design Document - Final V1`.
 
 This document defines the build sequence for the wosm rebuild. The TDD defines architecture, contracts, state ownership, provider boundaries, and testing structure. This companion defines how to implement the system phase by phase without turning the rebuild into a partially wired pile of infrastructure.

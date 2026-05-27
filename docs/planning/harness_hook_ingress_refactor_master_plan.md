@@ -1088,9 +1088,10 @@ payload:
 
 ## 17. Implementation Notes For Agents
 
-- Read `docs/planning/wosm_rebuild_tdd_final_v1.md` before boundary decisions.
-- Read `docs/planning/wosm_phased_development_cycle_final_v1.md` before implementing
-  a phase.
+- Read `docs/architecture.md` before boundary decisions.
+- Read `docs/development.md` before implementing scoped development slices.
+- Use the old rebuild TDD and phased plan only for historical rationale or explicit
+  phase archaeology.
 - Preserve provider neutrality.
 - Do not import Codex, tmux, Worktrunk, or provider-specific code into observer core.
 - Use strict schemas for any hook/report/spool wire format.

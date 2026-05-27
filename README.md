@@ -164,6 +164,9 @@ pnpm test:all
 
 ## Documentation
 
+- [Architecture](docs/architecture.md)
+- [Development](docs/development.md)
+- [Debugging](docs/debugging.md)
 - [Install](docs/install.md)
 - [Manual smoke testing](docs/manual-smoke.md)
 - [System dependencies](docs/system-dependencies.md)
@@ -172,4 +175,4 @@ pnpm test:all
 - [Dogfood config](examples/dogfood-config.toml)
 - [Known issues](docs/known-issues.md)
 - [Phase 18 release notes](docs/release-notes/phase-18-dogfood-milestone.md)
-- [Planning docs](docs/README.md)
+- [Docs index](docs/README.md)
