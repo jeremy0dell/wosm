@@ -72,6 +72,22 @@ describe("runtime external command boundary", () => {
     });
   });
 
+  it("can treat selected non-zero exit codes as command results", async () => {
+    const result = await runExternalCommand({
+      command: process.execPath,
+      args: ["-e", "process.stdout.write('pending'); process.exit(8)"],
+      allowedExitCodes: [8],
+    });
+
+    expect(result).toEqual({
+      command: process.execPath,
+      args: ["-e", "process.stdout.write('pending'); process.exit(8)"],
+      stdout: "pending",
+      stderr: "",
+      exitCode: 8,
+    });
+  });
+
   it("keeps external command normalization idempotent", () => {
     const first = externalCommandErrorFromUnknown(
       {

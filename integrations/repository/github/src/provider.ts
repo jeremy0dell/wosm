@@ -42,6 +42,7 @@ const capabilities: RepositoryCapabilities = {
 };
 
 const defaultTimeoutMs = 3000;
+const checksStatusExitCodes = [1, 8];
 
 const GithubPullRequestSchema = z
   .object({
@@ -197,8 +198,9 @@ export class GithubRepositoryProvider implements RepositoryProvider {
           ["bucket", "link", "name", "state", "workflow", "startedAt", "completedAt"].join(","),
         ],
         request.signal,
+        { allowedExitCodes: checksStatusExitCodes },
       );
-      const checks = GithubChecksSchema.parse(JSON.parse(result.stdout));
+      const checks = parseGithubJson(GithubChecksSchema, result);
       this.#recordHealth("healthy");
       return WorktreeChecksSummarySchema.parse(toChecksSummary(checks, this.#now()));
     } catch (error) {
@@ -208,7 +210,7 @@ export class GithubRepositoryProvider implements RepositoryProvider {
     }
   }
 
-  async #run(args: string[], signal?: AbortSignal) {
+  async #run(args: string[], signal?: AbortSignal, options: { allowedExitCodes?: number[] } = {}) {
     const input: Parameters<typeof runExternalCommand>[0] = {
       command: this.#command,
       args,
@@ -216,6 +218,9 @@ export class GithubRepositoryProvider implements RepositoryProvider {
       maxOutputChars: 64 * 1024,
     };
     if (signal !== undefined) input.signal = signal;
+    if (options.allowedExitCodes !== undefined) {
+      input.allowedExitCodes = options.allowedExitCodes;
+    }
     return runExternalCommand(input, this.#runner);
   }
 
@@ -262,6 +267,18 @@ function parseChecksRequest(request: RepositoryChecksRequest) {
   if (request.worktreeId !== undefined) wireRequest.worktreeId = request.worktreeId;
   if (request.projectId !== undefined) wireRequest.projectId = request.projectId;
   return RepositoryChecksRequestSchema.parse(wireRequest);
+}
+
+function parseGithubJson<T>(schema: z.ZodType<T>, result: { stdout: string; stderr: string }): T {
+  try {
+    return schema.parse(JSON.parse(result.stdout));
+  } catch (error) {
+    const commandError = Object.assign(new Error("GitHub CLI command returned invalid JSON."), {
+      stdout: result.stdout,
+      stderr: result.stderr,
+    });
+    throw result.stderr.length > 0 || result.stdout.length === 0 ? commandError : error;
+  }
 }
 
 function ghRepo(remote: RepositoryRemote): string {

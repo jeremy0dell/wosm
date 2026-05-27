@@ -127,9 +127,42 @@ describe("GitHub repository provider", () => {
     });
   });
 
+  it("parses checks JSON from gh non-zero status exits", async () => {
+    const running = providerWithChecksStatusExit(8, [{ bucket: "pending" }]);
+    await expect(
+      running.readChecks({
+        remote,
+        pullRequestNumber: 42,
+      }),
+    ).resolves.toEqual({
+      state: "running",
+      total: 1,
+      pending: 1,
+      source: "github",
+      checkedAt: now,
+    });
+
+    const failed = providerWithChecksStatusExit(1, [{ bucket: "fail" }]);
+    await expect(
+      failed.readChecks({
+        remote,
+        pullRequestNumber: 42,
+      }),
+    ).resolves.toEqual({
+      state: "fail",
+      total: 1,
+      failed: 1,
+      source: "github",
+      checkedAt: now,
+    });
+  });
+
   it("normalizes auth, network, rate-limit, timeout, and abort errors", async () => {
     const auth = providerWithFailure("authentication required");
     await expect(auth.discoverPullRequest({ remote, branch: "feature" })).rejects.toMatchObject({
+      code: "GITHUB_AUTH_UNAVAILABLE",
+    });
+    await expect(auth.readChecks({ remote, pullRequestNumber: 42 })).rejects.toMatchObject({
       code: "GITHUB_AUTH_UNAVAILABLE",
     });
 
@@ -209,6 +242,23 @@ function providerWithResponses(calls: string[], responses: Record<string, string
         };
       },
     ),
+  });
+}
+
+function providerWithChecksStatusExit(exitCode: number, checks: unknown[]) {
+  return new GithubRepositoryProvider({
+    clock: { now: () => new Date(now) },
+    runner: createFakeExternalCommandRunner((input) => {
+      expect([input.command, ...(input.args ?? [])].join(" ")).toBe(
+        "gh pr checks 42 --repo github.com/example/web --json bucket,link,name,state,workflow,startedAt,completedAt",
+      );
+      expect(input.allowedExitCodes).toEqual([1, 8]);
+      throw Object.assign(new Error("checks are not passing"), {
+        code: exitCode,
+        stdout: JSON.stringify(checks),
+        stderr: "",
+      });
+    }),
   });
 }
 
