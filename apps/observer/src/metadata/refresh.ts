@@ -18,6 +18,10 @@ import type {
   ObserverPersistence,
   PersistedWorktreeMetadataCurrent,
 } from "../persistence/index.js";
+import {
+  type CreateWorktreeGitWatchServiceOptions,
+  createWorktreeGitWatchService,
+} from "./gitWatch.js";
 import { type LocalGitWorktree, readLocalGitChangeSummary } from "./localGitChangeSummary.js";
 import {
   type CreateRepositoryMetadataRefresherOptions,
@@ -42,6 +46,7 @@ export type CreateWorktreeMetadataRefreshServiceOptions = {
   concurrency?: number;
   repositoryConcurrency?: number;
   repositoryNegativeBackoffMs?: number;
+  watchGit?: boolean;
 };
 
 const defaultGitTimeoutMs = 200;
@@ -73,6 +78,12 @@ export function createWorktreeMetadataRefreshService(
     repositoryOptions.negativeBackoffMs = options.repositoryNegativeBackoffMs;
   }
   const repositoryRefresher = createRepositoryMetadataRefresher(repositoryOptions);
+  const gitWatchOptions: CreateWorktreeGitWatchServiceOptions = {
+    requestReconcile: options.requestReconcile,
+  };
+  if (options.logger !== undefined) gitWatchOptions.logger = options.logger;
+  const gitWatcher =
+    options.watchGit === true ? createWorktreeGitWatchService(gitWatchOptions) : undefined;
   let pendingSnapshot: WosmSnapshot | undefined;
   let running: Promise<void> | undefined;
   let shutdownRequested = false;
@@ -101,6 +112,7 @@ export function createWorktreeMetadataRefreshService(
       shutdownRequested = true;
       pendingSnapshot = undefined;
       controller?.abort();
+      gitWatcher?.shutdown();
       await running?.catch(() => undefined);
     },
   };
@@ -114,6 +126,8 @@ export function createWorktreeMetadataRefreshService(
   }
 
   async function refreshSnapshot(snapshot: WosmSnapshot, signal: AbortSignal): Promise<void> {
+    gitWatcher?.update(snapshot);
+
     const referenceTime = toIsoTimestamp(clock.now());
     const [changeRows, pullRequestRows, checksRows] = await Promise.all([
       options.persistence.listWorktreeMetadataCurrent({

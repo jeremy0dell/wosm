@@ -96,6 +96,7 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       persistence: options.persistence,
       requestReconcile: reconcileScheduler.request,
       clock,
+      watchGit: true,
     };
     if (options.logger !== undefined) {
       metadataRefreshOptions.logger = options.logger;
