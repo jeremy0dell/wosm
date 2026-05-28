@@ -7,7 +7,7 @@ import {
   selectedProject,
 } from "../../flows/newSession.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
-import { newSessionBottomSheetLayout } from "./layout.js";
+import { MAX_PICKER_OPTIONS, newSessionBottomSheetLayout } from "./layout.js";
 
 export type NewSessionBottomSheetProps = {
   snapshot: WosmSnapshot;
@@ -138,16 +138,17 @@ function ProjectPicker({
   width,
 }: {
   snapshot: WosmSnapshot;
-  state: NewSessionFlowState;
+  state: Extract<NewSessionFlowState, { mode: "pickProject" }>;
   width: number;
 }) {
+  const projects = visiblePickerOptions(snapshot.projects, state.cursor);
   return (
     <>
       <BlankLine />
-      {snapshot.projects.map((project, index) => (
+      {projects.map(({ index, option: project }) => (
         <PickerLine
           key={project.id}
-          active={state.mode === "pickProject" && state.cursor === index}
+          active={state.cursor === index}
           label={project.label}
           detail={project.health.status}
           color={statusColor(project.health.status)}
@@ -167,17 +168,17 @@ function AgentPicker({
 }: {
   snapshot: WosmSnapshot;
   project: ProjectView;
-  state: NewSessionFlowState;
+  state: Extract<NewSessionFlowState, { mode: "pickAgent" }>;
   width: number;
 }) {
-  const options = harnessOptions(snapshot, project);
+  const options = visiblePickerOptions(harnessOptions(snapshot, project), state.cursor);
   return (
     <>
       <BlankLine />
-      {options.map((option, index) => (
+      {options.map(({ index, option }) => (
         <PickerLine
           key={option.id}
-          active={state.mode === "pickAgent" && state.cursor === index}
+          active={state.cursor === index}
           label={option.label}
           detail={`${option.isDefault ? "default " : ""}${option.status}`}
           color={statusColor(option.status)}
@@ -250,6 +251,34 @@ function selectedHarnessOption(
   state: NewSessionFlowState,
 ) {
   return harnessOptions(snapshot, project).find((option) => option.id === state.selectedHarness);
+}
+
+type VisiblePickerOption<T> = {
+  index: number;
+  option: T;
+};
+
+function visiblePickerOptions<T>(
+  options: readonly T[],
+  cursor: number,
+): Array<VisiblePickerOption<T>> {
+  if (options.length <= MAX_PICKER_OPTIONS) {
+    return options.map((option, index) => ({ index, option }));
+  }
+
+  const clampedCursor = clampNumber(cursor, 0, options.length - 1);
+  const cursorPadding = Math.floor(MAX_PICKER_OPTIONS / 2);
+  const start = Math.min(
+    Math.max(0, clampedCursor - cursorPadding),
+    options.length - MAX_PICKER_OPTIONS,
+  );
+  return options
+    .slice(start, start + MAX_PICKER_OPTIONS)
+    .map((option, offset) => ({ index: start + offset, option }));
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 function optionCountForState(

@@ -1,5 +1,7 @@
 import type { NewSessionFlowState } from "../../flows/newSession.js";
 
+export const MAX_PICKER_OPTIONS = 8;
+
 export type NewSessionBottomSheetLayoutInput = {
   columns: number;
   rows: number;
@@ -31,7 +33,7 @@ export function newSessionBottomSheetLayout(
 
 function contentRowCount(state: NewSessionFlowState, optionCount: number): number {
   if (state.mode === "pickProject" || state.mode === "pickAgent") {
-    return Math.min(Math.max(1, optionCount), 8) + 3;
+    return Math.min(optionCount, MAX_PICKER_OPTIONS) + 4;
   }
   return 8;
 }
