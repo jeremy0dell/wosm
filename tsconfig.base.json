@@ -26,6 +26,8 @@
       "@wosm/hook-runner": ["apps/hook-runner/src/index.ts"],
       "@wosm/opencode": ["integrations/harness/opencode/src/index.ts"],
       "@wosm/observability": ["packages/observability/src/index.ts"],
+      "@wosm/pi": ["integrations/harness/pi/src/index.ts"],
+      "@wosm/provider-hooks": ["packages/provider-hooks/src/index.ts"],
       "@wosm/protocol": ["packages/protocol/src/index.ts"],
       "@wosm/runtime": ["packages/runtime/src/index.ts"],
       "@wosm/scripted-harness": ["integrations/harness/scripted/src/index.ts"],

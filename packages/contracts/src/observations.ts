@@ -25,6 +25,7 @@ export const AgentStateSchema = z.enum([
 ]);
 export const ObservedStatusSourceSchema = z.enum([
   "harness_hook",
+  "harness_event",
   "harness_process",
   "terminal_capture",
   "worktree_provider",

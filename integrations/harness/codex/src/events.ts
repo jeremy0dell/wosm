@@ -1,4 +1,3 @@
-import { normalize as normalizePath } from "node:path";
 import type {
   HarnessEventContext,
   HarnessEventObservation,
@@ -8,7 +7,12 @@ import type {
   TerminalTargetObservation,
   WorktreeObservation,
 } from "@wosm/contracts";
-import { HarnessEventReportSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import {
+  HarnessEventReportSchema,
+  observedPathIsSameOrInside,
+  sameObservedPath,
+  WOSM_SCHEMA_VERSION,
+} from "@wosm/contracts";
 import { z } from "zod";
 import { codexHarnessError } from "./errors.js";
 
@@ -479,8 +483,10 @@ function terminalForCwd(
   targets: TerminalTargetObservation[],
 ): TerminalTargetObservation | undefined {
   return (
-    targets.find((target) => target.cwd !== undefined && samePath(target.cwd, cwd)) ??
-    targets.find((target) => target.cwd !== undefined && pathIsSameOrInside(cwd, target.cwd))
+    targets.find((target) => target.cwd !== undefined && sameObservedPath(target.cwd, cwd)) ??
+    targets.find(
+      (target) => target.cwd !== undefined && observedPathIsSameOrInside(cwd, target.cwd),
+    )
   );
 }
 
@@ -501,7 +507,7 @@ function worktreeForPath(
   if (path === undefined) {
     return undefined;
   }
-  return worktrees.find((worktree) => samePath(worktree.path, path));
+  return worktrees.find((worktree) => sameObservedPath(worktree.path, path));
 }
 
 function worktreeForCwd(
@@ -509,22 +515,7 @@ function worktreeForCwd(
   worktrees: WorktreeObservation[],
 ): WorktreeObservation | undefined {
   return (
-    worktrees.find((worktree) => samePath(worktree.path, cwd)) ??
-    worktrees.find((worktree) => pathIsSameOrInside(cwd, worktree.path))
+    worktrees.find((worktree) => sameObservedPath(worktree.path, cwd)) ??
+    worktrees.find((worktree) => observedPathIsSameOrInside(cwd, worktree.path))
   );
-}
-
-function samePath(left: string, right: string): boolean {
-  return normalizeObservedPath(left) === normalizeObservedPath(right);
-}
-
-function pathIsSameOrInside(candidatePath: string, parentPath: string): boolean {
-  const candidate = normalizeObservedPath(candidatePath);
-  const parent = normalizeObservedPath(parentPath);
-  return candidate === parent || candidate.startsWith(`${parent}/`);
-}
-
-function normalizeObservedPath(path: string): string {
-  const normalized = normalizePath(path).replace(/^\/private\/var\//, "/var/");
-  return normalized.length > 1 && normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }

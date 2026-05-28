@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
-import type { HookReceiverDeps } from "@wosm/hook-bridge";
+import { type HookReceiverDeps, readStdinIfAvailable } from "@wosm/hook-bridge";
 import { runCodexHooksCommand } from "./commands/codexHooks.js";
 import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
 import {
@@ -356,16 +356,4 @@ function commandRequiresConfig(command: string, args: string[]): boolean {
     "tui",
     "worktrunk",
   ].includes(command);
-}
-
-async function readStdinIfAvailable(): Promise<string | undefined> {
-  if (process.stdin.isTTY) {
-    return undefined;
-  }
-
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString("utf8");
 }

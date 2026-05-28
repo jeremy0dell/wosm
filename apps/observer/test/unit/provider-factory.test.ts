@@ -166,6 +166,67 @@ describe("provider factory", () => {
     });
   });
 
+  it("registers Pi harness provider with command and observer config path", async () => {
+    const registry = createProviderRegistry(
+      {
+        ...config,
+        defaults: {
+          ...config.defaults,
+          harness: "pi",
+        },
+        harness: {
+          pi: {
+            command: "pi-custom",
+          },
+        },
+        projects: [
+          {
+            ...firstProject(),
+            defaults: {
+              harness: "pi",
+              terminal: "fake-terminal",
+              layout: "agent-shell",
+            },
+          },
+        ],
+      },
+      { configPath: "/tmp/wosm/config.toml" },
+    );
+    const provider = registry.harnesses.get("pi");
+    const project = firstProject();
+
+    await expect(
+      provider?.buildLaunch({
+        project: {
+          ...project,
+          defaults: {
+            harness: "pi",
+            terminal: "fake-terminal",
+            layout: "agent-shell",
+          },
+        },
+        worktree: {
+          id: "wt_web_task",
+          provider: "worktrunk",
+          projectId: "web",
+          branch: "task",
+          path: "/tmp/wosm/web/task",
+          state: "exists",
+          source: "worktrunk",
+          observedAt: now,
+        },
+        mode: "interactive",
+      }),
+    ).resolves.toMatchObject({
+      provider: "pi",
+      command: "pi-custom",
+      args: expect.arrayContaining(["--extension"]),
+      env: {
+        WOSM_CONFIG_PATH: "/tmp/wosm/config.toml",
+      },
+    });
+  });
+
   it("registers GitHub as an optional repository provider without eager health alerts", async () => {
     const registry = createProviderRegistry(config);
     const provider = registry.repositories.get("github");

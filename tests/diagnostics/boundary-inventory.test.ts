@@ -39,6 +39,10 @@ const setTimeoutAllowlist = new Map([
     "apps/observer/src/metadata/gitRefInvalidation.ts",
     "Short debounce coalesces noisy Git ref watch events before requesting an observer-owned metadata reconcile.",
   ],
+  [
+    "integrations/harness/pi/src/piExtension.ts",
+    "Standalone Pi extension cannot depend on runtime helpers; bounded hook subprocess timeout is provider-local telemetry.",
+  ],
 ]);
 
 describe("boundary inventory guard", () => {

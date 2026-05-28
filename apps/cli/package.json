@@ -23,6 +23,7 @@
     "@wosm/codex": "workspace:*",
     "@wosm/observability": "workspace:*",
     "@wosm/observer": "workspace:*",
+    "@wosm/provider-hooks": "workspace:*",
     "@wosm/protocol": "workspace:*",
     "@wosm/runtime": "workspace:*",
     "@wosm/tui": "workspace:*",

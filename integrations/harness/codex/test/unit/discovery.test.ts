@@ -49,7 +49,7 @@ describe("discoverCodexRuns", () => {
       cwd: "/tmp/wosm/web/task",
       state: "unknown",
       confidence: "low",
-      reason: "tmux terminal target is bound to Codex; no reliable lifecycle signal yet.",
+      reason: "terminal target is bound to Codex; no reliable lifecycle signal yet.",
       providerData: {
         terminalTargetId: "tmux:wosm:@1:%2",
         terminalProvider: "tmux",

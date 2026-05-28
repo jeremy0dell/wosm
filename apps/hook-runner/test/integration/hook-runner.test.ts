@@ -1,4 +1,4 @@
-import type { HookReceipt } from "@wosm/contracts";
+import type { HarnessEventReportReceipt, HookReceipt } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
 import { runHookRunner } from "../../src/index";
@@ -59,6 +59,102 @@ describe("wosm-hook runner", () => {
             reportHarnessEvent: async () => {
               delivered = true;
               throw new Error("ignored hooks should not reach observer delivery");
+            },
+          }) as never,
+      },
+    });
+
+    expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+    expect(delivered).toBe(false);
+  });
+
+  it("accepts Pi compact events and delivers normalized harness event reports", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let deliveredProvider: string | undefined;
+    let deliveredSource: string | undefined;
+    let deliveredPayload: unknown;
+
+    const result = await runHookRunner(["--config", configPath, "pi", "tool_execution_start"], {
+      stdin: JSON.stringify({
+        event_type: "tool_execution_start",
+        cwd: "/tmp/wosm/web/task",
+        tool_call_id: "toolu_1",
+        tool_name: "bash",
+        args: {
+          command: "echo raw command body",
+        },
+      }),
+      env: {
+        WOSM_PROJECT_ID: "web",
+        WOSM_WORKTREE_ID: "wt_web_task",
+        WOSM_WORKTREE_PATH: "/tmp/wosm/web/task",
+        WOSM_SESSION_ID: "ses_web_task",
+        WOSM_TERMINAL_PROVIDER: "tmux",
+        WOSM_TERMINAL_TARGET_ID: "tmux:wosm:@1:%2",
+      },
+      hookDeps: {
+        clock: { now: () => new Date(now) },
+        hookId: () => "hook_pi_1",
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => {
+              deliveredProvider = report.provider;
+              deliveredSource = report.status?.source;
+              deliveredPayload = report;
+              return {
+                schemaVersion: "0.3.0",
+                reportId: report.reportId,
+                provider: report.provider,
+                eventType: report.eventType,
+                accepted: true,
+                status: "accepted",
+                receivedAt: now,
+                projected: false,
+                scheduledReconcile: false,
+              };
+            },
+          }) as never,
+      },
+    });
+
+    expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
+    expect(deliveredProvider).toBe("pi");
+    expect(deliveredSource).toBe("harness_event");
+    expect(deliveredPayload).toMatchObject({
+      eventType: "tool_execution_start",
+      correlation: {
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        harnessRunId: "pi:tmux:wosm:@1:%2",
+      },
+      diagnostics: {
+        omittedFieldNames: expect.arrayContaining(["args"]),
+      },
+    });
+    expect(JSON.stringify(deliveredPayload)).not.toContain("raw command body");
+  });
+
+  it("ignores Pi events that are not correlated to WOSM ownership env", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let delivered = false;
+
+    const result = await runHookRunner(["--config", configPath, "pi", "tool_execution_start"], {
+      stdin: JSON.stringify({
+        event_type: "tool_execution_start",
+        cwd: "/tmp/wosm/web/task",
+        tool_call_id: "toolu_1",
+        tool_name: "bash",
+      }),
+      env: {},
+      hookDeps: {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async () => {
+              delivered = true;
+              throw new Error("uncorrelated Pi events should not reach observer delivery");
             },
           }) as never,
       },

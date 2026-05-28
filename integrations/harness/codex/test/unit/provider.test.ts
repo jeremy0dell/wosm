@@ -228,7 +228,7 @@ function run(): HarnessRunObservation {
     sessionId: "ses_web_task",
     state: "unknown",
     confidence: "low",
-    reason: "tmux terminal target is bound to Codex; no reliable lifecycle signal yet.",
+    reason: "terminal target is bound to Codex; no reliable lifecycle signal yet.",
     observedAt: now,
   };
 }

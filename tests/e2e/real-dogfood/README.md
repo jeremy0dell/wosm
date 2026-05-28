@@ -56,3 +56,5 @@ On lifecycle failures, tests attempt to write `wosm debug bundle` under the test
 Real Codex can be slow or model-dependent. The prompts are bounded and target only sentinel files under `.wosm-dogfood/sentinels/` in the temp clone.
 
 The Codex hook lane also writes compact hook delivery evidence into the test temp root. Use that alongside `events.jsonl` to confirm that Codex lifecycle hooks such as `SessionStart`, tool-use events, compaction events, subagent events, and `Stop` came from the real Codex process and were ingested as `harness.eventReported` events for provider `codex`.
+
+Pi has a separate opt-in launch-scaffolding lane at `tests/agent/real/pi`. Run it with `pnpm test:e2e:pi:real` and `WOSM_REAL_PI=1` when validating the Pi tmux launch path before adding full real Pi callback assertions.
