@@ -24,4 +24,29 @@ describe("Dashboard", () => {
     expect(frame).toContain(" [8] * queue-worker");
     expect(frame).not.toContain("collapsed");
   });
+
+  it("renders optimistic creates inside project groups without slot labels", () => {
+    const snapshot = createDashboardSnapshot();
+    const frame = renderToString(
+      <Box flexDirection="column" height={24} width={100}>
+        <Dashboard
+          columns={100}
+          optimisticCreates={[
+            {
+              id: "pending_1",
+              projectId: "web",
+              branch: "fix-popup-close",
+              harnessProvider: "codex",
+            },
+          ]}
+          snapshot={snapshot}
+          uiState={{ searchQuery: "", collapsedProjectIds: new Set() }}
+        />
+      </Box>,
+      { columns: 100 },
+    );
+
+    expect(frame).toContain(" [ ] ⠋ fix-popup-close creating session...");
+    expect(frame).not.toContain("[9] ⠋");
+  });
 });

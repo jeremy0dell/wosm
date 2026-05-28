@@ -117,21 +117,16 @@ describe("TUI help overlay", () => {
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
-    instance.stdin.write("n");
-    await waitFor(() => instance.lastFrame()?.includes("new branch:") === true);
+    instance.stdin.write("/");
+    await waitFor(() => instance.lastFrame()?.includes("search:") === true);
 
     instance.stdin.write("H");
     instance.stdin.write("?");
     instance.stdin.write("\r");
 
-    await waitFor(() => service.dispatched.length === 1);
-    expect(service.dispatched[0]).toMatchObject({
-      type: "session.create",
-      payload: {
-        branch: "H?",
-      },
-    });
+    await waitFor(() => instance.lastFrame()?.includes("search:") !== true);
     expect(instance.lastFrame()).not.toContain("wosm help");
+    expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
 
