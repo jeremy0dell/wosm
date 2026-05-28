@@ -1,11 +1,23 @@
+import { randomInt } from "node:crypto";
 import type { TerminalFocusOrigin, WosmCommand, WosmSnapshot } from "@wosm/contracts";
 import { useInput } from "ink";
-import { useRef } from "react";
-import { buildCleanupCommand, cleanupForceRequired } from "../../actions.js";
-import type { ObserverDashboardState } from "../../hooks/useObserverDashboard.js";
-import { intentForDashboardKey } from "../../keymap.js";
-import { selectKeySlots } from "../../selectors.js";
-import { safeErrorToToast, toSafeError } from "../../services/errors.js";
+import { useRef, useState } from "react";
+import {
+  buildCleanupCommand,
+  buildCreateSessionCommand,
+  cleanupForceRequired,
+} from "../actions.js";
+import type { OverlayHostState } from "../components/OverlayHost/OverlayHost.js";
+import {
+  createNewSessionFlow,
+  type NewSessionFlowState,
+  newSessionIntentForInput,
+  transitionNewSessionFlow,
+  validateNewSessionCreate,
+} from "../flows/newSession.js";
+import { intentForDashboardKey } from "../keymap.js";
+import { selectKeySlots } from "../selectors.js";
+import { safeErrorToToast, toSafeError } from "../services/errors.js";
 import {
   closeOverlay,
   closePrompt,
@@ -16,22 +28,12 @@ import {
   setSearchQuery,
   type TuiUiState,
   updatePromptValue,
-} from "../../uiState.js";
-import { CommandPrompt } from "../CommandPrompt.js";
-import { Dashboard } from "../Dashboard.js";
-import {
-  type NewSessionOverlayState,
-  useNewSessionFlow,
-} from "../NewSessionFlowProvider/NewSessionFlowProvider.js";
-import { OverlayHost, type OverlayHostState } from "../OverlayHost/OverlayHost.js";
-import { ToastStack } from "../ToastStack.js";
-import { TuiShell } from "../TuiShell/TuiShell.js";
+} from "../uiState.js";
+import type { ObserverDashboardState } from "./useObserverDashboard.js";
 
-export type TuiInteractionProviderProps = {
-  columns: number;
-  rows: number;
+export type UseDashboardInputOptions = {
   dashboard: ObserverDashboardState;
-  snapshot: WosmSnapshot;
+  snapshot: WosmSnapshot | undefined;
   exitOnFocusSuccess: boolean;
   focusOrigin: TerminalFocusOrigin | undefined;
   resolveFocusOrigin: (() => Promise<TerminalFocusOrigin | undefined>) | undefined;
@@ -41,89 +43,137 @@ export type TuiInteractionProviderProps = {
   onExit: ((code: number) => void) | undefined;
 };
 
-export function TuiInteractionProvider({
-  columns,
-  rows,
-  dashboard,
-  snapshot,
-  exitOnFocusSuccess,
-  focusOrigin,
-  resolveFocusOrigin,
-  onFocusSuccess,
-  onDismiss,
-  persistentPopup,
-  onExit,
-}: TuiInteractionProviderProps) {
+export type DashboardInputState = {
+  overlay: OverlayHostState | undefined;
+};
+
+type InputKey = {
+  ctrl?: boolean;
+  return?: boolean;
+  escape?: boolean;
+  backspace?: boolean;
+  delete?: boolean;
+  upArrow?: boolean;
+  downArrow?: boolean;
+  leftArrow?: boolean;
+  rightArrow?: boolean;
+};
+
+export function useDashboardInput(options: UseDashboardInputOptions): DashboardInputState {
   const promptValueRef = useRef("");
   const promptModeRef = useRef<PromptMode | undefined>(undefined);
-  const newSession = useNewSessionFlow();
+  const newSessionStateRef = useRef<NewSessionFlowState | undefined>(undefined);
+  const [newSessionState, setRenderedNewSessionState] = useState<NewSessionFlowState | undefined>();
+  const setNewSessionState = (next: NewSessionFlowState | undefined) => {
+    newSessionStateRef.current = next;
+    setRenderedNewSessionState(next);
+  };
 
   useInput((input, key) => {
     if (key.ctrl && input === "c") {
-      onExit?.(0);
+      options.onExit?.(0);
       return;
     }
-    if (newSession.isActive) {
+
+    const activeNewSession = newSessionStateRef.current;
+    if (activeNewSession !== undefined) {
+      if (options.snapshot === undefined) {
+        setNewSessionState(undefined);
+        return;
+      }
+      handleNewSessionInput({
+        input,
+        key,
+        dashboard: options.dashboard,
+        snapshot: options.snapshot,
+        state: activeNewSession,
+        setNewSessionState,
+      });
       return;
     }
-    if (dashboard.uiState.prompt !== undefined || promptModeRef.current !== undefined) {
-      handlePromptInput({ input, key, dashboard, snapshot, promptValueRef, promptModeRef });
+
+    if (options.dashboard.uiState.prompt !== undefined || promptModeRef.current !== undefined) {
+      handlePromptInput({
+        input,
+        key,
+        dashboard: options.dashboard,
+        snapshot: options.snapshot,
+        promptValueRef,
+        promptModeRef,
+      });
       return;
     }
-    if (dashboard.uiState.activeOverlay === "help") {
+
+    if (options.dashboard.uiState.activeOverlay === "help") {
       if (input === "H" || input === "?" || input === "Q" || key.escape === true) {
-        dashboard.setUiState((current) => closeOverlay(current));
+        options.dashboard.setUiState((current) => closeOverlay(current));
       }
       return;
     }
+
     if (input === "H" || input === "?") {
-      dashboard.setUiState((current) => openHelpOverlay(current));
+      options.dashboard.setUiState((current) => openHelpOverlay(current));
       return;
     }
+
     if (
-      persistentPopup &&
-      onDismiss !== undefined &&
+      options.persistentPopup &&
+      options.onDismiss !== undefined &&
       (input === "q" || input === "Q" || key.escape === true)
     ) {
-      void dismissPersistentPopup(onDismiss, dashboard);
+      void dismissPersistentPopup(options.onDismiss, options.dashboard);
       return;
     }
+
     if (input === "q" || input === "Q") {
-      onExit?.(0);
+      options.onExit?.(0);
       return;
     }
+
     if (input === "/") {
       promptValueRef.current = "";
       promptModeRef.current = "search";
-      dashboard.setUiState((current) => openPrompt(current, "search"));
+      options.dashboard.setUiState((current) => openPrompt(current, "search"));
       return;
     }
+
     if (input === "r" || input === "R") {
-      void dashboard.reconcile("tui-refresh");
+      void options.dashboard.reconcile("tui-refresh");
       return;
     }
+
     if (input === "x" || input === "X") {
       promptValueRef.current = "";
       promptModeRef.current = "remove-slot";
-      dashboard.setUiState((current) => openPrompt(current, "remove-slot"));
+      options.dashboard.setUiState((current) => openPrompt(current, "remove-slot"));
+      return;
+    }
+
+    if (options.snapshot === undefined) {
       return;
     }
 
     const dashboardKey = key.return === true || input === "\r" || input === "\n" ? "enter" : input;
     const intent = intentForDashboardKey(
       dashboardKey,
-      snapshot,
-      dashboard.uiState,
-      dashboardKeyOptions(focusOrigin),
+      options.snapshot,
+      options.dashboard.uiState,
+      dashboardKeyOptions(options.focusOrigin),
     );
+
     if (intent.type === "open-new-session-prompt") {
-      newSession.open();
+      openNewSessionFlow({
+        dashboard: options.dashboard,
+        snapshot: options.snapshot,
+        setNewSessionState,
+      });
       return;
     }
+
     if (intent.type === "open-cleanup-prompt") {
       promptValueRef.current = "";
       promptModeRef.current = "confirm-cleanup";
-      dashboard.setUiState((current) =>
+      options.dashboard.setUiState((current) =>
         openCleanupPrompt(current, {
           action: intent.action,
           rowId: intent.rowId,
@@ -133,67 +183,130 @@ export function TuiInteractionProvider({
       );
       return;
     }
+
     if (intent.type === "command") {
       if (
         shouldUseFocusLifecycle(intent.command, {
-          exitOnFocusSuccess,
-          persistentPopup,
-          ...(resolveFocusOrigin === undefined ? {} : { resolveFocusOrigin }),
-          ...(onFocusSuccess === undefined ? {} : { onFocusSuccess }),
+          exitOnFocusSuccess: options.exitOnFocusSuccess,
+          persistentPopup: options.persistentPopup,
+          ...(options.resolveFocusOrigin === undefined
+            ? {}
+            : { resolveFocusOrigin: options.resolveFocusOrigin }),
+          ...(options.onFocusSuccess === undefined
+            ? {}
+            : { onFocusSuccess: options.onFocusSuccess }),
         })
       ) {
         void dispatchFocusWithLifecycle(
           intent.command,
-          dashboard,
+          options.dashboard,
           buildFocusLifecycleOptions({
-            exitOnFocusSuccess,
-            focusOrigin,
-            resolveFocusOrigin,
-            onFocusSuccess,
-            persistentPopup,
-            onExit,
+            exitOnFocusSuccess: options.exitOnFocusSuccess,
+            focusOrigin: options.focusOrigin,
+            resolveFocusOrigin: options.resolveFocusOrigin,
+            onFocusSuccess: options.onFocusSuccess,
+            persistentPopup: options.persistentPopup,
+            onExit: options.onExit,
           }),
         );
         return;
       }
-      void dashboard.dispatchCommand(intent.command);
+      void options.dashboard.dispatchCommand(intent.command);
     }
   });
 
-  return (
-    <TuiShell>
-      <Dashboard
-        columns={columns}
-        snapshot={snapshot}
-        uiState={dashboard.uiState}
-        optimisticCreates={newSession.optimisticCreates}
-        quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
-      >
-        <CommandPrompt prompt={dashboard.uiState.prompt} />
-        <ToastStack toasts={dashboard.toasts} />
-      </Dashboard>
-      <OverlayHost
-        columns={columns}
-        overlay={overlayRenderState(snapshot, dashboard.uiState, newSession.overlay)}
-        rows={rows}
-      />
-    </TuiShell>
+  return {
+    overlay: overlayRenderState(options.snapshot, options.dashboard.uiState, newSessionState),
+  };
+}
+
+function openNewSessionFlow(input: {
+  dashboard: ObserverDashboardState;
+  snapshot: WosmSnapshot;
+  setNewSessionState(next: NewSessionFlowState | undefined): void;
+}): void {
+  const state = createNewSessionFlow(input.snapshot, createSessionNameToken());
+  if (state === undefined) {
+    input.dashboard.addToast(
+      safeErrorToToast({
+        tag: "CommandValidationError",
+        code: "PROJECT_NOT_CONFIGURED",
+        message: "No project is configured for a new session.",
+        hint: "Add a project to config.toml and run wosm reconcile.",
+      }),
+    );
+    return;
+  }
+  input.setNewSessionState(state);
+}
+
+function handleNewSessionInput(input: {
+  input: string;
+  key: InputKey;
+  dashboard: ObserverDashboardState;
+  snapshot: WosmSnapshot;
+  state: NewSessionFlowState;
+  setNewSessionState(next: NewSessionFlowState | undefined): void;
+}): void {
+  const intent = newSessionIntentForInput(input.state, {
+    input: input.input,
+    key: input.key,
+    token: createSessionNameToken(),
+  });
+
+  if (intent.type === "none") {
+    return;
+  }
+
+  if (intent.type === "submit") {
+    submitNewSessionFlow({
+      dashboard: input.dashboard,
+      snapshot: input.snapshot,
+      state: input.state,
+      setNewSessionState: input.setNewSessionState,
+    });
+    return;
+  }
+
+  input.setNewSessionState(transitionNewSessionFlow(input.state, input.snapshot, intent.action));
+}
+
+function submitNewSessionFlow(input: {
+  dashboard: ObserverDashboardState;
+  snapshot: WosmSnapshot;
+  state: NewSessionFlowState;
+  setNewSessionState(next: NewSessionFlowState | undefined): void;
+}): void {
+  const validation = validateNewSessionCreate(input.snapshot, input.state);
+  input.setNewSessionState(undefined);
+  if (!validation.ok) {
+    input.dashboard.addToast(safeErrorToToast(validation.error));
+    return;
+  }
+
+  const branch = validation.branch.trim();
+  void input.dashboard.dispatchCommand(
+    buildCreateSessionCommand({
+      project: validation.project,
+      branch,
+      harnessProvider: validation.harnessProvider,
+    }),
   );
 }
 
 function overlayRenderState(
-  snapshot: WosmSnapshot,
+  snapshot: WosmSnapshot | undefined,
   uiState: TuiUiState,
-  newSession: NewSessionOverlayState,
+  newSessionState: NewSessionFlowState | undefined,
 ): OverlayHostState | undefined {
   if (uiState.activeOverlay === "help") {
     return { type: "help" };
   }
-  if (newSession !== undefined) {
+  if (snapshot !== undefined && newSessionState !== undefined) {
     return {
       type: "new-session",
       snapshot,
-      state: newSession.state,
+      state: newSessionState,
     };
   }
   return undefined;
@@ -335,14 +448,9 @@ async function withResolvedFocusOrigin(
 
 type PromptInputContext = {
   input: string;
-  key: {
-    return?: boolean;
-    escape?: boolean;
-    backspace?: boolean;
-    delete?: boolean;
-  };
+  key: InputKey;
   dashboard: ObserverDashboardState;
-  snapshot: WosmSnapshot;
+  snapshot: WosmSnapshot | undefined;
   promptValueRef: { current: string };
   promptModeRef: { current: PromptMode | undefined };
 };
@@ -397,15 +505,7 @@ function handlePromptInput({
     return;
   }
   if (key.return === true || input === "\r" || input === "\n") {
-    if (mode === "search") {
-      dashboard.setUiState((current) =>
-        closePrompt(setSearchQuery(current, promptValueRef.current)),
-      );
-      promptValueRef.current = "";
-      promptModeRef.current = undefined;
-      return;
-    }
-    dashboard.setUiState((current) => closePrompt(current));
+    dashboard.setUiState((current) => closePrompt(setSearchQuery(current, promptValueRef.current)));
     promptValueRef.current = "";
     promptModeRef.current = undefined;
     return;
@@ -418,11 +518,18 @@ function handlePromptInput({
 
 function openRemoveConfirmationForSlot(input: {
   dashboard: ObserverDashboardState;
-  snapshot: WosmSnapshot;
+  snapshot: WosmSnapshot | undefined;
   slot: string;
   promptValueRef: { current: string };
   promptModeRef: { current: PromptMode | undefined };
 }): void {
+  if (input.snapshot === undefined) {
+    input.promptValueRef.current = "";
+    input.promptModeRef.current = undefined;
+    input.dashboard.setUiState((current) => closePrompt(current));
+    return;
+  }
+
   const row = selectKeySlots(input.snapshot, input.dashboard.uiState).get(input.slot);
   if (row === undefined) {
     return;
@@ -440,9 +547,12 @@ function openRemoveConfirmationForSlot(input: {
   );
 }
 
-function submitCleanupPrompt(dashboard: ObserverDashboardState, snapshot: WosmSnapshot): void {
+function submitCleanupPrompt(
+  dashboard: ObserverDashboardState,
+  snapshot: WosmSnapshot | undefined,
+): void {
   const prompt = dashboard.uiState.prompt;
-  if (prompt?.mode !== "confirm-cleanup") {
+  if (prompt?.mode !== "confirm-cleanup" || snapshot === undefined) {
     dashboard.setUiState((current) => closePrompt(current));
     return;
   }
@@ -453,4 +563,10 @@ function submitCleanupPrompt(dashboard: ObserverDashboardState, snapshot: WosmSn
   }
   void dashboard.dispatchCommand(buildCleanupCommand(row, prompt.action, prompt.forceRequired));
   dashboard.setUiState((current) => closePrompt(current));
+}
+
+function createSessionNameToken(): string {
+  return randomInt(36 ** 6)
+    .toString(36)
+    .padStart(6, "0");
 }
