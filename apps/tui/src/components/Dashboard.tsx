@@ -1,6 +1,7 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
+import type { PendingCreateSession } from "../orchestration/uiOrchestration.js";
 import { selectKeySlots, selectProjectGroups } from "../selectors.js";
 import { useTuiMode } from "../tuiMode.js";
 import type { TuiUiState } from "../uiState.js";
@@ -11,6 +12,7 @@ export type DashboardProps = {
   uiState: TuiUiState;
   quitActionLabel?: "close" | "quit";
   columns?: number;
+  optimisticCreates?: readonly PendingCreateSession[];
   children?: ReactNode;
 };
 
@@ -19,6 +21,7 @@ export function Dashboard({
   uiState,
   quitActionLabel = "quit",
   columns = 80,
+  optimisticCreates = [],
   children,
 }: DashboardProps) {
   const renderState = expandedRenderState(uiState);
@@ -32,7 +35,7 @@ export function Dashboard({
       <DashboardHeader productLabel={productLabel} />
       <DashboardDivider columns={columns} />
       <ReservedIndicatorRow />
-      <DashboardBody groups={groups} slots={slots}>
+      <DashboardBody groups={groups} slots={slots} optimisticCreates={optimisticCreates}>
         {children}
       </DashboardBody>
       <ReservedIndicatorRow />
@@ -73,10 +76,12 @@ function ReservedIndicatorRow() {
 function DashboardBody({
   groups,
   slots,
+  optimisticCreates,
   children,
 }: {
   groups: ReturnType<typeof selectProjectGroups>;
   slots: ReturnType<typeof selectKeySlots>;
+  optimisticCreates: readonly PendingCreateSession[];
   children: ReactNode;
 }) {
   return (
@@ -88,6 +93,7 @@ function DashboardBody({
           rows={group.rows}
           collapsed={false}
           slots={slots}
+          optimisticCreates={optimisticCreates.filter((row) => row.projectId === group.project.id)}
         />
       ))}
       {children}
@@ -98,7 +104,7 @@ function DashboardBody({
 function DashboardFooter({ quitHint }: { quitHint: string }) {
   return (
     <Box flexShrink={0}>
-      <Text color="gray">n:new 1-9:start/focus x:remove /:search r:refresh H:help {quitHint}</Text>
+      <Text color="gray">N:new 1-9:start/focus X:remove /:search R:refresh H:help {quitHint}</Text>
     </Box>
   );
 }

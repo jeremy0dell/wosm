@@ -187,6 +187,7 @@ describe("observer reconcile with fake providers", () => {
     expect(snapshot.providerHealth["fake-worktree"]?.status).toBe("healthy");
     expect(snapshot.providerHealth["fake-terminal"]?.status).toBe("healthy");
     expect(snapshot.providerHealth["fake-harness"]?.status).toBe("healthy");
+    expect(snapshot.harnesses).toEqual([{ id: "fake-harness", label: "fake-harness" }]);
     expect(health.lastReconcile).toMatchObject({
       reason: "integration-test",
       projectsScanned: 3,

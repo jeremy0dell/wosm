@@ -66,9 +66,9 @@ describe("TUI app rendering", () => {
     expect(lines.at(-3)?.trim()).toBe("");
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain(
-      "n:new 1-9:start/focus x:remove /:search r:refresh H:help q:quit",
+      "N:new 1-9:start/focus X:remove /:search R:refresh H:help q:quit",
     );
-    expect(lines.slice(0, -1).join("\n")).not.toContain("n:new 1-9");
+    expect(lines.slice(0, -1).join("\n")).not.toContain("N:new 1-9");
   });
 
   it("renders the dashboard layout scaffold with dev label, dividers, and close hint", () => {
@@ -91,7 +91,7 @@ describe("TUI app rendering", () => {
     expect(lines[0]).toBe("wosm dev");
     expect(lines[1]).toMatch(/^─+$/);
     expect(lines.at(-2)).toMatch(/^─+$/);
-    expect(lines.at(-1)).toContain("n:new");
+    expect(lines.at(-1)).toContain("N:new");
     expect(lines.at(-1)).toContain("H:help");
     expect(lines.at(-1)).toContain("q/esc:close");
   });

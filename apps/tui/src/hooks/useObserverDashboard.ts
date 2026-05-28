@@ -1,4 +1,4 @@
-import type { WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
+import type { CommandReceipt, WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { applyWosmEvent } from "../eventReducer.js";
 import { safeErrorToToast, toSafeError } from "../services/errors.js";
@@ -11,16 +11,19 @@ export type UseObserverDashboardOptions = {
   service: TuiObserverService;
   initialSnapshot?: WosmSnapshot;
   initialUiState?: TuiUiState;
+  onEvent?: (event: WosmEvent) => void;
 };
 
 export type ObserverDashboardState = {
   snapshot: WosmSnapshot | undefined;
+  lastEvent: WosmEvent | undefined;
   uiState: TuiUiState;
   loading: boolean;
   toasts: TuiToast[];
   setUiState(next: TuiUiState | ((current: TuiUiState) => TuiUiState)): void;
   addToast(toast: TuiToast): void;
   dispatchCommand(command: WosmCommand): Promise<void>;
+  dispatchCommandWithReceipt(command: WosmCommand): Promise<CommandReceipt | undefined>;
   dispatchCommandAndWaitForCompletion(command: WosmCommand): Promise<boolean>;
   reconcile(reason?: string): Promise<void>;
   dismissToasts(): void;
@@ -28,6 +31,7 @@ export type ObserverDashboardState = {
 
 export function useObserverDashboard(options: UseObserverDashboardOptions): ObserverDashboardState {
   const [snapshot, setSnapshot] = useState<WosmSnapshot | undefined>(options.initialSnapshot);
+  const [lastEvent, setLastEvent] = useState<WosmEvent | undefined>();
   const [loading, setLoading] = useState(options.initialSnapshot === undefined);
   const [toasts, setToasts] = useState<TuiToast[]>([]);
   const [uiState, setUiState] = useState<TuiUiState>(
@@ -91,6 +95,8 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
         }
         return result.snapshot;
       });
+      setLastEvent(event);
+      options.onEvent?.(event);
     };
 
     async function consumeEvents() {
@@ -133,16 +139,26 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
       currentIterator = undefined;
       void iterator?.return?.();
     };
-  }, [options.service]);
+  }, [options.onEvent, options.service]);
 
-  const dispatchCommand = useCallback(
-    async (command: WosmCommand) => {
+  const dispatchCommandWithReceipt = useCallback(
+    async (command: WosmCommand): Promise<CommandReceipt | undefined> => {
       try {
         const receipt = await options.service.dispatch(command);
         const receiptError = receipt.error;
         if (!receipt.accepted && receiptError !== undefined) {
           setToasts((current) => [...current, safeErrorToToast(receiptError)]);
-          return;
+          return receipt;
+        }
+        if (!receipt.accepted) {
+          setToasts((current) => [
+            ...current,
+            {
+              kind: "error",
+              message: `${command.type} was rejected.`,
+            },
+          ]);
+          return receipt;
         }
         setToasts((current) => [
           ...current,
@@ -153,11 +169,20 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
             ...(receipt.traceId === undefined ? {} : { traceId: receipt.traceId }),
           },
         ]);
+        return receipt;
       } catch (error: unknown) {
         setToasts((current) => [...current, safeErrorToToast(toSafeError(error))]);
+        return undefined;
       }
     },
     [options.service],
+  );
+
+  const dispatchCommand = useCallback(
+    async (command: WosmCommand) => {
+      await dispatchCommandWithReceipt(command);
+    },
+    [dispatchCommandWithReceipt],
   );
 
   const dispatchCommandAndWaitForCompletion = useCallback(
@@ -224,12 +249,14 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
   return useMemo(
     () => ({
       snapshot,
+      lastEvent,
       uiState,
       loading,
       toasts,
       setUiState,
       addToast,
       dispatchCommand,
+      dispatchCommandWithReceipt,
       dispatchCommandAndWaitForCompletion,
       reconcile,
       dismissToasts,
@@ -238,8 +265,10 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
       addToast,
       dismissToasts,
       dispatchCommand,
+      dispatchCommandWithReceipt,
       dispatchCommandAndWaitForCompletion,
       loading,
+      lastEvent,
       reconcile,
       snapshot,
       toasts,

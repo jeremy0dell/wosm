@@ -13,7 +13,12 @@ import type { ObserverPersistence } from "../persistence/index.js";
 import { providerObservationRetentionDays } from "../persistence/retention.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverSqliteHandle, ObserverSqliteHealth } from "../sqlite.js";
-import { buildInitialSnapshot, type ProviderReadOptions, runReconcileOnce } from "./run.js";
+import {
+  buildInitialSnapshot,
+  harnessesFromRegistry,
+  type ProviderReadOptions,
+  runReconcileOnce,
+} from "./run.js";
 import {
   projectHarnessEventReportOntoSnapshot,
   type StatusProjectionResult,
@@ -77,6 +82,7 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
     observer: { pid, startedAt, version },
     projects,
     worktreeProviderId: input.providers.worktree.id,
+    harnesses: harnessesFromRegistry(input.providers),
   });
 
   const read: ProviderReadOptions = {
