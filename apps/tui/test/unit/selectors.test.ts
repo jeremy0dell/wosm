@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { selectKeySlots, selectProjectGroups, selectVisibleRows } from "../../src/selectors.js";
+import {
+  selectKeySlots,
+  selectProjectGroups,
+  selectProjectSlots,
+  selectVisibleRows,
+} from "../../src/selectors.js";
 import { createInitialUiState, setSearchQuery, toggleProjectCollapsed } from "../../src/uiState.js";
 import { createDashboardSnapshot } from "../fixtures/snapshots.js";
 
@@ -91,5 +96,26 @@ describe("TUI selectors", () => {
     const slots = selectKeySlots(snapshot, state);
 
     expect(slots.get("5")?.id).toBe("wt_web_idle");
+  });
+
+  it("skips collapsed project rows when assigning worktree slots", () => {
+    const snapshot = createDashboardSnapshot();
+    const state = toggleProjectCollapsed(createInitialUiState(), "web");
+    const slots = selectKeySlots(snapshot, state);
+
+    expect([...slots.entries()].map(([slot, row]) => [slot, row.id])).toEqual([
+      ["1", "wt_api_working"],
+    ]);
+  });
+
+  it("assigns project slots from rendered project headers", () => {
+    const snapshot = createDashboardSnapshot();
+    const state = toggleProjectCollapsed(createInitialUiState(), "web");
+    const slots = selectProjectSlots(snapshot, state);
+
+    expect([...slots.entries()].map(([slot, project]) => [slot, project.id])).toEqual([
+      ["1", "web"],
+      ["2", "api"],
+    ]);
   });
 });

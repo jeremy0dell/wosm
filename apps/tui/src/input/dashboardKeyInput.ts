@@ -1,5 +1,6 @@
 import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { intentForDashboardKey } from "../keymap.js";
+import { selectProjectSlots } from "../selectors.js";
 import { openCleanupPrompt, openHelpOverlay, openPrompt, type PromptMode } from "../uiState.js";
 import {
   buildFocusLifecycleOptions,
@@ -50,6 +51,11 @@ export function handleDashboardKeyInput(context: DashboardInputContext): void {
   }
 
   if (context.snapshot === undefined) {
+    return;
+  }
+
+  if (context.event.input === "C") {
+    openProjectCollapsePrompt(context);
     return;
   }
 
@@ -104,6 +110,23 @@ function openPromptMode(context: DashboardInputContext, mode: PromptMode): void 
   context.promptValueRef.current = "";
   context.promptModeRef.current = mode;
   context.dashboard.setUiState((current) => openPrompt(current, mode));
+}
+
+function openProjectCollapsePrompt(context: DashboardInputContext): void {
+  if (context.snapshot === undefined) {
+    return;
+  }
+  context.promptValueRef.current = formatProjectSlotPrompt(
+    selectProjectSlots(context.snapshot, context.dashboard.uiState),
+  );
+  context.promptModeRef.current = "project-collapse";
+  context.dashboard.setUiState((current) =>
+    openPrompt(current, "project-collapse", context.promptValueRef.current),
+  );
+}
+
+function formatProjectSlotPrompt(slots: ReadonlyMap<string, { label: string }>): string {
+  return [...slots.entries()].map(([slot, project]) => `${slot}:${project.label}`).join(" ");
 }
 
 function dashboardKeyOptions(focusOrigin: TerminalFocusOrigin | undefined): {

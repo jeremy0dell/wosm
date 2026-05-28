@@ -39,6 +39,18 @@ export function selectKeySlots(
   return slots;
 }
 
+export function selectProjectSlots(
+  snapshot: WosmSnapshot,
+  state: TuiUiState,
+): Map<string, ProjectView> {
+  const slots = new Map<string, ProjectView>();
+  const groups = selectProjectGroups(snapshot, state).slice(0, 9);
+  for (const [index, group] of groups.entries()) {
+    slots.set(String(index + 1), group.project);
+  }
+  return slots;
+}
+
 function compareRows(left: WorktreeRow, right: WorktreeRow): number {
   return (
     left.branch.localeCompare(right.branch) ||

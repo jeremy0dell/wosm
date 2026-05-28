@@ -9,17 +9,20 @@ export type ProjectGroupProps = {
   slots: ReadonlyMap<string, WorktreeRow>;
 };
 
-export function ProjectGroup({ project, rows, slots }: ProjectGroupProps) {
+export function ProjectGroup({ project, rows, collapsed, slots }: ProjectGroupProps) {
   const slotByRow = new Map([...slots.entries()].map(([slot, row]) => [row.id, slot]));
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text bold>
-        ▼ {project.label} - {project.counts.worktrees} worktrees | {project.defaults.harness}
+        {collapsed ? "▶" : "▼"} {project.label} - {project.counts.worktrees} worktrees |{" "}
+        {project.defaults.harness}
       </Text>
-      {rows.length === 0 ? <Text color="gray"> 0 worktrees</Text> : null}
-      {rows.map((row) => (
-        <WorktreeRowView key={row.id} row={row} slot={slotByRow.get(row.id)} />
-      ))}
+      {!collapsed && rows.length === 0 ? <Text color="gray"> 0 worktrees</Text> : null}
+      {collapsed
+        ? null
+        : rows.map((row) => (
+            <WorktreeRowView key={row.id} row={row} slot={slotByRow.get(row.id)} />
+          ))}
     </Box>
   );
 }
