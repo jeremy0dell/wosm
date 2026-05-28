@@ -7,6 +7,7 @@ import type {
   ProviderId,
   ProviderProjectConfig,
   SafeError,
+  SnapshotHarness,
   TerminalTargetObservation,
   WorktreeChangeSummary,
   WorktreeChecksSummary,
@@ -68,6 +69,7 @@ export function buildInitialSnapshot(input: {
   };
   projects: ProviderProjectConfig[];
   worktreeProviderId: ProviderId;
+  harnesses?: SnapshotHarness[];
 }): WosmSnapshot {
   return buildWosmSnapshot({
     generatedAt: input.generatedAt,
@@ -78,6 +80,7 @@ export function buildInitialSnapshot(input: {
     projects: input.projects,
     worktreeProviderId: input.worktreeProviderId,
     providerHealth: {},
+    ...(input.harnesses === undefined ? {} : { harnesses: input.harnesses }),
     worktrees: [],
     terminalTargets: [],
     harnessRuns: [],
@@ -170,6 +173,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     projects: input.projects,
     worktreeProviderId: input.providers.worktree.id,
     providerHealth,
+    harnesses: harnessesFromRegistry(input.providers),
     harnessCapabilities: harnessResult.harnessCapabilities,
     worktrees: worktreesForSnapshot,
     terminalTargets: terminalResult.terminalTargets,
@@ -202,6 +206,13 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     providerHealth,
     lastReconcile,
   };
+}
+
+export function harnessesFromRegistry(providers: ProviderRegistry): SnapshotHarness[] {
+  return Array.from(providers.harnesses.values()).map((provider) => ({
+    id: provider.id,
+    label: provider.id,
+  }));
 }
 
 async function readWorktreeObservations(input: {

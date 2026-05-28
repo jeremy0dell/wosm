@@ -88,6 +88,27 @@ describe("TUI command actions", () => {
     });
   });
 
+  it("builds session.create with an explicit harness provider when selected", () => {
+    const snapshot = createDashboardSnapshot();
+    const project = snapshot.projects[0];
+
+    expect(
+      buildCreateSessionCommand({
+        project,
+        branch: "feature/new-dashboard",
+        harnessProvider: "opencode",
+      }),
+    ).toEqual({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "feature/new-dashboard",
+        harness: { provider: "opencode", mode: "interactive" },
+        terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
+      },
+    });
+  });
+
   it("keeps idle-agent primary actions focus-only unless prompt delivery is supported", () => {
     const snapshot = createCommandSnapshot("idle");
     const row = snapshot.rows[0];
