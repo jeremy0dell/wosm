@@ -6,6 +6,7 @@ This index classifies docs by current use. When a doc conflicts with current cod
 
 - [Architecture](architecture.md) is the current authoritative boundary map for ordinary architecture and ownership decisions.
 - [Development](development.md) is the current authoritative guide for environment, test gates, data-shape conventions, and agent-instruction maintenance.
+- [TUI development](tui.md) is the current guide for `apps/tui` React/Ink coding, terminal layout, boundary, and test expectations.
 - [Debugging](debugging.md) is the current authoritative entrypoint for trace IDs, command IDs, diagnostic IDs, no-action debugging, and runtime evidence lookup.
 
 ## Operational References
