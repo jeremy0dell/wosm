@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createNewSessionFlow,
+  createNewSessionNameToken,
   harnessOptions,
   newSessionIntentForInput,
   transitionNewSessionFlow,
@@ -21,6 +22,12 @@ describe("new session flow", () => {
       stepHistory: [],
     });
     expect(Object.hasOwn(state ?? {}, "draftName")).toBe(false);
+  });
+
+  it("creates deterministic path-safe name tokens from unique sources", () => {
+    expect(createNewSessionNameToken("source-a")).toMatch(/^[a-f0-9]{6}$/);
+    expect(createNewSessionNameToken("source-a")).toBe(createNewSessionNameToken("source-a"));
+    expect(createNewSessionNameToken("source-a")).not.toBe(createNewSessionNameToken("source-b"));
   });
 
   it("trims typed names and otherwise preserves branch text", () => {
