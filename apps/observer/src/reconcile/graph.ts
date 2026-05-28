@@ -8,6 +8,7 @@ import type {
   ProviderProjectConfig,
   SafeError,
   SessionView,
+  SnapshotHarness,
   TerminalTargetObservation,
   WorktreeObservation,
   WorktreeRow,
@@ -31,6 +32,7 @@ export type ObserverGraphInput = {
   projects: ObserverGraphProject[];
   worktreeProviderId: ProviderId;
   providerHealth: Record<string, ProviderHealth>;
+  harnesses?: SnapshotHarness[];
   harnessCapabilities?: Record<string, HarnessCapabilities>;
   worktrees: WorktreeObservation[];
   terminalTargets: TerminalTargetObservation[];
@@ -190,7 +192,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
     (!alerts.some((alert) => alert.severity === "error") &&
       Object.values(input.providerHealth).every((health) => health.status !== "unavailable"));
 
-  return {
+  const snapshot: WosmSnapshot = {
     schemaVersion: WOSM_SCHEMA_VERSION,
     generatedAt: input.generatedAt,
     observer: {
@@ -207,6 +209,10 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
     alerts,
     ...orphans(input, harnessRuns, worktreesById, projectsById, harnessRunsById),
   };
+  if (input.harnesses !== undefined) {
+    snapshot.harnesses = input.harnesses;
+  }
+  return snapshot;
 }
 
 type BuildWorktreeRowInput = {

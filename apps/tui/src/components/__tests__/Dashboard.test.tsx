@@ -21,6 +21,6 @@ describe("Dashboard", () => {
     expect(frame).not.toContain("cache-refactor");
     expect(frame).not.toContain("slow-tests");
     expect(frame).toContain("▼ api - 1 worktrees | opencode");
-    expect(frame).toContain(" [1] * queue-worker");
+    expect(frame).toContain(" [1] ◜ queue-worker");
   });
 });

@@ -108,6 +108,18 @@ describe("Phase 1 contract schemas", () => {
       expectParses(WosmSnapshotSchema, snapshot, `snapshot fixture ${name}`);
     }
 
+    expectParses(
+      WosmSnapshotSchema,
+      {
+        ...(snapshots.multipleProjects as Record<string, unknown>),
+        harnesses: [
+          { id: "codex", label: "codex" },
+          { id: "opencode", label: "opencode" },
+        ],
+      },
+      "snapshot with configured harness options",
+    );
+
     expectFails(
       WosmSnapshotSchema,
       await loadJson("snapshots/invalid-snapshot.json"),

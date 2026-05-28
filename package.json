@@ -24,7 +24,7 @@
     "wosm": "bin/wosm",
     "wosm-hook": "bin/wosm-hook",
     "wosm:link": "pnpm link --global",
-    "wosm:tui-dev": "node scripts/tui-dev.mjs",
+    "dev": "node scripts/tui-dev.mjs",
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
@@ -53,7 +53,7 @@
     "ink-testing-library": "^4.0.0",
     "lefthook": "^1.13.6",
     "react-test-renderer": "^19.2.6",
-    "turbo": "^2.5.8",
+    "turbo": "^2.9.15",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
