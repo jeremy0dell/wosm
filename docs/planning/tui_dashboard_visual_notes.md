@@ -184,7 +184,12 @@ App
                            │     ├─ BuiltInKeybindings
                            │     └─ ConfigKeybindings
                            ├─ SearchPromptOverlay
-                           ├─ NewSessionPromptOverlay
+                           ├─ NewSessionBottomSheet
+                           │  ├─ SheetBackdrop
+                           │  ├─ QuickCreateReview
+                           │  ├─ EditSessionName
+                           │  ├─ ProjectPicker
+                           │  └─ AgentPicker
                            ├─ RemoveConfirmOverlay
                            ├─ CommandPaletteOverlay
                            └─ ToastStack
@@ -209,6 +214,7 @@ App
 - `OptimisticRow` represents command-pending UI before provider truth catches up. It can be visually lighter than a full `WorktreeRow`. It receives a visible slot only when it is patching an existing focusable row; create/remove placeholders use a blank slot.
 - `RowMetadata` is right-aligned and optional. It should disappear before `RowPrimary` when width is constrained.
 - `OverlayLayer` is above all frame regions. Overlays never consume rows inside `ScrollViewport`.
+- `NewSessionBottomSheet` is an overlay, not a dashboard child. It may cover the lower dashboard and footer while open, and it owns its own mode-specific key hints.
 - `Footer` reads the active keymap mode. It should not duplicate every binding when `HelpOverlay` can show the full list.
 
 ### Overlay Implementation Plan
@@ -276,7 +282,7 @@ For a create or start action, the UI flow should be:
 
 ```text
 0. User presses N or chooses a configured create/start command.
-1. UI immediately shows a toast such as "Creating worktree..." or "Starting agent...".
+1. UI immediately shows a toast such as "Creating session..." or "Starting agent...".
 2. UI adds an optimistic placeholder for create, or patches the existing row for start, using the optimistic-operation throbber.
 3. TUI dispatches the observer command and records the command id.
 4. The orchestration layer exposes the pending action for rows, overlays, footer, and widgets to consume.
@@ -288,7 +294,7 @@ For a create or start action, the UI flow should be:
 Create placeholder with no target yet:
 
 ```text
- [ ] ⠋ new-login-flow        creating worktree...
+ [ ] ⠋ new-login-flow        creating session...
 ```
 
 Start patch on an existing visible row:
@@ -364,10 +370,147 @@ When provider truth confirms removal, the row disappears. If removal fails, rest
 
 - Dashboard mode: `0-9 a-z` activates the visible row slot; `N`, `X`, `/`, `:`, `R`, `H`, `?`, and `Q` run global dashboard actions. `Enter` has no hidden cursor-selection behavior unless a future visible focus affordance is added.
 - Search input mode: text edits the query; `Enter` confirms the current result/filter; `Esc` returns to dashboard mode.
-- New-session input mode: text edits the requested branch/session target; `Enter` submits; `Esc` cancels.
+- New-session sheet mode: `Enter` creates, `E` edits the generated name, `P` changes project, `A` changes agent, and `Esc` cancels the sheet.
+- Edit-session-name mode: text edits the requested session name; `Enter` uses the typed name or generated fallback; `Esc` returns to the new-session sheet without canceling the whole flow.
 - Remove confirmation mode: `Enter` confirms the visible remove action; `Esc` cancels.
 - Help overlay mode: `H`, `?`, `Q`, or `Esc` closes help. `Enter` is ignored unless the help overlay later gains focusable controls.
 - Command palette mode: text filters commands; `Enter` runs the highlighted command; `Esc` closes the palette.
+
+## New Session Bottom Sheet
+
+The primary create path should feel like a "new thread" flow: fast by default, with naming and agent selection available only when the user wants them. Product copy should use `Session`, `Name`, and `Agent`. Internally, the chosen name still maps to the created worktree/branch name and `Agent` maps to the harness provider.
+
+The generated name is valid as-is. Do not label it with literal `auto:` in the UI; render the generated value dimly to imply a default/hint. If the user opens the edit-name state with no typed input, place the cursor before the dim generated fallback so the field reads as "type here, or press Enter to use this generated name."
+
+### Quick Create Review
+
+Opened by `N`. The bottom sheet overlays the lower dashboard and replaces the normal footer while open. The dashboard behind it stays visible but inactive.
+
+```text
+wosm dev
+────────────────────────────────────────────────────────────────────
+
+
+▼ wosm - 6 sessions | codex
+ [1] ○ ci-and-docs           +0/-0     #13  ✓  codex  idle
+ [2] ○ pi-planning        +4258/-375   #16  ✓  codex  idle
+ [3] ○ tmux-popup-persist    +0/-0     #1   ✓  codex  idle
+ [4] ○ tui-help-overlay      +0/-0     #14  ✓  codex  idle
+ [5] ○ tui-row-foundation    +0/-0     #15  ✓  codex  idle
+ [6] ○ tui-UI-2              +0/-0     #12  ✓  codex  idle
+
+
+╭────────────────────────────── New Session ─────────────────────────────╮
+│ Project   wosm                                                          │
+│ Name      wosm-k7p3x9                                                    │
+│ Agent     codex                                                         │
+│                                                                         │
+│ Enter:create                                                            │
+│ E:edit name   P:project   A:agent   Esc:cancel                          │
+╰─────────────────────────────────────────────────────────────────────────╯
+```
+
+Rendering notes:
+
+- `wosm-k7p3x9` is dim while it is generated and unedited.
+- `Enter` creates immediately with the generated name.
+- `Esc` cancels the whole new-session flow from this parent sheet.
+- `P` and `A` can open picker states inside the same bottom-sheet surface.
+
+### Edit Name Empty State
+
+Opened by `E`. The field is empty, but the generated fallback remains visible as dim hint text. The cursor sits before the dim fallback.
+
+```text
+wosm dev
+────────────────────────────────────────────────────────────────────
+
+
+▼ wosm - 6 sessions | codex
+ [1] ○ ci-and-docs           +0/-0     #13  ✓  codex  idle
+ [2] ○ pi-planning        +4258/-375   #16  ✓  codex  idle
+ [3] ○ tmux-popup-persist    +0/-0     #1   ✓  codex  idle
+ [4] ○ tui-help-overlay      +0/-0     #14  ✓  codex  idle
+ [5] ○ tui-row-foundation    +0/-0     #15  ✓  codex  idle
+ [6] ○ tui-UI-2              +0/-0     #12  ✓  codex  idle
+
+
+╭────────────────────────── Edit Session Name ───────────────────────────╮
+│ Project   wosm                                                          │
+│                                                                         │
+│ Name      _wosm-k7p3x9                                                   │
+│                                                                         │
+│ Enter:use generated name   Esc:back                                      │
+╰─────────────────────────────────────────────────────────────────────────╯
+```
+
+Rendering notes:
+
+- The underscore marks cursor position in the mockup, not literal text.
+- The generated fallback after the cursor is dim.
+- `Enter` with no typed input accepts the generated fallback.
+- `Esc` returns to `QuickCreateReview`; it does not cancel the whole flow.
+
+### Edit Name Typed State
+
+Once the user types, hide the generated fallback and render the typed value normally.
+
+```text
+wosm dev
+────────────────────────────────────────────────────────────────────
+
+
+▼ wosm - 6 sessions | codex
+ [1] ○ ci-and-docs           +0/-0     #13  ✓  codex  idle
+ [2] ○ pi-planning        +4258/-375   #16  ✓  codex  idle
+ [3] ○ tmux-popup-persist    +0/-0     #1   ✓  codex  idle
+ [4] ○ tui-help-overlay      +0/-0     #14  ✓  codex  idle
+ [5] ○ tui-row-foundation    +0/-0     #15  ✓  codex  idle
+ [6] ○ tui-UI-2              +0/-0     #12  ✓  codex  idle
+
+
+╭────────────────────────── Edit Session Name ───────────────────────────╮
+│ Project   wosm                                                          │
+│                                                                         │
+│ Name      fix-popup-close_                                               │
+│                                                                         │
+│ Enter:use name   Esc:back                                                │
+╰─────────────────────────────────────────────────────────────────────────╯
+```
+
+After `Enter`, return to `QuickCreateReview` with the chosen name rendered normally, not dim.
+
+```text
+╭────────────────────────────── New Session ─────────────────────────────╮
+│ Project   wosm                                                          │
+│ Name      fix-popup-close                                                │
+│ Agent     codex                                                         │
+│                                                                         │
+│ Enter:create                                                            │
+│ E:edit name   P:project   A:agent   Esc:cancel                          │
+╰─────────────────────────────────────────────────────────────────────────╯
+```
+
+### Create Feedback
+
+After submit, close the sheet and render a non-targetable optimistic row with a blank slot until provider truth confirms a real target.
+
+```text
+▼ wosm - 7 sessions | codex
+ [1] ○ ci-and-docs           +0/-0     #13  ✓  codex  idle
+ [2] ○ pi-planning        +4258/-375   #16  ✓  codex  idle
+ [3] ○ tmux-popup-persist    +0/-0     #1   ✓  codex  idle
+ [4] ○ tui-help-overlay      +0/-0     #14  ✓  codex  idle
+ [5] ○ tui-row-foundation    +0/-0     #15  ✓  codex  idle
+ [6] ○ tui-UI-2              +0/-0     #12  ✓  codex  idle
+ [ ] ⠋ fix-popup-close       creating session...
+```
+
+When the observer snapshot confirms the session/worktree exists and is actionable, replace the optimistic row with snapshot truth and assign a visible row slot.
+
+```text
+ [7] ○ fix-popup-close       +0/-0     -    -  codex  idle
+```
 
 ## Status Markers
 
