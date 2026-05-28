@@ -117,6 +117,34 @@ describe("provider factory", () => {
     });
   });
 
+  it("orders harness providers from defaults, project defaults, and harness config", () => {
+    const registry = createProviderRegistry({
+      ...config,
+      projects: [
+        firstProject(),
+        {
+          id: "api",
+          label: "api",
+          root: "/tmp/wosm/api",
+          defaults: {
+            harness: "opencode",
+            terminal: "fake-terminal",
+            layout: "agent-shell",
+          },
+          worktrunk: {
+            enabled: true,
+          },
+        },
+      ],
+      harness: {
+        pi: {},
+        scripted: {},
+      },
+    });
+
+    expect([...registry.harnesses.keys()]).toEqual(["codex", "opencode", "pi", "scripted"]);
+  });
+
   it("passes Codex config defaults into the Codex harness provider", async () => {
     const registry = createProviderRegistry({
       ...config,

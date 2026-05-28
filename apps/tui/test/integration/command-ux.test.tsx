@@ -69,21 +69,21 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("dispatches session.create from the new-session prompt", async () => {
+  it("dispatches session.create from the new-session bottom sheet", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("n");
-    instance.stdin.write("feature/tui-new");
+    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]?.type).toBe("session.create");
     expect(service.dispatched[0]).toMatchObject({
       type: "session.create",
       payload: {
         projectId: "web",
-        branch: "feature/tui-new",
         terminal: {
           provider: "tmux",
           layout: "agent-build-shell",
@@ -91,6 +91,9 @@ describe("TUI command UX", () => {
         },
       },
     });
+    expect(
+      service.dispatched[0]?.type === "session.create" ? service.dispatched[0].payload.branch : "",
+    ).toMatch(/^web-[0-9a-z]{6}$/);
     instance.unmount();
   });
 
@@ -100,7 +103,7 @@ describe("TUI command UX", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("n");
-    instance.stdin.write("feature/tui-new");
+    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => instance.lastFrame()?.includes("session.create queued") === true);
@@ -199,9 +202,11 @@ describe("TUI command UX", () => {
     const instance = render(<App initialSnapshot={blockedSnapshot} service={service} />);
 
     instance.stdin.write("n");
+    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    instance.stdin.write("\r");
 
     await waitFor(() => instance.lastFrame()?.includes("Worktrunk is not available.") === true);
-    expect(instance.lastFrame()).not.toContain("new branch:");
+    expect(instance.lastFrame()).not.toContain("New Session");
     expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
@@ -283,7 +288,7 @@ describe("TUI command UX", () => {
     await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees | codex") === true);
     expect(instance.lastFrame()).not.toContain("fix-nav-mobile");
     expect(instance.lastFrame()).not.toContain("collapse project:");
-    expect(instance.lastFrame()).toContain(" [1] * queue-worker");
+    expect(instance.lastFrame()).toContain(" [1] ◜ queue-worker");
 
     instance.stdin.write("5");
     await settle();

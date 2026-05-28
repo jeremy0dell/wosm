@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createZeroWorktreeSnapshot } from "../../../../test/fixtures/snapshots.js";
 import { Dashboard } from "../../Dashboard.js";
 import { helpPanelLayout } from "../../HelpOverlay/HelpOverlay.js";
-import { OverlayLayer } from "../../OverlayLayer/OverlayLayer.js";
+import { OverlayHost } from "../../OverlayHost/OverlayHost.js";
 import { TuiShell } from "../TuiShell.js";
 
 describe("TuiShell", () => {
@@ -60,6 +60,7 @@ describe("TuiShell", () => {
 
 function renderShell(columns: number, rows: number, activeOverlay: "help" | undefined): string {
   const snapshot = createZeroWorktreeSnapshot();
+  const overlay = activeOverlay === undefined ? undefined : { type: activeOverlay };
   return stripAnsi(
     renderToString(
       <Box flexDirection="column" height={rows} width={columns}>
@@ -69,7 +70,7 @@ function renderShell(columns: number, rows: number, activeOverlay: "help" | unde
             snapshot={snapshot}
             uiState={{ searchQuery: "", collapsedProjectIds: new Set() }}
           />
-          <OverlayLayer activeOverlay={activeOverlay} columns={columns} rows={rows} />
+          <OverlayHost columns={columns} overlay={overlay} rows={rows} />
         </TuiShell>
       </Box>,
       { columns },

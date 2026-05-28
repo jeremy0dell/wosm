@@ -38,7 +38,7 @@ export function intentForDashboardKey(
           command: buildPrimaryCommandForRow(row, snapshot, focusCommandOptions(options)),
         };
   }
-  if (input === "n") {
+  if (input === "n" || input === "N") {
     return { type: "open-new-session-prompt" };
   }
   return { type: "none" };

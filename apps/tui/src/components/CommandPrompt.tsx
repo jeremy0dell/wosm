@@ -27,9 +27,6 @@ export function CommandPrompt({ prompt }: CommandPromptProps) {
 }
 
 function textPromptLabel(mode: Exclude<TuiPromptState["mode"], "confirm-cleanup">): string {
-  if (mode === "new-session") {
-    return "new branch";
-  }
   if (mode === "remove-slot") {
     return "remove slot";
   }

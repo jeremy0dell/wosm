@@ -46,7 +46,7 @@ describe("ProjectGroup", () => {
       />,
     );
 
-    expect(frame).toContain(" [3] * cache-refactor");
+    expect(frame).toContain(" [3] ◜ cache-refactor");
   });
 
   it("renders the collapsed arrow and hides group body rows", () => {

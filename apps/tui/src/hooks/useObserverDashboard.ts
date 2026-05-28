@@ -11,6 +11,7 @@ export type UseObserverDashboardOptions = {
   service: TuiObserverService;
   initialSnapshot?: WosmSnapshot;
   initialUiState?: TuiUiState;
+  onEvent?: (event: WosmEvent) => void;
 };
 
 export type ObserverDashboardState = {
@@ -91,6 +92,7 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
         }
         return result.snapshot;
       });
+      options.onEvent?.(event);
     };
 
     async function consumeEvents() {
@@ -133,15 +135,25 @@ export function useObserverDashboard(options: UseObserverDashboardOptions): Obse
       currentIterator = undefined;
       void iterator?.return?.();
     };
-  }, [options.service]);
+  }, [options.onEvent, options.service]);
 
   const dispatchCommand = useCallback(
-    async (command: WosmCommand) => {
+    async (command: WosmCommand): Promise<void> => {
       try {
         const receipt = await options.service.dispatch(command);
         const receiptError = receipt.error;
         if (!receipt.accepted && receiptError !== undefined) {
           setToasts((current) => [...current, safeErrorToToast(receiptError)]);
+          return;
+        }
+        if (!receipt.accepted) {
+          setToasts((current) => [
+            ...current,
+            {
+              kind: "error",
+              message: `${command.type} was rejected.`,
+            },
+          ]);
           return;
         }
         setToasts((current) => [
