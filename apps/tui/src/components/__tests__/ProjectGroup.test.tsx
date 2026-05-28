@@ -49,7 +49,7 @@ describe("ProjectGroup", () => {
     expect(frame).toContain(" [3] ◜ cache-refactor");
   });
 
-  it("does not render collapsed suffixes or hide rows when collapsed is passed", () => {
+  it("renders the collapsed arrow and hides group body rows", () => {
     const snapshot = createDashboardSnapshot();
     const project = required(snapshot.projects.find((candidate) => candidate.id === "web"));
     const rows = snapshot.rows.filter((candidate) => candidate.projectId === "web");
@@ -58,9 +58,21 @@ describe("ProjectGroup", () => {
       <ProjectGroup project={project} rows={rows} collapsed={true} slots={new Map()} />,
     );
 
-    expect(frame).toContain("▼ web - 7 worktrees | codex");
-    expect(frame).toContain("cache-refactor");
-    expect(frame).not.toContain("collapsed");
+    expect(frame).toContain("▶ web - 7 worktrees | codex");
+    expect(frame).not.toContain("cache-refactor");
+    expect(frame).not.toContain("0 worktrees");
+  });
+
+  it("hides zero-worktree body text when collapsed", () => {
+    const snapshot = createZeroWorktreeSnapshot();
+    const project = required(snapshot.projects.find((candidate) => candidate.id === "web"));
+
+    const frame = renderToString(
+      <ProjectGroup project={project} rows={[]} collapsed={true} slots={new Map()} />,
+    );
+
+    expect(frame).toContain("▶ web - 0 worktrees | codex");
+    expect(frame).not.toContain("\n0 worktrees");
   });
 });
 

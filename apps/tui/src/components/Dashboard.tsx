@@ -21,9 +21,8 @@ export function Dashboard({
   columns = 80,
   children,
 }: DashboardProps) {
-  const renderState = expandedRenderState(uiState);
-  const groups = selectProjectGroups(snapshot, renderState);
-  const slots = selectKeySlots(snapshot, renderState);
+  const groups = selectProjectGroups(snapshot, uiState);
+  const slots = selectKeySlots(snapshot, uiState);
   const quitHint = quitActionLabel === "close" ? "q/esc:close" : "q:quit";
   const mode = useTuiMode();
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";
@@ -86,7 +85,7 @@ function DashboardBody({
           key={group.project.id}
           project={group.project}
           rows={group.rows}
-          collapsed={false}
+          collapsed={group.collapsed}
           slots={slots}
         />
       ))}
@@ -101,15 +100,4 @@ function DashboardFooter({ quitHint }: { quitHint: string }) {
       <Text color="gray">N:new 1-9:start/focus X:remove /:search R:refresh H:help {quitHint}</Text>
     </Box>
   );
-}
-
-function expandedRenderState(uiState: TuiUiState): TuiUiState {
-  const renderState: TuiUiState = {
-    searchQuery: uiState.searchQuery,
-    collapsedProjectIds: new Set(),
-  };
-  if (uiState.prompt !== undefined) {
-    renderState.prompt = uiState.prompt;
-  }
-  return renderState;
 }

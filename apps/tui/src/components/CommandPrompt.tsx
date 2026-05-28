@@ -30,5 +30,8 @@ function textPromptLabel(mode: Exclude<TuiPromptState["mode"], "confirm-cleanup"
   if (mode === "remove-slot") {
     return "remove slot";
   }
+  if (mode === "project-collapse") {
+    return "collapse project";
+  }
   return "search";
 }

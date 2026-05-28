@@ -1,6 +1,12 @@
 import { buildCleanupCommand, cleanupForceRequired } from "../actions.js";
-import { selectKeySlots } from "../selectors.js";
-import { closePrompt, openCleanupPrompt, setSearchQuery, updatePromptValue } from "../uiState.js";
+import { selectKeySlots, selectProjectSlots } from "../selectors.js";
+import {
+  closePrompt,
+  openCleanupPrompt,
+  setSearchQuery,
+  toggleProjectCollapsed,
+  updatePromptValue,
+} from "../uiState.js";
 import { isReturnInput } from "./keyEvents.js";
 import type { DashboardInputContext } from "./types.js";
 
@@ -13,6 +19,12 @@ export function handlePromptInput(context: DashboardInputContext): void {
     context.promptValueRef.current = "";
     context.promptModeRef.current = undefined;
     context.dashboard.setUiState((current) => closePrompt(current));
+    return;
+  }
+  if (mode === "project-collapse") {
+    if (/^[1-9]$/.test(context.event.input)) {
+      toggleProjectFromPromptSlot(context, context.event.input);
+    }
     return;
   }
   if (context.event.key.backspace === true || context.event.key.delete === true) {
@@ -60,6 +72,25 @@ export function handlePromptInput(context: DashboardInputContext): void {
       updatePromptValue(current, context.promptValueRef.current),
     );
   }
+}
+
+function toggleProjectFromPromptSlot(context: DashboardInputContext, slot: string): void {
+  if (context.snapshot === undefined) {
+    context.promptValueRef.current = "";
+    context.promptModeRef.current = undefined;
+    context.dashboard.setUiState((current) => closePrompt(current));
+    return;
+  }
+
+  const project = selectProjectSlots(context.snapshot, context.dashboard.uiState).get(slot);
+  if (project === undefined) {
+    return;
+  }
+  context.promptValueRef.current = "";
+  context.promptModeRef.current = undefined;
+  context.dashboard.setUiState((current) =>
+    closePrompt(toggleProjectCollapsed(current, project.id)),
+  );
 }
 
 function openRemoveConfirmationForSlot(context: DashboardInputContext, slot: string): void {
