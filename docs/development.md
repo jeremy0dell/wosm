@@ -61,6 +61,10 @@ Use `pnpm setup:system:check` before real lanes. Real lanes may require `WOSM_RE
 - Current code, tests, runtime traces, and deterministic fixtures are stronger evidence than historical plans.
 - Do not introduce production behavior through docs-only changes.
 
+## TUI Work
+
+TUI work has additional React/Ink and terminal-layout expectations. Use [TUI development](tui.md) before changing `apps/tui` components, hooks, services, keymaps, selectors, popup behavior, or TUI tests.
+
 ## TypeScript And Data Rules
 
 - `exactOptionalPropertyTypes` is intentional. Preserve the difference between an absent optional field and a field set to `undefined`.
