@@ -8,12 +8,11 @@ import type {
 } from "@wosm/contracts";
 import { stableName } from "@wosm/runtime";
 import {
-  backspaceEditableText,
   createEditableTextInputState,
-  deleteEditableText,
+  type EditableTextEditAction,
   type EditableTextInputState,
-  insertEditableText,
-  moveEditableTextCursor,
+  editableTextInputIntentForInput,
+  transitionEditableTextInput,
 } from "../components/EditableTextInput/editing.js";
 import {
   backWizardStep,
@@ -60,10 +59,7 @@ export type NewSessionFlowState =
 
 export type NewSessionFlowAction =
   | { type: "editName" }
-  | { type: "appendName"; input: string }
-  | { type: "backspaceName" }
-  | { type: "deleteName" }
-  | { type: "moveNameCursor"; delta: number }
+  | { type: "editNameInput"; action: EditableTextEditAction }
   | { type: "commitName" }
   | { type: "pickProject" }
   | { type: "pickAgent" }
@@ -154,14 +150,13 @@ export function transitionNewSessionFlow(
         ...enterWizardStep(baseState(state), "editName"),
         draftName: createEditableTextInputState(),
       } satisfies NewSessionEditNameState;
-    case "appendName":
-      return state.mode === "editName" ? insertNameInput(state, action.input) : state;
-    case "backspaceName":
-      return state.mode === "editName" ? backspaceNameInput(state) : state;
-    case "deleteName":
-      return state.mode === "editName" ? deleteNameInput(state) : state;
-    case "moveNameCursor":
-      return state.mode === "editName" ? moveNameInputCursor(state, action.delta) : state;
+    case "editNameInput":
+      return state.mode === "editName"
+        ? {
+            ...state,
+            draftName: transitionEditableTextInput(state.draftName, action.action),
+          }
+        : state;
     case "commitName":
       return state.mode === "editName" ? commitEditedName(state) : state;
     case "pickProject":
@@ -353,55 +348,13 @@ const reviewKeyIntents: Record<string, NewSessionInputIntent> = {
 };
 
 function editNameInputIntent(input: NewSessionInput): NewSessionInputIntent {
-  if (input.key.leftArrow === true) {
-    return transitionIntent({ type: "moveNameCursor", delta: -1 });
-  }
-  if (input.key.rightArrow === true) {
-    return transitionIntent({ type: "moveNameCursor", delta: 1 });
-  }
-  if (input.key.backspace === true) {
-    return transitionIntent({ type: "backspaceName" });
-  }
-  if (input.key.delete === true) {
-    return transitionIntent({ type: "deleteName" });
-  }
   if (isReturn(input)) {
     return transitionIntent({ type: "commitName" });
   }
-  return input.input.length > 0
-    ? transitionIntent({ type: "appendName", input: input.input })
+  const intent = editableTextInputIntentForInput(input);
+  return intent.type === "edit"
+    ? transitionIntent({ type: "editNameInput", action: intent.action })
     : { type: "none" };
-}
-
-function insertNameInput(state: NewSessionEditNameState, input: string): NewSessionEditNameState {
-  return {
-    ...state,
-    draftName: insertEditableText(state.draftName, input),
-  };
-}
-
-function backspaceNameInput(state: NewSessionEditNameState): NewSessionEditNameState {
-  return {
-    ...state,
-    draftName: backspaceEditableText(state.draftName),
-  };
-}
-
-function deleteNameInput(state: NewSessionEditNameState): NewSessionEditNameState {
-  return {
-    ...state,
-    draftName: deleteEditableText(state.draftName),
-  };
-}
-
-function moveNameInputCursor(
-  state: NewSessionEditNameState,
-  delta: number,
-): NewSessionEditNameState {
-  return {
-    ...state,
-    draftName: moveEditableTextCursor(state.draftName, delta),
-  };
 }
 
 function pickerInputIntent(
