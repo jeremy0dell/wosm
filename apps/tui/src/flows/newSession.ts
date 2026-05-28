@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type {
   ProjectId,
   ProjectView,
@@ -6,7 +7,7 @@ import type {
   SafeError,
   WosmSnapshot,
 } from "@wosm/contracts";
-import { stableName } from "@wosm/runtime";
+import { stableName, stableNameHash } from "@wosm/runtime";
 import {
   createEditableTextInputState,
   type EditableTextEditAction,
@@ -314,6 +315,10 @@ export function generatedSessionBranch(projectId: ProjectId, token: string): str
     display: [projectId, token],
     unique: [projectId, token],
   });
+}
+
+export function createNewSessionNameToken(unique = randomUUID()): string {
+  return stableNameHash(["new-session", unique], 6);
 }
 
 function configuredHarnesses(snapshot: WosmSnapshot, project: ProjectView) {
