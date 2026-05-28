@@ -1,5 +1,6 @@
 import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
 import { Box, Text } from "ink";
+import { Throbber, type ThrobberVariant } from "./Throbber.js";
 
 export type WorktreeRowProps = {
   row: WorktreeRowModel;
@@ -14,35 +15,64 @@ export function WorktreeRow({ row, slot }: WorktreeRowProps) {
     row.display.warning === true && row.display.reason !== undefined
       ? ` ${row.display.reason}`
       : "";
-  const color = row.display.alert ? "red" : marker === "?" ? "yellow" : undefined;
-  const prefix = ` [${slot ?? " "}] ${marker} ${row.branch}`;
+  const color = row.display.alert
+    ? "red"
+    : marker.kind === "text" && marker.glyph === "?"
+      ? "yellow"
+      : undefined;
   const suffix = `  ${harness}  ${row.display.statusLabel}${reason}`;
   return (
     <Box>
-      {color === undefined ? <Text>{prefix}</Text> : <Text color={color}>{prefix}</Text>}
+      <ColoredText color={color}>{` [${slot ?? " "}] `}</ColoredText>
+      {marker.kind === "throbber" ? (
+        <Throbber variant={marker.variant} />
+      ) : (
+        <ColoredText color={color}>{marker.glyph}</ColoredText>
+      )}
+      <ColoredText color={color}>{` ${row.branch}`}</ColoredText>
       {metadata.map((segment) => (
         <MetadataText key={segment.text} segment={segment} color={color} />
       ))}
-      {color === undefined ? <Text>{suffix}</Text> : <Text color={color}>{suffix}</Text>}
+      <ColoredText color={color}>{suffix}</ColoredText>
     </Box>
   );
 }
 
-function statusMarker(row: WorktreeRowModel): string {
+type StatusMarker =
+  | {
+      kind: "text";
+      glyph: string;
+    }
+  | {
+      kind: "throbber";
+      variant: Extract<ThrobberVariant, "circle">;
+    };
+
+function statusMarker(row: WorktreeRowModel): StatusMarker {
   const state = row.agent?.state ?? "none";
-  if (state === "needs_attention" || state === "stuck") return "!";
-  if (state === "working") return "*";
-  if (state === "idle") return "○";
-  if (state === "starting") return "+";
-  if (state === "unknown") return "?";
-  if (state === "exited") return "x";
-  return "-";
+  if (state === "needs_attention" || state === "stuck") return { kind: "text", glyph: "!" };
+  if (state === "working") return { kind: "throbber", variant: "circle" };
+  if (state === "idle") return { kind: "text", glyph: "○" };
+  if (state === "starting") return { kind: "text", glyph: "+" };
+  if (state === "unknown") return { kind: "text", glyph: "?" };
+  if (state === "exited") return { kind: "text", glyph: "x" };
+  return { kind: "text", glyph: "-" };
 }
 
 type MetadataSegment = {
   text: string;
   stale: boolean;
 };
+
+function ColoredText({
+  children,
+  color,
+}: {
+  children: string;
+  color: "red" | "yellow" | undefined;
+}) {
+  return color === undefined ? <Text>{children}</Text> : <Text color={color}>{children}</Text>;
+}
 
 function MetadataText({
   segment,

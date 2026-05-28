@@ -25,7 +25,7 @@ describe("TUI app rendering", () => {
     expect(frame).toContain("unknown");
     expect(frame).toContain("exited");
     expect(frame).toContain("no agent");
-    expect(frame).toContain(" [1] * cache-refactor");
+    expect(frame).toContain(" [1] ◜ cache-refactor");
     expect(frame).toContain(" [2] ! checkout-copy");
     expect(frame).toContain(" [3] x done-run");
     expect(frame).toContain(" [4] - feature-auth");
