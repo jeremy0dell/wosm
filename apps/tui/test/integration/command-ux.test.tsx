@@ -270,6 +270,51 @@ describe("TUI command UX", () => {
     expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
+
+  it("collapses and expands project rows through the project-select prompt", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("C");
+    await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
+
+    instance.stdin.write("1");
+    await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees | codex") === true);
+    expect(instance.lastFrame()).not.toContain("fix-nav-mobile");
+    expect(instance.lastFrame()).not.toContain("collapse project:");
+    expect(instance.lastFrame()).toContain(" [1] * queue-worker");
+
+    instance.stdin.write("5");
+    await settle();
+    expect(service.dispatched).toHaveLength(0);
+
+    instance.stdin.write("C");
+    await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
+    instance.stdin.write("1");
+    await waitFor(() => instance.lastFrame()?.includes("▼ web - 7 worktrees | codex") === true);
+    expect(instance.lastFrame()).toContain(" [5] ○ fix-nav-mobile");
+
+    instance.stdin.write("C");
+    await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
+    instance.stdin.write("\u001B");
+    await waitFor(() => instance.lastFrame()?.includes("collapse project:") !== true);
+    expect(instance.lastFrame()).toContain("▼ web - 7 worktrees | codex");
+    expect(instance.lastFrame()).toContain(" [5] ○ fix-nav-mobile");
+
+    instance.stdin.write("C");
+    await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
+    instance.stdin.write("1");
+    await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees | codex") === true);
+    instance.stdin.write("x");
+    await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
+    instance.stdin.write("5");
+    await settle();
+    expect(instance.lastFrame()).not.toContain("confirm remove fix-nav-mobile? y/N");
+    expect(service.dispatched).toHaveLength(0);
+
+    instance.unmount();
+  });
 });
 
 async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {

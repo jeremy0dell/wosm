@@ -1,10 +1,15 @@
 import type { WorktreeId } from "@wosm/contracts";
 import type { CleanupActionKind } from "./actions.js";
 
-export type PromptMode = "new-session" | "search" | "remove-slot" | "confirm-cleanup";
+export type PromptMode =
+  | "new-session"
+  | "search"
+  | "remove-slot"
+  | "project-collapse"
+  | "confirm-cleanup";
 
 export type TuiTextPromptState = {
-  mode: "new-session" | "search" | "remove-slot";
+  mode: "new-session" | "search" | "remove-slot" | "project-collapse";
   value: string;
 };
 
@@ -76,14 +81,14 @@ export function toggleProjectCollapsed(state: TuiUiState, projectId: string): Tu
   return next;
 }
 
-export function openPrompt(state: TuiUiState, mode: PromptMode): TuiUiState {
+export function openPrompt(state: TuiUiState, mode: PromptMode, value = ""): TuiUiState {
   if (mode === "confirm-cleanup") {
     return state;
   }
   const next: TuiUiState = {
     searchQuery: state.searchQuery,
     collapsedProjectIds: state.collapsedProjectIds,
-    prompt: { mode, value: "" },
+    prompt: { mode, value },
   };
   return next;
 }

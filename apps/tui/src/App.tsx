@@ -10,7 +10,7 @@ import { TuiFrame } from "./components/TuiFrame.js";
 import { TuiShell } from "./components/TuiShell/TuiShell.js";
 import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
 import { intentForDashboardKey } from "./keymap.js";
-import { selectKeySlots, selectNewSessionAvailability } from "./selectors.js";
+import { selectKeySlots, selectNewSessionAvailability, selectProjectSlots } from "./selectors.js";
 import { safeErrorToToast, toSafeError } from "./services/errors.js";
 import type { TuiObserverService } from "./services/types.js";
 import {
@@ -23,6 +23,7 @@ import {
   type PromptMode,
   setSearchQuery,
   type TuiUiState,
+  toggleProjectCollapsed,
   updatePromptValue,
 } from "./uiState.js";
 
@@ -104,6 +105,16 @@ export function App({
       promptValueRef.current = "";
       promptModeRef.current = "remove-slot";
       dashboard.setUiState((current) => openPrompt(current, "remove-slot"));
+      return;
+    }
+    if (input === "C") {
+      promptValueRef.current = formatProjectSlotPrompt(
+        selectProjectSlots(dashboard.snapshot, dashboard.uiState),
+      );
+      promptModeRef.current = "project-collapse";
+      dashboard.setUiState((current) =>
+        openPrompt(current, "project-collapse", promptValueRef.current),
+      );
       return;
     }
     const dashboardKey = key.return === true || input === "\r" || input === "\n" ? "enter" : input;
@@ -362,6 +373,12 @@ function handlePromptInput({
     dashboard.setUiState((current) => closePrompt(current));
     return;
   }
+  if (mode === "project-collapse") {
+    if (/^[1-9]$/.test(input)) {
+      toggleProjectFromPromptSlot(dashboard, input, promptValueRef, promptModeRef);
+    }
+    return;
+  }
   if (key.backspace === true || key.delete === true) {
     promptValueRef.current = promptValueRef.current.slice(0, -1);
     dashboard.setUiState((current) => updatePromptValue(current, promptValueRef.current));
@@ -405,6 +422,31 @@ function handlePromptInput({
     promptValueRef.current = `${promptValueRef.current}${input}`;
     dashboard.setUiState((current) => updatePromptValue(current, promptValueRef.current));
   }
+}
+
+function formatProjectSlotPrompt(slots: ReadonlyMap<string, { label: string }>): string {
+  return [...slots.entries()].map(([slot, project]) => `${slot}:${project.label}`).join(" ");
+}
+
+function toggleProjectFromPromptSlot(
+  dashboard: ReturnType<typeof useObserverDashboard>,
+  slot: string,
+  promptValueRef: { current: string },
+  promptModeRef: { current: PromptMode | undefined },
+): void {
+  if (dashboard.snapshot === undefined) {
+    dashboard.setUiState((current) => closePrompt(current));
+    promptValueRef.current = "";
+    promptModeRef.current = undefined;
+    return;
+  }
+  const project = selectProjectSlots(dashboard.snapshot, dashboard.uiState).get(slot);
+  if (project === undefined) {
+    return;
+  }
+  promptValueRef.current = "";
+  promptModeRef.current = undefined;
+  dashboard.setUiState((current) => closePrompt(toggleProjectCollapsed(current, project.id)));
 }
 
 function openRemoveConfirmationForSlot(
