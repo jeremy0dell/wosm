@@ -7,6 +7,16 @@
     },
     "build": {
       "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!tests/**",
+        "!src/**/__tests__/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!**/*.spec.tsx"
+      ],
       "outputs": ["dist/**"]
     },
     "typecheck": {

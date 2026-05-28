@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseCleanupArgs } from "../../scripts/agent-cleanup.mjs";
 import { isUnder, normalizeConfig, parseResetArgs } from "../../scripts/agent-reset.mjs";
@@ -9,6 +10,14 @@ import {
   shouldRunDirectTui,
 } from "../../scripts/tui-dev.mjs";
 import { shouldRestartForPath } from "../../scripts/tui-watch-runner.mjs";
+
+type TurboConfig = {
+  tasks?: {
+    build?: {
+      inputs?: string[];
+    };
+  };
+};
 
 describe("agent cleanup/reset scripts", () => {
   it("defaults cleanup and reset to dry-run mode", () => {
@@ -117,5 +126,22 @@ describe("tui dev script", () => {
     expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/package.json")).toBe(true);
     expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/App.d.ts")).toBe(false);
     expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/App.js.map")).toBe(false);
+  });
+
+  it("keeps turbo build watch inputs from reacting to tests", () => {
+    const turboConfig = JSON.parse(
+      readFileSync(new URL("../../turbo.json", import.meta.url), "utf8"),
+    ) as TurboConfig;
+
+    expect(turboConfig.tasks?.build?.inputs).toEqual(
+      expect.arrayContaining([
+        "$TURBO_DEFAULT$",
+        "!test/**",
+        "!tests/**",
+        "!src/**/__tests__/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+      ]),
+    );
   });
 });
