@@ -31,12 +31,7 @@ describe("new session flow", () => {
     const editing = transitionNewSessionFlow(opened, snapshot, { type: "editName" });
     if (editing?.mode !== "editName") throw new Error("expected edit mode");
 
-    let state = editing;
-    for (const input of " feature/foo ") {
-      const next = transitionNewSessionFlow(state, snapshot, { type: "appendName", input });
-      if (next?.mode !== "editName") throw new Error("expected edit mode");
-      state = next;
-    }
+    const state = typeName(editing, snapshot, " feature/foo ");
 
     expect(transitionNewSessionFlow(state, snapshot, { type: "commitName" })).toMatchObject({
       mode: "review",
@@ -169,17 +164,13 @@ describe("new session flow", () => {
     if (editing?.mode !== "editName") throw new Error("expected edit mode");
 
     const typed = typeName(editing, snapshot, "feature/foo");
-    const movedLeft = transitionNewSessionFlow(typed, snapshot, {
-      type: "moveNameCursor",
-      delta: -3,
-    });
+    const movedOnce = applyInput(typed, snapshot, "", { leftArrow: true });
+    const movedTwice = applyInput(movedOnce, snapshot, "", { leftArrow: true });
+    const movedLeft = applyInput(movedTwice, snapshot, "", { leftArrow: true });
     if (movedLeft?.mode !== "editName") throw new Error("expected edit mode");
     expect(movedLeft.draftName.cursor).toBe(8);
 
-    const inserted = transitionNewSessionFlow(movedLeft, snapshot, {
-      type: "appendName",
-      input: "-bar",
-    });
+    const inserted = applyInput(movedLeft, snapshot, "-bar");
     expect(inserted).toMatchObject({
       mode: "editName",
       draftName: {
@@ -188,9 +179,7 @@ describe("new session flow", () => {
       },
     });
 
-    const backspaced = transitionNewSessionFlow(inserted ?? movedLeft, snapshot, {
-      type: "backspaceName",
-    });
+    const backspaced = applyInput(inserted, snapshot, "", { backspace: true });
     expect(backspaced).toMatchObject({
       mode: "editName",
       draftName: {
@@ -199,9 +188,7 @@ describe("new session flow", () => {
       },
     });
 
-    const deleted = transitionNewSessionFlow(backspaced ?? movedLeft, snapshot, {
-      type: "deleteName",
-    });
+    const deleted = applyInput(backspaced, snapshot, "", { delete: true });
     expect(deleted).toMatchObject({
       mode: "editName",
       draftName: {
@@ -220,11 +207,11 @@ describe("new session flow", () => {
 
     expect(newSessionIntentForInput(editing, input("", { leftArrow: true }))).toEqual({
       type: "transition",
-      action: { type: "moveNameCursor", delta: -1 },
+      action: { type: "editNameInput", action: { type: "moveCursor", delta: -1 } },
     });
     expect(newSessionIntentForInput(editing, input("", { rightArrow: true }))).toEqual({
       type: "transition",
-      action: { type: "moveNameCursor", delta: 1 },
+      action: { type: "editNameInput", action: { type: "moveCursor", delta: 1 } },
     });
   });
 
@@ -296,10 +283,23 @@ function typeName(
   value: string,
 ) {
   return value.split("").reduce((state, input) => {
-    const next = transitionNewSessionFlow(state, snapshot, { type: "appendName", input });
+    const next = applyInput(state, snapshot, input);
     if (next?.mode !== "editName") throw new Error("expected edit mode");
     return next;
   }, initialState);
+}
+
+function applyInput(
+  state: NonNullable<ReturnType<typeof transitionNewSessionFlow>>,
+  snapshot: ReturnType<typeof createHarnessSnapshot>,
+  value: string,
+  key: Parameters<typeof newSessionIntentForInput>[1]["key"] = {},
+) {
+  const intent = newSessionIntentForInput(state, input(value, key));
+  if (intent.type !== "transition") throw new Error("expected transition intent");
+  const next = transitionNewSessionFlow(state, snapshot, intent.action);
+  if (next === undefined) throw new Error("expected state");
+  return next;
 }
 
 function input(

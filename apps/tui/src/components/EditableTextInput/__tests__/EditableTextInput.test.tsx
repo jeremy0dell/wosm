@@ -6,8 +6,10 @@ import {
   clampEditableTextCursor,
   createEditableTextInputState,
   deleteEditableText,
+  editableTextInputIntentForInput,
   insertEditableText,
   moveEditableTextCursor,
+  transitionEditableTextInput,
 } from "../editing.js";
 
 describe("EditableTextInput", () => {
@@ -47,6 +49,41 @@ describe("EditableTextInput", () => {
   it("clamps rendered cursors before slicing text", () => {
     expect(renderInput({ value: "abc", cursor: -4 })).toBe("|abc");
     expect(renderInput({ value: "abc", cursor: 99 })).toBe("abc|");
+  });
+
+  test.each([
+    {
+      name: "left arrow",
+      input: { input: "", key: { leftArrow: true } },
+      expected: { type: "edit", action: { type: "moveCursor", delta: -1 } },
+    },
+    {
+      name: "right arrow",
+      input: { input: "", key: { rightArrow: true } },
+      expected: { type: "edit", action: { type: "moveCursor", delta: 1 } },
+    },
+    {
+      name: "backspace",
+      input: { input: "", key: { backspace: true } },
+      expected: { type: "edit", action: { type: "backspace" } },
+    },
+    {
+      name: "delete",
+      input: { input: "", key: { delete: true } },
+      expected: { type: "edit", action: { type: "delete" } },
+    },
+    {
+      name: "typed text",
+      input: { input: "abc", key: {} },
+      expected: { type: "edit", action: { type: "insert", input: "abc" } },
+    },
+    {
+      name: "empty input",
+      input: { input: "", key: {} },
+      expected: { type: "none" },
+    },
+  ])("maps $name to an editable text input intent", ({ input, expected }) => {
+    expect(editableTextInputIntentForInput(input)).toEqual(expected);
   });
 
   test.each([
@@ -191,14 +228,17 @@ describe("EditableTextInput", () => {
     expect(clampEditableTextCursor(10, "abc")).toBe(3);
   });
 
-  it("updates text around the cursor in the expected edit sequence", () => {
+  it("updates text around the cursor through the edit reducer", () => {
     const typed = "feature/foo"
       .split("")
-      .reduce((state, input) => insertEditableText(state, input), createEditableTextInputState());
-    const moved = moveEditableTextCursor(typed, -3);
-    const inserted = insertEditableText(moved, "-bar");
-    const backspaced = backspaceEditableText(inserted);
-    const deleted = deleteEditableText(backspaced);
+      .reduce(
+        (state, input) => transitionEditableTextInput(state, { type: "insert", input }),
+        createEditableTextInputState(),
+      );
+    const moved = transitionEditableTextInput(typed, { type: "moveCursor", delta: -3 });
+    const inserted = transitionEditableTextInput(moved, { type: "insert", input: "-bar" });
+    const backspaced = transitionEditableTextInput(inserted, { type: "backspace" });
+    const deleted = transitionEditableTextInput(backspaced, { type: "delete" });
 
     expect(moved).toEqual({ value: "feature/foo", cursor: 8 });
     expect(inserted).toEqual({ value: "feature/-barfoo", cursor: 12 });

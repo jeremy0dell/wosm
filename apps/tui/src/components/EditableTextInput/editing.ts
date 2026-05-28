@@ -3,11 +3,74 @@ export type EditableTextInputState = {
   cursor: number;
 };
 
+export type EditableTextInputKey = {
+  backspace?: boolean;
+  delete?: boolean;
+  leftArrow?: boolean;
+  rightArrow?: boolean;
+};
+
+export type EditableTextInputInput = {
+  input: string;
+  key: EditableTextInputKey;
+};
+
+export type EditableTextEditAction =
+  | { type: "insert"; input: string }
+  | { type: "backspace" }
+  | { type: "delete" }
+  | { type: "moveCursor"; delta: number };
+
+export type EditableTextInputIntent =
+  | {
+      type: "edit";
+      action: EditableTextEditAction;
+    }
+  | {
+      type: "none";
+    };
+
 export function createEditableTextInputState(value = ""): EditableTextInputState {
   return {
     value,
     cursor: value.length,
   };
+}
+
+export function editableTextInputIntentForInput(
+  input: EditableTextInputInput,
+): EditableTextInputIntent {
+  if (input.key.leftArrow === true) {
+    return { type: "edit", action: { type: "moveCursor", delta: -1 } };
+  }
+  if (input.key.rightArrow === true) {
+    return { type: "edit", action: { type: "moveCursor", delta: 1 } };
+  }
+  if (input.key.backspace === true) {
+    return { type: "edit", action: { type: "backspace" } };
+  }
+  if (input.key.delete === true) {
+    return { type: "edit", action: { type: "delete" } };
+  }
+  return input.input.length > 0
+    ? { type: "edit", action: { type: "insert", input: input.input } }
+    : { type: "none" };
+}
+
+export function transitionEditableTextInput(
+  state: EditableTextInputState,
+  action: EditableTextEditAction,
+): EditableTextInputState {
+  switch (action.type) {
+    case "insert":
+      return insertEditableText(state, action.input);
+    case "backspace":
+      return backspaceEditableText(state);
+    case "delete":
+      return deleteEditableText(state);
+    case "moveCursor":
+      return moveEditableTextCursor(state, action.delta);
+  }
 }
 
 export function insertEditableText(

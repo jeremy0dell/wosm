@@ -170,7 +170,10 @@ describe("NewSessionBottomSheet", () => {
     const editName = transitionNewSessionFlow(review, snapshot, { type: "editName" });
     if (editName?.mode !== "editName") throw new Error("expected edit-name state");
     const typed = "feature/foo".split("").reduce((state, input) => {
-      const next = transitionNewSessionFlow(state, snapshot, { type: "appendName", input });
+      const next = transitionNewSessionFlow(state, snapshot, {
+        type: "editNameInput",
+        action: { type: "insert", input },
+      });
       if (next?.mode !== "editName") throw new Error("expected edit-name state");
       return next;
     }, editName);
