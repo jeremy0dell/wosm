@@ -27,6 +27,21 @@ describe("TUI dashboard keymap", () => {
     expect(intentForDashboardKey("x", snapshot, state)).toEqual({ type: "none" });
   });
 
+  it("opens the new-session flow from lower- or uppercase n", () => {
+    const snapshot = createCommandSnapshot("idle");
+    const state = {
+      searchQuery: "",
+      collapsedProjectIds: new Set<string>(),
+    };
+
+    expect(intentForDashboardKey("n", snapshot, state)).toEqual({
+      type: "open-new-session-prompt",
+    });
+    expect(intentForDashboardKey("N", snapshot, state)).toEqual({
+      type: "open-new-session-prompt",
+    });
+  });
+
   it("adds focus origin to row focus commands when provided", () => {
     const snapshot = createCommandSnapshot("idle");
     const intent = intentForDashboardKey(

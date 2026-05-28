@@ -1,8 +1,10 @@
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
-import { OverlayLayer } from "../OverlayLayer.js";
+import { createDashboardSnapshot } from "../../../../test/fixtures/snapshots.js";
+import { createNewSessionFlow } from "../../../flows/newSession.js";
+import { OverlayHost } from "../OverlayHost.js";
 
-describe("OverlayLayer", () => {
+describe("OverlayHost", () => {
   it("places overlay content absolutely without adding rows or shifting siblings", () => {
     const rows = 12;
     const columns = 60;
@@ -16,7 +18,7 @@ describe("OverlayLayer", () => {
           {dashboardRows.map((row) => (
             <Text key={row.key}>{row.text}</Text>
           ))}
-          <OverlayLayer activeOverlay="help" columns={columns} rows={rows} />
+          <OverlayHost columns={columns} overlay={{ type: "help" }} rows={rows} />
         </Box>,
         { columns },
       ),
@@ -38,7 +40,7 @@ describe("OverlayLayer", () => {
         <Box position="relative" flexDirection="column" width={columns} height={rows}>
           <Text>top</Text>
           <Text>bottom</Text>
-          <OverlayLayer activeOverlay={undefined} columns={columns} rows={rows} />
+          <OverlayHost columns={columns} overlay={undefined} rows={rows} />
         </Box>,
         { columns },
       ),
@@ -48,6 +50,32 @@ describe("OverlayLayer", () => {
     expect(frame).toContain("top");
     expect(frame).toContain("bottom");
     expect(frame).not.toContain("wosm help");
+  });
+
+  it("renders the new-session sheet from a typed overlay model", () => {
+    const rows = 16;
+    const columns = 72;
+    const snapshot = createDashboardSnapshot();
+    const state = createNewSessionFlow(snapshot, "k7p3x9");
+    if (state === undefined) throw new Error("expected a flow");
+
+    const frame = stripAnsi(
+      renderToString(
+        <Box position="relative" flexDirection="column" width={columns} height={rows}>
+          <Text>dashboard footer</Text>
+          <OverlayHost
+            columns={columns}
+            overlay={{ type: "new-session", snapshot, state }}
+            rows={rows}
+          />
+        </Box>,
+        { columns },
+      ),
+    );
+
+    expect(frame).toContain("New Session");
+    expect(frame).toContain("Project   web");
+    expect(frame).toContain("Name      web-k7p3x9");
   });
 });
 

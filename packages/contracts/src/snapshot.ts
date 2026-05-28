@@ -187,6 +187,15 @@ export const WosmAlertSchema = z
 
 export type WosmAlert = z.infer<typeof WosmAlertSchema>;
 
+export const SnapshotHarnessSchema = z
+  .object({
+    id: ProviderIdSchema,
+    label: nonEmptyStringSchema,
+  })
+  .strict();
+
+export type SnapshotHarness = z.infer<typeof SnapshotHarnessSchema>;
+
 export const OrphanedRuntimeStateSchema = z
   .object({
     id: nonEmptyStringSchema,
@@ -217,6 +226,7 @@ export const WosmSnapshotSchema = z
       })
       .strict(),
     providerHealth: z.record(ProviderIdSchema, ProviderHealthSchema),
+    harnesses: z.array(SnapshotHarnessSchema).optional(),
     projects: z.array(ProjectViewSchema),
     rows: z.array(WorktreeRowSchema),
     sessions: z.array(SessionViewSchema),

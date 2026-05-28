@@ -1,10 +1,10 @@
 import type { WorktreeId } from "@wosm/contracts";
 import type { CleanupActionKind } from "./actions.js";
 
-export type PromptMode = "new-session" | "search" | "remove-slot" | "confirm-cleanup";
+export type PromptMode = "search" | "remove-slot" | "confirm-cleanup";
 
 export type TuiTextPromptState = {
-  mode: "new-session" | "search" | "remove-slot";
+  mode: "search" | "remove-slot";
   value: string;
 };
 
