@@ -65,7 +65,7 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
     closeSync(logFd);
   };
 
-  writeSync(logFd, `\n--- wosm:tui-dev ${new Date().toISOString()} ---\n`);
+  writeSync(logFd, `\n--- dev ${new Date().toISOString()} ---\n`);
   const buildWatcher = spawn(
     "pnpm",
     [
@@ -105,7 +105,7 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
     });
   }
 
-  process.stderr.write(`wosm:tui-dev build watcher: ${logPath}\n`);
+  process.stderr.write(`dev build watcher: ${logPath}\n`);
   const wosm = spawn(process.execPath, nodeArgs, {
     cwd: repoRoot,
     stdio: "inherit",
@@ -150,7 +150,7 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
     launcherExited = true;
     if (keepAliveAfterLauncherExit && code === 0 && signal === null && !exiting) {
       process.stderr.write(
-        "wosm:tui-dev popup launcher exited; build watcher remains active. Press Ctrl-C to stop.\n",
+        "dev popup launcher exited; build watcher remains active. Press Ctrl-C to stop.\n",
       );
       return;
     }

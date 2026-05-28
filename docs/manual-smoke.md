@@ -154,7 +154,7 @@ Outside tmux, no subcommand defaults to the full TUI. `wosm tui` always opens th
 For TUI development, use the same command routing with a reloadable dev TUI:
 
 ```bash
-pnpm wosm:tui-dev
+pnpm dev
 ```
 
 This performs an initial build, keeps a Turbo build watcher running in the background, and runs
@@ -162,7 +162,7 @@ normal `wosm` placement with a watch-mode TUI command. Outside tmux it opens the
 current terminal. Inside tmux it uses the normal popup path, but the persistent UI process runs under a
 debounced watch runner so changes to rebuilt TUI code reload in place without restart storms. The dev
 popup registers itself with tmux, so a normal `wosm popup` binding reopens the active dev UI while that
-`pnpm wosm:tui-dev` process remains alive. Keep the `pnpm wosm:tui-dev` process running while
+`pnpm dev` process remains alive. Keep the `pnpm dev` process running while
 developing; press Ctrl-C there to stop the build watcher, clear the tmux dev-popup registration, and
 stop that checkout's dev popup session. Build watcher output is written to `.turbo/tui-dev-build.log`.
 
