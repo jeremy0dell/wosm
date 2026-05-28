@@ -468,10 +468,10 @@ function selectProjectAtIndex(
   snapshot: WosmSnapshot,
   index: number,
   token: string,
-): NewSessionReviewState {
-  const project = snapshot.projects[index] ?? snapshot.projects[0];
+): NewSessionPickProjectState | NewSessionReviewState {
+  const project = snapshot.projects[index];
   if (project === undefined) {
-    return toReviewState(state);
+    return state;
   }
   return {
     ...resetWizardStep(baseState(state), "review"),
@@ -509,12 +509,12 @@ function selectAgentAtIndex(
   state: NewSessionPickAgentState,
   snapshot: WosmSnapshot,
   index: number,
-): NewSessionReviewState {
+): NewSessionPickAgentState | NewSessionReviewState {
   const project = selectedProject(snapshot, state);
   const options = project === undefined ? [] : harnessOptions(snapshot, project);
-  const option = options[index] ?? options[0];
+  const option = options[index];
   if (option === undefined) {
-    return toReviewState(state);
+    return state;
   }
   return {
     ...resetWizardStep(baseState(state), "review"),

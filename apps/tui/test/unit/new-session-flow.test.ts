@@ -133,6 +133,34 @@ describe("new session flow", () => {
     });
   });
 
+  it("ignores out-of-range direct project picks", () => {
+    const snapshot = createHarnessSnapshot();
+    const opened = createNewSessionFlow(snapshot, "aaaaaa");
+    if (opened === undefined) throw new Error("expected a flow");
+    const picker = transitionNewSessionFlow(opened, snapshot, { type: "pickProject" });
+    if (picker?.mode !== "pickProject") throw new Error("expected project picker");
+
+    const intent = newSessionIntentForInput(picker, input("9"));
+    if (intent.type !== "transition") throw new Error("expected transition intent");
+    const selected = transitionNewSessionFlow(picker, snapshot, intent.action);
+
+    expect(selected).toBe(picker);
+  });
+
+  it("ignores out-of-range direct agent picks", () => {
+    const snapshot = createHarnessSnapshot();
+    const opened = createNewSessionFlow(snapshot, "aaaaaa");
+    if (opened === undefined) throw new Error("expected a flow");
+    const picker = transitionNewSessionFlow(opened, snapshot, { type: "pickAgent" });
+    if (picker?.mode !== "pickAgent") throw new Error("expected agent picker");
+
+    const intent = newSessionIntentForInput(picker, input("9"));
+    if (intent.type !== "transition") throw new Error("expected transition intent");
+    const selected = transitionNewSessionFlow(picker, snapshot, intent.action);
+
+    expect(selected).toBe(picker);
+  });
+
   it("moves the edit-name cursor and edits at the insertion point", () => {
     const snapshot = createHarnessSnapshot();
     const opened = createNewSessionFlow(snapshot, "aaaaaa");
