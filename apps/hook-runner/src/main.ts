@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readStdinIfAvailable } from "@wosm/hook-bridge";
 import { runHookRunner } from "./index.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -14,16 +15,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
     process.exitCode = result.code;
   });
-}
-
-async function readStdinIfAvailable(): Promise<string | undefined> {
-  if (process.stdin.isTTY) {
-    return undefined;
-  }
-
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString("utf8");
 }

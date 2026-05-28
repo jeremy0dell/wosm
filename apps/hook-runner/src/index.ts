@@ -1,13 +1,14 @@
 import { fileURLToPath } from "node:url";
-import { codexHookAdapter } from "@wosm/codex";
 import { loadConfig } from "@wosm/config";
-import type { HookReceipt, ProviderHookAdapter } from "@wosm/contracts";
+import type { HookReceipt } from "@wosm/contracts";
 import {
   type HookBridgeCommandOptions,
   type HookReceiverDeps,
   runHookBridgeCommand,
 } from "@wosm/hook-bridge";
-import { worktrunkHookAdapter } from "@wosm/worktrunk";
+import { defaultProviderHookAdapters } from "@wosm/provider-hooks";
+
+export { defaultProviderHookAdapters } from "@wosm/provider-hooks";
 
 export type HookRunnerOptions = {
   stdin?: string | undefined;
@@ -21,11 +22,6 @@ export type HookRunnerResult = {
   stdout: string;
   stderr: string;
 };
-
-const defaultProviderHookAdapters: readonly ProviderHookAdapter[] = [
-  codexHookAdapter,
-  worktrunkHookAdapter,
-];
 
 export async function runHookRunner(
   argv = process.argv.slice(2),

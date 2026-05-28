@@ -13,6 +13,7 @@ import {
   HarnessStatusObservationSchema,
   HookReceiptSchema,
   HookSpoolRecordSchema,
+  ObservedStatusSchema,
   ObserverHealthSchema,
   ObserverStopReceiptSchema,
   type ProjectId,
@@ -28,6 +29,7 @@ import {
   RepositoryRemoteSchema,
   SafeErrorSchema,
   TerminalCapabilitiesSchema,
+  TerminalHarnessBindingProviderDataSchema,
   TerminalIdentityBindingSchema,
   TerminalTargetObservationSchema,
   WOSM_SCHEMA_VERSION,
@@ -575,6 +577,44 @@ describe("Phase 1 contract schemas", () => {
     };
 
     expectParses(HarnessEventReportSchema, harnessReport, "harness event report");
+    expectParses(
+      ObservedStatusSchema,
+      {
+        value: "working",
+        confidence: "medium",
+        reason: "Harness event source accepted.",
+        source: "harness_event",
+        updatedAt: "2026-05-20T12:02:00.000Z",
+      },
+      "harness event status source",
+    );
+    expectParses(
+      TerminalHarnessBindingProviderDataSchema,
+      {
+        sessionId: "wosm",
+        windowId: "@1",
+        paneId: "%2",
+        role: "main-agent",
+        harness: "codex",
+        currentCommand: "codex",
+        worktreePath: "/tmp/wosm/web/task",
+      },
+      "terminal harness binding provider data",
+    );
+    expectFails(
+      TerminalHarnessBindingProviderDataSchema,
+      {
+        sessionId: "wosm",
+        windowId: "@1",
+        paneId: "%2",
+        role: "main-agent",
+        harness: "codex",
+        currentCommand: "codex",
+        worktreePath: "/tmp/wosm/web/task",
+        providerSpecificLeak: "not allowed",
+      },
+      "terminal harness binding rejects extra provider data",
+    );
     expectFails(
       HarnessEventReportSchema,
       {

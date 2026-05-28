@@ -5,11 +5,10 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
-      "@wosm/codex": ["../../integrations/harness/codex/dist/index.d.ts"],
       "@wosm/config": ["../../packages/config/dist/index.d.ts"],
       "@wosm/contracts": ["../../packages/contracts/dist/index.d.ts"],
       "@wosm/hook-bridge": ["../../packages/hook-bridge/dist/index.d.ts"],
-      "@wosm/worktrunk": ["../../integrations/worktree/worktrunk/dist/index.d.ts"]
+      "@wosm/provider-hooks": ["../../packages/provider-hooks/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*.ts"]

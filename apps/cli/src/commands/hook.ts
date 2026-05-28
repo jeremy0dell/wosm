@@ -1,12 +1,11 @@
 import { fileURLToPath } from "node:url";
-import { codexHookAdapter } from "@wosm/codex";
-import type { HookReceipt, ProviderHookAdapter } from "@wosm/contracts";
+import type { HookReceipt } from "@wosm/contracts";
 import {
   type HookBridgeCommandOptions,
   type HookReceiverDeps,
   runHookBridgeCommand,
 } from "@wosm/hook-bridge";
-import { worktrunkHookAdapter } from "@wosm/worktrunk";
+import { defaultProviderHookAdapters } from "@wosm/provider-hooks";
 
 /**
  * @deprecated `wosm hook` is the legacy JSON-receipt wrapper. Generated provider
@@ -14,11 +13,6 @@ import { worktrunkHookAdapter } from "@wosm/worktrunk";
  * `@wosm/hook-bridge` directly.
  */
 export type HookCommandOptions = HookBridgeCommandOptions;
-
-const defaultProviderHookAdapters: readonly ProviderHookAdapter[] = [
-  codexHookAdapter,
-  worktrunkHookAdapter,
-];
 
 /**
  * @deprecated Compatibility wrapper for older generated hooks and explicit manual

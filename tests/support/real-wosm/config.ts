@@ -18,7 +18,9 @@ export type WriteRealWosmConfigOptions = {
   repo: RealTempRepo;
   projectId?: string;
   autoStartFromHooks?: boolean;
+  harnessProvider?: "codex" | "pi";
   codexCommand?: string;
+  piCommand?: string;
   installCodexHooks?: boolean;
   useLifecycleHooks?: boolean;
   tmuxSession?: string;
@@ -28,6 +30,7 @@ export async function writeRealWosmConfig(
   options: WriteRealWosmConfigOptions,
 ): Promise<RealWosmConfigFixture> {
   const projectId = options.projectId ?? "wosm-real";
+  const harnessProvider = options.harnessProvider ?? "codex";
   const stateDir = join(options.repo.root, "state");
   const socketPath = join(options.repo.root, "run", "observer.sock");
   const worktrunkConfigPath = join(options.repo.root, "worktrunk", "config.toml");
@@ -48,7 +51,7 @@ export async function writeRealWosmConfig(
     "[defaults]",
     'worktree_provider = "worktrunk"',
     'terminal = "tmux"',
-    'harness = "codex"',
+    `harness = ${tomlString(harnessProvider)}`,
     'layout = "agent-shell"',
     "",
     "[worktree.worktrunk]",
@@ -60,13 +63,7 @@ export async function writeRealWosmConfig(
     "[terminal.tmux]",
     `workbench_session = ${tomlString(tmuxSession)}`,
     "",
-    "[harness.codex]",
-    "enabled = true",
-    `command = ${tomlString(options.codexCommand ?? requireToolPath(options.env, "codex"))}`,
-    'sandbox_mode = "workspace-write"',
-    'approval_policy = "never"',
-    `install_hooks = ${options.installCodexHooks === true ? "true" : "false"}`,
-    "",
+    ...harnessConfigLines(options, harnessProvider),
     "[[projects]]",
     `id = ${tomlString(projectId)}`,
     'label = "wosm real dogfood"',
@@ -74,7 +71,7 @@ export async function writeRealWosmConfig(
     `default_branch = ${tomlString(options.repo.baseBranch)}`,
     "",
     "[projects.defaults]",
-    'harness = "codex"',
+    `harness = ${tomlString(harnessProvider)}`,
     'terminal = "tmux"',
     'layout = "agent-shell"',
     "",
@@ -96,6 +93,30 @@ export async function writeRealWosmConfig(
     tmuxSession,
     projectId,
   };
+}
+
+function harnessConfigLines(
+  options: WriteRealWosmConfigOptions,
+  harnessProvider: "codex" | "pi",
+): string[] {
+  if (harnessProvider === "pi") {
+    return [
+      "[harness.pi]",
+      "enabled = true",
+      `command = ${tomlString(options.piCommand ?? requireToolPath(options.env, "pi"))}`,
+      "",
+    ];
+  }
+
+  return [
+    "[harness.codex]",
+    "enabled = true",
+    `command = ${tomlString(options.codexCommand ?? requireToolPath(options.env, "codex"))}`,
+    'sandbox_mode = "workspace-write"',
+    'approval_policy = "never"',
+    `install_hooks = ${options.installCodexHooks === true ? "true" : "false"}`,
+    "",
+  ];
 }
 
 export function uniqueTmuxSession(prefix = "wosm-real"): string {
