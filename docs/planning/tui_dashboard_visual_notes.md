@@ -41,14 +41,7 @@ These recommendations synthesize common patterns from mature TUIs such as LazyGi
 ▶ observer - 8 worktrees | 1 working | 2 attention | opencode
 ```
 
-- Define optimistic-action lifecycle semantics in the single global orchestration layer:
-  - pending rows are keyed by local action id, command id, and row/worktree identity when available
-  - actions can show immediate toasts before provider truth exists
-  - pending rows use the optimistic-operation throbber
-  - optimistic placeholders with no current focus/start target use a blank slot and are not targetable
-  - stale pending rows time out into an error/toast state
-  - provider truth replaces optimistic state as soon as reconcile or events catch up
-  - rows, overlays, footer, and widgets can all consume the same orchestration state and decide their own reactions
+- Keep action-projection work as a future follow-up. A later TUI action plan may support projections, rollback, timeout handling, and command/event correlation, but the new-session bottom-sheet PR intentionally does not implement that layer.
 - Specify mouse behavior. The dashboard is mouse scrollable; row click activates/focuses; project-header click toggles collapse; footer/help clicks are optional later.
 - Add top-widget rules. Widgets must be async, cached, bounded by width, optional, and unable to block startup, render, reconcile, or row interaction. Widgets should have priority/hide order under narrow widths.
 - Add error and toast placement rules so prompts, toasts, and overlays cannot be clipped by the scroll viewport.
@@ -57,7 +50,7 @@ These recommendations synthesize common patterns from mature TUIs such as LazyGi
 
 - Add glyph fallbacks for terminals/fonts that render Unicode poorly:
   - working: `*`
-  - optimistic pending: `+`
+  - future projected pending: `+`
   - idle: `o`
   - attention: `!`
   - unknown: `?`
@@ -75,7 +68,7 @@ This is the target UI hierarchy implied by the mockups. Names are conceptual; im
 
 Important distinction: overlay state and overlay rendering are separate concerns. Cross-cutting state should be modeled as providers that wrap the app, but the rendered overlay layer should be a root-level visual layer, sibling to the dashboard frame, not a child of the scroll viewport or dashboard body.
 
-In this document, `Provider` means a React/Ink state provider. It does not mean a wosm integration provider such as Worktrunk, tmux, Codex, or OpenCode. To avoid that collision in implementation, prefer names such as `OverlayStateProvider`, `DashboardStateProvider`, `KeymapProvider`, and `UiOrchestrationProvider` for UI state.
+In this document, `Provider` means a React/Ink state provider. It does not mean a wosm integration provider such as Worktrunk, tmux, Codex, or OpenCode. To avoid that collision in implementation, prefer names such as `OverlayStateProvider`, `DashboardStateProvider`, and `KeymapProvider` for UI state.
 
 ```text
 App
@@ -86,19 +79,12 @@ App
          ├─ CollapsedProjectState
          ├─ SearchState
          ├─ PromptState
-         └─ UiOrchestrationProvider
-            ├─ useUiOrchestration
-            ├─ ActionLifecycleState
-            ├─ PendingActions
-            ├─ ToastQueue
-            ├─ OptimisticRowsAndPatches
-            ├─ ObserverEventCorrelation
-            └─ ViewportProvider
-               ├─ TerminalSize
-               ├─ ScrollOffset
-               ├─ VisibleRowRange
-               ├─ VisibleRowSlotMap
-               └─ KeymapProvider
+         └─ ViewportProvider
+            ├─ TerminalSize
+            ├─ ScrollOffset
+            ├─ VisibleRowRange
+            ├─ VisibleRowSlotMap
+            └─ KeymapProvider
                   ├─ ActiveMode
                   │  ├─ DashboardMode
                   │  ├─ SearchMode
@@ -156,12 +142,6 @@ App
                         │  │           │     │  ├─ PullRequestNumber
                         │  │           │     │  └─ CheckStatus
                         │  │           │     └─ WarningReason
-                        │  │           ├─ OptimisticRow[]
-                        │  │           │  ├─ RowSlotOrBlank
-                        │  │           │  ├─ Targetability
-                        │  │           │  ├─ OptimisticOperationThrobber
-                        │  │           │  ├─ BranchName
-                        │  │           │  └─ OperationLabel
                         │  │           └─ EmptyProjectState
                         │  ├─ BottomScrollIndicator
                         │  │  └─ HiddenRowsBelow | Blank
@@ -200,22 +180,20 @@ App
 - Providers wrap the render tree and own cross-cutting state. Components consume providers through narrow hooks instead of receiving a single large controller object.
 - `ObserverProvider` owns the socket-backed snapshot/event subscription and command dispatch boundary.
 - `DashboardStateProvider` owns local UI state such as collapsed projects, search, and prompt state.
-- `UiOrchestrationProvider` is the single global orchestration layer. It owns action lifecycle state, immediate toasts, optimistic rows/patches, observer command correlation, timeouts, and rollback behavior.
-- Rows, overlays, footer, and widgets can all consume `UiOrchestrationProvider` and react locally. The orchestration layer should not encode per-surface reaction wiring.
 - `ViewportProvider` owns terminal size, scroll offset, visible row range, and `VisibleRowSlotMap`.
 - `KeymapProvider` owns active input mode, keybindings, and mouse bindings.
-- `WidgetProvider` owns widget registration, caches, and render priority. Widgets remain independent of observer reconcile unless they choose to consume the global orchestration layer for action awareness.
+- `WidgetProvider` owns widget registration, caches, and render priority. Widgets remain independent of observer reconcile unless a later action-projection layer gives them action awareness.
 - `DashboardFrame` owns terminal geometry. It is responsible for reserving fixed rows and ensuring the footer hugs the bottom of the terminal.
 - `ScrollViewport` is the only vertically scrolling dashboard region. Top bar, dividers, scroll indicators, footer, and overlays stay fixed.
 - `TuiShell` is the root visual composition inside the full terminal frame. It renders `DashboardFrame` and `OverlayLayer` as siblings so overlays can sit above the dashboard without becoming part of the dashboard layout.
-- `VisibleRowSlotMap` is derived from rows visible inside `ScrollViewport`; it must update after scroll, search, collapse, and optimistic row changes.
+- `VisibleRowSlotMap` is derived from rows visible inside `ScrollViewport`; it must update after scroll, search, and collapse changes.
 - `ProjectGroup` owns expand/collapse state display, but the actual collapsed project ids live in UI state so keyboard and mouse can update the same source of truth.
 - `WorktreeRow` renders normalized snapshot data only. It should not call providers, inspect git, or query terminal details.
-- `OptimisticRow` represents command-pending UI before provider truth catches up. It can be visually lighter than a full `WorktreeRow`. It receives a visible slot only when it is patching an existing focusable row; create/remove placeholders use a blank slot.
 - `RowMetadata` is right-aligned and optional. It should disappear before `RowPrimary` when width is constrained.
 - `OverlayLayer` is above all frame regions. Overlays never consume rows inside `ScrollViewport`.
 - `NewSessionBottomSheet` is an overlay, not a dashboard child. It may cover the lower dashboard and footer while open, and it owns its own mode-specific key hints.
 - `Footer` reads the active keymap mode. It should not duplicate every binding when `HelpOverlay` can show the full list.
+- Action projections, rollback, timeout handling, and command/event correlation are future work. This new-session PR intentionally relies on command toasts and observer snapshots instead of a global orchestration layer.
 
 ### Overlay Implementation Plan
 
@@ -232,116 +210,24 @@ Recommended first slice:
 
 The help overlay is a TUI concern. It must not call worktree, terminal, or harness providers. It can read keymap/help definitions from local UI state and, later, from config-derived command metadata already exposed to the TUI.
 
-## UI Orchestration
+## Future Action Projections
 
-The TUI needs one global orchestration provider for actions that span local feedback, optimistic UI, observer commands, and eventual event/reconcile truth. The core requirement is responsiveness: a user action should produce visible feedback immediately even when Worktrunk, git, terminal, or harness operations take seconds.
+This PR does not add a global TUI orchestration or optimistic projection layer. New-session submit closes the sheet, dispatches `session.create`, shows the existing queued/error toast from command dispatch, and waits for observer snapshot truth to render the real row.
 
-This should be a single shared layer, not separate row, overlay, footer, or widget orchestration systems. Dashboard rows, widgets, overlays, footer hints, and future configured commands can all consume the same action lifecycle state and decide locally whether they care.
+A later TUI action plan may add projections, rollback, timeout handling, and command/event correlation for slow create, start, remove, or refresh operations. If that happens, keep the layer shared and renderless: it should dispatch typed observer commands, own only local action state, and let rows, overlays, footer hints, and widgets decide how to react.
 
-Conceptual provider surface:
+Future projection rules to revisit:
 
-```text
-UiOrchestrationProvider
-├─ run(action)
-├─ pendingActions
-├─ optimisticRows
-├─ optimisticPatches
-├─ toasts
-├─ correlateObserverEvent(event)
-└─ clearCompletedAction(actionId)
-```
-
-Conceptual hook:
-
-```text
-useUiOrchestration()
-├─ run(action)
-├─ pendingActions
-├─ optimisticRows
-├─ optimisticPatches
-├─ toasts
-└─ actionStatus(actionId)
-```
-
-Thin convenience hooks such as `useDashboardActions()` are fine if they only wrap `useUiOrchestration()` for row-specific ergonomics. They should not become a second orchestration layer.
-
-The orchestration layer should not make provider calls directly. It dispatches typed observer commands through `ObserverProvider` and owns only local UI state around those commands. Any surface can consume that state:
-
-- a worktree row can show an optimistic pending state
-- a footer can change hints while an action is pending
-- an overlay can show command progress or failure
-- a memory widget can briefly show busy state during a broad refresh
-- a repository widget can invalidate its own cache after branch/worktree create
-- a clock/weather/stock widget can ignore worktree actions entirely
-
-The important boundary is that the orchestration layer owns the global action lifecycle, while each consumer owns its own reaction.
-
-### Optimistic Create/Start Flow
-
-For a create or start action, the UI flow should be:
-
-```text
-0. User presses N or chooses a configured create/start command.
-1. UI immediately shows a toast such as "Creating session..." or "Starting agent...".
-2. UI adds an optimistic placeholder for create, or patches the existing row for start, using the optimistic-operation throbber.
-3. TUI dispatches the observer command and records the command id.
-4. The orchestration layer exposes the pending action for rows, overlays, footer, and widgets to consume.
-5. Observer events or reconcile confirm the real worktree/session/agent state.
-6. Optimistic row is replaced by snapshot truth, usually starting -> idle or working.
-7. On command failure or timeout, show an error toast and remove or revert the optimistic row.
-```
-
-Create placeholder with no target yet:
-
-```text
- [ ] ⠋ new-login-flow        creating session...
-```
-
-Start patch on an existing visible row:
-
-```text
- [a] ⠋ tui-UI-1              starting agent...
-```
-
-Confirmed create row, now targetable:
-
-```text
- [a] ○ new-login-flow        codex    idle                +0/-0  -    -
-```
-
-Failure rollback:
-
-```text
-toast: Failed to create new-login-flow: Worktrunk timed out.
-```
-
-The row should disappear on rollback unless there is real observer/provider evidence that the worktree exists.
-
-### Optimistic Remove Flow
-
-For removal, avoid making the row vanish instantly unless the command is expected to be near-instant and failure is rare. Prefer a visible pending row so the user knows the action was accepted:
-
-```text
- [ ] ⠙ old-experiment        removing worktree...
-```
-
-When provider truth confirms removal, the row disappears. If removal fails, restore the prior row and show an error toast.
-
-### Event Correlation Rules
-
-- Optimistic state should be keyed by command id when the observer returns one.
-- Before a command id exists, key optimistic state by a local action id plus the best available project/branch/worktree identity.
-- Reconcile or events win over optimistic state. The optimistic layer is only a temporary projection.
-- If optimistic state patches an existing real row, preserve its visible slot when possible so the user does not see avoidable row jumping during confirmation.
-- Do not assign a slot to optimistic create/remove placeholders until they have a current focus/start target.
-- Timeouts must be explicit and visible. A long operation can continue, but the UI should say what is pending rather than silently waiting.
-- Rollback should be precise: remove only the optimistic row/patch associated with the failed command, not unrelated user or observer changes.
+- Reconcile or events must win over local projections.
+- Non-actionable create/remove placeholders must not receive visible row slots.
+- Rollback must affect only the projected action associated with the failed command.
+- Timeouts must be explicit and visible instead of leaving stale pending UI.
 
 ### Toast Rules
 
 - Toasts are for action acknowledgement, failures, and non-blocking completion notes.
 - Toasts must render outside the scroll viewport so they cannot be clipped by row overflow.
-- Optimistic rows are for persistent action progress; toasts are not enough for multi-second operations.
+- Future projections may be useful for persistent multi-second action progress, but this PR only uses command queued/error toasts.
 - Error toasts should include the user-facing command target when available, such as branch name or project.
 
 ## Current Direction
@@ -357,9 +243,8 @@ When provider truth confirms removal, the row disappears. If removal fails, rest
 - Worktree rows are indented one space so the project header owns the left edge.
 - Worktree rows keep row slot, state marker, branch, harness, and agent status on the left.
 - Row slots are assigned only to visible rows that currently have an actionable focus/start target.
-- Optimistic create/remove placeholders render `[ ]` and are not targetable. Optimistic patches to existing focusable rows keep their slot when possible.
 - Git metadata is right-aligned as a fixed suffix: diff summary, PR number, and aggregate check status. The left side truncates first so the metadata suffix stays flush to the terminal edge.
-- Temporary WOSM/worktree operations can omit the right-side metadata block while showing an optimistic pending row.
+- Future action projections can define separate pending rows or patches, but the current new-session PR does not render local projected rows.
 - Do not print the terminal provider on every row by default. Surface terminal details only when they are actionable or diagnostic.
 - Command keybinds render as capital letters in the TUI where applicable: `N`, `X`, `R`, `H`, `Q`.
 - Row jump slots use `0-9 a-z`. Lowercase letters are reserved for visible row slots, not command labels.
@@ -493,20 +378,26 @@ After `Enter`, return to `QuickCreateReview` with the chosen name rendered norma
 
 ### Create Feedback
 
-After submit, close the sheet and render a non-targetable optimistic row with a blank slot until provider truth confirms a real target.
+After submit, close the sheet and dispatch `session.create`. The existing command-dispatch feedback handles immediate response:
+
+- accepted receipt: show the queued toast
+- rejected receipt or dispatch error: show the safe error toast
+
+The dashboard does not render a local placeholder row in this PR. It waits for observer snapshot/event truth before showing the new worktree/session row.
 
 ```text
-▼ wosm - 7 sessions | codex
+▼ wosm - 6 sessions | codex
  [1] ○ ci-and-docs           +0/-0     #13  ✓  codex  idle
  [2] ○ pi-planning        +4258/-375   #16  ✓  codex  idle
  [3] ○ tmux-popup-persist    +0/-0     #1   ✓  codex  idle
  [4] ○ tui-help-overlay      +0/-0     #14  ✓  codex  idle
  [5] ○ tui-row-foundation    +0/-0     #15  ✓  codex  idle
  [6] ○ tui-UI-2              +0/-0     #12  ✓  codex  idle
- [ ] ⠋ fix-popup-close       creating session...
+
+toast: session.create queued
 ```
 
-When the observer snapshot confirms the session/worktree exists and is actionable, replace the optimistic row with snapshot truth and assign a visible row slot.
+When the observer snapshot confirms the session/worktree exists and is actionable, render snapshot truth and assign a visible row slot.
 
 ```text
  [7] ○ fix-popup-close       +0/-0     -    -  codex  idle
@@ -528,9 +419,9 @@ Static mockups can show one frame:
  [0] ◜ pr-info-1             codex  working               +0/-0  #11  ✓
 ```
 
-Use a separate throbber family for optimistic WOSM/worktree operations such as starting, stopping, creating, removing, or refreshing worktree state. These operations can legitimately take a few seconds in large projects and should visibly acknowledge the user's action before provider truth catches up.
+Future action projections should use a separate throbber family for WOSM/worktree operations such as starting, stopping, creating, removing, or refreshing worktree state. These operations can legitimately take a few seconds in large projects and should visibly acknowledge the user's action before provider truth catches up. The current new-session PR does not render these projected operation rows.
 
-Preferred optimistic-operation throbber frames:
+Preferred future-operation throbber frames:
 
 ```text
 ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
@@ -540,7 +431,7 @@ The distinction is:
 
 ```text
 ◜  agent/harness is actively working
-⠋  WOSM/provider operation is pending optimistically
+⠋  WOSM/provider operation is pending as a future projection
 ```
 
 For temporary operations expected to resolve quickly, make the row intentionally lighter by removing secondary metadata:
@@ -551,7 +442,7 @@ For temporary operations expected to resolve quickly, make the row intentionally
  [ ] ⠹ old-experiment        removing worktree...
 ```
 
-This demonstrates responsiveness without showing stale or irrelevant PR/check data during a transition. Long-running `working` rows should keep the full row because the user may need branch, harness, PR, and check context while work continues.
+This would demonstrate responsiveness without showing stale or irrelevant PR/check data during a transition. Long-running `working` rows should keep the full row because the user may need branch, harness, PR, and check context while work continues.
 
 ## Other Row Markers
 

@@ -61,8 +61,9 @@ describe("new session bottom-sheet flow", () => {
         },
       },
     ]);
-    await waitFor(() => instance.lastFrame()?.includes("creating session...") === true);
-    expect(instance.lastFrame()).toContain(" [ ] ⠋ feature/custom creating session...");
+    await waitFor(() => instance.lastFrame()?.includes("session.create queued") === true);
+    expect(instance.lastFrame()).not.toContain("New Session");
+    expect(instance.lastFrame()).not.toContain("creating session...");
 
     instance.stdin.write("9");
     await settle();
@@ -79,8 +80,8 @@ describe("new session bottom-sheet flow", () => {
     });
     await waitFor(
       () =>
-        instance.lastFrame()?.includes("creating session...") === false &&
-        instance.lastFrame()?.includes("feature/custom") === true,
+        instance.lastFrame()?.includes("feature/custom") === true &&
+        instance.lastFrame()?.includes("creating session...") === false,
     );
     instance.unmount();
   }, 15_000);
@@ -124,7 +125,7 @@ describe("new session bottom-sheet flow", () => {
     instance.unmount();
   }, 15_000);
 
-  it("removes optimistic rows and shows safe errors on command failures", async () => {
+  it("shows safe errors on command failures after the sheet closes", async () => {
     const snapshot = createMultiHarnessSnapshot();
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
@@ -133,7 +134,8 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
-    await waitFor(() => instance.lastFrame()?.includes("creating session...") === true);
+    await waitFor(() => instance.lastFrame()?.includes("session.create queued") === true);
+    expect(instance.lastFrame()).not.toContain("New Session");
     service.emit({
       type: "command.failed",
       commandId: "cmd_tui_1",
@@ -147,14 +149,14 @@ describe("new session bottom-sheet flow", () => {
 
     await waitFor(
       () =>
-        instance.lastFrame()?.includes("creating session...") === false &&
-        instance.lastFrame()?.includes("Session create failed.") === true,
+        instance.lastFrame()?.includes("Session create failed.") === true &&
+        instance.lastFrame()?.includes("creating session...") === false,
     );
     expect(instance.lastFrame()).toContain("diagnostic diag_create_failed");
     instance.unmount();
   });
 
-  it("removes optimistic rows and shows safe errors on rejected dispatch receipts", async () => {
+  it("shows safe errors on rejected dispatch receipts after the sheet closes", async () => {
     const snapshot = createMultiHarnessSnapshot();
     const service = new FakeTuiObserverService(snapshot);
     service.nextReceipt = {
@@ -176,6 +178,7 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(
       () =>
         instance.lastFrame()?.includes("Session create was rejected.") === true &&
+        instance.lastFrame()?.includes("New Session") === false &&
         instance.lastFrame()?.includes("creating session...") === false,
     );
     expect(service.dispatched).toHaveLength(1);

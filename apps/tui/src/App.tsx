@@ -1,9 +1,12 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useWindowSize } from "ink";
-import { NewSessionFlowProvider } from "./components/NewSessionFlowProvider/NewSessionFlowProvider.js";
+import { CommandPrompt } from "./components/CommandPrompt.js";
+import { Dashboard } from "./components/Dashboard.js";
+import { OverlayHost } from "./components/OverlayHost/OverlayHost.js";
 import { ToastStack } from "./components/ToastStack.js";
 import { TuiFrame } from "./components/TuiFrame.js";
-import { TuiInteractionProvider } from "./components/TuiInteractionProvider/TuiInteractionProvider.js";
+import { TuiShell } from "./components/TuiShell/TuiShell.js";
+import { useDashboardInput } from "./hooks/useDashboardInput.js";
 import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
 import type { TuiObserverService } from "./services/types.js";
 import { createInitialUiState, type TuiUiState } from "./uiState.js";
@@ -39,6 +42,17 @@ export function App({
     ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
     initialUiState: initialUiState ?? createInitialUiState(),
   });
+  const inputState = useDashboardInput({
+    dashboard,
+    snapshot: dashboard.snapshot,
+    exitOnFocusSuccess,
+    focusOrigin,
+    resolveFocusOrigin,
+    onFocusSuccess,
+    onDismiss,
+    persistentPopup,
+    onExit,
+  });
 
   if (dashboard.loading || dashboard.snapshot === undefined) {
     return (
@@ -54,21 +68,18 @@ export function App({
 
   return (
     <TuiFrame columns={columns} rows={rows}>
-      <NewSessionFlowProvider dashboard={dashboard} snapshot={dashboard.snapshot}>
-        <TuiInteractionProvider
+      <TuiShell>
+        <Dashboard
           columns={columns}
-          dashboard={dashboard}
-          exitOnFocusSuccess={exitOnFocusSuccess}
-          focusOrigin={focusOrigin}
-          onDismiss={onDismiss}
-          onExit={onExit}
-          onFocusSuccess={onFocusSuccess}
-          persistentPopup={persistentPopup}
-          resolveFocusOrigin={resolveFocusOrigin}
-          rows={rows}
           snapshot={dashboard.snapshot}
-        />
-      </NewSessionFlowProvider>
+          uiState={dashboard.uiState}
+          quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
+        >
+          <CommandPrompt prompt={dashboard.uiState.prompt} />
+          <ToastStack toasts={dashboard.toasts} />
+        </Dashboard>
+        <OverlayHost columns={columns} overlay={inputState.overlay} rows={rows} />
+      </TuiShell>
     </TuiFrame>
   );
 }
