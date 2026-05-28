@@ -9,12 +9,12 @@ type FixtureState = AgentState | "none";
 type ChecksSummary = NonNullable<WorktreeRowModel["worktree"]["checks"]>;
 
 describe("WorktreeRow", () => {
-  it("renders every static row marker with one leading indent", () => {
+  it("renders every row marker with one leading indent", () => {
     const cases: Array<{ state: FixtureState; branch: string; marker: string }> = [
       { state: "none", branch: "feature-auth", marker: "-" },
       { state: "starting", branch: "booting-agent", marker: "+" },
       { state: "idle", branch: "fix-nav-mobile", marker: "○" },
-      { state: "working", branch: "cache-refactor", marker: "*" },
+      { state: "working", branch: "cache-refactor", marker: "◜" },
       { state: "needs_attention", branch: "checkout-copy", marker: "!" },
       { state: "stuck", branch: "slow-tests", marker: "!" },
       { state: "unknown", branch: "ghost-signal", marker: "?" },
@@ -31,6 +31,15 @@ describe("WorktreeRow", () => {
       <WorktreeRow row={makeRow("none", "no-slot")} slot={undefined} />,
     );
     expect(noSlot).toContain(" [ ] - no-slot");
+  });
+
+  it("replaces the working marker with the first circle throbber frame", () => {
+    const frame = renderToString(
+      <WorktreeRow row={makeRow("working", "cache-refactor")} slot="1" />,
+    );
+
+    expect(frame).toContain(" [1] ◜ cache-refactor");
+    expect(frame).not.toContain(" [1] * cache-refactor");
   });
 
   it("keeps harness and agent status visible while hiding the terminal provider", () => {

@@ -18,10 +18,10 @@ describe("Dashboard", () => {
     );
 
     expect(frame).toContain("▼ web - 7 worktrees | codex");
-    expect(frame).toContain(" [1] * cache-refactor");
+    expect(frame).toContain(" [1] ◜ cache-refactor");
     expect(frame).toContain("slow-tests");
     expect(frame).toContain("▼ api - 1 worktrees | opencode");
-    expect(frame).toContain(" [8] * queue-worker");
+    expect(frame).toContain(" [8] ◜ queue-worker");
     expect(frame).not.toContain("collapsed");
   });
 });
