@@ -46,7 +46,7 @@ describe("ProjectGroup", () => {
       />,
     );
 
-    expect(frame).toContain(" [3] * cache-refactor");
+    expect(frame).toContain(" [3] ◜ cache-refactor");
   });
 
   it("does not render collapsed suffixes or hide rows when collapsed is passed", () => {
