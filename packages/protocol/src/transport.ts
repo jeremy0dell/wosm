@@ -3,6 +3,7 @@ import { createConnection, createServer, type Server, type Socket } from "node:n
 import { dirname } from "node:path";
 import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import { protocolSafeError } from "./messages.js";
+import { unwrapBoundaryResult } from "./runtime.js";
 
 export type NdjsonConnection = {
   send(value: unknown): void;
@@ -105,32 +106,21 @@ export function connectUnixSocket(
   options: ConnectUnixSocketOptions = {},
 ): Promise<NdjsonConnection> {
   const task = ({ signal }: { signal: AbortSignal }) => connectUnixSocketOnce(socketPath, signal);
+  const baseOptions = {
+    operation: "protocol.socket.connect",
+    error: protocolSafeError({
+      code: "PROTOCOL_CONNECT_FAILED",
+      message: `Could not connect to observer socket ${socketPath}.`,
+    }),
+  };
   if (options.timeoutMs === undefined) {
-    return runRuntimeBoundary(
-      {
-        operation: "protocol.socket.connect",
-        error: protocolSafeError({
-          code: "PROTOCOL_CONNECT_FAILED",
-          message: `Could not connect to observer socket ${socketPath}.`,
-        }),
-      },
-      task,
-    ).then((result) => {
-      if (!result.ok) {
-        throw result.error;
-      }
-      return result.value;
-    });
+    return runRuntimeBoundary(baseOptions, task).then(unwrapBoundaryResult);
   }
 
   return runRuntimeBoundaryWithTimeout(
     {
-      operation: "protocol.socket.connect",
+      ...baseOptions,
       timeoutMs: options.timeoutMs,
-      error: protocolSafeError({
-        code: "PROTOCOL_CONNECT_FAILED",
-        message: `Could not connect to observer socket ${socketPath}.`,
-      }),
       timeoutError: protocolSafeError({
         tag: "TimeoutError",
         code: "PROTOCOL_CONNECT_TIMEOUT",
@@ -138,12 +128,7 @@ export function connectUnixSocket(
       }),
     },
     task,
-  ).then((result) => {
-    if (!result.ok) {
-      throw result.error;
-    }
-    return result.value;
-  });
+  ).then(unwrapBoundaryResult);
 }
 
 function connectUnixSocketOnce(socketPath: string, signal: AbortSignal): Promise<NdjsonConnection> {
