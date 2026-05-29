@@ -120,18 +120,18 @@ export async function drainHookSpool(
         await unlink(path);
         drained += 1;
       } else {
-        await updateFailedSpoolRecord(path, parsed.record, receipt.error);
+        await updateFailedSpoolRecord(path, parsed, receipt.error);
         failed += 1;
       }
     } catch (error) {
       await updateFailedSpoolRecord(
         path,
-        parsed.record,
+        parsed,
         safeErrorFromUnknown(error, {
           tag: "HookIngestionError",
           code: "HOOK_SPOOL_DRAIN_FAILED",
           message: "Hook spool record could not be delivered.",
-          provider: spoolRecordProvider(parsed.record),
+          provider: spoolRecordProvider(parsed),
         }),
       );
       failed += 1;
@@ -206,22 +206,23 @@ function parseSpoolRecord(input: unknown): ParsedSpoolRecord {
 
 async function updateFailedSpoolRecord(
   path: string,
-  record: HookSpoolRecord | HarnessEventReportSpoolRecord,
+  parsed: ParsedSpoolRecord,
   error: HookSpoolRecord["lastError"] | HarnessEventReportSpoolRecord["lastError"] | undefined,
 ): Promise<void> {
   const updated = {
-    ...record,
-    attempts: record.attempts + 1,
+    ...parsed.record,
+    attempts: parsed.record.attempts + 1,
   };
   if (error !== undefined) {
     updated.lastError = error;
   }
-  const schema = "event" in updated ? HookSpoolRecordSchema : HarnessEventReportSpoolRecordSchema;
+  const schema =
+    parsed.kind === "hook" ? HookSpoolRecordSchema : HarnessEventReportSpoolRecordSchema;
   await writeFile(path, JSON.stringify(schema.parse(updated), null, 2), {
     mode: 0o600,
   });
 }
 
-function spoolRecordProvider(record: HookSpoolRecord | HarnessEventReportSpoolRecord): string {
-  return "event" in record ? record.event.provider : record.report.provider;
+function spoolRecordProvider(parsed: ParsedSpoolRecord): string {
+  return parsed.kind === "hook" ? parsed.record.event.provider : parsed.record.report.provider;
 }

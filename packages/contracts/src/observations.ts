@@ -120,6 +120,19 @@ export const ObservedStatusSchema = z
 
 export type ObservedStatus = z.infer<typeof ObservedStatusSchema>;
 
+export const HarnessEventDiagnosticsSchema = z
+  .object({
+    rawEventType: nonEmptyStringSchema.optional(),
+    payloadBytes: z.number().int().nonnegative().optional(),
+    compactedBytes: z.number().int().nonnegative().optional(),
+    compacted: z.boolean().optional(),
+    truncated: z.boolean().optional(),
+    omittedFieldNames: z.array(nonEmptyStringSchema).optional(),
+  })
+  .strict();
+
+export type HarnessEventDiagnostics = z.infer<typeof HarnessEventDiagnosticsSchema>;
+
 export const WorktreeObservationSchema = z
   .object({
     id: WorktreeIdSchema,
@@ -202,11 +215,18 @@ export type HarnessStatusObservation = z.infer<typeof HarnessStatusObservationSc
 export const HarnessEventObservationSchema = z
   .object({
     provider: ProviderIdSchema,
+    reportId: nonEmptyStringSchema.optional(),
+    eventType: nonEmptyStringSchema.optional(),
+    projectId: ProjectIdSchema.optional(),
     sessionId: SessionIdSchema.optional(),
     worktreeId: WorktreeIdSchema.optional(),
+    terminalTargetId: TerminalTargetIdSchema.optional(),
     harnessRunId: HarnessRunIdSchema.optional(),
+    cwd: nonEmptyStringSchema.optional(),
+    pid: z.number().int().positive().optional(),
     status: ObservedStatusSchema.optional(),
     rawEventType: nonEmptyStringSchema.optional(),
+    diagnostics: HarnessEventDiagnosticsSchema.optional(),
     providerData: optionalProviderDataSchema,
     observedAt: TimestampSchema,
   })

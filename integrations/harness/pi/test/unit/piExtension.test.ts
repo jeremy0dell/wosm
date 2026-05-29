@@ -100,6 +100,7 @@ describe("wosm Pi extension", () => {
         report: expect.objectContaining({
           provider: "pi",
           eventType: "tool_execution_start",
+          coalesceKey: "tool:toolu_1",
           providerData: {
             piSessionId: "session",
             piSessionFile: "/tmp/pi/session.jsonl",

@@ -174,19 +174,17 @@ describe("observer hook ingestion", () => {
             provider: "codex",
             worktreeId: "wt_web_task",
             rawEventType: "PreToolUse",
+            reportId: "report_codex_1",
+            eventType: "PreToolUse",
+            diagnostics: expect.objectContaining({
+              compacted: true,
+            }),
             status: expect.objectContaining({
               value: "working",
               source: "harness_hook",
             }),
             providerData: expect.objectContaining({
-              diagnostics: expect.objectContaining({
-                compacted: true,
-              }),
-              eventType: "PreToolUse",
-              providerData: expect.objectContaining({
-                toolName: "Bash",
-              }),
-              reportId: "report_codex_1",
+              toolName: "Bash",
             }),
           }),
         }),
@@ -635,10 +633,7 @@ function harnessReport(reportId: string) {
       terminalTargetId: "tmux:wosm:@1:%2",
       cwd: "/tmp/wosm/web/task",
     },
-    providerData: {
-      turnId: "turn_1",
-      toolName: "Bash",
-    },
+    coalesceKey: "turn:turn_1:tool:Bash",
   };
 }
 

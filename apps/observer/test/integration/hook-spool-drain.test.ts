@@ -305,15 +305,20 @@ describe("observer hook spool drain", () => {
           entityKey: "ses_web_task",
           payload: expect.objectContaining({
             provider: "codex",
+            reportId: "report_codex_compacted",
+            eventType: "PreToolUse",
             worktreeId: "wt_web_task",
             rawEventType: "PreToolUse",
+            diagnostics: expect.objectContaining({
+              compacted: true,
+            }),
             status: expect.objectContaining({
               value: "working",
               source: "harness_hook",
             }),
             providerData: expect.objectContaining({
-              reportId: "report_codex_compacted",
-              eventType: "PreToolUse",
+              hookEventName: "PreToolUse",
+              toolUseId: "call_test",
             }),
           }),
         }),

@@ -496,34 +496,5 @@ function coalesceKey(report: HarnessEventReport): string {
     correlation?.terminalTargetId ??
     correlation?.cwd ??
     report.reportId;
-  const providerData = report.providerData;
-  const turnKey =
-    stringField(providerData, "turnId") ??
-    stringField(providerData, "turn_id") ??
-    stringField(providerData, "turnIndex") ??
-    stringField(providerData, "turn_index") ??
-    "-";
-  const toolKey =
-    stringField(providerData, "toolCallId") ??
-    stringField(providerData, "tool_call_id") ??
-    stringField(providerData, "toolUseId") ??
-    stringField(providerData, "tool_use_id") ??
-    stringField(providerData, "toolName") ??
-    stringField(providerData, "tool_name") ??
-    "-";
-  return [report.provider, stableAgentKey, report.eventType, turnKey, toolKey].join(":");
-}
-
-function stringField(input: unknown, key: string): string | undefined {
-  if (typeof input !== "object" || input === null || !(key in input)) {
-    return undefined;
-  }
-  const value = (input as Record<string, unknown>)[key];
-  if (typeof value === "string" && value.length > 0) {
-    return value;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-  return undefined;
+  return [report.provider, stableAgentKey, report.eventType, report.coalesceKey ?? "-"].join(":");
 }

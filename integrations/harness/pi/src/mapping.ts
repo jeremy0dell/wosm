@@ -84,6 +84,10 @@ export function piHookPayloadToHarnessEventReport(
   if (diagnostics !== undefined) {
     report.diagnostics = diagnostics;
   }
+  const coalesceKey = reportCoalesceKeyFromPiEvent(event);
+  if (coalesceKey !== undefined) {
+    report.coalesceKey = coalesceKey;
+  }
   report.providerData = providerDataFromPiEvent(event);
   return HarnessEventReportSchema.parse(report);
 }
@@ -279,6 +283,21 @@ function reportDiagnosticsFromPiEvent(
     diagnostics.omittedFieldNames = input.omittedFieldNames;
   }
   return diagnostics;
+}
+
+function reportCoalesceKeyFromPiEvent(event: PiCompactEvent): string | undefined {
+  const parts: string[] = [];
+  if (event.event_type === "turn_start" && event.turn_index !== undefined) {
+    parts.push(`turn:${event.turn_index}`);
+  }
+  if (event.event_type === "tool_execution_start" || event.event_type === "tool_execution_end") {
+    if (event.tool_call_id !== undefined) {
+      parts.push(`tool:${event.tool_call_id}`);
+    } else if (event.tool_name !== undefined) {
+      parts.push(`tool:${event.tool_name}`);
+    }
+  }
+  return parts.length === 0 ? undefined : parts.join(":");
 }
 
 function correlatePiEvent(

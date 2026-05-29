@@ -3,6 +3,7 @@ import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { createFakeHarnessRun, createFakeTerminalTarget, createFakeWorktree } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
 import { buildWosmSnapshot } from "../../src/reconcile/graph";
+import { observerHarnessRunFromRun } from "../../src/reconcile/harnessEventStatus";
 import { projectHarnessEventReportOntoSnapshot } from "../../src/reconcile/statusProjection";
 
 const now = "2026-05-21T12:00:00.000Z";
@@ -187,16 +188,18 @@ function snapshotFor(input: { state?: AgentState; confidence?: Confidence; now?:
     }),
   ];
   const harnessRuns = [
-    createFakeHarnessRun({
-      id: "run_web_task",
-      provider: "codex",
-      projectId: "web",
-      worktreeId: "wt_web_task",
-      sessionId: "ses_web_task",
-      state: input.state ?? "unknown",
-      confidence: input.confidence ?? "low",
-      now: input.now ?? now,
-    }),
+    observerHarnessRunFromRun(
+      createFakeHarnessRun({
+        id: "run_web_task",
+        provider: "codex",
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        state: input.state ?? "unknown",
+        confidence: input.confidence ?? "low",
+        now: input.now ?? now,
+      }),
+    ),
   ];
   return buildWosmSnapshot({
     generatedAt: now,

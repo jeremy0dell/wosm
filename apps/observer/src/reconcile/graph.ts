@@ -16,10 +16,8 @@ import type {
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { pathIsSameOrInside } from "@wosm/runtime";
-import { type ObserverHarnessRun, observerHarnessRunFromRun } from "./harnessEventStatus.js";
+import type { ObserverHarnessRun } from "./harnessEventStatus.js";
 import { countsForRows, statusPolicy } from "./statusPolicy.js";
-
-export type ObserverGraphHarnessRun = HarnessRunObservation | ObserverHarnessRun;
 
 export type ObserverGraphInput = {
   generatedAt: string;
@@ -36,7 +34,7 @@ export type ObserverGraphInput = {
   harnessCapabilities?: Record<string, HarnessCapabilities>;
   worktrees: WorktreeObservation[];
   terminalTargets: TerminalTargetObservation[];
-  harnessRuns: ObserverGraphHarnessRun[];
+  harnessRuns: ObserverHarnessRun[];
   alerts?: WosmAlert[];
 };
 
@@ -64,7 +62,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
     projectsById.has(worktree.projectId),
   );
   const worktreesById = new Map(configuredWorktrees.map((worktree) => [worktree.id, worktree]));
-  const harnessRuns = input.harnessRuns.map(normalizeHarnessRun);
+  const harnessRuns = input.harnessRuns;
   const harnessRunsById = new Map(harnessRuns.map((run) => [run.run.id, run.run]));
   const providerAlerts = alertsFromProviderHealth(input.providerHealth, input.generatedAt);
   const alerts = [...providerAlerts, ...(input.alerts ?? [])];
@@ -287,13 +285,6 @@ function chooseTerminal(
         terminal.worktreeId === worktree.id && terminalTargetMatchesWorktree(terminal, worktree),
     )
     .sort(compareObservations)[0];
-}
-
-function normalizeHarnessRun(run: ObserverGraphHarnessRun): ObserverHarnessRun {
-  if ("run" in run && "status" in run) {
-    return run;
-  }
-  return observerHarnessRunFromRun(run);
 }
 
 function terminalTargetMatchesWorktree(
