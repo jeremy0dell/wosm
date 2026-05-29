@@ -98,12 +98,12 @@ describeReal("real Codex hook dogfood", () => {
       });
       expect(createResult.status).toBe("succeeded");
 
-      const snapshot = await runWosmJson<WosmSnapshot>(env, {
+      const row = await waitForRowTerminalTarget({
+        env,
         configPath: config.configPath,
-        args: ["snapshot", "--json", "--include-debug"],
-        timeoutMs: 30_000,
+        branch,
+        timeoutMs: 90_000,
       });
-      const row = findRowByBranch(snapshot, branch);
       await continuePastCodexStartupPrompts(env, row);
       await waitForCodexSentinel(sentinel, { rootPath: row.path, timeoutMs: 240_000 });
       const idleRow = await waitForRowAgentState({
@@ -175,6 +175,37 @@ async function waitForRowAgentState(input: {
   throw new Error(
     `Timed out waiting for Codex row ${input.branch} to enter ${input.states.join("/")}.`,
   );
+}
+
+async function waitForRowTerminalTarget(input: {
+  env: RealDogfoodEnvironment;
+  configPath: string;
+  branch: string;
+  timeoutMs: number;
+}): Promise<WosmSnapshot["rows"][number]> {
+  const deadline = Date.now() + input.timeoutMs;
+  while (Date.now() <= deadline) {
+    try {
+      const snapshot = await runWosmJson<WosmSnapshot>(input.env, {
+        configPath: input.configPath,
+        args: ["snapshot", "--json", "--include-debug"],
+        timeoutMs: 30_000,
+      });
+      const row = findRowByBranch(snapshot, input.branch);
+      if (row.terminal?.primaryAgentTargetId !== undefined) {
+        return row;
+      }
+      await runWosmJson(input.env, {
+        configPath: input.configPath,
+        args: ["reconcile", "--reason", "real-codex-hooks-target-poll"],
+        timeoutMs: 60_000,
+      }).catch(() => undefined);
+    } catch {
+      // The branch can be absent briefly while the session command settles.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(`Timed out waiting for Codex row ${input.branch} to get a tmux target.`);
 }
 
 async function continuePastCodexStartupPrompts(

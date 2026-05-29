@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat } from "node:fs/promises";
+import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codexHookPayloadToHarnessEventReport, compactCodexHookPayload } from "@wosm/codex";
@@ -136,11 +136,26 @@ describe("observer hook spool drain", () => {
     fixture.sqlite.close();
   });
 
-  it("drains spool during observer server startup", async () => {
+  it("starts the observer server without waiting for spool drain work to finish", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
     const spoolDir = hookSpoolDir(stateDir);
-    await writeHookSpoolRecordFixture({ spoolDir, spoolId: "spool_startup" });
-    const fixture = createFixture(spoolDir);
+    const spoolPath = await writeHookSpoolRecordFixture({ spoolDir, spoolId: "spool_startup" });
+    const gate = deferred();
+    const fixture = createFixture(spoolDir, {
+      ingest: async (event) => {
+        await gate.promise;
+        return {
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          hookId: event.hookId ?? "hook_startup",
+          provider: event.provider,
+          event: event.event,
+          accepted: true,
+          status: "ingested",
+          receivedAt: event.receivedAt,
+          reconciled: false,
+        };
+      },
+    });
     const { socketPath } = await createTempSocketPath();
 
     const server = await startObserverServer({
@@ -149,9 +164,9 @@ describe("observer hook spool drain", () => {
       clock: fixture.clock,
     });
 
-    await expect(readFile(join(spoolDir, "spool_startup.json"), "utf8")).rejects.toMatchObject({
-      code: "ENOENT",
-    });
+    await expect(fileExists(spoolPath)).resolves.toBe(true);
+    gate.resolve();
+    await waitFor(async () => !(await fileExists(spoolPath)));
     await server.close();
     fixture.sqlite.close();
   });
@@ -280,4 +295,23 @@ function ids() {
     observationId: () => `obs_${++observation}`,
     breadcrumbId: () => `crumb_${++breadcrumb}`,
   };
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 1000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Timed out waiting for condition.");
 }

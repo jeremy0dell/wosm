@@ -38,6 +38,10 @@ const setTimeoutAllowlist = new Map([
     "apps/observer/src/metadata/gitRefInvalidation.ts",
     "Short debounce coalesces noisy Git ref watch events before requesting an observer-owned metadata reconcile.",
   ],
+  [
+    "apps/observer/src/hooks/harnessIngressQueue.ts",
+    "One-tick queue scheduling batches harness event reports and keeps ingress acknowledgements ahead of projection work.",
+  ],
 ]);
 
 describe("boundary inventory guard", () => {

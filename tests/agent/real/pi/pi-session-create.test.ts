@@ -33,7 +33,9 @@ describeRealPi("real Pi session.create launch lane", () => {
   afterEach(async () => {
     const tasks = cleanupTasks;
     cleanupTasks = [];
-    await Promise.allSettled(tasks.map((task) => task()));
+    for (const task of tasks.reverse()) {
+      await task().catch(() => undefined);
+    }
   });
 
   it("launches Pi through tmux with the standalone WOSM extension", async () => {

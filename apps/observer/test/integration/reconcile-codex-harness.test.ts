@@ -160,15 +160,8 @@ describe("observer reconcile with Codex harness", () => {
 
     expect(receipt).toMatchObject({
       status: "accepted",
-      projected: true,
+      projected: false,
       scheduledReconcile: true,
-    });
-    expect(core.getSnapshot().rows[0]?.agent).toMatchObject({
-      harness: "codex",
-      state: "working",
-      confidence: "medium",
-      sessionId: "ses_web_task",
-      updatedAt: "2026-05-21T12:00:01.000Z",
     });
     await expect(stateEvents.next()).resolves.toMatchObject({
       value: {
