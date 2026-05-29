@@ -71,6 +71,9 @@ importers:
       '@wosm/worktrunk':
         specifier: workspace:*
         version: link:../../integrations/worktree/worktrunk
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
 
   apps/observer:
     dependencies:

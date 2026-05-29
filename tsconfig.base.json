@@ -15,6 +15,7 @@
     "baseUrl": ".",
     "paths": {
       "@wosm/cli": ["apps/cli/src/index.ts"],
+      "@wosm/cli/internal": ["apps/cli/src/internal.ts"],
       "@wosm/observer": ["apps/observer/src/index.ts"],
       "@wosm/observer/internal": ["apps/observer/src/internal.ts"],
       "@wosm/tui": ["apps/tui/src/index.ts"],
