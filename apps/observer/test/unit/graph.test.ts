@@ -7,7 +7,11 @@ import type {
 } from "@wosm/contracts";
 import { WosmSnapshotSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { buildWosmSnapshot, type ObserverGraphHarnessRun } from "../../src/reconcile/graph";
+import { buildWosmSnapshot } from "../../src/reconcile/graph";
+import {
+  type ObserverHarnessRun,
+  observerHarnessRunFromRun,
+} from "../../src/reconcile/harnessEventStatus";
 
 const generatedAt = "2026-05-20T12:00:00.000Z";
 const observerStartedAt = "2026-05-20T11:55:00.000Z";
@@ -109,6 +113,15 @@ function harness(
   worktreeId: string,
   state: HarnessRunObservation["state"],
   reason = `Harness is ${state}.`,
+): ObserverHarnessRun {
+  return observerHarnessRunFromRun(harnessRun(id, worktreeId, state, reason));
+}
+
+function harnessRun(
+  id: string,
+  worktreeId: string,
+  state: HarnessRunObservation["state"],
+  reason = `Harness is ${state}.`,
 ): HarnessRunObservation {
   return {
     id,
@@ -131,7 +144,7 @@ function build(overrides: {
   projects?: ProviderProjectConfig[];
   worktrees?: WorktreeObservation[];
   terminals?: TerminalTargetObservation[];
-  harnessRuns?: ObserverGraphHarnessRun[];
+  harnessRuns?: ObserverHarnessRun[];
   providerHealth?: Record<string, ProviderHealth>;
 }) {
   return buildWosmSnapshot({
@@ -322,12 +335,12 @@ describe("observer graph derivation", () => {
         },
       ],
       harnessRuns: [
-        {
-          ...harness("run_orphan", "wt_missing", "working"),
+        observerHarnessRunFromRun({
+          ...harnessRun("run_orphan", "wt_missing", "working"),
           providerData: {
             rawRun: "snapshot-secret-harness",
           },
-        },
+        }),
       ],
     });
 
@@ -385,7 +398,7 @@ describe("observer graph derivation", () => {
       terminals: [terminal("term_feature", "wt_web_feature", "run_feature")],
       harnessRuns: [
         {
-          run: harness("run_feature", "wt_web_feature", "unknown"),
+          run: harnessRun("run_feature", "wt_web_feature", "unknown"),
           status: {
             value: "working",
             confidence: "medium",

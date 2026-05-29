@@ -573,6 +573,7 @@ describe("Phase 1 contract schemas", () => {
       kind: "harness",
       eventType: "PreToolUse",
       observedAt: "2026-05-20T12:02:00.000Z",
+      coalesceKey: "turn:turn_1:tool:Bash",
       status: {
         value: "working",
         confidence: "medium",

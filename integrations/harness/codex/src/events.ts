@@ -229,6 +229,10 @@ export function codexHookPayloadToHarnessEventReport(
   if (diagnostics !== undefined) {
     report.diagnostics = diagnostics;
   }
+  const coalesceKey = reportCoalesceKeyFromCodexEvent(event);
+  if (coalesceKey !== undefined) {
+    report.coalesceKey = coalesceKey;
+  }
   report.providerData = providerDataFromCodexEvent(event);
   return HarnessEventReportSchema.parse(report);
 }
@@ -426,6 +430,19 @@ function reportDiagnosticsFromCodexEvent(
     diagnostics.omittedFieldNames = input.omittedFieldNames;
   }
   return diagnostics;
+}
+
+function reportCoalesceKeyFromCodexEvent(event: CodexHookEvent): string | undefined {
+  const parts: string[] = [];
+  if ("turn_id" in event) {
+    parts.push(`turn:${event.turn_id}`);
+  }
+  if ("tool_use_id" in event) {
+    parts.push(`tool:${event.tool_use_id}`);
+  } else if ("tool_name" in event) {
+    parts.push(`tool:${event.tool_name}`);
+  }
+  return parts.length === 0 ? undefined : parts.join(":");
 }
 
 function correlateCodexEvent(

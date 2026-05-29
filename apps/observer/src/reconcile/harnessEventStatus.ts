@@ -5,7 +5,6 @@ import type {
 } from "@wosm/contracts";
 import { HarnessEventObservationSchema } from "@wosm/contracts";
 import type { PersistedProviderObservation } from "../persistence/index.js";
-import { isRecord } from "../utils/guards.js";
 
 export type ObserverHarnessRun = {
   run: HarnessRunObservation;
@@ -138,7 +137,6 @@ function shouldPreserveLiveStatus(run: ObserverHarnessRun, status: ObservedStatu
 
 function applyStatusOverlay(run: ObserverHarnessRun, overlay: StatusOverlay): ObserverHarnessRun {
   const nextRun = runObservationWithStatus(run.run, overlay.status);
-  nextRun.providerData = providerDataWithOverlay(run.run.providerData, overlay);
   return {
     run: nextRun,
     status: overlay.status,
@@ -164,23 +162,6 @@ function runObservationWithStatus(
   if (run.cwd !== undefined) nextRun.cwd = run.cwd;
   if (run.providerData !== undefined) nextRun.providerData = run.providerData;
   return nextRun;
-}
-
-function providerDataWithOverlay(
-  existing: unknown,
-  overlay: StatusOverlay,
-): Record<string, unknown> {
-  const providerData = isRecord(existing) ? { ...existing } : {};
-  const statusOverlay: Record<string, unknown> = {
-    source: overlay.status.source,
-    updatedAt: overlay.status.updatedAt,
-    correlatedBy: overlay.correlatedBy,
-  };
-  if (overlay.rawEventType !== undefined) {
-    statusOverlay.rawEventType = overlay.rawEventType;
-  }
-  providerData.statusOverlay = statusOverlay;
-  return providerData;
 }
 
 function compareOverlays(left: StatusOverlay, right: StatusOverlay): number {

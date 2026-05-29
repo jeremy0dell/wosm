@@ -283,16 +283,30 @@ export function createHarnessEventReportIngestion(
 function harnessEventObservationFromReport(report: HarnessEventReport): HarnessEventObservation {
   const observation: HarnessEventObservation = {
     provider: report.provider,
+    reportId: report.reportId,
+    eventType: report.eventType,
     observedAt: report.observedAt,
   };
+  if (report.correlation?.projectId !== undefined) {
+    observation.projectId = report.correlation.projectId;
+  }
   if (report.correlation?.sessionId !== undefined) {
     observation.sessionId = report.correlation.sessionId;
   }
   if (report.correlation?.worktreeId !== undefined) {
     observation.worktreeId = report.correlation.worktreeId;
   }
+  if (report.correlation?.terminalTargetId !== undefined) {
+    observation.terminalTargetId = report.correlation.terminalTargetId;
+  }
   if (report.correlation?.harnessRunId !== undefined) {
     observation.harnessRunId = report.correlation.harnessRunId;
+  }
+  if (report.correlation?.cwd !== undefined) {
+    observation.cwd = report.correlation.cwd;
+  }
+  if (report.correlation?.pid !== undefined) {
+    observation.pid = report.correlation.pid;
   }
   if (report.status !== undefined) {
     observation.status = report.status;
@@ -300,37 +314,13 @@ function harnessEventObservationFromReport(report: HarnessEventReport): HarnessE
   if (report.diagnostics?.rawEventType !== undefined) {
     observation.rawEventType = report.diagnostics.rawEventType;
   }
-  const providerData = providerDataFromReport(report);
-  if (providerData !== undefined) {
-    observation.providerData = providerData;
-  }
-  return HarnessEventObservationSchema.parse(observation);
-}
-
-function providerDataFromReport(report: HarnessEventReport): Record<string, unknown> | undefined {
-  const providerData: Record<string, unknown> = {
-    reportId: report.reportId,
-    eventType: report.eventType,
-  };
-  if (report.correlation?.terminalTargetId !== undefined) {
-    providerData.terminalTargetId = report.correlation.terminalTargetId;
-  }
-  if (report.correlation?.projectId !== undefined) {
-    providerData.projectId = report.correlation.projectId;
-  }
-  if (report.correlation?.cwd !== undefined) {
-    providerData.cwd = report.correlation.cwd;
-  }
-  if (report.correlation?.pid !== undefined) {
-    providerData.pid = report.correlation.pid;
-  }
   if (report.diagnostics !== undefined) {
-    providerData.diagnostics = report.diagnostics;
+    observation.diagnostics = report.diagnostics;
   }
   if (report.providerData !== undefined) {
-    providerData.providerData = report.providerData;
+    observation.providerData = report.providerData;
   }
-  return Object.keys(providerData).length === 0 ? undefined : providerData;
+  return HarnessEventObservationSchema.parse(observation);
 }
 
 function harnessEventReportEntityKey(report: HarnessEventReport): string {

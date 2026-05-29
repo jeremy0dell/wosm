@@ -34,15 +34,8 @@ describe("harness event status overlays", () => {
       confidence: "medium",
       reason: "Codex is about to use Bash.",
       observedAt: runObservedAt,
-      providerData: {
-        statusOverlay: {
-          source: "harness_hook",
-          rawEventType: "PreToolUse",
-          updatedAt: eventObservedAt,
-          correlatedBy: "harnessRunId",
-        },
-      },
     });
+    expect(result[0]?.run.providerData).toBeUndefined();
     expect(result[0]?.status).toMatchObject({
       value: "working",
       source: "harness_hook",
@@ -155,11 +148,7 @@ describe("harness event status overlays", () => {
     });
 
     expect(single[0]?.run.state).toBe("working");
-    expect(single[0]?.run.providerData).toMatchObject({
-      statusOverlay: {
-        correlatedBy: "worktreeId",
-      },
-    });
+    expect(single[0]?.run.providerData).toBeUndefined();
     expect(multiple.map((entry) => entry.run.state)).toEqual(["unknown", "unknown"]);
   });
 
