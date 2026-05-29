@@ -5,7 +5,7 @@ import type {
   WosmEvent,
   WosmSnapshot,
 } from "@wosm/contracts";
-import type { ObserverClient } from "@wosm/protocol";
+import type { ObserverApi } from "@wosm/protocol";
 import { createObserverClient } from "@wosm/protocol";
 import {
   runRuntimeBoundaryWithRetryAndTimeout,
@@ -17,7 +17,7 @@ export type CreateTuiObserverServiceOptions = {
   socketPath?: string;
   timeoutMs?: number;
   requestId?: () => string;
-  client?: ObserverClient;
+  client?: ObserverApi;
 };
 
 export function createTuiObserverService(
@@ -127,7 +127,7 @@ export function createTuiObserverService(
 }
 
 async function waitForCommandCompletion(
-  client: ObserverClient,
+  client: ObserverApi,
   commandId: CommandId,
   signal: AbortSignal,
 ): Promise<TuiCommandCompletion> {
@@ -221,7 +221,7 @@ function completionFromEvent(
   return undefined;
 }
 
-function createClient(options: CreateTuiObserverServiceOptions, timeoutMs: number): ObserverClient {
+function createClient(options: CreateTuiObserverServiceOptions, timeoutMs: number): ObserverApi {
   if (options.socketPath === undefined) {
     throw new Error("createTuiObserverService requires socketPath or client.");
   }

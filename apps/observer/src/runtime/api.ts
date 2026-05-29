@@ -20,7 +20,7 @@ import type {
 } from "@wosm/contracts";
 import { HarnessEventReportReceiptSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
-import type { ObserverApi as ProtocolObserverApi } from "@wosm/protocol";
+import type { ObserverApi } from "@wosm/protocol";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import type { CommandQueue } from "../commands/queue.js";
 import { commandRecordFromPersisted } from "../commands/record.js";
@@ -73,8 +73,6 @@ export type CreateObserverApiOptions = {
   onStop?: () => Promise<void> | void;
   hookReconcileDebounceMs?: number;
 };
-
-export type ObserverApi = ProtocolObserverApi;
 
 export function createObserverApi(options: CreateObserverApiOptions): ObserverApi {
   const clock = options.clock ?? systemClock;

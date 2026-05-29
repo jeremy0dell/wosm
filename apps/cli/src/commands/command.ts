@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { WosmConfig } from "@wosm/config";
 import type { CommandId, CommandReceipt, CommandRecord, WosmCommand } from "@wosm/contracts";
 import { WosmCommandSchema } from "@wosm/contracts";
-import { createObserverClient, type ObserverClient } from "@wosm/protocol";
+import { createObserverClient, type ObserverApi } from "@wosm/protocol";
 import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import {
   type ObserverProcessDeps,
@@ -106,7 +106,7 @@ export function commandCommandExitCode(result: CommandCommandResult): number {
   return 0;
 }
 
-async function getCommand(client: ObserverClient, commandId: CommandId): Promise<CommandGetResult> {
+async function getCommand(client: ObserverApi, commandId: CommandId): Promise<CommandGetResult> {
   const command = await client.getCommand(commandId);
   return {
     command: command ?? null,
@@ -114,7 +114,7 @@ async function getCommand(client: ObserverClient, commandId: CommandId): Promise
 }
 
 async function dispatchCommand(
-  client: ObserverClient,
+  client: ObserverApi,
   command: WosmCommand,
   timeoutMs: number,
 ): Promise<CommandReceipt> {
@@ -142,7 +142,7 @@ async function dispatchCommand(
 }
 
 async function waitForCommand(
-  client: ObserverClient,
+  client: ObserverApi,
   commandId: CommandId,
   timeoutMs: number,
 ): Promise<CommandRecord> {

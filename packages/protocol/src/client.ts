@@ -12,7 +12,7 @@ import type {
 import { WosmEventSchema } from "@wosm/contracts";
 import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import type { z } from "zod";
-import type { ObserverProtocolApi } from "./api.js";
+import type { ObserverApi } from "./api.js";
 import {
   ProtocolEventEnvelopeSchema,
   type ProtocolMethod,
@@ -24,8 +24,6 @@ import {
 } from "./messages.js";
 import { unwrapBoundaryResult } from "./runtime.js";
 import { connectUnixSocket, type NdjsonConnection } from "./transport.js";
-
-export type ObserverClient = ObserverProtocolApi;
 
 type ProtocolResult<TMethod extends ProtocolMethod> = z.infer<
   (typeof ProtocolResultSchemas)[TMethod]
@@ -39,7 +37,7 @@ export type CreateObserverClientOptions = {
 
 const defaultRequestId = () => `req_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-export function createObserverClient(options: CreateObserverClientOptions): ObserverClient {
+export function createObserverClient(options: CreateObserverClientOptions): ObserverApi {
   const requestId = options.requestId ?? defaultRequestId;
 
   return {

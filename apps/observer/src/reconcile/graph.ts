@@ -19,7 +19,6 @@ import { pathIsSameOrInside } from "@wosm/runtime";
 import { type ObserverHarnessRun, observerHarnessRunFromRun } from "./harnessEventStatus.js";
 import { countsForRows, statusPolicy } from "./statusPolicy.js";
 
-export type ObserverGraphProject = ProviderProjectConfig;
 export type ObserverGraphHarnessRun = HarnessRunObservation | ObserverHarnessRun;
 
 export type ObserverGraphInput = {
@@ -30,7 +29,7 @@ export type ObserverGraphInput = {
     version: string;
     healthy?: boolean;
   };
-  projects: ObserverGraphProject[];
+  projects: ProviderProjectConfig[];
   worktreeProviderId: ProviderId;
   providerHealth: Record<string, ProviderHealth>;
   harnesses?: SnapshotHarness[];
@@ -151,7 +150,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
 }
 
 type BuildWorktreeRowInput = {
-  project: ObserverGraphProject;
+  project: ProviderProjectConfig;
   worktree: WorktreeObservation;
   terminal?: TerminalTargetObservation;
   harnessRun?: ObserverHarnessRun;
@@ -223,7 +222,7 @@ function rowAgent(harnessRun: ObserverHarnessRun): WorktreeRow["agent"] {
 }
 
 type BuildSessionInput = {
-  project: ObserverGraphProject;
+  project: ProviderProjectConfig;
   worktree: WorktreeObservation;
   terminal?: TerminalTargetObservation;
   harnessRun?: ObserverHarnessRun;
@@ -425,7 +424,7 @@ function orphans(
   input: ObserverGraphInput,
   harnessRuns: ObserverHarnessRun[],
   worktreesById: Map<string, WorktreeObservation>,
-  projectsById: Map<string, ObserverGraphProject>,
+  projectsById: Map<string, ProviderProjectConfig>,
   harnessRunsById: Map<string, HarnessRunObservation>,
 ): { orphans?: OrphanedRuntimeState[] } {
   // Runtime state without a configured worktree remains visible as an orphan instead of disappearing.

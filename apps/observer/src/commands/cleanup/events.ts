@@ -16,7 +16,7 @@ export async function publishSessionRemoved(input: {
     commandId: input.context.commandId,
     traceId: input.context.trace.traceId,
     spanId: input.context.trace.spanId,
-    createdAt: now(input.clock),
+    createdAt: nowIso(input.clock),
   });
   input.eventBus?.publish(event);
 }
@@ -33,7 +33,7 @@ export async function publishWorktreeRemoved(input: {
     commandId: input.context.commandId,
     traceId: input.context.trace.traceId,
     spanId: input.context.trace.spanId,
-    createdAt: now(input.clock),
+    createdAt: nowIso(input.clock),
   });
   input.eventBus?.publish(event);
 }
@@ -57,5 +57,3 @@ export async function publishRemovedSessionIfAbsent(input: {
     clock: input.clock,
   });
 }
-
-const now = nowIso;

@@ -7,7 +7,7 @@ import type { ObserverCore } from "../../reconcile/core.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
 import { nowIso } from "../../utils/time.js";
 import { assertCommandType } from "../assertCommand.js";
-import { worktreeMissingError as createWorktreeMissingError } from "../errors.js";
+import { worktreeMissingError } from "../errors.js";
 import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import {
@@ -76,7 +76,7 @@ export function createSessionStartAgentHandler(
             worktreeId: payload.worktreeId,
             runtime,
           })
-        : worktreeObservationFromRow(row, options.providers.worktree.id, now(options.clock));
+        : worktreeObservationFromRow(row, options.providers.worktree.id, nowIso(options.clock));
     throwIfAborted(context.signal);
     let openedTargetId: string | undefined;
     let harnessLaunched = false;
@@ -107,7 +107,7 @@ export function createSessionStartAgentHandler(
       const terminalTarget = terminalTargetObservationFromBinding({
         binding: opened.target,
         worktree,
-        observedAt: now(options.clock),
+        observedAt: nowIso(options.clock),
       });
 
       const launchPlan = await runProviderMutation(
@@ -222,7 +222,11 @@ async function lookupWorktree(input: {
   };
 }): Promise<WorktreeObservation> {
   if (input.providers.worktree.getWorktree === undefined) {
-    throw worktreeMissingError(input.projectId, input.worktreeId);
+    throw worktreeMissingError({
+      projectId: input.projectId,
+      worktreeId: input.worktreeId,
+      message: "The requested worktree is not visible to the worktree provider.",
+    });
   }
 
   const worktree = await runProviderMutation(
@@ -243,17 +247,11 @@ async function lookupWorktree(input: {
       }) as Promise<WorktreeObservation | null>,
   );
   if (worktree === null) {
-    throw worktreeMissingError(input.projectId, input.worktreeId);
+    throw worktreeMissingError({
+      projectId: input.projectId,
+      worktreeId: input.worktreeId,
+      message: "The requested worktree is not visible to the worktree provider.",
+    });
   }
   return worktree;
 }
-
-function worktreeMissingError(projectId: string, worktreeId: string) {
-  return createWorktreeMissingError({
-    projectId,
-    worktreeId,
-    message: "The requested worktree is not visible to the worktree provider.",
-  });
-}
-
-const now = nowIso;

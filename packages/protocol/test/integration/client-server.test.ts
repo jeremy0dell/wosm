@@ -9,17 +9,11 @@ import {
   connectUnixSocket,
   createObserverClient,
   listenUnixSocket,
-  PROTOCOL_SCHEMA_VERSION,
   startProtocolServer,
 } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../tests/support/sockets";
-import {
-  createFakeObserverApi,
-  emptySnapshot,
-  ids,
-  protocolTestNow as now,
-} from "../support/fixtures.js";
+import { createFakeObserverApi, emptySnapshot, ids, protocolTestNow } from "../support/fixtures.js";
 
 describe("protocol client/server", () => {
   it("routes health, snapshot, dispatch, get, reconcile, and hook ingestion over a socket", async () => {
@@ -34,7 +28,7 @@ describe("protocol client/server", () => {
           type: command.type,
           command,
           status: "accepted",
-          createdAt: now,
+          createdAt: protocolTestNow,
         };
         commands.set(record.id, record);
         return { commandId: record.id, accepted: true, status: "accepted" };
@@ -82,7 +76,7 @@ describe("protocol client/server", () => {
       provider: "worktrunk",
       kind: "worktree",
       event: "worktree.created",
-      receivedAt: now,
+      receivedAt: protocolTestNow,
     };
     await expect(client.ingestHookEvent(hookEvent)).resolves.toMatchObject({
       provider: "worktrunk",
@@ -95,13 +89,13 @@ describe("protocol client/server", () => {
       provider: "codex",
       kind: "harness",
       eventType: "PreToolUse",
-      observedAt: now,
+      observedAt: protocolTestNow,
       status: {
         value: "working",
         confidence: "medium",
         reason: "Codex is about to use Bash.",
         source: "harness_hook",
-        updatedAt: now,
+        updatedAt: protocolTestNow,
       },
     };
     await expect(client.reportHarnessEvent(report)).resolves.toMatchObject({
@@ -118,7 +112,7 @@ describe("protocol client/server", () => {
 
     try {
       const response = await sendRawRequest(socketPath, {
-        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        schemaVersion: WOSM_SCHEMA_VERSION,
         jsonrpc: "2.0",
         id: "bad_params",
         method: "snapshot.get",
@@ -237,7 +231,7 @@ describe("protocol client/server", () => {
 
     try {
       connection.send({
-        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        schemaVersion: WOSM_SCHEMA_VERSION,
         jsonrpc: "2.0",
         id: "bad_result",
         method: "observer.health",
@@ -255,7 +249,7 @@ describe("protocol client/server", () => {
       });
 
       connection.send({
-        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        schemaVersion: WOSM_SCHEMA_VERSION,
         jsonrpc: "2.0",
         id: "after_bad_result",
         method: "snapshot.get",

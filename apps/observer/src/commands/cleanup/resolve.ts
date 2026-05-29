@@ -5,7 +5,7 @@ import type {
   WorktreeRow,
   WosmSnapshot,
 } from "@wosm/contracts";
-import { worktreeMissingError as createWorktreeMissingError } from "../errors.js";
+import { worktreeMissingError } from "../errors.js";
 
 type TerminalTargetPayload = {
   targetId?: string | undefined;
@@ -34,7 +34,7 @@ export function resolveWorktreeRowOrThrow(
 ): WorktreeRow {
   const row = snapshot.rows.find((candidate) => candidate.id === worktreeId);
   if (row === undefined) {
-    throw worktreeMissingError(worktreeId, projectId);
+    throw snapshotWorktreeMissingError(worktreeId, projectId);
   }
   if (projectId !== undefined && row.projectId !== projectId) {
     const error: SafeError = {
@@ -135,8 +135,8 @@ export function sessionMissingError(sessionId: string): SafeError {
   };
 }
 
-export function worktreeMissingError(worktreeId: string, projectId?: string): SafeError {
-  return createWorktreeMissingError({
+export function snapshotWorktreeMissingError(worktreeId: string, projectId?: string): SafeError {
+  return worktreeMissingError({
     worktreeId,
     projectId,
     message: "The requested worktree is not visible in the observer snapshot.",

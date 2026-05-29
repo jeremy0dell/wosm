@@ -1,9 +1,9 @@
 import type { EventFilter, WosmEvent } from "@wosm/contracts";
+import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
   connectUnixSocket,
   createObserverClient,
   listenUnixSocket,
-  PROTOCOL_SCHEMA_VERSION,
   startProtocolServer,
 } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
@@ -11,7 +11,7 @@ import { createTempSocketPath } from "../../../../tests/support/sockets";
 import {
   createFakeObserverApi,
   ids,
-  protocolTestNow as now,
+  protocolTestNow,
   stream,
   waitFor,
 } from "../support/fixtures.js";
@@ -27,7 +27,7 @@ describe("protocol event subscriptions", () => {
       },
       {
         type: "hook.ingested",
-        at: now,
+        at: protocolTestNow,
         hookId: "hook_1",
         provider: "worktrunk",
         event: "worktree.created",
@@ -90,7 +90,7 @@ describe("protocol event subscriptions", () => {
 
     try {
       connection.send({
-        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        schemaVersion: WOSM_SCHEMA_VERSION,
         jsonrpc: "2.0",
         id: "blocked_sub",
         method: "events.subscribe",
