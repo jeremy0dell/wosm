@@ -9,14 +9,11 @@ import type {
 } from "@wosm/contracts";
 import type { RuntimeClock } from "@wosm/runtime";
 import type { ProviderRegistry } from "../../providers/registry.js";
+import { resolveHarnessProviderOrThrow } from "../providers.js";
 import type { CommandHandlerContext } from "../queue.js";
 import { runProviderMutation, throwIfAborted } from "../session/shared.js";
 import { isRunningAgentState } from "./guards.js";
-import {
-  resolveHarnessProviderOrThrow,
-  terminalTargetIdForRow,
-  terminalTargetIdForSession,
-} from "./resolve.js";
+import { terminalTargetIdForRow, terminalTargetIdForSession } from "./resolve.js";
 
 export type CleanupRuntime = {
   clock?: RuntimeClock | undefined;

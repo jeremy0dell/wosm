@@ -1,38 +1,26 @@
 import type {
   CommandRecord,
-  DiagnosticSnapshot,
-  DoctorReport,
   HarnessEventReport,
-  HarnessEventReportReceipt,
-  HookReceipt,
-  ObserverHealth,
-  ObserverStopReceipt,
   ProviderHookEvent,
-  ReconcileReceipt,
   WosmCommand,
-  WosmEvent,
-  WosmSnapshot,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
   connectUnixSocket,
   createObserverClient,
   listenUnixSocket,
-  type ObserverApi,
-  PROTOCOL_SCHEMA_VERSION,
   startProtocolServer,
 } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../tests/support/sockets";
-
-const now = "2026-05-20T12:00:00.000Z";
+import { createFakeObserverApi, emptySnapshot, ids, protocolTestNow } from "../support/fixtures.js";
 
 describe("protocol client/server", () => {
   it("routes health, snapshot, dispatch, get, reconcile, and hook ingestion over a socket", async () => {
     const { socketPath } = await createTempSocketPath();
     const commands = new Map<string, CommandRecord>();
     const snapshot = emptySnapshot();
-    const api = fakeApi({
+    const api = createFakeObserverApi({
       snapshot,
       dispatch: async (command) => {
         const record: CommandRecord = {
@@ -40,7 +28,7 @@ describe("protocol client/server", () => {
           type: command.type,
           command,
           status: "accepted",
-          createdAt: now,
+          createdAt: protocolTestNow,
         };
         commands.set(record.id, record);
         return { commandId: record.id, accepted: true, status: "accepted" };
@@ -88,7 +76,7 @@ describe("protocol client/server", () => {
       provider: "worktrunk",
       kind: "worktree",
       event: "worktree.created",
-      receivedAt: now,
+      receivedAt: protocolTestNow,
     };
     await expect(client.ingestHookEvent(hookEvent)).resolves.toMatchObject({
       provider: "worktrunk",
@@ -101,13 +89,13 @@ describe("protocol client/server", () => {
       provider: "codex",
       kind: "harness",
       eventType: "PreToolUse",
-      observedAt: now,
+      observedAt: protocolTestNow,
       status: {
         value: "working",
         confidence: "medium",
         reason: "Codex is about to use Bash.",
         source: "harness_hook",
-        updatedAt: now,
+        updatedAt: protocolTestNow,
       },
     };
     await expect(client.reportHarnessEvent(report)).resolves.toMatchObject({
@@ -120,11 +108,11 @@ describe("protocol client/server", () => {
 
   it("returns SafeError envelopes for invalid params without leaking validator details", async () => {
     const { socketPath } = await createTempSocketPath();
-    const server = await startProtocolServer({ socketPath, api: fakeApi() });
+    const server = await startProtocolServer({ socketPath, api: createFakeObserverApi() });
 
     try {
       const response = await sendRawRequest(socketPath, {
-        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        schemaVersion: WOSM_SCHEMA_VERSION,
         jsonrpc: "2.0",
         id: "bad_params",
         method: "snapshot.get",
@@ -151,7 +139,7 @@ describe("protocol client/server", () => {
     const { socketPath } = await createTempSocketPath();
     const server = await startProtocolServer({
       socketPath,
-      api: fakeApi({
+      api: createFakeObserverApi({
         health: async () => {
           throw {
             tag: "InternalObserverError",
@@ -181,7 +169,7 @@ describe("protocol client/server", () => {
 
   it("returns undefined for a missing command record", async () => {
     const { socketPath } = await createTempSocketPath();
-    const server = await startProtocolServer({ socketPath, api: fakeApi() });
+    const server = await startProtocolServer({ socketPath, api: createFakeObserverApi() });
     const client = createObserverClient({ socketPath, requestId: ids("missing") });
 
     try {
@@ -214,7 +202,7 @@ describe("protocol client/server", () => {
     const server = await startProtocolServer({
       socketPath,
       requestTimeoutMs: 10,
-      api: fakeApi({
+      api: createFakeObserverApi({
         health: async () => new Promise(() => undefined),
       }),
     });
@@ -234,7 +222,7 @@ describe("protocol client/server", () => {
     const { socketPath } = await createTempSocketPath();
     const server = await startProtocolServer({
       socketPath,
-      api: fakeApi({
+      api: createFakeObserverApi({
         health: async () => ({ status: "not-a-health-report" }) as never,
       }),
     });
@@ -243,7 +231,7 @@ describe("protocol client/server", () => {
 
     try {
       connection.send({
-        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        schemaVersion: WOSM_SCHEMA_VERSION,
         jsonrpc: "2.0",
         id: "bad_result",
         method: "observer.health",
@@ -261,7 +249,7 @@ describe("protocol client/server", () => {
       });
 
       connection.send({
-        schemaVersion: PROTOCOL_SCHEMA_VERSION,
+        schemaVersion: WOSM_SCHEMA_VERSION,
         jsonrpc: "2.0",
         id: "after_bad_result",
         method: "snapshot.get",
@@ -282,188 +270,6 @@ describe("protocol client/server", () => {
     }
   });
 });
-
-function fakeApi(overrides: Partial<ObserverApi> & { snapshot?: WosmSnapshot } = {}): ObserverApi {
-  const snapshot = overrides.snapshot ?? emptySnapshot();
-  return {
-    health: async (): Promise<ObserverHealth> => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      status: "healthy",
-      pid: 1234,
-      startedAt: now,
-      version: "0.0.0",
-    }),
-    stop: async (): Promise<ObserverStopReceipt> => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      stopped: true,
-      at: now,
-    }),
-    getSnapshot: async () => snapshot,
-    subscribe: () => emptyEvents(),
-    dispatch: async () => ({
-      commandId: "cmd_1",
-      accepted: true,
-      status: "accepted",
-    }),
-    getCommand: async () => undefined,
-    reconcile: async (reason = "manual"): Promise<ReconcileReceipt> => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      reason,
-      reconciledAt: now,
-      snapshot,
-    }),
-    ingestHookEvent: async (event): Promise<HookReceipt> => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      hookId: "hook_1",
-      provider: event.provider,
-      event: event.event,
-      accepted: true,
-      status: "ingested",
-      receivedAt: event.receivedAt,
-      reconciled: true,
-    }),
-    reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      reportId: report.reportId,
-      provider: report.provider,
-      eventType: report.eventType,
-      accepted: true,
-      status: "accepted",
-      receivedAt: report.observedAt,
-      projected: false,
-      scheduledReconcile: true,
-    }),
-    runDoctor: async (): Promise<DoctorReport> => doctorReport(snapshot),
-    collectDiagnostics: async (): Promise<DiagnosticSnapshot> => diagnosticSnapshot(snapshot),
-    ...overrides,
-  };
-}
-
-async function* emptyEvents(): AsyncIterable<WosmEvent> {}
-
-function emptySnapshot(): WosmSnapshot {
-  return {
-    schemaVersion: WOSM_SCHEMA_VERSION,
-    generatedAt: now,
-    observer: {
-      pid: 1234,
-      startedAt: now,
-      version: "0.0.0",
-      healthy: true,
-    },
-    providerHealth: {},
-    projects: [],
-    rows: [],
-    sessions: [],
-    counts: {
-      projects: 0,
-      worktrees: 0,
-      agents: 0,
-      working: 0,
-      idle: 0,
-      attention: 0,
-      unknown: 0,
-    },
-    alerts: [],
-  };
-}
-
-function ids(prefix: string): () => string {
-  let id = 0;
-  return () => `${prefix}_${++id}`;
-}
-
-function diagnosticSnapshot(snapshot: WosmSnapshot): DiagnosticSnapshot {
-  return {
-    schemaVersion: WOSM_SCHEMA_VERSION,
-    collectedAt: now,
-    observerHealth: {
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      status: "healthy",
-      pid: 1234,
-      startedAt: now,
-      version: "0.0.0",
-    },
-    snapshot,
-    providerHealth: {},
-    commands: [],
-    events: [],
-    errors: [],
-    logs: [],
-  };
-}
-
-function doctorReport(snapshot: WosmSnapshot): DoctorReport {
-  return {
-    schemaVersion: WOSM_SCHEMA_VERSION,
-    generatedAt: now,
-    status: "healthy",
-    checks: [
-      {
-        name: "observer",
-        status: "ok",
-        message: "Observer is healthy.",
-      },
-    ],
-    observer: {
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      status: "healthy",
-      pid: 1234,
-      startedAt: now,
-      version: "0.0.0",
-    },
-    config: {
-      projectCount: 0,
-      diagnostics: [],
-    },
-    providers: {},
-    snapshot,
-    logs: {
-      paths: [],
-      recent: [],
-    },
-    localState: {
-      stateDir: "/tmp/wosm/state",
-      totalBytes: 0,
-      limitBytes: 262144000,
-      overLimit: false,
-      entries: [],
-    },
-    retention: {
-      maxDays: 14,
-      maxTotalMb: 250,
-      maxFileMb: 10,
-      maxFilesPerComponent: 5,
-      components: {
-        observerMaxMb: 100,
-        cliMaxMb: 25,
-        tuiMaxMb: 25,
-        hookRunnerMaxMb: 25,
-        providerMaxMb: 75,
-      },
-      sqlite: {
-        eventsMaxDays: 30,
-        commandsMaxDays: 60,
-        errorsMaxDays: 60,
-        providerObservationsMaxDays: 14,
-      },
-      debugBundles: {
-        maxBundles: 10,
-        maxDays: 30,
-      },
-      hookSpool: {
-        deliveredDeleteImmediately: true,
-        failedMaxDays: 7,
-        failedMaxItems: 1000,
-      },
-    },
-    recentErrors: [],
-    debugBundle: {
-      available: true,
-      diagnosticsDir: "/tmp/wosm/state/diagnostics",
-    },
-  };
-}
 
 async function sendRawRequest(socketPath: string, request: unknown): Promise<unknown> {
   const connection = await connectUnixSocket(socketPath, { timeoutMs: 500 });

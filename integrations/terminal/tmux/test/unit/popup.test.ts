@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
+import type { ExternalCommandInput } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
 import {
   buildTmuxPopupArgs,
@@ -9,6 +9,7 @@ import {
   resolveRegisteredDevPopupUi,
   resolveTmuxPopupFocusOrigin,
 } from "../../src/popup";
+import { tmuxCommandResult } from "../support/commands";
 
 const defaultPersistentSignature = "v1:wosm tui --popup --persistent";
 
@@ -52,7 +53,7 @@ describe("tmux popup", () => {
               stderr: "can't find session",
             });
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toEqual({ sessionName: "_wosm-ui", created: true });
@@ -84,9 +85,9 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "show-options") {
-            return result(input, `${defaultPersistentSignature}\n`);
+            return tmuxCommandResult(input, `${defaultPersistentSignature}\n`);
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toEqual({ sessionName: "_wosm-ui", created: false });
@@ -105,12 +106,12 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "show-options") {
-            return result(
+            return tmuxCommandResult(
               input,
               "v1:node wosm tui --popup --persistent --config /tmp/config-a.toml\n",
             );
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toEqual({ sessionName: "_wosm-ui", created: true });
@@ -147,15 +148,15 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "display-message") {
-            return result(input, "client_1\n");
+            return tmuxCommandResult(input, "client_1\n");
           }
           if (
             input.args?.[0] === "show-options" &&
             input.args.includes("@wosm_popup_ui_signature")
           ) {
-            return result(input, `${defaultPersistentSignature}\n`);
+            return tmuxCommandResult(input, `${defaultPersistentSignature}\n`);
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
         env: {
           TMUX: "/tmp/tmux-501/default,123,0",
@@ -207,30 +208,30 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "display-message") {
-            return result(input, "client_1\n");
+            return tmuxCommandResult(input, "client_1\n");
           }
           if (
             input.args?.[0] === "show-options" &&
             input.args.includes("@wosm_tui_dev_session_name")
           ) {
-            return result(input, `${devSession}\n`);
+            return tmuxCommandResult(input, `${devSession}\n`);
           }
           if (input.args?.[0] === "show-options" && input.args.includes("@wosm_tui_dev_command")) {
-            return result(input, `${devCommand}\n`);
+            return tmuxCommandResult(input, `${devCommand}\n`);
           }
           if (input.args?.[0] === "show-options" && input.args.includes("@wosm_tui_dev_owner")) {
-            return result(input, `${process.pid}:test\n`);
+            return tmuxCommandResult(input, `${process.pid}:test\n`);
           }
           if (input.args?.[0] === "show-options" && input.args.includes("@wosm_tui_dev_root")) {
-            return result(input, "/worktrees/tui-layout\n");
+            return tmuxCommandResult(input, "/worktrees/tui-layout\n");
           }
           if (
             input.args?.[0] === "show-options" &&
             input.args.includes("@wosm_popup_ui_signature")
           ) {
-            return result(input, `v1:${devCommand}\n`);
+            return tmuxCommandResult(input, `v1:${devCommand}\n`);
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
         env: {
           TMUX: "/tmp/tmux-501/default,123,0",
@@ -262,18 +263,18 @@ describe("tmux popup", () => {
       resolveRegisteredDevPopupUi({
         runner: async (input) => {
           if (input.args?.includes("@wosm_tui_dev_session_name")) {
-            return result(input, "_wosm-ui-dev-wt-1234abcd\n");
+            return tmuxCommandResult(input, "_wosm-ui-dev-wt-1234abcd\n");
           }
           if (input.args?.includes("@wosm_tui_dev_command")) {
-            return result(input, `${devCommand}\n`);
+            return tmuxCommandResult(input, `${devCommand}\n`);
           }
           if (input.args?.includes("@wosm_tui_dev_owner")) {
-            return result(input, `${process.pid}:test\n`);
+            return tmuxCommandResult(input, `${process.pid}:test\n`);
           }
           if (input.args?.includes("@wosm_tui_dev_root")) {
-            return result(input, "/wt\n");
+            return tmuxCommandResult(input, "/wt\n");
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toEqual({
@@ -287,15 +288,15 @@ describe("tmux popup", () => {
       resolveRegisteredDevPopupUi({
         runner: async (input) => {
           if (input.args?.includes("@wosm_tui_dev_session_name")) {
-            return result(input, "_wosm-ui-dev-stale-1234abcd\n");
+            return tmuxCommandResult(input, "_wosm-ui-dev-stale-1234abcd\n");
           }
           if (input.args?.includes("@wosm_tui_dev_command")) {
-            return result(input, `${devCommand}\n`);
+            return tmuxCommandResult(input, `${devCommand}\n`);
           }
           if (input.args?.includes("@wosm_tui_dev_owner")) {
-            return result(input, "999999999:test\n");
+            return tmuxCommandResult(input, "999999999:test\n");
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toBeUndefined();
@@ -312,24 +313,24 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "display-message") {
-            return result(input, "client_1\n");
+            return tmuxCommandResult(input, "client_1\n");
           }
           if (input.args?.includes("@wosm_tui_dev_session_name")) {
-            return result(input, "_wosm-ui-dev-stale-1234abcd\n");
+            return tmuxCommandResult(input, "_wosm-ui-dev-stale-1234abcd\n");
           }
           if (input.args?.includes("@wosm_tui_dev_command")) {
-            return result(input, `${devCommand}\n`);
+            return tmuxCommandResult(input, `${devCommand}\n`);
           }
           if (input.args?.includes("@wosm_tui_dev_owner")) {
-            return result(input, "999999999:test\n");
+            return tmuxCommandResult(input, "999999999:test\n");
           }
           if (
             input.args?.[0] === "show-options" &&
             input.args.includes("@wosm_popup_ui_signature")
           ) {
-            return result(input, "v1:node normal-wosm tui --popup --persistent\n");
+            return tmuxCommandResult(input, "v1:node normal-wosm tui --popup --persistent\n");
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
         env: {
           TMUX: "/tmp/tmux-501/default,123,0",
@@ -366,27 +367,27 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "display-message") {
-            return result(input, "client_1\n");
+            return tmuxCommandResult(input, "client_1\n");
           }
           if (input.args?.includes("@wosm_tui_dev_session_name")) {
-            return result(input, "_wosm-ui-dev-other-1234abcd\n");
+            return tmuxCommandResult(input, "_wosm-ui-dev-other-1234abcd\n");
           }
           if (input.args?.includes("@wosm_tui_dev_command")) {
-            return result(input, `${devCommand}\n`);
+            return tmuxCommandResult(input, `${devCommand}\n`);
           }
           if (input.args?.includes("@wosm_tui_dev_owner")) {
-            return result(input, `${process.pid}:test\n`);
+            return tmuxCommandResult(input, `${process.pid}:test\n`);
           }
           if (input.args?.includes("@wosm_tui_dev_root")) {
-            return result(input, "/other\n");
+            return tmuxCommandResult(input, "/other\n");
           }
           if (
             input.args?.[0] === "show-options" &&
             input.args.includes("@wosm_popup_ui_signature")
           ) {
-            return result(input, "v1:node current-wosm tui --popup --persistent\n");
+            return tmuxCommandResult(input, "v1:node current-wosm tui --popup --persistent\n");
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
         env: {
           TMUX: "/tmp/tmux-501/default,123,0",
@@ -418,12 +419,12 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "display-message") {
-            return result(input, "client_1\n");
+            return tmuxCommandResult(input, "client_1\n");
           }
           if (input.args?.[0] === "show-options") {
-            return result(input, "client_1\n");
+            return tmuxCommandResult(input, "client_1\n");
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
         env: {
           TMUX: "/tmp/tmux-501/default,123,0",
@@ -453,15 +454,15 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "show-options" && input.args.includes("@wosm_popup_client")) {
-            return result(input, "client_1\n");
+            return tmuxCommandResult(input, "client_1\n");
           }
           if (
             input.args?.[0] === "show-options" &&
             input.args.includes("@wosm_popup_ui_signature")
           ) {
-            return result(input, `${defaultPersistentSignature}\n`);
+            return tmuxCommandResult(input, `${defaultPersistentSignature}\n`);
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toEqual({ opened: true });
@@ -481,7 +482,7 @@ describe("tmux popup", () => {
   it("resolves the focus origin from the current tmux popup client option", async () => {
     await expect(
       resolveTmuxPopupFocusOrigin({
-        runner: async (input) => result(input, "client_2\n"),
+        runner: async (input) => tmuxCommandResult(input, "client_2\n"),
       }),
     ).resolves.toEqual({
       provider: "tmux",
@@ -497,9 +498,9 @@ describe("tmux popup", () => {
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "show-options") {
-            return result(input, "client_2\n");
+            return tmuxCommandResult(input, "client_2\n");
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toEqual({ dismissed: true });
@@ -521,7 +522,7 @@ describe("tmux popup", () => {
           if (input.args?.[0] === "display-popup") {
             await sleep(10);
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toEqual({ opened: true });
@@ -538,7 +539,7 @@ describe("tmux popup", () => {
               stderr: "display-popup failed",
             });
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).rejects.toMatchObject({
@@ -563,9 +564,9 @@ describe("tmux popup", () => {
             input.args?.[0] === "show-options" &&
             input.args.includes("@wosm_popup_ui_signature")
           ) {
-            return result(input, `${defaultPersistentSignature}\n`);
+            return tmuxCommandResult(input, `${defaultPersistentSignature}\n`);
           }
-          return result(input);
+          return tmuxCommandResult(input);
         },
       }),
     ).resolves.toEqual({ opened: true });
@@ -601,14 +602,4 @@ function fastPopupRegistrationCalls(sessionName: string, command: string): strin
     ["set-option", "-gq", "@wosm_popup_ui_session_name", sessionName],
     ["set-option", "-gq", "@wosm_popup_ui_expected_signature", `v1:${command}`],
   ];
-}
-
-function result(input: ExternalCommandInput, stdout = ""): ExternalCommandResult {
-  return {
-    command: input.command,
-    args: input.args ?? [],
-    stdout,
-    stderr: "",
-    exitCode: 0,
-  };
 }

@@ -10,7 +10,10 @@ import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
 import type { ObserverCore } from "../../reconcile/core.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
-import type { CommandHandler, CommandHandlerContext } from "../queue.js";
+import { nowIso } from "../../utils/time.js";
+import { assertCommandType } from "../assertCommand.js";
+import { worktreeMissingError } from "../errors.js";
+import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import {
   assertNoCurrentAgent,
@@ -50,7 +53,7 @@ export function createSessionStartAgentHandler(
   };
 
   return async (context) => {
-    assertSessionStartAgentCommand(context);
+    assertCommandType(context, "session.startAgent");
     throwIfAborted(context.signal);
 
     const payload = context.command.payload;
@@ -86,7 +89,7 @@ export function createSessionStartAgentHandler(
             worktreeId: payload.worktreeId,
             runtime,
           })
-        : worktreeObservationFromRow(row, options.providers.worktree.id, now(options.clock));
+        : worktreeObservationFromRow(row, options.providers.worktree.id, nowIso(options.clock));
     throwIfAborted(context.signal);
     let openedTargetId: string | undefined;
     let harnessLaunched = false;
@@ -117,7 +120,7 @@ export function createSessionStartAgentHandler(
       const terminalTarget = terminalTargetObservationFromBinding({
         binding: opened.target,
         worktree,
-        observedAt: now(options.clock),
+        observedAt: nowIso(options.clock),
       });
 
       const launchPlan = await runProviderMutation(
@@ -232,7 +235,11 @@ async function lookupWorktree(input: {
   };
 }): Promise<WorktreeObservation> {
   if (input.providers.worktree.getWorktree === undefined) {
-    throw worktreeMissingError(input.projectId, input.worktreeId);
+    throw worktreeMissingError({
+      projectId: input.projectId,
+      worktreeId: input.worktreeId,
+      message: "The requested worktree is not visible to the worktree provider.",
+    });
   }
 
   const worktree = await runProviderMutation(
@@ -253,19 +260,13 @@ async function lookupWorktree(input: {
       }) as Promise<WorktreeObservation | null>,
   );
   if (worktree === null) {
-    throw worktreeMissingError(input.projectId, input.worktreeId);
+    throw worktreeMissingError({
+      projectId: input.projectId,
+      worktreeId: input.worktreeId,
+      message: "The requested worktree is not visible to the worktree provider.",
+    });
   }
   return worktree;
-}
-
-function worktreeMissingError(projectId: string, worktreeId: string) {
-  return {
-    tag: "CommandValidationError",
-    code: "WORKTREE_NOT_FOUND",
-    message: "The requested worktree is not visible to the worktree provider.",
-    projectId,
-    worktreeId,
-  };
 }
 
 async function createdHarnessProviderForWorktree(input: {
@@ -293,18 +294,4 @@ function compareCreatedSessions(
     left.lastSeenAt.localeCompare(right.lastSeenAt) ||
     left.id.localeCompare(right.id)
   );
-}
-
-function now(clock: RuntimeClock | undefined): string {
-  return (clock?.now() ?? new Date()).toISOString();
-}
-
-function assertSessionStartAgentCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "session.startAgent" }>;
-} {
-  if (context.command.type !== "session.startAgent") {
-    throw new Error(`Expected session.startAgent command, received ${context.command.type}.`);
-  }
 }

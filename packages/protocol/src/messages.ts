@@ -23,9 +23,7 @@ import {
 } from "@wosm/contracts";
 import { z } from "zod";
 
-export const PROTOCOL_SCHEMA_VERSION = WOSM_SCHEMA_VERSION;
-
-export const ProtocolMethodSchema = z.enum([
+export const ProtocolMethods = [
   "observer.health",
   "observer.stop",
   "snapshot.get",
@@ -37,7 +35,9 @@ export const ProtocolMethodSchema = z.enum([
   "observer.harnessEvent.report",
   "doctor.run",
   "diagnostics.collect",
-]);
+] as const;
+
+export const ProtocolMethodSchema = z.enum(ProtocolMethods);
 
 export type ProtocolMethod = z.infer<typeof ProtocolMethodSchema>;
 
@@ -139,9 +139,19 @@ export const HarnessEventReportParamsSchema = z
 
 export const EventsSubscribeParamsSchema = EventFilterSchema.optional();
 
-export const DoctorRunParamsSchema = DoctorOptionsSchema;
-
-export const DiagnosticsCollectParamsSchema = DiagnosticCollectionOptionsSchema;
+export const ProtocolParamSchemas = {
+  "observer.health": z.undefined().optional(),
+  "observer.stop": z.undefined().optional(),
+  "snapshot.get": SnapshotGetParamsSchema,
+  "events.subscribe": EventsSubscribeParamsSchema,
+  "command.dispatch": CommandDispatchParamsSchema,
+  "command.get": CommandGetParamsSchema,
+  "observer.reconcile": ReconcileParamsSchema,
+  "observer.ingestHookEvent": HookIngestParamsSchema,
+  "observer.harnessEvent.report": HarnessEventReportParamsSchema,
+  "doctor.run": DoctorOptionsSchema,
+  "diagnostics.collect": DiagnosticCollectionOptionsSchema,
+} as const satisfies Record<ProtocolMethod, z.ZodTypeAny>;
 
 export const ProtocolResultSchemas = {
   "observer.health": ObserverHealthSchema,
@@ -155,7 +165,63 @@ export const ProtocolResultSchemas = {
   "observer.harnessEvent.report": HarnessEventReportReceiptSchema,
   "doctor.run": DoctorReportSchema,
   "diagnostics.collect": DiagnosticSnapshotSchema,
-} as const;
+} as const satisfies Record<ProtocolMethod, z.ZodTypeAny>;
+
+export function protocolRequest(
+  id: string,
+  method: ProtocolMethod,
+  params?: unknown,
+): ProtocolRequest {
+  const request: {
+    schemaVersion: typeof WOSM_SCHEMA_VERSION;
+    jsonrpc: "2.0";
+    id: string;
+    method: ProtocolMethod;
+    params?: unknown;
+  } = {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    jsonrpc: "2.0",
+    id,
+    method,
+  };
+  const parsedParams = ProtocolParamSchemas[method].parse(params);
+  if (parsedParams !== undefined) request.params = parsedParams;
+  return ProtocolRequestSchema.parse(request);
+}
+
+export function protocolSuccessResponse(
+  id: string,
+  method: keyof typeof ProtocolResultSchemas,
+  value: unknown,
+): ProtocolSuccessResponse {
+  const result = ProtocolResultSchemas[method].parse(value);
+  return ProtocolSuccessResponseSchema.parse({
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    jsonrpc: "2.0",
+    id,
+    result,
+  });
+}
+
+export function protocolErrorResponse(id: string, error: unknown): ProtocolErrorResponse {
+  const parsedSafeError = SafeErrorSchema.safeParse(error);
+  const safeError = parsedSafeError.success
+    ? parsedSafeError.data
+    : protocolSafeError({ message: "Observer protocol method failed." });
+  return ProtocolErrorResponseSchema.parse({
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    jsonrpc: "2.0",
+    id,
+    error: safeError,
+  });
+}
+
+export function protocolSocketClosedError() {
+  return protocolSafeError({
+    code: "PROTOCOL_SOCKET_CLOSED",
+    message: "Observer socket closed before a protocol response arrived.",
+  });
+}
 
 export function protocolSafeError(input: {
   tag?: string;

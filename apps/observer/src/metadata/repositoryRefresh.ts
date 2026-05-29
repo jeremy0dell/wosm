@@ -19,11 +19,13 @@ import type {
   ObserverPersistence,
   PersistedWorktreeMetadataCurrent,
 } from "../persistence/index.js";
+import { addMs } from "../utils/time.js";
 import {
   type RepositoryGitContext,
   readRepositoryGitContext,
   repositoryMetadataCacheKey,
 } from "./repositoryGit.js";
+import { staleChecks, stalePullRequest } from "./stalePayloads.js";
 
 export type RepositoryMetadataRefresher = {
   refresh(input: RepositoryRefreshInput): Promise<void>;
@@ -485,41 +487,4 @@ function noChecksSummary(source: string, checkedAt: string): WorktreeChecksSumma
 
 function checksTtlMs(checks: WorktreeChecksSummary): number {
   return checks.state === "running" ? runningChecksTtlMs : defaultTtlMs;
-}
-
-function stalePullRequest(payload: WorktreePullRequest): WorktreePullRequest & { stale: true } {
-  const stale: WorktreePullRequest & { stale: true } = {
-    number: payload.number,
-    stale: true,
-  };
-  if (payload.url !== undefined) stale.url = payload.url;
-  if (payload.host !== undefined) stale.host = payload.host;
-  if (payload.state !== undefined) stale.state = payload.state;
-  if (payload.baseRef !== undefined) stale.baseRef = payload.baseRef;
-  if (payload.headRef !== undefined) stale.headRef = payload.headRef;
-  if (payload.updatedAt !== undefined) stale.updatedAt = payload.updatedAt;
-  if (payload.checkedAt !== undefined) stale.checkedAt = payload.checkedAt;
-  return stale;
-}
-
-function staleChecks(payload: WorktreeChecksSummary): WorktreeChecksSummary & { stale: true } {
-  const stale: WorktreeChecksSummary & { stale: true } = {
-    state: payload.state,
-    source: payload.source,
-    checkedAt: payload.checkedAt,
-    stale: true,
-  };
-  if (payload.url !== undefined) stale.url = payload.url;
-  if (payload.total !== undefined) stale.total = payload.total;
-  if (payload.passed !== undefined) stale.passed = payload.passed;
-  if (payload.failed !== undefined) stale.failed = payload.failed;
-  if (payload.pending !== undefined) stale.pending = payload.pending;
-  if (payload.skipped !== undefined) stale.skipped = payload.skipped;
-  if (payload.cancelled !== undefined) stale.cancelled = payload.cancelled;
-  if (payload.reason !== undefined) stale.reason = payload.reason;
-  return stale;
-}
-
-function addMs(timestamp: string, ms: number): string {
-  return new Date(Date.parse(timestamp) + ms).toISOString();
 }

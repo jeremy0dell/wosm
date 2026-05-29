@@ -21,11 +21,8 @@ import {
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { normalizeWorktrunkLifecycleEvent } from "@wosm/worktrunk";
-import {
-  deliverProviderHookWithSpooling,
-  type ProviderDeliveryAttempt,
-  type ProviderDeliveryPolicyDeps,
-} from "./deliveryPolicy.js";
+import { deliverProviderHookWithSpooling, type ProviderDeliveryAttempt } from "./deliveryPolicy.js";
+import type { ProviderHookObserverStartupDeps } from "./observerStartup.js";
 import { writeHarnessEventReportSpoolRecord, writeHookSpoolRecord } from "./spool.js";
 
 export type ProviderHookSenderOptions = {
@@ -42,7 +39,7 @@ type ProviderHookClientFactoryOptions = {
   timeoutMs: number;
 };
 
-export type ProviderHookSenderDeps = ProviderDeliveryPolicyDeps & {
+export type ProviderHookSenderDeps = ProviderHookObserverStartupDeps & {
   clientFactory?: (
     socketPath: string,
     options: ProviderHookClientFactoryOptions,

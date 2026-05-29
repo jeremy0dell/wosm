@@ -3,6 +3,7 @@ import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
 import type { ObserverCore } from "../../reconcile/core.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
+import { assertCommandType } from "../assertCommand.js";
 import {
   assertWorktreeRemovalAllowed,
   canUseTerminalCloseFallbackForWorktree,
@@ -13,7 +14,7 @@ import {
   resolveWorktreeRowOrThrow,
   stopHarnessForWorktree,
 } from "../cleanup/index.js";
-import type { CommandHandler, CommandHandlerContext } from "../queue.js";
+import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import { throwIfAborted } from "../session/shared.js";
 
@@ -30,7 +31,7 @@ export function createWorktreeRemoveHandler(
   options: CreateWorktreeRemoveHandlerOptions,
 ): CommandHandler {
   return async (context) => {
-    assertWorktreeRemoveCommand(context);
+    assertCommandType(context, "worktree.remove");
     throwIfAborted(context.signal);
 
     const payload = context.command.payload;
@@ -91,14 +92,4 @@ export function createWorktreeRemoveHandler(
       clock: options.clock,
     });
   };
-}
-
-function assertWorktreeRemoveCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "worktree.remove" }>;
-} {
-  if (context.command.type !== "worktree.remove") {
-    throw new Error(`Expected worktree.remove command, received ${context.command.type}.`);
-  }
 }

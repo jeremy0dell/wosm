@@ -8,14 +8,11 @@ import type {
 } from "@wosm/contracts";
 import { CommandReceiptSchema, WosmCommandSchema } from "@wosm/contracts";
 import { createTraceContext, type JsonlLogger } from "@wosm/observability";
-import {
-  type RuntimeClock,
-  runRuntimeBoundaryWithTimeout,
-  systemClock,
-  toIsoTimestamp,
-} from "@wosm/runtime";
+import { type RuntimeClock, runRuntimeBoundaryWithTimeout, systemClock } from "@wosm/runtime";
 import { createErrorEnvelope, toSafeError } from "../diagnostics/errors.js";
 import type { ObserverIdFactory, ObserverPersistence } from "../persistence/index.js";
+import { nowIso } from "../utils/time.js";
+import { commandCancellationError, linkAbortSignals, throwIfAborted } from "./cancellation.js";
 
 export type CommandHandlerContext = {
   commandId: CommandId;
@@ -96,7 +93,7 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
       await options.persistence.recordCommandAccepted({
         commandId,
         command,
-        createdAt: now(clock),
+        createdAt: nowIso(clock),
         traceId: trace.traceId,
         spanId: trace.spanId,
       });
@@ -104,7 +101,7 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
         commandId,
         traceId: trace.traceId,
         spanId: trace.spanId,
-        createdAt: now(clock),
+        createdAt: nowIso(clock),
       });
       await options.logger?.info("Command accepted.", {
         commandId,
@@ -195,7 +192,7 @@ async function executeCommand(
     commandTimeoutMs?: number;
   },
 ): Promise<void> {
-  await persistence.markCommandStarted(context.commandId, now(clock));
+  await persistence.markCommandStarted(context.commandId, nowIso(clock));
   const startedEvent: WosmEvent = {
     type: "command.started",
     commandId: context.commandId,
@@ -207,7 +204,7 @@ async function executeCommand(
     commandId: context.commandId,
     traceId: context.trace.traceId,
     spanId: context.trace.spanId,
-    createdAt: now(clock),
+    createdAt: nowIso(clock),
   });
   await runtime?.logger?.info("Command started.", {
     commandId: context.commandId,
@@ -242,12 +239,12 @@ async function executeCommand(
       const linked = linkAbortSignals(signal, runtime?.signal);
       try {
         // Check before and after handler work because provider calls may notice abort cooperatively.
-        throwIfCommandCancelled(linked.signal);
+        throwIfAborted(linked.signal);
         if (handler === undefined) {
           throw missingCommandHandlerError();
         }
         await handler({ ...context, signal: linked.signal });
-        throwIfCommandCancelled(linked.signal);
+        throwIfAborted(linked.signal);
       } finally {
         linked.cleanup();
       }
@@ -255,7 +252,7 @@ async function executeCommand(
   );
 
   if (result.ok) {
-    await persistence.markCommandSucceeded(context.commandId, now(clock));
+    await persistence.markCommandSucceeded(context.commandId, nowIso(clock));
     const succeededEvent: WosmEvent = {
       type: "command.succeeded",
       commandId: context.commandId,
@@ -266,7 +263,7 @@ async function executeCommand(
       commandId: context.commandId,
       traceId: context.trace.traceId,
       spanId: context.trace.spanId,
-      createdAt: now(clock),
+      createdAt: nowIso(clock),
     });
     await runtime?.logger?.info("Command succeeded.", {
       commandId: context.commandId,
@@ -298,13 +295,13 @@ async function executeCommand(
     commandId: context.commandId,
     traceId: context.trace.traceId,
     spanId: context.trace.spanId,
-    createdAt: now(clock),
+    createdAt: nowIso(clock),
   });
   await persistence.markCommandFailed({
     commandId: context.commandId,
     safeError,
     envelope,
-    finishedAt: now(clock),
+    finishedAt: nowIso(clock),
   });
   const failedEvent: WosmEvent = {
     type: "command.failed",
@@ -317,7 +314,7 @@ async function executeCommand(
     commandId: context.commandId,
     traceId: context.trace.traceId,
     spanId: context.trace.spanId,
-    createdAt: now(clock),
+    createdAt: nowIso(clock),
   });
   await runtime?.logger?.error("Command failed.", {
     commandId: context.commandId,
@@ -338,55 +335,6 @@ function missingCommandHandlerError() {
   };
 }
 
-function commandCancellationError() {
-  return {
-    tag: "CancellationError",
-    code: "COMMAND_CANCELLED",
-    message: "Observer command was cancelled.",
-  };
-}
-
-function throwIfCommandCancelled(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw signal.reason ?? commandCancellationError();
-  }
-}
-
-function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
-  signal: AbortSignal;
-  cleanup(): void;
-} {
-  const controller = new AbortController();
-  const listeners: Array<() => void> = [];
-  const abort = (signal: AbortSignal) => {
-    if (!controller.signal.aborted) {
-      controller.abort(signal.reason ?? commandCancellationError());
-    }
-  };
-
-  for (const signal of signals) {
-    if (signal === undefined) {
-      continue;
-    }
-    if (signal.aborted) {
-      abort(signal);
-      continue;
-    }
-    const listener = () => abort(signal);
-    signal.addEventListener("abort", listener, { once: true });
-    listeners.push(() => signal.removeEventListener("abort", listener));
-  }
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      for (const listener of listeners) {
-        listener();
-      }
-    },
-  };
-}
-
 // Prefer the narrowest scope so commands touching the same session, worktree, or project serialize.
 function commandScope(command: WosmCommand): string {
   if ("targetId" in command.payload && typeof command.payload.targetId === "string") {
@@ -402,8 +350,4 @@ function commandScope(command: WosmCommand): string {
     return `project:${command.payload.projectId}`;
   }
   return "global";
-}
-
-function now(clock: RuntimeClock): string {
-  return toIsoTimestamp(clock.now());
 }

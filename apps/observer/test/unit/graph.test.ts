@@ -1,16 +1,13 @@
 import type {
   HarnessRunObservation,
   ProviderHealth,
+  ProviderProjectConfig,
   TerminalTargetObservation,
   WorktreeObservation,
 } from "@wosm/contracts";
 import { WosmSnapshotSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import {
-  buildWosmSnapshot,
-  type ObserverGraphHarnessRun,
-  type ObserverGraphProject,
-} from "../../src/reconcile/graph";
+import { buildWosmSnapshot, type ObserverGraphHarnessRun } from "../../src/reconcile/graph";
 
 const generatedAt = "2026-05-20T12:00:00.000Z";
 const observerStartedAt = "2026-05-20T11:55:00.000Z";
@@ -33,7 +30,7 @@ const worktreeProviderHealth: ProviderHealth = {
   },
 };
 
-const projects: ObserverGraphProject[] = [
+const projects: ProviderProjectConfig[] = [
   {
     id: "web",
     label: "web",
@@ -131,7 +128,7 @@ function harness(
 }
 
 function build(overrides: {
-  projects?: ObserverGraphProject[];
+  projects?: ProviderProjectConfig[];
   worktrees?: WorktreeObservation[];
   terminals?: TerminalTargetObservation[];
   harnessRuns?: ObserverGraphHarnessRun[];

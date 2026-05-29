@@ -1,59 +1,30 @@
-import type {
-  CommandId,
-  CommandReceipt,
-  CommandRecord,
-  DiagnosticCollectionOptions,
-  DiagnosticSnapshot,
-  DoctorOptions,
-  DoctorReport,
-  EventFilter,
-  HarnessEventReport,
-  HarnessEventReportReceipt,
-  HookReceipt,
-  ObserverHealth,
-  ObserverStopReceipt,
-  ProviderHookEvent,
-  ReconcileReceipt,
-  WosmCommand,
-  WosmEvent,
-  WosmSnapshot,
+import type { WosmEvent } from "@wosm/contracts";
+import {
+  DiagnosticCollectionOptionsSchema,
+  DoctorOptionsSchema,
+  SafeErrorSchema,
+  WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
-import { SafeErrorSchema } from "@wosm/contracts";
 import { Effect, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import { ZodError } from "zod";
+import type { ObserverApi } from "./api.js";
 import {
   CommandDispatchParamsSchema,
   CommandGetParamsSchema,
-  DiagnosticsCollectParamsSchema,
-  DoctorRunParamsSchema,
   EventsSubscribeParamsSchema,
   HarnessEventReportParamsSchema,
   HookIngestParamsSchema,
-  PROTOCOL_SCHEMA_VERSION,
   ProtocolEventEnvelopeSchema,
+  type ProtocolMethod,
   type ProtocolRequest,
   ProtocolRequestSchema,
-  ProtocolResponseSchema,
-  ProtocolResultSchemas,
+  protocolErrorResponse,
   protocolSafeError,
+  protocolSuccessResponse,
   ReconcileParamsSchema,
   SnapshotGetParamsSchema,
 } from "./messages.js";
 import { listenUnixSocket, type NdjsonConnection, type UnixSocketServer } from "./transport.js";
-
-export type ObserverApi = {
-  health(): Promise<ObserverHealth>;
-  stop(): Promise<ObserverStopReceipt>;
-  getSnapshot(options?: { includeDebug?: boolean }): Promise<WosmSnapshot>;
-  subscribe(filter?: EventFilter): AsyncIterable<WosmEvent>;
-  dispatch(command: WosmCommand): Promise<CommandReceipt>;
-  getCommand(commandId: CommandId): Promise<CommandRecord | undefined>;
-  reconcile(reason?: string): Promise<ReconcileReceipt>;
-  ingestHookEvent(event: ProviderHookEvent): Promise<HookReceipt>;
-  reportHarnessEvent(report: HarnessEventReport): Promise<HarnessEventReportReceipt>;
-  runDoctor(options?: DoctorOptions): Promise<DoctorReport>;
-  collectDiagnostics(options?: DiagnosticCollectionOptions): Promise<DiagnosticSnapshot>;
-};
 
 export type ProtocolServerOptions = {
   socketPath: string;
@@ -169,11 +140,11 @@ async function routeSingleResponseRequest(
         return await api.reportHarnessEvent(params.report);
       }
       case "doctor.run": {
-        const params = DoctorRunParamsSchema.parse(request.params);
+        const params = DoctorOptionsSchema.parse(request.params);
         return await api.runDoctor(params);
       }
       case "diagnostics.collect": {
-        const params = DiagnosticsCollectParamsSchema.parse(request.params);
+        const params = DiagnosticCollectionOptionsSchema.parse(request.params);
         return await api.collectDiagnostics(params);
       }
     }
@@ -199,18 +170,10 @@ async function routeSubscriptionRequest(
 function sendResult(
   connection: NdjsonConnection,
   id: string,
-  method: keyof typeof ProtocolResultSchemas,
+  method: ProtocolMethod,
   value: unknown,
 ): void {
-  const result = ProtocolResultSchemas[method].parse(value);
-  connection.send(
-    ProtocolResponseSchema.parse({
-      schemaVersion: PROTOCOL_SCHEMA_VERSION,
-      jsonrpc: "2.0",
-      id,
-      result,
-    }),
-  );
+  connection.send(protocolSuccessResponse(id, method, value));
 }
 
 async function streamEvents(
@@ -227,7 +190,7 @@ async function streamEvents(
       }
       connection.send(
         ProtocolEventEnvelopeSchema.parse({
-          schemaVersion: PROTOCOL_SCHEMA_VERSION,
+          schemaVersion: WOSM_SCHEMA_VERSION,
           event: next.value,
         }),
       );
@@ -263,12 +226,7 @@ async function nextEventOrClosed(
 function errorResponse(id: string, message: string, error?: unknown) {
   const parsedSafeError = SafeErrorSchema.safeParse(error);
   const safeError = parsedSafeError.success ? parsedSafeError.data : protocolSafeError({ message });
-  return ProtocolResponseSchema.parse({
-    schemaVersion: PROTOCOL_SCHEMA_VERSION,
-    jsonrpc: "2.0",
-    id,
-    error: safeError,
-  });
+  return protocolErrorResponse(id, safeError);
 }
 
 function protocolSafeErrorFromUnknown(error: unknown) {

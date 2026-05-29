@@ -20,9 +20,10 @@ import type {
 } from "@wosm/contracts";
 import { HarnessEventReportReceiptSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
-import type { ObserverApi as ProtocolObserverApi } from "@wosm/protocol";
+import type { ObserverApi } from "@wosm/protocol";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import type { CommandQueue } from "../commands/queue.js";
+import { commandRecordFromPersisted } from "../commands/record.js";
 import {
   collectDiagnosticSnapshot,
   type DiagnosticRuntimePaths,
@@ -45,9 +46,10 @@ import {
   createWorktreeMetadataRefreshService,
   type WorktreeMetadataRefreshService,
 } from "../metadata/refresh.js";
-import type { ObserverPersistence, PersistedCommand } from "../persistence/index.js";
+import type { ObserverPersistence } from "../persistence/index.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import { type ObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
+import { emptyConfig } from "./emptyConfig.js";
 import type { ObserverEventBus } from "./eventBus.js";
 import {
   type CreateReconcileSchedulerOptions,
@@ -77,8 +79,6 @@ export type CreateObserverApiOptions = {
   onStop?: () => Promise<void> | void;
   hookReconcileDebounceMs?: number;
 };
-
-export type ObserverApi = ProtocolObserverApi;
 
 export function createObserverApi(options: CreateObserverApiOptions): ObserverApi {
   const clock = options.clock ?? systemClock;
@@ -190,7 +190,7 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     dispatch: (command: WosmCommand) => options.commandQueue.dispatch(command),
     getCommand: async (commandId: CommandId): Promise<CommandRecord | undefined> => {
       const command = await options.persistence.getCommand(commandId);
-      return command === undefined ? undefined : toCommandRecord(command);
+      return command === undefined ? undefined : commandRecordFromPersisted(command);
     },
     runDoctor: async (doctorOptions?: DoctorOptions): Promise<DoctorReport> =>
       runDoctor(diagnosticDeps(), doctorOptions),
@@ -394,33 +394,4 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     if (options.providers !== undefined) deps.providers = options.providers;
     return deps;
   }
-}
-
-function toCommandRecord(command: PersistedCommand): CommandRecord {
-  const record: CommandRecord = {
-    id: command.id,
-    type: command.type,
-    command: command.command,
-    status: command.status,
-    createdAt: command.createdAt,
-  };
-  if (command.startedAt !== undefined) record.startedAt = command.startedAt;
-  if (command.finishedAt !== undefined) record.finishedAt = command.finishedAt;
-  if (command.traceId !== undefined) record.traceId = command.traceId;
-  if (command.spanId !== undefined) record.spanId = command.spanId;
-  if (command.error !== undefined) record.error = command.error;
-  return record;
-}
-
-function emptyConfig(): WosmConfig {
-  return {
-    schemaVersion: 1,
-    defaults: {
-      worktreeProvider: "noop-worktree",
-      terminal: "noop-terminal",
-      harness: "noop-harness",
-      layout: "agent-shell",
-    },
-    projects: [],
-  };
 }
