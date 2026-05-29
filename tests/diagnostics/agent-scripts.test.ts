@@ -6,6 +6,8 @@ import {
   commandFromArgs,
   defaultDevSessionNameForRoot,
   globalOptionsFromArgs,
+  isForeignLiveDevPopup,
+  parseDevPopupOwnerPid,
   shouldKeepAliveAfterLauncherExit,
   shouldRunDirectTui,
 } from "../../scripts/tui-dev.mjs";
@@ -105,6 +107,45 @@ describe("tui dev script", () => {
     expect(main).toMatch(/^_wosm-ui-dev-wosm-[a-f0-9]{8}$/);
     expect(worktree).toMatch(/^_wosm-ui-dev-tui-layout-[a-f0-9]{8}$/);
     expect(main).not.toBe(worktree);
+  });
+
+  it("detects a live dev popup registered by another checkout", () => {
+    expect(parseDevPopupOwnerPid("12345:timestamp:token")).toBe(12345);
+    expect(parseDevPopupOwnerPid("not-a-pid:timestamp")).toBeUndefined();
+
+    expect(
+      isForeignLiveDevPopup(
+        {
+          currentRoot: "/worktrees/current",
+          root: "/worktrees/other",
+          owner: "12345:timestamp:token",
+          sessionName: "_wosm-ui-dev-other",
+        },
+        (pid) => pid === 12345,
+      ),
+    ).toBe(true);
+    expect(
+      isForeignLiveDevPopup(
+        {
+          currentRoot: "/worktrees/current",
+          root: "/worktrees/current",
+          owner: "12345:timestamp:token",
+          sessionName: "_wosm-ui-dev-current",
+        },
+        () => true,
+      ),
+    ).toBe(false);
+    expect(
+      isForeignLiveDevPopup(
+        {
+          currentRoot: "/worktrees/current",
+          root: "/worktrees/other",
+          owner: "12345:timestamp:token",
+          sessionName: "_wosm-ui-dev-other",
+        },
+        () => false,
+      ),
+    ).toBe(false);
   });
 
   it("does not keep direct TUI or one-shot utility commands alive", () => {

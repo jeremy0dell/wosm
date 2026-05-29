@@ -22,6 +22,8 @@
     "agent:reset": "node scripts/agent-reset.mjs",
     "agent:reset:run": "node scripts/agent-reset.mjs --yes",
     "wosm": "bin/wosm",
+    "wosm:reset": "node scripts/wosm-reset.mjs",
+    "wosm:tui-dev": "node scripts/tui-dev.mjs",
     "wosm-ingress": "bin/wosm-ingress",
     "wosm:link": "pnpm link --global",
     "dev": "node scripts/tui-dev.mjs",

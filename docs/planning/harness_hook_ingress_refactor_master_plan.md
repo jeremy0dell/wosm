@@ -1,6 +1,6 @@
 # Harness Hook Ingress Refactor Master Plan
 
-- **Document status:** Draft for implementation planning
+- **Document status:** Superseded for future transport/backpressure work by `docs/planning/harness_socket_ingress_and_observer_queue_plan.md`
 - **Date:** 2026-05-24
 - **Product area:** observer, harness integrations, hook delivery, status projection
 - **Audience:** implementers, future agents, reviewers

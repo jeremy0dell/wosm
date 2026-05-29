@@ -440,6 +440,18 @@ describe("Phase 1 contract schemas", () => {
       "terminal focus command with popup focus origin",
     );
 
+    expectParses(
+      WosmCommandSchema,
+      {
+        type: "session.startAgent",
+        payload: {
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+        },
+      },
+      "start agent command with remembered harness",
+    );
+
     expectFails(
       WosmCommandSchema,
       {

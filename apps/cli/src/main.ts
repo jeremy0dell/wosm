@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
 import { runCodexHooksCommand } from "./commands/codexHooks.js";
@@ -144,6 +145,7 @@ export async function runCli(
         ...(popupEnv === undefined ? {} : { env: popupEnv }),
         preferRegisteredDevPopup,
         ...(uiSessionName === undefined ? {} : { uiSessionName }),
+        registeredDevPopupRoot: repoRootFromCliModule(),
       },
       popupDeps,
     );
@@ -261,6 +263,10 @@ function nonEmptyString(value: string | undefined): string | undefined {
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function repoRootFromCliModule(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "../../..");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

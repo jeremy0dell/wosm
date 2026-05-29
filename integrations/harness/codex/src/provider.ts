@@ -40,7 +40,10 @@ export type CodexHarnessProviderOptions = {
   sandboxMode?: string;
   noAltScreen?: boolean;
   installHooks?: boolean;
+  observerSocketPath?: string;
   stateDir?: string;
+  hookSpoolDir?: string;
+  autoStartFromHooks?: boolean;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
@@ -136,6 +139,15 @@ export class CodexHarnessProvider implements HarnessProvider {
       };
       if (this.#options.stateDir !== undefined) {
         hookOptions.stateDir = this.#options.stateDir;
+      }
+      if (this.#options.observerSocketPath !== undefined) {
+        hookOptions.observerSocketPath = this.#options.observerSocketPath;
+      }
+      if (this.#options.hookSpoolDir !== undefined) {
+        hookOptions.hookSpoolDir = this.#options.hookSpoolDir;
+      }
+      if (this.#options.autoStartFromHooks !== undefined) {
+        hookOptions.autoStartFromHooks = this.#options.autoStartFromHooks;
       }
       if (context?.wosmConfigPath !== undefined) {
         hookOptions.wosmConfigPath = context.wosmConfigPath;
