@@ -12,6 +12,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   createCommandQueue,
+  createHarnessEventReportIngestion,
   createObserverApi,
   createObserverCore,
   createObserverEventBus,
@@ -370,6 +371,34 @@ describe("observer hook ingestion", () => {
     expect(
       (await persistence.listEvents({ type: "hook.ingested" })).map((event) => event.event),
     ).toHaveLength(1);
+    sqlite.close();
+  });
+
+  it("deduplicates harness report ids before duplicate persistence", async () => {
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({ clock });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const eventBus = createObserverEventBus();
+    const ingestion = createHarnessEventReportIngestion({
+      persistence,
+      eventBus,
+      clock,
+    });
+    const report = harnessReport("report_dedupe_1");
+
+    const first = await ingestion.ingest(report, { triggerReconcile: false });
+    const second = await ingestion.ingest(report, { triggerReconcile: false });
+
+    expect(first).toMatchObject({ status: "accepted", deduped: false });
+    expect(second).toMatchObject({ status: "accepted", deduped: true });
+    expect(
+      (await persistence.listEvents({ type: "harness.eventReported" })).map((event) => event.event),
+    ).toHaveLength(1);
+    await expect(persistence.listProviderObservations()).resolves.toHaveLength(1);
     sqlite.close();
   });
 
