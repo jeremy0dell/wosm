@@ -1,17 +1,19 @@
 import type { WosmEvent } from "@wosm/contracts";
-import { SafeErrorSchema } from "@wosm/contracts";
+import {
+  DiagnosticCollectionOptionsSchema,
+  DoctorOptionsSchema,
+  SafeErrorSchema,
+  WOSM_SCHEMA_VERSION,
+} from "@wosm/contracts";
 import { Effect, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import { ZodError } from "zod";
-import type { ObserverProtocolApi } from "./api.js";
+import type { ObserverApi } from "./api.js";
 import {
   CommandDispatchParamsSchema,
   CommandGetParamsSchema,
-  DiagnosticsCollectParamsSchema,
-  DoctorRunParamsSchema,
   EventsSubscribeParamsSchema,
   HarnessEventReportParamsSchema,
   HookIngestParamsSchema,
-  PROTOCOL_SCHEMA_VERSION,
   ProtocolEventEnvelopeSchema,
   type ProtocolMethod,
   type ProtocolRequest,
@@ -23,8 +25,6 @@ import {
   SnapshotGetParamsSchema,
 } from "./messages.js";
 import { listenUnixSocket, type NdjsonConnection, type UnixSocketServer } from "./transport.js";
-
-export type ObserverApi = ObserverProtocolApi;
 
 export type ProtocolServerOptions = {
   socketPath: string;
@@ -140,11 +140,11 @@ async function routeSingleResponseRequest(
         return await api.reportHarnessEvent(params.report);
       }
       case "doctor.run": {
-        const params = DoctorRunParamsSchema.parse(request.params);
+        const params = DoctorOptionsSchema.parse(request.params);
         return await api.runDoctor(params);
       }
       case "diagnostics.collect": {
-        const params = DiagnosticsCollectParamsSchema.parse(request.params);
+        const params = DiagnosticCollectionOptionsSchema.parse(request.params);
         return await api.collectDiagnostics(params);
       }
     }
@@ -190,7 +190,7 @@ async function streamEvents(
       }
       connection.send(
         ProtocolEventEnvelopeSchema.parse({
-          schemaVersion: PROTOCOL_SCHEMA_VERSION,
+          schemaVersion: WOSM_SCHEMA_VERSION,
           event: next.value,
         }),
       );

@@ -19,7 +19,7 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 
-export type ObserverProtocolApi = {
+export type ObserverApi = {
   health(): Promise<ObserverHealth>;
   stop(): Promise<ObserverStopReceipt>;
   getSnapshot(options?: { includeDebug?: boolean }): Promise<WosmSnapshot>;

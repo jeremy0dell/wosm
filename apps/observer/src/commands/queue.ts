@@ -93,7 +93,7 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
       await options.persistence.recordCommandAccepted({
         commandId,
         command,
-        createdAt: now(clock),
+        createdAt: nowIso(clock),
         traceId: trace.traceId,
         spanId: trace.spanId,
       });
@@ -101,7 +101,7 @@ export function createCommandQueue(options: CreateCommandQueueOptions): CommandQ
         commandId,
         traceId: trace.traceId,
         spanId: trace.spanId,
-        createdAt: now(clock),
+        createdAt: nowIso(clock),
       });
       await options.logger?.info("Command accepted.", {
         commandId,
@@ -192,7 +192,7 @@ async function executeCommand(
     commandTimeoutMs?: number;
   },
 ): Promise<void> {
-  await persistence.markCommandStarted(context.commandId, now(clock));
+  await persistence.markCommandStarted(context.commandId, nowIso(clock));
   const startedEvent: WosmEvent = {
     type: "command.started",
     commandId: context.commandId,
@@ -204,7 +204,7 @@ async function executeCommand(
     commandId: context.commandId,
     traceId: context.trace.traceId,
     spanId: context.trace.spanId,
-    createdAt: now(clock),
+    createdAt: nowIso(clock),
   });
   await runtime?.logger?.info("Command started.", {
     commandId: context.commandId,
@@ -252,7 +252,7 @@ async function executeCommand(
   );
 
   if (result.ok) {
-    await persistence.markCommandSucceeded(context.commandId, now(clock));
+    await persistence.markCommandSucceeded(context.commandId, nowIso(clock));
     const succeededEvent: WosmEvent = {
       type: "command.succeeded",
       commandId: context.commandId,
@@ -263,7 +263,7 @@ async function executeCommand(
       commandId: context.commandId,
       traceId: context.trace.traceId,
       spanId: context.trace.spanId,
-      createdAt: now(clock),
+      createdAt: nowIso(clock),
     });
     await runtime?.logger?.info("Command succeeded.", {
       commandId: context.commandId,
@@ -295,13 +295,13 @@ async function executeCommand(
     commandId: context.commandId,
     traceId: context.trace.traceId,
     spanId: context.trace.spanId,
-    createdAt: now(clock),
+    createdAt: nowIso(clock),
   });
   await persistence.markCommandFailed({
     commandId: context.commandId,
     safeError,
     envelope,
-    finishedAt: now(clock),
+    finishedAt: nowIso(clock),
   });
   const failedEvent: WosmEvent = {
     type: "command.failed",
@@ -314,7 +314,7 @@ async function executeCommand(
     commandId: context.commandId,
     traceId: context.trace.traceId,
     spanId: context.trace.spanId,
-    createdAt: now(clock),
+    createdAt: nowIso(clock),
   });
   await runtime?.logger?.error("Command failed.", {
     commandId: context.commandId,
@@ -351,5 +351,3 @@ function commandScope(command: WosmCommand): string {
   }
   return "global";
 }
-
-const now = nowIso;

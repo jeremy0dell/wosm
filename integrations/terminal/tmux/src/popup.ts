@@ -141,7 +141,7 @@ export async function openTmuxPopup(options: TmuxPopupOptions = {}): Promise<Tmu
       clientId: focusClientId,
     });
     if (options.enterWorkbench === true) {
-      const enterInput: TmuxPopupCommandInput & { clientId: string; config?: TmuxConfig } = {
+      const enterInput: TmuxCommandInput & { clientId: string; config?: TmuxConfig } = {
         ...tmuxCommand,
         clientId: focusClientId,
       };
@@ -365,8 +365,6 @@ type TmuxPopupState = {
   tmuxCommand: string;
 };
 
-type TmuxPopupCommandInput = TmuxCommandInput;
-
 type WorkbenchTarget = {
   sessionId: string;
   windowId?: string;
@@ -427,8 +425,8 @@ function buildPopupCleanupScript(options: TmuxPopupState): string {
 function popupCommandInput(
   options: Pick<TmuxPopupOptions, "runner" | "timeoutMs">,
   command: string,
-): TmuxPopupCommandInput {
-  const input: TmuxPopupCommandInput = {
+): TmuxCommandInput {
+  const input: TmuxCommandInput = {
     command,
   };
   if (options.runner !== undefined) {
@@ -442,7 +440,7 @@ function popupCommandInput(
 
 async function resolvePersistentPopupUi(
   options: Pick<TmuxPopupOptions, "preferRegisteredDevPopup" | "tuiCommand" | "uiSessionName">,
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
 ): Promise<TmuxPersistentPopupUi> {
   if (options.preferRegisteredDevPopup === true) {
     const registered = await resolveRegisteredDevPopupUi(input);
@@ -462,7 +460,7 @@ async function resolvePersistentPopupUi(
 }
 
 async function registerFastPopupUi(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   ui: TmuxPersistentPopupUi,
 ): Promise<void> {
   await setTmuxGlobalOption(input, registeredPopupSessionNameOption, ui.sessionName);
@@ -473,7 +471,7 @@ async function registerFastPopupUi(
   );
 }
 
-async function resolveActivePopupClient(input: TmuxPopupCommandInput): Promise<string | undefined> {
+async function resolveActivePopupClient(input: TmuxCommandInput): Promise<string | undefined> {
   return resolveTmuxGlobalOption(input, activePopupClientOption, {
     operation: "provider.tmux.popup.activeClient",
     message: "tmux failed to resolve the active wosm popup.",
@@ -482,7 +480,7 @@ async function resolveActivePopupClient(input: TmuxPopupCommandInput): Promise<s
 }
 
 async function resolveTmuxGlobalOption(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   optionName: string,
   messages: {
     operation?: string;
@@ -499,7 +497,7 @@ async function resolveTmuxGlobalOption(
 }
 
 async function resolvePersistentPopupSessionSignature(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   sessionName: string,
 ): Promise<string | undefined> {
   return resolveTmuxOption(input, {
@@ -511,7 +509,7 @@ async function resolvePersistentPopupSessionSignature(
 }
 
 async function setPersistentPopupSessionSignature(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   options: { sessionName: string; signature: string },
 ): Promise<void> {
   await runTmuxPopupCommand(input, {
@@ -530,7 +528,7 @@ async function setPersistentPopupSessionSignature(
 }
 
 async function killPersistentPopupSession(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   sessionName: string,
 ): Promise<void> {
   await runTmuxPopupCommand(input, {
@@ -541,7 +539,7 @@ async function killPersistentPopupSession(
   });
 }
 
-async function resolveFocusPopupClient(input: TmuxPopupCommandInput): Promise<string | undefined> {
+async function resolveFocusPopupClient(input: TmuxCommandInput): Promise<string | undefined> {
   return resolveTmuxGlobalOption(input, focusPopupClientOption, {
     operation: "provider.tmux.popup.focusClient",
     message: "tmux failed to resolve the wosm popup focus client.",
@@ -549,9 +547,7 @@ async function resolveFocusPopupClient(input: TmuxPopupCommandInput): Promise<st
   });
 }
 
-async function setActivePopupClient(
-  input: TmuxPopupCommandInput & { clientId: string },
-): Promise<void> {
+async function setActivePopupClient(input: TmuxCommandInput & { clientId: string }): Promise<void> {
   await setTmuxGlobalOption(input, activePopupClientOption, input.clientId, {
     operation: "provider.tmux.popup.setActiveClient",
     message: "tmux failed to record the active wosm popup.",
@@ -559,9 +555,7 @@ async function setActivePopupClient(
   });
 }
 
-async function setFocusPopupClient(
-  input: TmuxPopupCommandInput & { clientId: string },
-): Promise<void> {
+async function setFocusPopupClient(input: TmuxCommandInput & { clientId: string }): Promise<void> {
   await setTmuxGlobalOption(input, focusPopupClientOption, input.clientId, {
     operation: "provider.tmux.popup.setFocusClient",
     message: "tmux failed to record the wosm popup focus client.",
@@ -570,7 +564,7 @@ async function setFocusPopupClient(
 }
 
 async function setTmuxGlobalOption(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   optionName: string,
   value: string,
   messages: {
@@ -588,7 +582,7 @@ async function setTmuxGlobalOption(
 }
 
 async function clearTmuxGlobalOption(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   optionName: string,
   messages: { operation: string; message: string; timeoutMessage: string },
 ): Promise<void> {
@@ -598,7 +592,7 @@ async function clearTmuxGlobalOption(
   });
 }
 
-async function clearActivePopupClient(input: TmuxPopupCommandInput): Promise<void> {
+async function clearActivePopupClient(input: TmuxCommandInput): Promise<void> {
   await clearTmuxGlobalOption(input, activePopupClientOption, {
     operation: "provider.tmux.popup.clearActiveClient",
     message: "tmux failed to clear the active wosm popup.",
@@ -606,7 +600,7 @@ async function clearActivePopupClient(input: TmuxPopupCommandInput): Promise<voi
   });
 }
 
-async function clearFocusPopupClient(input: TmuxPopupCommandInput): Promise<void> {
+async function clearFocusPopupClient(input: TmuxCommandInput): Promise<void> {
   await clearTmuxGlobalOption(input, focusPopupClientOption, {
     operation: "provider.tmux.popup.clearFocusClient",
     message: "tmux failed to clear the wosm popup focus client.",
@@ -614,7 +608,7 @@ async function clearFocusPopupClient(input: TmuxPopupCommandInput): Promise<void
   });
 }
 
-async function closeTmuxPopup(input: TmuxPopupCommandInput & { clientId: string }): Promise<void> {
+async function closeTmuxPopup(input: TmuxCommandInput & { clientId: string }): Promise<void> {
   await runTmuxPopupCommand(input, {
     args: ["display-popup", "-c", input.clientId, "-C"],
     operation: "provider.tmux.popup.close",
@@ -624,7 +618,7 @@ async function closeTmuxPopup(input: TmuxPopupCommandInput & { clientId: string 
 }
 
 async function enterWorkbenchForPopup(
-  input: TmuxPopupCommandInput & { clientId: string; config?: TmuxConfig },
+  input: TmuxCommandInput & { clientId: string; config?: TmuxConfig },
 ): Promise<void> {
   const config = resolveTmuxWorkbenchConfig(input.config);
   const target = await resolveWorkbenchTarget(input, config.workbenchSession);
@@ -632,7 +626,7 @@ async function enterWorkbenchForPopup(
 }
 
 async function resolveWorkbenchTarget(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   sessionId: string,
 ): Promise<WorkbenchTarget> {
   const sessionExists = await hasTmuxSession(input, sessionId);
@@ -658,7 +652,7 @@ async function resolveWorkbenchTarget(
   return firstWindow ?? { sessionId };
 }
 
-async function hasTmuxSession(input: TmuxPopupCommandInput, sessionId: string): Promise<boolean> {
+async function hasTmuxSession(input: TmuxCommandInput, sessionId: string): Promise<boolean> {
   try {
     await runTmuxPopupCommand(input, {
       args: ["has-session", "-t", sessionId],
@@ -673,7 +667,7 @@ async function hasTmuxSession(input: TmuxPopupCommandInput, sessionId: string): 
 }
 
 async function configureWorkbenchSession(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   sessionId: string,
 ): Promise<void> {
   for (const option of defaultTmuxWorkbenchSessionOptions) {
@@ -687,7 +681,7 @@ async function configureWorkbenchSession(
 }
 
 async function firstLiveAgentPane(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   sessionId: string,
 ): Promise<WorkbenchTarget | undefined> {
   const output = await runTmuxPopupQuery(input, {
@@ -713,7 +707,7 @@ async function firstLiveAgentPane(
 }
 
 async function firstWorkbenchWindow(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   sessionId: string,
 ): Promise<WorkbenchTarget | undefined> {
   const output = await runTmuxPopupQuery(input, {
@@ -730,7 +724,7 @@ async function firstWorkbenchWindow(
 }
 
 async function switchClientToWorkbench(
-  input: TmuxPopupCommandInput & { clientId: string; target: WorkbenchTarget },
+  input: TmuxCommandInput & { clientId: string; target: WorkbenchTarget },
 ): Promise<void> {
   await runTmuxPopupCommand(input, {
     args: ["switch-client", "-c", input.clientId, "-t", input.target.sessionId],
@@ -757,14 +751,14 @@ async function switchClientToWorkbench(
 }
 
 async function runTmuxPopupCommand(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   options: { args: string[]; operation: string; message: string; timeoutMessage: string },
 ): Promise<void> {
   await runTmuxPopupQuery(input, options);
 }
 
 async function runTmuxPopupQuery(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   options: { args: string[]; operation: string; message: string; timeoutMessage: string },
 ) {
   try {
@@ -793,7 +787,7 @@ async function runTmuxPopupQuery(
 }
 
 async function resolveTmuxOption(
-  input: TmuxPopupCommandInput,
+  input: TmuxCommandInput,
   options: { args: string[]; operation: string; message: string; timeoutMessage: string },
 ): Promise<string | undefined> {
   const result = await tryRunTmuxCommand(input, {

@@ -111,7 +111,7 @@ export function createSessionCreateHandler(
       const terminalTarget = terminalTargetObservationFromBinding({
         binding: opened.target,
         worktree,
-        observedAt: now(options.clock),
+        observedAt: nowIso(options.clock),
       });
 
       const launchPlan = await runProviderMutation(
@@ -213,5 +213,3 @@ export function createSessionCreateHandler(
     });
   };
 }
-
-const now = nowIso;

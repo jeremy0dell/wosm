@@ -1,16 +1,16 @@
 import type { CommandId, CommandRecord, WosmSnapshot } from "@wosm/contracts";
-import { createObserverClient, type ObserverClient } from "@wosm/protocol";
+import { createObserverClient, type ObserverApi } from "@wosm/protocol";
 import type { RealWosmConfigFixture } from "./config";
 
 export function createRealObserverClient(
   config: RealWosmConfigFixture,
   timeoutMs = 30_000,
-): ObserverClient {
+): ObserverApi {
   return createObserverClient({ socketPath: config.socketPath, timeoutMs });
 }
 
 export async function waitForCommandRecord(
-  client: ObserverClient,
+  client: ObserverApi,
   commandId: CommandId,
   options: { timeoutMs?: number; allowFailed?: boolean } = {},
 ): Promise<CommandRecord> {
@@ -33,7 +33,7 @@ export async function waitForCommandRecord(
 }
 
 export async function waitForSnapshot(
-  client: ObserverClient,
+  client: ObserverApi,
   predicate: (snapshot: WosmSnapshot) => boolean,
   message: string,
   timeoutMs = 60_000,

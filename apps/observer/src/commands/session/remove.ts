@@ -16,8 +16,8 @@ import {
   removeWorktreeThroughProvider,
   resolveRowForSession,
   resolveSessionOrThrow,
+  snapshotWorktreeMissingError,
   stopHarnessForWorktree,
-  worktreeMissingError,
 } from "../cleanup/index.js";
 import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
@@ -46,7 +46,7 @@ export function createSessionRemoveHandler(
     const row = resolveRowForSession(snapshot, session);
     assertSessionCloseAllowed(session, row, payload.force === true);
     if (payload.removeWorktree && row === undefined) {
-      throw worktreeMissingError(session.worktreeId, session.projectId);
+      throw snapshotWorktreeMissingError(session.worktreeId, session.projectId);
     }
     if (payload.removeWorktree && row !== undefined) {
       assertWorktreeRemovalAllowed(row, payload.force === true);

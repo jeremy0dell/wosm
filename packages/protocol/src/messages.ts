@@ -23,8 +23,6 @@ import {
 } from "@wosm/contracts";
 import { z } from "zod";
 
-export const PROTOCOL_SCHEMA_VERSION = WOSM_SCHEMA_VERSION;
-
 export const ProtocolMethods = [
   "observer.health",
   "observer.stop",
@@ -141,10 +139,6 @@ export const HarnessEventReportParamsSchema = z
 
 export const EventsSubscribeParamsSchema = EventFilterSchema.optional();
 
-export const DoctorRunParamsSchema = DoctorOptionsSchema;
-
-export const DiagnosticsCollectParamsSchema = DiagnosticCollectionOptionsSchema;
-
 export const ProtocolParamSchemas = {
   "observer.health": z.undefined().optional(),
   "observer.stop": z.undefined().optional(),
@@ -155,8 +149,8 @@ export const ProtocolParamSchemas = {
   "observer.reconcile": ReconcileParamsSchema,
   "observer.ingestHookEvent": HookIngestParamsSchema,
   "observer.harnessEvent.report": HarnessEventReportParamsSchema,
-  "doctor.run": DoctorRunParamsSchema,
-  "diagnostics.collect": DiagnosticsCollectParamsSchema,
+  "doctor.run": DoctorOptionsSchema,
+  "diagnostics.collect": DiagnosticCollectionOptionsSchema,
 } as const satisfies Record<ProtocolMethod, z.ZodTypeAny>;
 
 export const ProtocolResultSchemas = {
@@ -179,13 +173,13 @@ export function protocolRequest(
   params?: unknown,
 ): ProtocolRequest {
   const request: {
-    schemaVersion: typeof PROTOCOL_SCHEMA_VERSION;
+    schemaVersion: typeof WOSM_SCHEMA_VERSION;
     jsonrpc: "2.0";
     id: string;
     method: ProtocolMethod;
     params?: unknown;
   } = {
-    schemaVersion: PROTOCOL_SCHEMA_VERSION,
+    schemaVersion: WOSM_SCHEMA_VERSION,
     jsonrpc: "2.0",
     id,
     method,
@@ -202,7 +196,7 @@ export function protocolSuccessResponse(
 ): ProtocolSuccessResponse {
   const result = ProtocolResultSchemas[method].parse(value);
   return ProtocolSuccessResponseSchema.parse({
-    schemaVersion: PROTOCOL_SCHEMA_VERSION,
+    schemaVersion: WOSM_SCHEMA_VERSION,
     jsonrpc: "2.0",
     id,
     result,
@@ -215,7 +209,7 @@ export function protocolErrorResponse(id: string, error: unknown): ProtocolError
     ? parsedSafeError.data
     : protocolSafeError({ message: "Observer protocol method failed." });
   return ProtocolErrorResponseSchema.parse({
-    schemaVersion: PROTOCOL_SCHEMA_VERSION,
+    schemaVersion: WOSM_SCHEMA_VERSION,
     jsonrpc: "2.0",
     id,
     error: safeError,

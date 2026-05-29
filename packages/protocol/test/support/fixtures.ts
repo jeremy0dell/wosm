@@ -10,7 +10,7 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
-import type { ObserverApi } from "../../src/server.js";
+import type { ObserverApi } from "../../src/api.js";
 
 export const protocolTestNow = "2026-05-20T12:00:00.000Z";
 
