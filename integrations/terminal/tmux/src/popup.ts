@@ -4,9 +4,10 @@ import {
   type ExternalCommandRunner,
   runExternalCommand,
   runRuntimeBoundaryWithRetry,
-  runRuntimeBoundaryWithRetryAndTimeout,
 } from "@wosm/runtime";
+import { runTmuxCommand, type TmuxCommandInput, tryRunTmuxCommand } from "./command.js";
 import { tmuxProviderErrorFromUnknown } from "./errors.js";
+import { shellQuote } from "./shell.js";
 import {
   defaultTmuxWorkbenchSessionOptions,
   resolveTmuxWorkbenchConfig,
@@ -364,11 +365,7 @@ type TmuxPopupState = {
   tmuxCommand: string;
 };
 
-type TmuxPopupCommandInput = {
-  command: string;
-  runner?: ExternalCommandRunner;
-  timeoutMs?: number;
-};
+type TmuxPopupCommandInput = TmuxCommandInput;
 
 type WorkbenchTarget = {
   sessionId: string;
@@ -477,126 +474,40 @@ async function registerFastPopupUi(
 }
 
 async function resolveActivePopupClient(input: TmuxPopupCommandInput): Promise<string | undefined> {
-  const result = await runRuntimeBoundaryWithRetryAndTimeout(
-    {
-      operation: "provider.tmux.popup.activeClient",
-      timeoutMs: input.timeoutMs ?? 5000,
-      error: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_POPUP_FAILED",
-        message: "tmux failed to resolve the active wosm popup.",
-        provider: "tmux",
-      },
-      timeoutError: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_TMUX_TIMEOUT",
-        message: "tmux active popup lookup timed out.",
-        provider: "tmux",
-      },
-      retry: {
-        retries: 0,
-      },
-    },
-    ({ signal }) =>
-      runExternalCommand(
-        {
-          command: input.command,
-          args: ["show-options", "-gqv", activePopupClientOption],
-          signal,
-          maxOutputChars: 4096,
-        },
-        input.runner,
-      ),
-  );
-  if (!result.ok) {
-    return undefined;
-  }
-  const clientId = result.value.stdout.trim();
-  return clientId.length === 0 ? undefined : clientId;
+  return resolveTmuxGlobalOption(input, activePopupClientOption, {
+    operation: "provider.tmux.popup.activeClient",
+    message: "tmux failed to resolve the active wosm popup.",
+    timeoutMessage: "tmux active popup lookup timed out.",
+  });
 }
 
 async function resolveTmuxGlobalOption(
   input: TmuxPopupCommandInput,
   optionName: string,
+  messages: {
+    operation?: string;
+    message?: string;
+    timeoutMessage?: string;
+  } = {},
 ): Promise<string | undefined> {
-  const result = await runRuntimeBoundaryWithRetryAndTimeout(
-    {
-      operation: "provider.tmux.popup.globalOption",
-      timeoutMs: input.timeoutMs ?? 5000,
-      error: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_POPUP_FAILED",
-        message: "tmux failed to resolve a wosm popup option.",
-        provider: "tmux",
-      },
-      timeoutError: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_TMUX_TIMEOUT",
-        message: "tmux popup option lookup timed out.",
-        provider: "tmux",
-      },
-      retry: {
-        retries: 0,
-      },
-    },
-    ({ signal }) =>
-      runExternalCommand(
-        {
-          command: input.command,
-          args: ["show-options", "-gqv", optionName],
-          signal,
-          maxOutputChars: 4096,
-        },
-        input.runner,
-      ),
-  );
-  if (!result.ok) {
-    return undefined;
-  }
-  const value = result.value.stdout.trim();
-  return value.length === 0 ? undefined : value;
+  return resolveTmuxOption(input, {
+    args: ["show-options", "-gqv", optionName],
+    operation: messages.operation ?? "provider.tmux.popup.globalOption",
+    message: messages.message ?? "tmux failed to resolve a wosm popup option.",
+    timeoutMessage: messages.timeoutMessage ?? "tmux popup option lookup timed out.",
+  });
 }
 
 async function resolvePersistentPopupSessionSignature(
   input: TmuxPopupCommandInput,
   sessionName: string,
 ): Promise<string | undefined> {
-  const result = await runRuntimeBoundaryWithRetryAndTimeout(
-    {
-      operation: "provider.tmux.popup.persistentUiSignature",
-      timeoutMs: input.timeoutMs ?? 5000,
-      error: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_POPUP_FAILED",
-        message: "tmux failed to resolve the persistent wosm popup UI signature.",
-        provider: "tmux",
-      },
-      timeoutError: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_TMUX_TIMEOUT",
-        message: "tmux persistent popup UI signature lookup timed out.",
-        provider: "tmux",
-      },
-      retry: {
-        retries: 0,
-      },
-    },
-    ({ signal }) =>
-      runExternalCommand(
-        {
-          command: input.command,
-          args: ["show-options", "-t", sessionName, "-qv", persistentUiSignatureOption],
-          signal,
-          maxOutputChars: 4096,
-        },
-        input.runner,
-      ),
-  );
-  if (!result.ok) {
-    return undefined;
-  }
-  const signature = result.value.stdout.trim();
-  return signature.length === 0 ? undefined : signature;
+  return resolveTmuxOption(input, {
+    args: ["show-options", "-t", sessionName, "-qv", persistentUiSignatureOption],
+    operation: "provider.tmux.popup.persistentUiSignature",
+    message: "tmux failed to resolve the persistent wosm popup UI signature.",
+    timeoutMessage: "tmux persistent popup UI signature lookup timed out.",
+  });
 }
 
 async function setPersistentPopupSessionSignature(
@@ -631,49 +542,17 @@ async function killPersistentPopupSession(
 }
 
 async function resolveFocusPopupClient(input: TmuxPopupCommandInput): Promise<string | undefined> {
-  const result = await runRuntimeBoundaryWithRetryAndTimeout(
-    {
-      operation: "provider.tmux.popup.focusClient",
-      timeoutMs: input.timeoutMs ?? 5000,
-      error: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_POPUP_FAILED",
-        message: "tmux failed to resolve the wosm popup focus client.",
-        provider: "tmux",
-      },
-      timeoutError: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_TMUX_TIMEOUT",
-        message: "tmux popup focus client lookup timed out.",
-        provider: "tmux",
-      },
-      retry: {
-        retries: 0,
-      },
-    },
-    ({ signal }) =>
-      runExternalCommand(
-        {
-          command: input.command,
-          args: ["show-options", "-gqv", focusPopupClientOption],
-          signal,
-          maxOutputChars: 4096,
-        },
-        input.runner,
-      ),
-  );
-  if (!result.ok) {
-    return undefined;
-  }
-  const clientId = result.value.stdout.trim();
-  return clientId.length === 0 ? undefined : clientId;
+  return resolveTmuxGlobalOption(input, focusPopupClientOption, {
+    operation: "provider.tmux.popup.focusClient",
+    message: "tmux failed to resolve the wosm popup focus client.",
+    timeoutMessage: "tmux popup focus client lookup timed out.",
+  });
 }
 
 async function setActivePopupClient(
   input: TmuxPopupCommandInput & { clientId: string },
 ): Promise<void> {
-  await runTmuxPopupCommand(input, {
-    args: ["set-option", "-gq", activePopupClientOption, input.clientId],
+  await setTmuxGlobalOption(input, activePopupClientOption, input.clientId, {
     operation: "provider.tmux.popup.setActiveClient",
     message: "tmux failed to record the active wosm popup.",
     timeoutMessage: "tmux active popup update timed out.",
@@ -683,8 +562,7 @@ async function setActivePopupClient(
 async function setFocusPopupClient(
   input: TmuxPopupCommandInput & { clientId: string },
 ): Promise<void> {
-  await runTmuxPopupCommand(input, {
-    args: ["set-option", "-gq", focusPopupClientOption, input.clientId],
+  await setTmuxGlobalOption(input, focusPopupClientOption, input.clientId, {
     operation: "provider.tmux.popup.setFocusClient",
     message: "tmux failed to record the wosm popup focus client.",
     timeoutMessage: "tmux popup focus client update timed out.",
@@ -695,18 +573,33 @@ async function setTmuxGlobalOption(
   input: TmuxPopupCommandInput,
   optionName: string,
   value: string,
+  messages: {
+    operation?: string;
+    message?: string;
+    timeoutMessage?: string;
+  } = {},
 ): Promise<void> {
   await runTmuxPopupCommand(input, {
     args: ["set-option", "-gq", optionName, value],
-    operation: "provider.tmux.popup.setGlobalOption",
-    message: "tmux failed to record a wosm popup option.",
-    timeoutMessage: "tmux popup option update timed out.",
+    operation: messages.operation ?? "provider.tmux.popup.setGlobalOption",
+    message: messages.message ?? "tmux failed to record a wosm popup option.",
+    timeoutMessage: messages.timeoutMessage ?? "tmux popup option update timed out.",
+  });
+}
+
+async function clearTmuxGlobalOption(
+  input: TmuxPopupCommandInput,
+  optionName: string,
+  messages: { operation: string; message: string; timeoutMessage: string },
+): Promise<void> {
+  await runTmuxPopupCommand(input, {
+    args: ["set-option", "-gq", "-u", optionName],
+    ...messages,
   });
 }
 
 async function clearActivePopupClient(input: TmuxPopupCommandInput): Promise<void> {
-  await runTmuxPopupCommand(input, {
-    args: ["set-option", "-gq", "-u", activePopupClientOption],
+  await clearTmuxGlobalOption(input, activePopupClientOption, {
     operation: "provider.tmux.popup.clearActiveClient",
     message: "tmux failed to clear the active wosm popup.",
     timeoutMessage: "tmux active popup clear timed out.",
@@ -714,8 +607,7 @@ async function clearActivePopupClient(input: TmuxPopupCommandInput): Promise<voi
 }
 
 async function clearFocusPopupClient(input: TmuxPopupCommandInput): Promise<void> {
-  await runTmuxPopupCommand(input, {
-    args: ["set-option", "-gq", "-u", focusPopupClientOption],
+  await clearTmuxGlobalOption(input, focusPopupClientOption, {
     operation: "provider.tmux.popup.clearFocusClient",
     message: "tmux failed to clear the wosm popup focus client.",
     timeoutMessage: "tmux popup focus client clear timed out.",
@@ -875,11 +767,11 @@ async function runTmuxPopupQuery(
   input: TmuxPopupCommandInput,
   options: { args: string[]; operation: string; message: string; timeoutMessage: string },
 ) {
-  const result = await runRuntimeBoundaryWithRetryAndTimeout(
-    {
+  try {
+    return await runTmuxCommand(input, {
+      args: options.args,
       operation: options.operation,
-      timeoutMs: input.timeoutMs ?? 5000,
-      error: {
+      fallback: {
         tag: "TerminalProviderError",
         code: "TERMINAL_POPUP_FAILED",
         message: options.message,
@@ -891,30 +783,37 @@ async function runTmuxPopupQuery(
         message: options.timeoutMessage,
         provider: "tmux",
       },
-      retry: {
-        retries: 0,
-      },
-    },
-    ({ signal }) =>
-      runExternalCommand(
-        {
-          command: input.command,
-          args: options.args,
-          signal,
-          maxOutputChars: 4096,
-        },
-        input.runner,
-      ),
-  );
-
-  if (!result.ok) {
-    throw tmuxProviderErrorFromUnknown(result.error, {
+    });
+  } catch (error) {
+    throw tmuxProviderErrorFromUnknown(error, {
       code: "TERMINAL_OPEN_FAILED",
       message: options.message,
     });
   }
+}
 
-  return result.value;
+async function resolveTmuxOption(
+  input: TmuxPopupCommandInput,
+  options: { args: string[]; operation: string; message: string; timeoutMessage: string },
+): Promise<string | undefined> {
+  const result = await tryRunTmuxCommand(input, {
+    args: options.args,
+    operation: options.operation,
+    fallback: {
+      tag: "TerminalProviderError",
+      code: "TERMINAL_POPUP_FAILED",
+      message: options.message,
+      provider: "tmux",
+    },
+    timeoutError: {
+      tag: "TerminalProviderError",
+      code: "TERMINAL_TMUX_TIMEOUT",
+      message: options.timeoutMessage,
+      provider: "tmux",
+    },
+  });
+  const value = result?.stdout.trim();
+  return value === undefined || value.length === 0 ? undefined : value;
 }
 
 async function resolveCurrentTmuxClientId(input: {
@@ -926,42 +825,13 @@ async function resolveCurrentTmuxClientId(input: {
   if (input.env.TMUX === undefined || input.env.TMUX.length === 0) {
     return undefined;
   }
-  const result = await runRuntimeBoundaryWithRetryAndTimeout(
-    {
-      operation: "provider.tmux.popup.currentClient",
-      timeoutMs: input.timeoutMs ?? 5000,
-      error: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_POPUP_FAILED",
-        message: "tmux failed to resolve the current client for the wosm popup.",
-        provider: "tmux",
-      },
-      timeoutError: {
-        tag: "TerminalProviderError",
-        code: "TERMINAL_TMUX_TIMEOUT",
-        message: "tmux current client lookup timed out.",
-        provider: "tmux",
-      },
-      retry: {
-        retries: 0,
-      },
-    },
-    ({ signal }) =>
-      runExternalCommand(
-        {
-          command: input.command,
-          args: ["display-message", "-p", "#{client_name}"],
-          signal,
-          maxOutputChars: 4096,
-        },
-        input.runner,
-      ),
-  );
-  if (!result.ok) {
-    return undefined;
-  }
-  const clientId = result.value.stdout.trim();
-  return clientId.length === 0 ? undefined : clientId;
+  const clientId = await resolveTmuxOption(input, {
+    args: ["display-message", "-p", "#{client_name}"],
+    operation: "provider.tmux.popup.currentClient",
+    message: "tmux failed to resolve the current client for the wosm popup.",
+    timeoutMessage: "tmux current client lookup timed out.",
+  });
+  return clientId;
 }
 
 function isPopupDismissed(error: unknown): boolean {
@@ -1006,8 +876,4 @@ function quoteShellValue(value: string): string {
 
 function nonEmptyString(value: string | undefined): string | undefined {
   return value === undefined || value.length === 0 ? undefined : value;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
 }

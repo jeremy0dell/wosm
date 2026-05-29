@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
+import type { ExternalCommandInput } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
 import {
   buildTmuxPopupArgs,
@@ -9,6 +9,7 @@ import {
   resolveRegisteredDevPopupUi,
   resolveTmuxPopupFocusOrigin,
 } from "../../src/popup";
+import { tmuxCommandResult as result } from "../support/commands";
 
 const defaultPersistentSignature = "v1:wosm tui --popup --persistent";
 
@@ -544,14 +545,4 @@ function fastPopupRegistrationCalls(sessionName: string, command: string): strin
     ["set-option", "-gq", "@wosm_popup_ui_session_name", sessionName],
     ["set-option", "-gq", "@wosm_popup_ui_expected_signature", `v1:${command}`],
   ];
-}
-
-function result(input: ExternalCommandInput, stdout = ""): ExternalCommandResult {
-  return {
-    command: input.command,
-    args: input.args ?? [],
-    stdout,
-    stderr: "",
-    exitCode: 0,
-  };
 }

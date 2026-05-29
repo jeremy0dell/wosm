@@ -14,13 +14,16 @@ import type {
   TerminalTargetObservation,
 } from "@wosm/contracts";
 import {
+  asRecord,
   type ExternalCommandRunner,
+  pathIsSame,
+  pathIsSameOrInside,
   type RuntimeClock,
-  runExternalCommand,
-  runRuntimeBoundaryWithRetryAndTimeout,
+  stringField,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
+import { runTmuxCommand } from "./command.js";
 import { TmuxTerminalProviderError, tmuxProviderErrorFromUnknown } from "./errors.js";
 import { buildRespawnPaneLaunchArgs, resolveLaunchPaneTarget } from "./launch.js";
 import { parseTmuxTargetLines, tmuxListTargetsFormat } from "./parse.js";
@@ -551,12 +554,17 @@ export class TmuxProvider implements TerminalProvider {
       mapErrors?: boolean;
     },
   ) {
-    const result = await runRuntimeBoundaryWithRetryAndTimeout(
-      {
-        operation: options.operation,
+    try {
+      const input = {
+        command: this.#command,
         clock: this.#clock,
         timeoutMs: this.#timeoutMs,
-        error: {
+        ...(this.#runner === undefined ? {} : { runner: this.#runner }),
+      };
+      return await runTmuxCommand(input, {
+        args,
+        operation: options.operation,
+        fallback: {
           tag: "TerminalProviderError",
           code: options.fallback.code,
           message: options.fallback.message,
@@ -569,32 +577,17 @@ export class TmuxProvider implements TerminalProvider {
           message: "tmux command timed out.",
           provider: this.id,
         },
-        retry: {
-          retries: options.retries ?? 0,
-          delayMs: 10,
-          shouldRetry: (error) => error.code !== "TERMINAL_TMUX_TIMEOUT",
-        },
-      },
-      ({ signal }) =>
-        runExternalCommand(
-          {
-            command: this.#command,
-            args,
-            signal,
-            maxOutputChars: 512 * 1024,
-          },
-          this.#runner,
-        ),
-    );
-
-    if (result.ok) {
-      return result.value;
+        retries: options.retries ?? 0,
+        delayMs: 10,
+        shouldRetry: (error) => error.code !== "TERMINAL_TMUX_TIMEOUT",
+        maxOutputChars: 512 * 1024,
+      });
+    } catch (error) {
+      if (options.mapErrors === false) {
+        throw error;
+      }
+      throw tmuxProviderErrorFromUnknown(error, options.fallback);
     }
-
-    if (options.mapErrors === false) {
-      throw result.error;
-    }
-    throw tmuxProviderErrorFromUnknown(result.error, options.fallback);
   }
 }
 
@@ -648,37 +641,6 @@ function parsePrimaryPaneIdentity(stdout: string): {
     );
   }
   return { sessionId, windowId, paneId };
-}
-
-function pathIsSame(candidate: string, root: string): boolean {
-  return normalizeLocalPath(candidate) === normalizeLocalPath(root);
-}
-
-function pathIsSameOrInside(candidate: string, root: string): boolean {
-  const normalizedCandidate = normalizeLocalPath(candidate);
-  const normalizedRoot = normalizeLocalPath(root);
-  return (
-    normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}/`)
-  );
-}
-
-function normalizeLocalPath(value: string): string {
-  const trimmed = value.trim();
-  const withoutTrailingSlash = trimmed.length > 1 ? trimmed.replace(/\/+$/g, "") : trimmed;
-  return withoutTrailingSlash.startsWith("/private/var/")
-    ? `/var/${withoutTrailingSlash.slice("/private/var/".length)}`
-    : withoutTrailingSlash;
-}
-
-function stringField(record: Record<string, unknown> | undefined, key: string): string | undefined {
-  const value = record?.[key];
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
 }
 
 function launchExitedHint(command: string, status: string): string {
