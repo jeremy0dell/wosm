@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
-import { type HookReceiverDeps, readStdinIfAvailable } from "@wosm/hook-bridge";
 import { runCodexHooksCommand } from "./commands/codexHooks.js";
 import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
 import {
@@ -12,7 +11,6 @@ import {
 import { runDebugBundleCommand } from "./commands/debugBundle.js";
 import { runDebugTraceCommand } from "./commands/debugTrace.js";
 import { runDoctorCommand } from "./commands/doctor.js";
-import { runHookCommand } from "./commands/hook.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
 import { type PopupCommandDeps, runPopupCommand } from "./commands/popup.js";
 import { runReconcileCommand } from "./commands/reconcile.js";
@@ -20,6 +18,7 @@ import { runSnapshotCommand } from "./commands/snapshot.js";
 import { runTuiCommand, type TuiCommandDeps } from "./commands/tui.js";
 import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
 import type { ObserverProcessDeps } from "./observerProcess.js";
+import { readStdinIfAvailable } from "./stdin.js";
 
 export type CliRunResult = {
   code: number;
@@ -29,7 +28,6 @@ export type CliRunResult = {
 export type CliRunOptions = {
   stdin?: string | undefined;
   env?: Record<string, string | undefined> | undefined;
-  hookDeps?: HookReceiverDeps | undefined;
   observerDeps?: ObserverProcessDeps | undefined;
   popupDeps?: PopupCommandDeps | undefined;
   tuiDeps?: TuiCommandDeps | undefined;
@@ -101,18 +99,6 @@ export async function runCli(
       config,
     });
     return { code: result.matched ? 0 : 1, output: result };
-  }
-
-  if (command === "hook") {
-    // Deprecated compatibility wrapper for older generated hooks. New provider
-    // hook processes should invoke `wosm-hook` instead of the user-facing CLI.
-    const stdin = options.stdin ?? (await readStdinIfAvailable());
-    const result = await runHookCommand(
-      commandArgs,
-      { config, configPath: resolvedConfigPath, stdin, env: options.env },
-      options.hookDeps,
-    );
-    return { code: result.status === "rejected" ? 1 : 0, output: result };
   }
 
   if (command === "command") {
@@ -346,7 +332,6 @@ function commandRequiresConfig(command: string, args: string[]): boolean {
   }
   return [
     "doctor",
-    "hook",
     "hooks",
     "command",
     "observer",

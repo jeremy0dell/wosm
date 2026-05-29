@@ -1,6 +1,6 @@
 # Real Dogfood E2E
 
-This suite runs `bin/wosm` and `bin/wosm-hook` against real config TOML, a real observer process, a real Unix socket, real SQLite state, real Worktrunk, real tmux, and real Codex. The Codex hook test creates an isolated temporary `CODEX_HOME`, appends inline hook config there, launches Codex with hooks enabled and hook trust bypassed for that temp project, and verifies `wosm-hook codex ...` reaches the observer.
+This suite runs `bin/wosm` and `bin/wosm-ingress` against real config TOML, a real observer process, a real Unix socket, real SQLite state, real Worktrunk, real tmux, and real Codex. The Codex hook test creates an isolated temporary `CODEX_HOME`, appends inline hook config there, launches Codex with hooks enabled and hook trust bypassed for that temp project, and verifies `wosm-ingress codex` reaches the observer.
 
 It is intentionally excluded from `pnpm test:e2e` and `pnpm test:all`.
 

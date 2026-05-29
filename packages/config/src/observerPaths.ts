@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
-import type { WosmConfig } from "@wosm/config";
+import type { WosmConfig } from "./schema.js";
 
 export type ObserverPaths = {
   stateDir: string;
@@ -13,7 +13,7 @@ export type ObserverPaths = {
 
 export function resolveObserverPaths(config?: WosmConfig, homeDir = homedir()): ObserverPaths {
   const stateDir = resolvePath(config?.observer?.stateDir ?? "~/.local/state/wosm", homeDir);
-  const socketPath = resolveSocketPath(config, stateDir, homeDir);
+  const socketPath = resolveObserverSocketPath(config, stateDir, homeDir);
   return {
     stateDir,
     socketPath,
@@ -30,7 +30,7 @@ export function resolvePath(input: string, homeDir = homedir(), baseDir = proces
   return isAbsolute(expanded) ? resolve(expanded) : resolve(baseDir, expanded);
 }
 
-function resolveSocketPath(
+function resolveObserverSocketPath(
   config: WosmConfig | undefined,
   stateDir: string,
   homeDir: string,

@@ -37,7 +37,7 @@ describeReal("real Worktrunk hook dogfood", () => {
     cleanup.defer(async () => {
       await runWosmJson(env, {
         configPath: config.configPath,
-        args: ["hooks", "uninstall", "worktrunk", "--yes", "--hook-bin", env.wosmHookBin],
+        args: ["hooks", "uninstall", "worktrunk", "--yes", "--hook-bin", env.wosmIngressBin],
       }).catch(() => undefined);
     });
     cleanup.defer(async () => {
@@ -47,20 +47,20 @@ describeReal("real Worktrunk hook dogfood", () => {
     await expect(
       runWosmJson(env, {
         configPath: config.configPath,
-        args: ["hooks", "install", "worktrunk", "--yes", "--hook-bin", env.wosmHookBin],
+        args: ["hooks", "install", "worktrunk", "--yes", "--hook-bin", env.wosmIngressBin],
         timeoutMs: 30_000,
       }),
     ).resolves.toMatchObject({ installed: true });
     await expect(
       runWosmJson(env, {
         configPath: config.configPath,
-        args: ["hooks", "doctor", "worktrunk", "--hook-bin", env.wosmHookBin],
+        args: ["hooks", "doctor", "worktrunk", "--hook-bin", env.wosmIngressBin],
       }),
     ).resolves.toMatchObject({ status: "ok" });
     await expect(
       runWosmJson(env, {
         configPath: config.configPath,
-        args: ["hooks", "uninstall", "worktrunk", "--yes", "--hook-bin", env.wosmHookBin],
+        args: ["hooks", "uninstall", "worktrunk", "--yes", "--hook-bin", env.wosmIngressBin],
       }),
     ).resolves.toMatchObject({ installed: false });
   }, 120_000);

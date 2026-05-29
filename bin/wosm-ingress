@@ -12,10 +12,10 @@ while [ -h "$script" ]; do
 done
 
 root=$(CDPATH= cd -- "$(dirname -- "$script")/.." && pwd)
-entry=$root/apps/hook-runner/dist/main.js
+entry=$root/packages/provider-hooks/dist/main.js
 
 if [ ! -f "$entry" ]; then
-  printf '%s\n' "wosm-hook has not been built. Run: pnpm build" >&2
+  printf '%s\n' "wosm-ingress has not been built. Run: pnpm build" >&2
   exit 1
 fi
 

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { CodexHarnessProvider } from "@wosm/codex";
-import type { HarnessProviderConfig, WosmConfig } from "@wosm/config";
+import { type HarnessProviderConfig, resolveObserverPaths, type WosmConfig } from "@wosm/config";
 import type {
   HarnessCapabilities,
   HarnessProvider,
@@ -164,6 +164,10 @@ function createHarnessProvider(
     if (registryOptions.configPath !== undefined) {
       options.configPath = registryOptions.configPath;
     }
+    const observerPaths = resolveObserverPaths(config);
+    options.observerSocketPath = observerPaths.socketPath;
+    options.stateDir = observerPaths.stateDir;
+    options.hookSpoolDir = observerPaths.hookSpoolDir;
     return new PiHarnessProvider(options);
   }
 

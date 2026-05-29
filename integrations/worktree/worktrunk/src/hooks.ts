@@ -15,9 +15,11 @@ export type WorktrunkHookName = (typeof WORKTRUNK_HOOK_NAMES)[number];
 export type WorktrunkHookPlanOptions = {
   worktrunkConfigPath?: string;
   wosmConfigPath?: string;
+  observerSocketPath?: string;
+  stateDir?: string;
+  hookSpoolDir?: string;
+  autoStartFromHooks?: boolean;
   hookBin?: string;
-  /** @deprecated Use `hookBin`; `wosmBin` generates the legacy `wosm hook ...` command. */
-  wosmBin?: string;
   env?: NodeJS.ProcessEnv;
   homeDir?: string;
 };
@@ -201,17 +203,29 @@ export function resolveWorktrunkConfigPath(options: WorktrunkHookPlanOptions = {
 }
 
 export function expectedWorktrunkHookCommands(
-  options: Pick<WorktrunkHookPlanOptions, "wosmConfigPath" | "hookBin" | "wosmBin"> = {},
+  options: Pick<
+    WorktrunkHookPlanOptions,
+    | "wosmConfigPath"
+    | "observerSocketPath"
+    | "stateDir"
+    | "hookSpoolDir"
+    | "autoStartFromHooks"
+    | "hookBin"
+  > = {},
 ): Record<WorktrunkHookName, string> {
-  const legacyWosmBin = options.wosmBin;
-  const hookBin = legacyWosmBin ?? options.hookBin ?? "wosm-hook";
+  const hookBin = options.hookBin ?? "wosm-ingress";
   return Object.fromEntries(
     WORKTRUNK_HOOK_NAMES.map((hookName) => [
       hookName,
       commandLine([
         hookBin,
+        ...(options.observerSocketPath === undefined
+          ? []
+          : ["--socket", options.observerSocketPath]),
+        ...(options.stateDir === undefined ? [] : ["--state-dir", options.stateDir]),
+        ...(options.hookSpoolDir === undefined ? [] : ["--spool-dir", options.hookSpoolDir]),
         ...(options.wosmConfigPath === undefined ? [] : ["--config", options.wosmConfigPath]),
-        ...(legacyWosmBin === undefined ? [] : ["hook"]),
+        ...(options.autoStartFromHooks === false ? ["--no-auto-start"] : []),
         "worktrunk",
         hookName,
       ]),

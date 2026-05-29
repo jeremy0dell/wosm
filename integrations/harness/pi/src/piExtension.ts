@@ -1,7 +1,15 @@
-import { spawn } from "node:child_process";
-import { basename } from "node:path";
+import { randomUUID } from "node:crypto";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { HarnessEventReport, HarnessEventReportReceipt, SafeError } from "@wosm/contracts";
+import { HarnessEventReportSpoolRecordSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { createObserverClient } from "@wosm/protocol";
+import { safeErrorFromUnknown, systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { compactPiHookPayload } from "./compaction.js";
 import { type PiSupportedEventName, piSupportedEventNames } from "./eventNames.js";
+import { piHookPayloadToHarnessEventReport } from "./mapping.js";
 
 type PiExtensionApi = {
   on: (
@@ -13,42 +21,26 @@ type PiExtensionApi = {
 type HookCommandInput = {
   eventType: PiSupportedEventName;
   payload: Record<string, unknown>;
+  report: HarnessEventReport;
 };
-
-type HookCommandChild = {
-  once(event: "error", listener: (error: Error) => void): HookCommandChild;
-  once(event: "close", listener: (code: number | null) => void): HookCommandChild;
-  kill(): void;
-  stdin?: {
-    end(input: string): void;
-  };
-};
-
-type HookCommandSpawner = (
-  command: string,
-  args: string[],
-  options: {
-    stdio: ["pipe", "ignore", "ignore"];
-    env: NodeJS.ProcessEnv;
-  },
-) => HookCommandChild;
 
 export type PiExtensionDeps = {
   env?: Record<string, string | undefined>;
   pid?: number;
   now?: () => Date;
-  runHookCommand?: (input: HookCommandInput) => Promise<void>;
-  spawnHookCommand?: HookCommandSpawner;
+  sendReport?: (input: HookCommandInput) => Promise<void>;
+  reportId?: () => string;
 };
 
-const hookTimeoutMs = 2500;
+const defaultReportId = () => `hook_${Date.now()}_${randomUUID()}`;
 
 export function registerWosmPiExtension(pi: PiExtensionApi, deps: PiExtensionDeps = {}): void {
   for (const eventType of piSupportedEventNames) {
     pi.on(eventType, async (event, context) => {
       const payload = compactPiExtensionEvent(eventType, event, context, deps);
       try {
-        await (deps.runHookCommand ?? defaultRunHookCommand(deps))({ eventType, payload });
+        const report = reportFromPiExtensionPayload(eventType, payload, deps);
+        await (deps.sendReport ?? defaultSendReport(deps))({ eventType, payload, report });
       } catch {
         // Extension telemetry must never interrupt the user's Pi session.
       }
@@ -141,44 +133,117 @@ export function compactPiExtensionEvent(
   return payload;
 }
 
-function defaultRunHookCommand(deps: PiExtensionDeps): (input: HookCommandInput) => Promise<void> {
-  return (input) =>
-    new Promise((resolve, reject) => {
-      const env = deps.env ?? process.env;
-      const child = (deps.spawnHookCommand ?? spawn)("wosm-hook", hookCommandArgs(env, input), {
-        stdio: ["pipe", "ignore", "ignore"],
-        env: process.env,
-      });
-      const timer = setTimeout(() => {
-        child.kill();
-        reject(new Error("wosm-hook timed out"));
-      }, hookTimeoutMs);
-      child.once("error", (error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-      child.once("close", (code) => {
-        clearTimeout(timer);
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`wosm-hook exited with code ${code ?? "unknown"}`));
-        }
-      });
-      child.stdin?.end(`${JSON.stringify(input.payload)}\n`);
-    });
+function reportFromPiExtensionPayload(
+  eventType: PiSupportedEventName,
+  payload: Record<string, unknown>,
+  deps: PiExtensionDeps,
+): HarnessEventReport {
+  const observedAt = toIsoTimestamp(deps.now?.() ?? systemClock.now());
+  const compaction = compactPiHookPayload(eventType, payload);
+  return piHookPayloadToHarnessEventReport({
+    reportId: deps.reportId?.() ?? defaultReportId(),
+    eventType,
+    observedAt,
+    payload: compaction.payload,
+    diagnostics: {
+      payloadBytes: compaction.originalByteCount,
+      compactedBytes: compaction.compactedByteCount,
+      compacted: compaction.compacted,
+      truncated: false,
+      omittedFieldNames: compaction.omittedFieldNames,
+    },
+  });
 }
 
-function hookCommandArgs(
-  env: Record<string, string | undefined>,
-  input: HookCommandInput,
-): string[] {
-  const args: string[] = [];
-  if (env.WOSM_CONFIG_PATH !== undefined && env.WOSM_CONFIG_PATH.length > 0) {
-    args.push("--config", env.WOSM_CONFIG_PATH);
+function defaultSendReport(deps: PiExtensionDeps): (input: HookCommandInput) => Promise<void> {
+  return async (input) => {
+    try {
+      const client = createObserverClient({
+        socketPath: observerSocketPath(deps.env ?? process.env),
+        timeoutMs: 750,
+      });
+      const receipt = await client.reportHarnessEvent(input.report);
+      if (receipt.status !== "accepted") {
+        throw receipt.error ?? new Error(`Observer rejected Pi report ${input.report.reportId}.`);
+      }
+    } catch (error) {
+      await spoolReport(
+        input.report,
+        safeErrorFromUnknown(error, spoolErrorDefaults(input.report)),
+        deps,
+      );
+    }
+  };
+}
+
+async function spoolReport(
+  report: HarnessEventReport,
+  error: SafeError,
+  deps: PiExtensionDeps,
+): Promise<HarnessEventReportReceipt> {
+  const env = deps.env ?? process.env;
+  const clock = deps.now?.() ?? systemClock.now();
+  const spoolId = `spool_${Date.now()}_${randomUUID()}`;
+  const spoolDir = hookSpoolDir(env);
+  await mkdir(spoolDir, { recursive: true, mode: 0o700 });
+  await chmod(spoolDir, 0o700);
+  const record = HarnessEventReportSpoolRecordSchema.parse({
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    spoolId,
+    createdAt: toIsoTimestamp(clock),
+    report,
+    attempts: 0,
+    lastError: error,
+  });
+  await writeFile(join(spoolDir, `${spoolId}.json`), JSON.stringify(record, null, 2), {
+    mode: 0o600,
+    flag: "wx",
+  });
+  return {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    reportId: report.reportId,
+    provider: report.provider,
+    eventType: report.eventType,
+    accepted: true,
+    status: "spooled",
+    receivedAt: report.observedAt,
+    projected: false,
+    scheduledReconcile: false,
+    error,
+  };
+}
+
+function observerSocketPath(env: Record<string, string | undefined>): string {
+  if (env.WOSM_OBSERVER_SOCKET_PATH !== undefined && env.WOSM_OBSERVER_SOCKET_PATH.length > 0) {
+    return env.WOSM_OBSERVER_SOCKET_PATH;
   }
-  args.push("pi", input.eventType);
-  return args;
+  if (env.XDG_RUNTIME_DIR !== undefined && env.XDG_RUNTIME_DIR.length > 0) {
+    return join(env.XDG_RUNTIME_DIR, "wosm", "observer.sock");
+  }
+  return join(observerStateDir(env), "run", "observer.sock");
+}
+
+function hookSpoolDir(env: Record<string, string | undefined>): string {
+  if (env.WOSM_HOOK_SPOOL_DIR !== undefined && env.WOSM_HOOK_SPOOL_DIR.length > 0) {
+    return env.WOSM_HOOK_SPOOL_DIR;
+  }
+  return join(observerStateDir(env), "spool", "hooks");
+}
+
+function observerStateDir(env: Record<string, string | undefined>): string {
+  if (env.WOSM_OBSERVER_STATE_DIR !== undefined && env.WOSM_OBSERVER_STATE_DIR.length > 0) {
+    return env.WOSM_OBSERVER_STATE_DIR;
+  }
+  return join(homedir(), ".local", "state", "wosm");
+}
+
+function spoolErrorDefaults(report: HarnessEventReport) {
+  return {
+    tag: "HookDeliveryError",
+    code: "HOOK_REPORT_DELIVERY_FAILED",
+    message: "Pi harness event report could not be delivered to the observer.",
+    provider: report.provider,
+  };
 }
 
 function piSessionId(

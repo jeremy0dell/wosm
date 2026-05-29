@@ -6,8 +6,12 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
       "@wosm/codex": ["../../integrations/harness/codex/dist/index.d.ts"],
+      "@wosm/config": ["../config/dist/index.d.ts"],
       "@wosm/contracts": ["../contracts/dist/index.d.ts"],
+      "@wosm/observability": ["../observability/dist/index.d.ts"],
       "@wosm/pi": ["../../integrations/harness/pi/dist/index.d.ts"],
+      "@wosm/protocol": ["../protocol/dist/index.d.ts"],
+      "@wosm/runtime": ["../runtime/dist/index.d.ts"],
       "@wosm/worktrunk": ["../../integrations/worktree/worktrunk/dist/index.d.ts"]
     }
   },

@@ -154,17 +154,29 @@ Outside tmux, no subcommand defaults to the full TUI. `wosm tui` always opens th
 For TUI development, use the same command routing with a reloadable dev TUI:
 
 ```bash
-pnpm dev
+pnpm wosm:tui-dev
 ```
 
 This performs an initial build, keeps a Turbo build watcher running in the background, and runs
 normal `wosm` placement with a watch-mode TUI command. Outside tmux it opens the full TUI in the
 current terminal. Inside tmux it uses the normal popup path, but the persistent UI process runs under a
 debounced watch runner so changes to rebuilt TUI code reload in place without restart storms. The dev
-popup registers itself with tmux, so a normal `wosm popup` binding reopens the active dev UI while that
-`pnpm dev` process remains alive. Keep the `pnpm dev` process running while
-developing; press Ctrl-C there to stop the build watcher, clear the tmux dev-popup registration, and
-stop that checkout's dev popup session. Build watcher output is written to `.turbo/tui-dev-build.log`.
+popup registers itself with tmux for that checkout root, so a normal `wosm popup` binding reopens the
+active dev UI only while that `pnpm wosm:tui-dev` process remains alive and the popup was requested
+from the same checkout. Keep the `pnpm wosm:tui-dev` process running while developing; press Ctrl-C
+there to stop the build watcher, clear the tmux dev-popup registration, and stop that checkout's dev
+popup session. Build watcher output is written to `.turbo/tui-dev-build.log`.
+
+If a different checkout already has a live dev popup registered, `pnpm wosm:tui-dev` prints the
+registered root, session, and owner, then asks whether to stop that process and start the dev UI from
+the current checkout.
+
+To force a fresh built TUI from the current checkout after switching worktrees or branches, using
+the normal popup path inside tmux:
+
+```bash
+pnpm wosm:reset
+```
 
 Background-first create/start should keep the dashboard as the cockpit:
 
@@ -234,18 +246,16 @@ wosm observer stop
 With the fake-provider config above, hook delivery can be checked without touching real Worktrunk state:
 
 ```bash
-wosm-hook --config /path/to/config.toml worktrunk post-create <<< '{"branch":"feature/manual-hook"}'
+wosm-ingress --config /path/to/config.toml worktrunk post-create <<< '{"branch":"feature/manual-hook"}'
 wosm doctor
 wosm debug bundle
 ```
 
 Expected basics:
 
-- The hook bridge exits quietly when the observer accepts the hook or the event is spooled.
+- The ingress sender exits quietly when the observer accepts the hook or the event is spooled.
 - `doctor` reports hook spool depth; it should remain zero for successful delivery.
 - `debug bundle` includes redacted hook log evidence from `logs/hooks.jsonl`.
-
-`wosm hook <provider> <event>` remains available as a compatibility wrapper and still emits the JSON receipt shape.
 
 ## Cleanup Smoke
 
@@ -308,7 +318,7 @@ WOSM_CODEX_BIN="$(command -v codex)" \
 pnpm test:e2e:real
 ```
 
-The suite covers observer start/status/reconcile/snapshot/debug bundle, real Worktrunk worktree creation, tmux workbench focus, Codex launch with bounded sentinel prompts, real Codex hooks from an isolated temporary `CODEX_HOME` calling `wosm-hook codex ...`, Worktrunk hook delivery/spool/drain, restart recovery, SQLite deletion recovery, TUI key-driven control, and tmux popup navigation over a real wosm-created Codex agent pane. Failed lifecycle tests attempt to write a debug bundle under that test's temp state directory.
+The suite covers observer start/status/reconcile/snapshot/debug bundle, real Worktrunk worktree creation, tmux workbench focus, Codex launch with bounded sentinel prompts, real Codex hooks from an isolated temporary `CODEX_HOME` calling `wosm-ingress codex`, Worktrunk hook delivery/spool/drain, restart recovery, SQLite deletion recovery, TUI key-driven control, and tmux popup navigation over a real wosm-created Codex agent pane. Failed lifecycle tests attempt to write a debug bundle under that test's temp state directory.
 
 From the repo root, local wrapper scripts set the required real flags and binary paths automatically:
 

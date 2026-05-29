@@ -19,12 +19,6 @@ export const wosmAliases = {
   "@wosm/github-repository": fileURLToPath(
     new URL("../../integrations/repository/github/src/index.ts", import.meta.url),
   ),
-  "@wosm/hook-bridge": fileURLToPath(
-    new URL("../../packages/hook-bridge/src/index.ts", import.meta.url),
-  ),
-  "@wosm/hook-runner": fileURLToPath(
-    new URL("../../apps/hook-runner/src/index.ts", import.meta.url),
-  ),
   "@wosm/opencode": fileURLToPath(
     new URL("../../integrations/harness/opencode/src/index.ts", import.meta.url),
   ),
@@ -32,8 +26,8 @@ export const wosmAliases = {
     new URL("../../packages/observability/src/index.ts", import.meta.url),
   ),
   "@wosm/pi": fileURLToPath(new URL("../../integrations/harness/pi/src/index.ts", import.meta.url)),
-  "@wosm/provider-events": fileURLToPath(
-    new URL("../../packages/provider-events/src/index.ts", import.meta.url),
+  "@wosm/provider-hooks": fileURLToPath(
+    new URL("../../packages/provider-hooks/src/index.ts", import.meta.url),
   ),
   "@wosm/protocol": fileURLToPath(new URL("../../packages/protocol/src/index.ts", import.meta.url)),
   "@wosm/runtime": fileURLToPath(new URL("../../packages/runtime/src/index.ts", import.meta.url)),

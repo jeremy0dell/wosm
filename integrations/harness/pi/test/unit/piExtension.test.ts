@@ -1,5 +1,6 @@
-import { EventEmitter } from "node:events";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   compactPiExtensionEvent,
@@ -13,6 +14,8 @@ describe("wosm Pi extension", () => {
 
     expect(source).toContain('from "./eventNames.js"');
     expect(source).not.toContain('from "./events.js"');
+    expect(source).not.toContain("node:child_process");
+    expect(source).not.toContain("wosm-hook");
   });
 
   it("registers only approved low-cardinality Pi events", () => {
@@ -43,13 +46,18 @@ describe("wosm Pi extension", () => {
     expect(handlers.has("before_agent_start")).toBe(false);
   });
 
-  it("emits compact payloads through wosm-hook command delivery", async () => {
-    const delivered: Array<{ eventType: string; payload: Record<string, unknown> }> = [];
+  it("emits compact harness reports through in-process delivery", async () => {
+    const delivered: Array<{
+      eventType: string;
+      payload: Record<string, unknown>;
+      report: { provider: string; eventType: string; providerData?: unknown };
+    }> = [];
     const handlers = new Map<string, (event: unknown, context: unknown) => Promise<void>>();
     const deps: PiExtensionDeps = {
       env: env(),
       pid: 4321,
-      runHookCommand: async (input) => {
+      reportId: () => "report_pi_tool_start",
+      sendReport: async (input) => {
         delivered.push(input);
       },
     };
@@ -89,35 +97,37 @@ describe("wosm Pi extension", () => {
           wosm_session_id: "ses_web_task",
           wosm_terminal_target_id: "tmux:wosm:@1:%2",
         }),
+        report: expect.objectContaining({
+          provider: "pi",
+          eventType: "tool_execution_start",
+          providerData: {
+            piSessionId: "session",
+            piSessionFile: "/tmp/pi/session.jsonl",
+            model: {
+              provider: "openai",
+              id: "gpt-5.4",
+            },
+            toolCallId: "toolu_1",
+            toolName: "bash",
+          },
+        }),
       },
     ]);
     expect(JSON.stringify(delivered)).not.toContain("raw command body");
   });
 
-  it("spawns wosm-hook with config, provider event name, and JSON stdin by default", async () => {
+  it("spools compact reports when the observer socket is unavailable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-pi-extension-"));
+    const spoolDir = join(root, "spool", "hooks");
     const handlers = new Map<string, (event: unknown, context: unknown) => Promise<void>>();
-    const spawns: Array<{ command: string; args: string[] }> = [];
-    const stdin: string[] = [];
     const deps: PiExtensionDeps = {
-      env: env(),
-      pid: 4321,
-      spawnHookCommand: (command, args) => {
-        spawns.push({ command, args });
-        const child = new EventEmitter() as EventEmitter & {
-          kill(): void;
-          stdin: {
-            end(input: string): void;
-          };
-        };
-        child.kill = () => undefined;
-        child.stdin = {
-          end: (input: string) => {
-            stdin.push(input);
-            queueMicrotask(() => child.emit("close", 0));
-          },
-        };
-        return child;
+      env: {
+        ...env(),
+        WOSM_OBSERVER_SOCKET_PATH: join(root, "missing.sock"),
+        WOSM_HOOK_SPOOL_DIR: spoolDir,
       },
+      pid: 4321,
+      reportId: () => "report_pi_session_start",
     };
 
     registerWosmPiExtension(
@@ -130,16 +140,19 @@ describe("wosm Pi extension", () => {
     );
     await handlers.get("session_start")?.({ reason: "startup" }, context());
 
-    expect(spawns).toEqual([
-      {
-        command: "wosm-hook",
-        args: ["--config", "/tmp/wosm/config.toml", "pi", "session_start"],
+    const files = await readdir(spoolDir);
+    expect(files).toHaveLength(1);
+    const record = JSON.parse(await readFile(join(spoolDir, files[0] ?? ""), "utf8"));
+    expect(record).toMatchObject({
+      report: {
+        reportId: "report_pi_session_start",
+        provider: "pi",
+        eventType: "session_start",
+        correlation: {
+          sessionId: "ses_web_task",
+          worktreeId: "wt_web_task",
+        },
       },
-    ]);
-    expect(JSON.parse(stdin[0] ?? "{}")).toMatchObject({
-      event_type: "session_start",
-      cwd: "/tmp/wosm/web/task",
-      wosm_session_id: "ses_web_task",
     });
   });
 

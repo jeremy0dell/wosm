@@ -142,7 +142,7 @@ describe("buildCodexLaunchPlan", () => {
     expect(plan.args).not.toContain("--ask-for-approval");
   });
 
-  it("uses the wosm hook profile with the current Codex profile flag", () => {
+  it("uses the wosm profile with the current Codex profile flag", () => {
     const plan = buildCodexLaunchPlan(request(), {
       defaultProfile: "team-default",
       defaultHookProfile: "wosm",

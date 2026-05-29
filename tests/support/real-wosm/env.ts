@@ -15,7 +15,7 @@ export type RealDogfoodRequirements = {
 export type RealDogfoodEnvironment = {
   repoRoot: string;
   wosmBin: string;
-  wosmHookBin: string;
+  wosmIngressBin: string;
   worktrunkBin?: string;
   tmuxBin?: string;
   codexBin?: string;
@@ -35,14 +35,14 @@ export async function requireRealDogfoodEnvironment(
 
   const repoRoot = process.cwd();
   const wosmBin = join(repoRoot, "bin", "wosm");
-  const wosmHookBin = join(repoRoot, "bin", "wosm-hook");
+  const wosmIngressBin = join(repoRoot, "bin", "wosm-ingress");
   await access(wosmBin);
-  await access(wosmHookBin);
+  await access(wosmIngressBin);
 
   const env: RealDogfoodEnvironment = {
     repoRoot,
     wosmBin,
-    wosmHookBin,
+    wosmIngressBin,
   };
 
   if (requirements.worktrunk === true) {
