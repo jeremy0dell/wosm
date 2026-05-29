@@ -52,7 +52,9 @@ switch (command.type) {
 
 7. Do not scrape providerData in core: observer/core/TUI code should not know that Codex uses `turn_id` while Pi uses `turnIndex`. Normalize correlation and status fields at the provider boundary, or parse provider-private `providerData` behind a provider-owned schema.
 
-8. Preserve optional semantics: keep `exactOptionalPropertyTypes` behavior. Use typed local builders with explicit `if` assignments for complex optional output instead of dense object-spread puzzles.
+8. Avoid alias-only renames: do not add one-line aliases that only rename an already clear value, import, or export. Use the original symbol at the call site or rename the source symbol. Smells include `const now = nowISO`, `const SomeImport = SomeImportThatShouldNotBeRenamed`, and `export type SomeType = SomeExportThatShouldNotBeRenamed`. If a compatibility alias is unavoidable for a public API, keep it explicit, localized, and documented.
+
+9. Preserve optional semantics: keep `exactOptionalPropertyTypes` behavior. Use typed local builders with explicit `if` assignments for complex optional output instead of dense object-spread puzzles.
 
 ## Audit Surfaces
 
@@ -77,8 +79,8 @@ For each finding, include:
 - File and line.
 - Whether the code is at a real dynamic boundary or inside typed application code.
 - Existing authoritative type or schema, if one exists.
-- Minimal fix: use an existing schema, add a provider-local schema, move a shared schema to `packages/contracts`, or switch to typed/exhaustive handling.
-- Risk: provider boundary leak, schema drift, silent malformed data, optional-field bug, or readability/maintainability only.
+- Minimal fix: use an existing schema, add a provider-local schema, move a shared schema to `packages/contracts`, switch to typed/exhaustive handling, or remove an alias-only rename by using the original symbol, renaming the source symbol, or documenting a required compatibility alias.
+- Risk: provider boundary leak, schema drift, silent malformed data, optional-field bug, alias churn, or readability/maintainability only.
 
 ## High-Signal Searches
 
