@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { observerRuntimeFreshnessCheck, runCli } from "@wosm/cli";
+import { runCli } from "@wosm/cli";
+import { observerRuntimeFreshnessCheck } from "@wosm/cli/internal";
 import type { DiagnosticEvidenceIndex, DiagnosticSnapshot, DoctorReport } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
@@ -116,6 +117,36 @@ describe("CLI diagnostic commands", () => {
       observerDeps: deps,
     });
     expect(collectedOptions).toMatchObject({ latestFailure: true });
+  });
+
+  it("validates debug bundle filters before observer startup", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+
+    await expect(
+      runCli(["--config", configPath, "debug", "bundle", "--since", "not-a-date"], {
+        observerDeps: {
+          spawnObserver: async () => {
+            throw new Error("observer should not start for invalid debug bundle filters");
+          },
+        },
+      }),
+    ).rejects.toThrow("Invalid debug bundle options");
+  });
+
+  it("validates doctor filters before observer startup", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+
+    await expect(
+      runCli(["--config", configPath, "doctor", "--project", ""], {
+        observerDeps: {
+          spawnObserver: async () => {
+            throw new Error("observer should not start for invalid doctor filters");
+          },
+        },
+      }),
+    ).rejects.toThrow("--project requires a value.");
   });
 
   it("resolves debug trace IDs from existing bundles without observer RPC", async () => {

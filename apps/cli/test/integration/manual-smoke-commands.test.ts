@@ -1,4 +1,5 @@
-import { runCli, runObserverCommand } from "@wosm/cli";
+import { runCli } from "@wosm/cli";
+import { runObserverCommand } from "@wosm/cli/internal";
 import type { ReconcileReceipt, WosmSnapshot } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
@@ -81,6 +82,11 @@ describe("CLI manual-smoke commands", () => {
         runningObserverDeps({ socketPath: fixture.socketPath }),
       ),
     ).rejects.toThrow("--timeout-ms requires a value.");
+  });
+
+  it("rejects malformed global config options before default command routing", async () => {
+    await expect(runCli(["--config"])).rejects.toThrow("--config requires a value.");
+    await expect(runCli(["--config", "doctor"])).rejects.toThrow("--config requires a value.");
   });
 });
 

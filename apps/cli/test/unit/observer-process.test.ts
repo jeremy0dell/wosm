@@ -1,4 +1,5 @@
-import { type ChildProcessLike, getObserverStatus, startObserver } from "@wosm/cli";
+import { getObserverStatus, startObserver } from "@wosm/cli";
+import type { ChildProcessLike } from "@wosm/cli/internal";
 import { describe, expect, it } from "vitest";
 import { createStaleSocketFile } from "../../../../tests/support/sockets";
 import { fileExists } from "../../../../tests/support/spool";

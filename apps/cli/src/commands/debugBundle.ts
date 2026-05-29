@@ -1,8 +1,10 @@
 import type { WosmConfig } from "@wosm/config";
 import type { DebugBundleManifest, DiagnosticCollectionOptions } from "@wosm/contracts";
+import { DiagnosticCollectionOptionsSchema } from "@wosm/contracts";
 import { writeDebugBundle } from "@wosm/observability";
 import { createObserverClient } from "@wosm/protocol";
 import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
+import { parseRequiredOptionValue } from "../args.js";
 import {
   type ObserverProcessDeps,
   type ObserverStatus,
@@ -77,22 +79,28 @@ export async function runDebugBundleCommand(
 }
 
 function parseDebugBundleOptions(args: string[]): DiagnosticCollectionOptions {
-  const result: NonNullable<DiagnosticCollectionOptions> = {};
+  const result: {
+    since?: string;
+    projectId?: string;
+    commandId?: string;
+    traceId?: string;
+    latestFailure?: true;
+  } = {};
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     const next = args[index + 1];
-    if (arg === "--project" && next !== undefined) {
-      result.projectId = next;
+    if (arg === "--project") {
+      result.projectId = parseRequiredOptionValue(next, "--project");
       index += 1;
       continue;
     }
-    if (arg === "--command" && next !== undefined) {
-      result.commandId = next;
+    if (arg === "--command") {
+      result.commandId = parseRequiredOptionValue(next, "--command");
       index += 1;
       continue;
     }
-    if (arg === "--trace" && next !== undefined) {
-      result.traceId = next;
+    if (arg === "--trace") {
+      result.traceId = parseRequiredOptionValue(next, "--trace");
       index += 1;
       continue;
     }
@@ -100,13 +108,13 @@ function parseDebugBundleOptions(args: string[]): DiagnosticCollectionOptions {
       result.latestFailure = true;
       continue;
     }
-    if (arg === "--last" && next !== undefined) {
-      result.since = sinceFromDuration(next);
+    if (arg === "--last") {
+      result.since = sinceFromDuration(parseRequiredOptionValue(next, "--last"));
       index += 1;
       continue;
     }
-    if (arg === "--since" && next !== undefined) {
-      result.since = next;
+    if (arg === "--since") {
+      result.since = parseRequiredOptionValue(next, "--since");
       index += 1;
       continue;
     }
@@ -114,7 +122,12 @@ function parseDebugBundleOptions(args: string[]): DiagnosticCollectionOptions {
       throw new Error(`Unknown debug bundle option: ${arg}`);
     }
   }
-  return Object.keys(result).length === 0 ? undefined : result;
+  const options = Object.keys(result).length === 0 ? undefined : result;
+  const parsed = DiagnosticCollectionOptionsSchema.safeParse(options);
+  if (!parsed.success) {
+    throw new Error(`Invalid debug bundle options: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
 function sinceFromDuration(input: string): string {

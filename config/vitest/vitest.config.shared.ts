@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 export const wosmAliases = {
+  "@wosm/cli/internal": fileURLToPath(new URL("../../apps/cli/src/internal.ts", import.meta.url)),
   "@wosm/cli": fileURLToPath(new URL("../../apps/cli/src/index.ts", import.meta.url)),
   "@wosm/observer/internal": fileURLToPath(
     new URL("../../apps/observer/src/internal.ts", import.meta.url),

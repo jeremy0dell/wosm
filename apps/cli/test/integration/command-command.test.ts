@@ -1,4 +1,5 @@
-import { runCli, runCommandCommand } from "@wosm/cli";
+import { runCli } from "@wosm/cli";
+import { runCommandCommand } from "@wosm/cli/internal";
 import type { CommandReceipt, CommandRecord, WosmCommand } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
@@ -72,6 +73,22 @@ describe("CLI command dispatch/get", () => {
         }),
       ),
     ).resolves.toEqual({ command: record });
+  });
+
+  it("rejects invalid command ids before observer startup", async () => {
+    const fixture = await createTempState();
+
+    await expect(
+      runCommandCommand(
+        ["get", ""],
+        { config: fixture.config },
+        {
+          spawnObserver: async () => {
+            throw new Error("observer should not start for invalid command id input");
+          },
+        },
+      ),
+    ).rejects.toThrow("Invalid command id");
   });
 
   it("rejects invalid stdin JSON before dispatching", async () => {
