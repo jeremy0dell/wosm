@@ -17,6 +17,7 @@ import { createProviderRegistry } from "../providers/factory.js";
 import { createObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
 import { openObserverSqlite } from "../sqlite.js";
 import { createObserverApi } from "./api.js";
+import { emptyConfig } from "./emptyConfig.js";
 import { createObserverEventBus } from "./eventBus.js";
 import { createObserverLogger } from "./logging.js";
 import { type ObserverServer, startObserverServer } from "./server.js";
@@ -166,19 +167,6 @@ function parseArgs(argv: string[]): {
     }
   }
   return result;
-}
-
-function emptyConfig(): WosmConfig {
-  return {
-    schemaVersion: 1,
-    defaults: {
-      worktreeProvider: "noop-worktree",
-      terminal: "noop-terminal",
-      harness: "noop-harness",
-      layout: "agent-shell",
-    },
-    projects: [],
-  };
 }
 
 function resolveObserverSocketPath(

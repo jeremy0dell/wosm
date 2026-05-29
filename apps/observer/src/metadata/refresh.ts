@@ -18,6 +18,7 @@ import type {
   ObserverPersistence,
   PersistedWorktreeMetadataCurrent,
 } from "../persistence/index.js";
+import { addMs } from "../utils/time.js";
 import {
   type CreateWorktreeGitRefInvalidationServiceOptions,
   createWorktreeGitRefInvalidationService,
@@ -27,6 +28,7 @@ import {
   type CreateRepositoryMetadataRefresherOptions,
   createRepositoryMetadataRefresher,
 } from "./repositoryRefresh.js";
+import { staleChangeSummary } from "./stalePayloads.js";
 
 export type WorktreeMetadataRefreshService = {
   refresh(snapshot: WosmSnapshot): Promise<void>;
@@ -331,26 +333,4 @@ function shouldBackOffFailedRefresh(
   existing: PersistedWorktreeMetadataCurrent<"change_summary"> | undefined,
 ): boolean {
   return existing?.stale === true && existing.lastError !== undefined && !existing.expired;
-}
-
-function staleChangeSummary(payload: WorktreeChangeSummary): WorktreeChangeSummary {
-  const stale: WorktreeChangeSummary = {
-    kind: payload.kind,
-    additions: payload.additions,
-    deletions: payload.deletions,
-    source: payload.source,
-    checkedAt: payload.checkedAt,
-    stale: true,
-  };
-  if (payload.filesChanged !== undefined) stale.filesChanged = payload.filesChanged;
-  if (payload.binaryFiles !== undefined) stale.binaryFiles = payload.binaryFiles;
-  if (payload.baseRef !== undefined) stale.baseRef = payload.baseRef;
-  if (payload.baseSha !== undefined) stale.baseSha = payload.baseSha;
-  if (payload.headRef !== undefined) stale.headRef = payload.headRef;
-  if (payload.headSha !== undefined) stale.headSha = payload.headSha;
-  return stale;
-}
-
-function addMs(timestamp: string, ms: number): string {
-  return new Date(Date.parse(timestamp) + ms).toISOString();
 }

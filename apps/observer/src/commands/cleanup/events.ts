@@ -1,7 +1,7 @@
 import type { RuntimeClock } from "@wosm/runtime";
-import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
+import { nowIso } from "../../utils/time.js";
 import type { CommandHandlerContext } from "../queue.js";
 
 export async function publishSessionRemoved(input: {
@@ -58,6 +58,4 @@ export async function publishRemovedSessionIfAbsent(input: {
   });
 }
 
-function now(clock: RuntimeClock | undefined): string {
-  return toIsoTimestamp((clock ?? systemClock).now());
-}
+const now = nowIso;

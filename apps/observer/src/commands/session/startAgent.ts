@@ -5,7 +5,10 @@ import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
 import type { ObserverCore } from "../../reconcile/core.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
-import type { CommandHandler, CommandHandlerContext } from "../queue.js";
+import { nowIso } from "../../utils/time.js";
+import { assertCommandType } from "../assertCommand.js";
+import { worktreeMissingError as createWorktreeMissingError } from "../errors.js";
+import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import {
   assertNoCurrentAgent,
@@ -45,7 +48,7 @@ export function createSessionStartAgentHandler(
   };
 
   return async (context) => {
-    assertSessionStartAgentCommand(context);
+    assertCommandType(context, "session.startAgent");
     throwIfAborted(context.signal);
 
     const payload = context.command.payload;
@@ -246,25 +249,11 @@ async function lookupWorktree(input: {
 }
 
 function worktreeMissingError(projectId: string, worktreeId: string) {
-  return {
-    tag: "CommandValidationError",
-    code: "WORKTREE_NOT_FOUND",
-    message: "The requested worktree is not visible to the worktree provider.",
+  return createWorktreeMissingError({
     projectId,
     worktreeId,
-  };
+    message: "The requested worktree is not visible to the worktree provider.",
+  });
 }
 
-function now(clock: RuntimeClock | undefined): string {
-  return (clock?.now() ?? new Date()).toISOString();
-}
-
-function assertSessionStartAgentCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "session.startAgent" }>;
-} {
-  if (context.command.type !== "session.startAgent") {
-    throw new Error(`Expected session.startAgent command, received ${context.command.type}.`);
-  }
-}
+const now = nowIso;

@@ -3,10 +3,10 @@ import type { RepositoryRemote } from "@wosm/contracts";
 import {
   type ExternalCommandRunner,
   type RuntimeClock,
-  runExternalCommand,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
+import { type GitCommandContext, runGitCommand, runOptionalGitCommand } from "./gitCommand.js";
 
 export type RepositoryGitWorktree = {
   id: string;
@@ -31,13 +31,6 @@ export type ReadRepositoryGitContextInput = {
   worktree: RepositoryGitWorktree;
   timeoutMs?: number;
   clock?: RuntimeClock;
-  runner?: ExternalCommandRunner;
-  signal?: AbortSignal;
-};
-
-type GitCommandContext = {
-  cwd: string;
-  timeoutMs: number;
   runner?: ExternalCommandRunner;
   signal?: AbortSignal;
 };
@@ -173,23 +166,11 @@ export function repositoryMetadataCacheKey(input: {
 }
 
 async function runGit(command: GitCommandContext, args: string[]) {
-  const input: Parameters<typeof runExternalCommand>[0] = {
-    command: "git",
-    args,
-    cwd: command.cwd,
-    timeoutMs: command.timeoutMs,
-    maxOutputChars: 4096,
-  };
-  if (command.signal !== undefined) input.signal = command.signal;
-  return runExternalCommand(input, command.runner);
+  return runGitCommand(command, args, { maxOutputChars: 4096 });
 }
 
 async function runOptionalGit(command: GitCommandContext, args: string[]) {
-  try {
-    return await runGit(command, args);
-  } catch {
-    return undefined;
-  }
+  return runOptionalGitCommand(command, args, { maxOutputChars: 4096 });
 }
 
 function isGithubHost(host: string): boolean {

@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type {
-  HarnessProvider,
   ProviderProjectConfig,
   SafeError,
   SessionId,
@@ -25,7 +24,13 @@ import {
 import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
+import { linkAbortSignals, throwIfAborted } from "../cancellation.js";
+
+export { throwIfAborted } from "../cancellation.js";
+
 import type { CommandHandlerContext } from "../queue.js";
+
+export { resolveHarnessProviderOrThrow, resolveTerminalProviderOrThrow } from "../providers.js";
 
 export type SessionCommandIdFactory = {
   sessionId(): SessionId;
@@ -68,37 +73,6 @@ export function findProjectOrThrow(
     message: "This project is not configured in wosm.",
     hint: "Add the project to config.toml and retry.",
     projectId,
-  });
-}
-
-export function resolveTerminalProviderOrThrow(
-  providers: ProviderRegistry,
-  providerId: string,
-): TerminalProvider {
-  if (providers.terminal.id === providerId) {
-    return providers.terminal;
-  }
-  throw safeError({
-    tag: "TerminalProviderError",
-    code: "TERMINAL_PROVIDER_UNAVAILABLE",
-    message: "The requested terminal provider is not registered.",
-    provider: providerId,
-  });
-}
-
-export function resolveHarnessProviderOrThrow(
-  providers: ProviderRegistry,
-  providerId: string,
-): HarnessProvider {
-  const provider = providers.harnesses.get(providerId);
-  if (provider !== undefined) {
-    return provider;
-  }
-  throw safeError({
-    tag: "HarnessProviderError",
-    code: "HARNESS_PROVIDER_UNAVAILABLE",
-    message: "The requested harness provider is not registered.",
-    provider: providerId,
   });
 }
 
@@ -409,59 +383,10 @@ export async function publishSessionCreated(input: {
   return session;
 }
 
-export function throwIfAborted(signal: AbortSignal): void {
-  if (!signal.aborted) {
-    return;
-  }
-  throw (
-    signal.reason ??
-    safeError({
-      tag: "CancellationError",
-      code: "COMMAND_CANCELLED",
-      message: "Observer command was cancelled.",
-    })
-  );
-}
-
 function safeError(input: SafeError): SafeError {
   return input;
 }
 
 function cleanupTimeoutMs(commandTimeoutMs: number | undefined): number {
   return Math.min(commandTimeoutMs ?? 30_000, 5_000);
-}
-
-function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
-  signal: AbortSignal;
-  cleanup(): void;
-} {
-  const controller = new AbortController();
-  const listeners: Array<() => void> = [];
-  const abort = (signal: AbortSignal) => {
-    if (!controller.signal.aborted) {
-      controller.abort(signal.reason);
-    }
-  };
-
-  for (const signal of signals) {
-    if (signal === undefined) {
-      continue;
-    }
-    if (signal.aborted) {
-      abort(signal);
-      continue;
-    }
-    const listener = () => abort(signal);
-    signal.addEventListener("abort", listener, { once: true });
-    listeners.push(() => signal.removeEventListener("abort", listener));
-  }
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      for (const listener of listeners) {
-        listener();
-      }
-    },
-  };
 }

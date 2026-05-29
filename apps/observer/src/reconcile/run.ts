@@ -9,10 +9,7 @@ import type {
   SafeError,
   SnapshotHarness,
   TerminalTargetObservation,
-  WorktreeChangeSummary,
-  WorktreeChecksSummary,
   WorktreeObservation,
-  WorktreePullRequest,
   WosmSnapshot,
 } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
@@ -23,6 +20,7 @@ import {
   safeErrorFromUnknown,
   toIsoTimestamp,
 } from "@wosm/runtime";
+import { staleChangeSummary, staleChecks, stalePullRequest } from "../metadata/stalePayloads.js";
 import type { ObserverPersistence } from "../persistence/index.js";
 import {
   providerObservationLegacyCutoff,
@@ -619,57 +617,6 @@ async function worktreesWithCachedMetadata(input: {
     }
     return enriched;
   });
-}
-
-function staleChangeSummary(payload: WorktreeChangeSummary): WorktreeChangeSummary {
-  const stale: WorktreeChangeSummary = {
-    kind: payload.kind,
-    additions: payload.additions,
-    deletions: payload.deletions,
-    source: payload.source,
-    checkedAt: payload.checkedAt,
-    stale: true,
-  };
-  if (payload.filesChanged !== undefined) stale.filesChanged = payload.filesChanged;
-  if (payload.binaryFiles !== undefined) stale.binaryFiles = payload.binaryFiles;
-  if (payload.baseRef !== undefined) stale.baseRef = payload.baseRef;
-  if (payload.baseSha !== undefined) stale.baseSha = payload.baseSha;
-  if (payload.headRef !== undefined) stale.headRef = payload.headRef;
-  if (payload.headSha !== undefined) stale.headSha = payload.headSha;
-  return stale;
-}
-
-function stalePullRequest(payload: WorktreePullRequest): WorktreePullRequest {
-  const stale: WorktreePullRequest = {
-    number: payload.number,
-    stale: true,
-  };
-  if (payload.url !== undefined) stale.url = payload.url;
-  if (payload.host !== undefined) stale.host = payload.host;
-  if (payload.state !== undefined) stale.state = payload.state;
-  if (payload.baseRef !== undefined) stale.baseRef = payload.baseRef;
-  if (payload.headRef !== undefined) stale.headRef = payload.headRef;
-  if (payload.updatedAt !== undefined) stale.updatedAt = payload.updatedAt;
-  if (payload.checkedAt !== undefined) stale.checkedAt = payload.checkedAt;
-  return stale;
-}
-
-function staleChecks(payload: WorktreeChecksSummary): WorktreeChecksSummary {
-  const stale: WorktreeChecksSummary = {
-    state: payload.state,
-    source: payload.source,
-    checkedAt: payload.checkedAt,
-    stale: true,
-  };
-  if (payload.url !== undefined) stale.url = payload.url;
-  if (payload.total !== undefined) stale.total = payload.total;
-  if (payload.passed !== undefined) stale.passed = payload.passed;
-  if (payload.failed !== undefined) stale.failed = payload.failed;
-  if (payload.pending !== undefined) stale.pending = payload.pending;
-  if (payload.skipped !== undefined) stale.skipped = payload.skipped;
-  if (payload.cancelled !== undefined) stale.cancelled = payload.cancelled;
-  if (payload.reason !== undefined) stale.reason = payload.reason;
-  return stale;
 }
 
 async function readProviderHealth(input: {

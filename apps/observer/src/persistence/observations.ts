@@ -6,6 +6,7 @@ import {
   TerminalTargetObservationSchema,
   WorktreeObservationSchema,
 } from "@wosm/contracts";
+import { isRecord } from "../utils/guards.js";
 import { parseJson, stringifyJson } from "./json.js";
 import { providerObservationFromRow, type SqliteProviderObservationRow } from "./rows.js";
 import type {
@@ -321,8 +322,4 @@ function normalizeProviderObservationPayloadForCoalescing(
     stable[key] = normalizeProviderObservationPayloadForCoalescing(payload[key], false);
   }
   return stable;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
