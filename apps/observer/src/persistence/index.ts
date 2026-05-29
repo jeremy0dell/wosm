@@ -6,6 +6,7 @@ import * as commandStore from "./commands.js";
 import * as correlationStore from "./correlations.js";
 import { eventCommandId, eventTimestamp, listEvents, recordEvent } from "./events.js";
 import { defaultIdFactory } from "./idFactory.js";
+import * as ingressDedupeStore from "./ingressDedupe.js";
 import {
   insertProviderObservation,
   listCurrentProviderEntityObservations,
@@ -77,6 +78,69 @@ export function createObserverPersistence(
           ...(eventOptions.traceId === undefined ? {} : { traceId: eventOptions.traceId }),
           ...(eventOptions.spanId === undefined ? {} : { spanId: eventOptions.spanId }),
         });
+      }),
+
+    recordEventWithIngressDedupe: (event, eventOptions) =>
+      transaction((database) => {
+        const parsedEvent = WosmEventSchema.parse(event);
+        const eventId = idFactory.eventId();
+        const createdAt = eventOptions.createdAt ?? eventTimestamp(parsedEvent) ?? now();
+        const claimed = ingressDedupeStore.claimIngressDedupeKey(database, {
+          ...eventOptions.dedupe,
+          eventId,
+          createdAt,
+        });
+        if (!claimed) {
+          return { deduped: true };
+        }
+        const commandId = eventOptions.commandId ?? eventCommandId(parsedEvent);
+        return {
+          deduped: false,
+          event: recordEvent(database, parsedEvent, {
+            eventId,
+            source: eventOptions.source ?? "observer",
+            createdAt,
+            ...(commandId === undefined ? {} : { commandId }),
+            ...(eventOptions.traceId === undefined ? {} : { traceId: eventOptions.traceId }),
+            ...(eventOptions.spanId === undefined ? {} : { spanId: eventOptions.spanId }),
+          }),
+        };
+      }),
+
+    recordEventAndProviderObservationWithIngressDedupe: (input) =>
+      transaction((database) => {
+        const parsedEvent = WosmEventSchema.parse(input.event);
+        const eventId = idFactory.eventId();
+        const createdAt = input.eventOptions.createdAt ?? eventTimestamp(parsedEvent) ?? now();
+        const claimed = ingressDedupeStore.claimIngressDedupeKey(database, {
+          ...input.dedupe,
+          eventId,
+          createdAt,
+        });
+        if (!claimed) {
+          return { deduped: true };
+        }
+        const commandId = input.eventOptions.commandId ?? eventCommandId(parsedEvent);
+        const event = recordEvent(database, parsedEvent, {
+          eventId,
+          source: input.eventOptions.source ?? "observer",
+          createdAt,
+          ...(commandId === undefined ? {} : { commandId }),
+          ...(input.eventOptions.traceId === undefined
+            ? {}
+            : { traceId: input.eventOptions.traceId }),
+          ...(input.eventOptions.spanId === undefined ? {} : { spanId: input.eventOptions.spanId }),
+        });
+        const observation = insertProviderObservation(database, {
+          ...input.observation,
+          id: idFactory.observationId(),
+          observedAt: input.observation.observedAt ?? now(),
+        });
+        return {
+          deduped: false,
+          event,
+          observation,
+        };
       }),
 
     listEvents: (filter = {}) => transaction((database) => listEvents(database, filter)),

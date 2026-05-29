@@ -75,19 +75,6 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
         ...parsedEvent,
         hookId: id,
       });
-      if (await hasIngestedHook(options.persistence, id)) {
-        return HookReceiptSchema.parse({
-          schemaVersion: WOSM_SCHEMA_VERSION,
-          hookId: id,
-          provider: event.provider,
-          event: event.event,
-          accepted: true,
-          status: "ingested",
-          receivedAt: event.receivedAt,
-          reconciled: false,
-          deduped: true,
-        });
-      }
       const hookEvent: WosmEvent = {
         type: "hook.ingested",
         at: event.receivedAt,
@@ -108,11 +95,16 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
           },
         },
         async () => {
-          await options.persistence.recordEvent(hookEvent, {
+          const result = await options.persistence.recordEventWithIngressDedupe(hookEvent, {
             source: "hook",
             createdAt: event.receivedAt,
+            dedupe: { kind: "hook", id },
           });
+          if (result.deduped) {
+            return { deduped: true };
+          }
           options.eventBus?.publish(hookEvent);
+          return { deduped: false };
         },
       );
 
@@ -128,6 +120,20 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
           error: persistResult.error,
         };
         return HookReceiptSchema.parse(receipt);
+      }
+
+      if (persistResult.value.deduped) {
+        return HookReceiptSchema.parse({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          hookId: id,
+          provider: event.provider,
+          event: event.event,
+          accepted: true,
+          status: "ingested",
+          receivedAt: event.receivedAt,
+          reconciled: false,
+          deduped: true,
+        });
       }
 
       const providerIngestResult =
@@ -175,20 +181,6 @@ export function createHarnessEventReportIngestion(
     ingest: async (inputReport, ingestOptions = {}) => {
       const report = HarnessEventReportSchema.parse(inputReport);
       const receivedAt = toIsoTimestamp(clock.now());
-      if (await hasReportedHarnessEvent(options.persistence, report.reportId)) {
-        return HarnessEventReportReceiptSchema.parse({
-          schemaVersion: WOSM_SCHEMA_VERSION,
-          reportId: report.reportId,
-          provider: report.provider,
-          eventType: report.eventType,
-          accepted: true,
-          status: "accepted",
-          receivedAt,
-          projected: false,
-          scheduledReconcile: false,
-          deduped: true,
-        });
-      }
 
       const reportedEvent: WosmEvent = {
         type: "harness.eventReported",
@@ -211,20 +203,29 @@ export function createHarnessEventReportIngestion(
           },
         },
         async () => {
-          await options.persistence.recordEvent(reportedEvent, {
-            source: "hook",
-            createdAt: report.observedAt,
-          });
-          await options.persistence.recordProviderObservation({
-            provider: report.provider,
-            providerType: "harness",
-            entityKind: "harness_event",
-            entityKey: harnessEventReportEntityKey(report),
-            payload: harnessEventObservationFromReport(report),
-            observedAt: report.observedAt,
-            expiresAt: providerObservationExpiresAt(report.observedAt, retentionDays),
-          });
+          const result =
+            await options.persistence.recordEventAndProviderObservationWithIngressDedupe({
+              event: reportedEvent,
+              eventOptions: {
+                source: "hook",
+                createdAt: report.observedAt,
+              },
+              dedupe: { kind: "harness_report", id: report.reportId },
+              observation: {
+                provider: report.provider,
+                providerType: "harness",
+                entityKind: "harness_event",
+                entityKey: harnessEventReportEntityKey(report),
+                payload: harnessEventObservationFromReport(report),
+                observedAt: report.observedAt,
+                expiresAt: providerObservationExpiresAt(report.observedAt, retentionDays),
+              },
+            });
+          if (result.deduped) {
+            return { deduped: true };
+          }
           options.eventBus?.publish(reportedEvent);
+          return { deduped: false };
         },
       );
 
@@ -240,6 +241,21 @@ export function createHarnessEventReportIngestion(
           projected: false,
           scheduledReconcile: false,
           error: persistResult.error,
+        });
+      }
+
+      if (persistResult.value.deduped) {
+        return HarnessEventReportReceiptSchema.parse({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          reportId: report.reportId,
+          provider: report.provider,
+          eventType: report.eventType,
+          accepted: true,
+          status: "accepted",
+          receivedAt,
+          projected: false,
+          scheduledReconcile: false,
+          deduped: true,
         });
       }
 
@@ -262,23 +278,6 @@ export function createHarnessEventReportIngestion(
       });
     },
   };
-}
-
-async function hasIngestedHook(persistence: ObserverPersistence, hookId: string): Promise<boolean> {
-  const events = await persistence.listEvents({ type: "hook.ingested" });
-  return events.some(
-    (event) => event.event.type === "hook.ingested" && event.event.hookId === hookId,
-  );
-}
-
-async function hasReportedHarnessEvent(
-  persistence: ObserverPersistence,
-  reportId: string,
-): Promise<boolean> {
-  const events = await persistence.listEvents({ type: "harness.eventReported" });
-  return events.some(
-    (event) => event.event.type === "harness.eventReported" && event.event.reportId === reportId,
-  );
 }
 
 function harnessEventObservationFromReport(report: HarnessEventReport): HarnessEventObservation {
