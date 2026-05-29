@@ -50,7 +50,7 @@ describe("TUI command actions", () => {
     });
   });
 
-  it("maps no-agent rows to session.startAgent with project defaults", () => {
+  it("maps no-agent rows to session.startAgent without forcing a harness provider", () => {
     const snapshot = createCommandSnapshot("none");
     const row = snapshot.rows[0];
     const project = snapshot.projects[0];
@@ -60,7 +60,6 @@ describe("TUI command actions", () => {
       payload: {
         projectId: "web",
         worktreeId: "wt_web_no_agent",
-        harness: { provider: "codex" },
         terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
       },
     });

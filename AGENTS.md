@@ -8,6 +8,8 @@ For runtime trace IDs, command IDs, diagnostic IDs, or live debugging, read `doc
 
 The old rebuild TDD and phased plan in `docs/planning/` are historical V1 baselines. Use them only for explicit rebuild-phase archaeology or original rationale. For ordinary work, current code, current tests, runtime evidence, and the living docs above supersede them.
 
+When finishing a change and summarizing it, include a minimal line or section naming the specific UX implication and how to manually verify it when possible.
+
 ## Optional Object Construction
 
 `exactOptionalPropertyTypes` is intentional. Preserve the difference between absent optional fields and fields set to `undefined`.

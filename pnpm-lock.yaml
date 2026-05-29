@@ -50,9 +50,6 @@ importers:
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@wosm/hook-bridge':
-        specifier: workspace:*
-        version: link:../../packages/hook-bridge
       '@wosm/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -62,9 +59,6 @@ importers:
       '@wosm/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
-      '@wosm/provider-hooks':
-        specifier: workspace:*
-        version: link:../../packages/provider-hooks
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
@@ -77,21 +71,6 @@ importers:
       '@wosm/worktrunk':
         specifier: workspace:*
         version: link:../../integrations/worktree/worktrunk
-
-  apps/hook-runner:
-    dependencies:
-      '@wosm/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@wosm/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@wosm/hook-bridge':
-        specifier: workspace:*
-        version: link:../../packages/hook-bridge
-      '@wosm/provider-hooks':
-        specifier: workspace:*
-        version: link:../../packages/provider-hooks
 
   apps/observer:
     dependencies:
@@ -185,6 +164,9 @@ importers:
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@wosm/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../../packages/runtime
@@ -273,24 +255,6 @@ importers:
         specifier: ^4.1.12
         version: 4.4.3
 
-  packages/hook-bridge:
-    dependencies:
-      '@wosm/config':
-        specifier: workspace:*
-        version: link:../config
-      '@wosm/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@wosm/observability':
-        specifier: workspace:*
-        version: link:../observability
-      '@wosm/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@wosm/runtime':
-        specifier: workspace:*
-        version: link:../runtime
-
   packages/observability:
     dependencies:
       '@wosm/contracts':
@@ -317,12 +281,24 @@ importers:
       '@wosm/codex':
         specifier: workspace:*
         version: link:../../integrations/harness/codex
+      '@wosm/config':
+        specifier: workspace:*
+        version: link:../config
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@wosm/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@wosm/pi':
         specifier: workspace:*
         version: link:../../integrations/harness/pi
+      '@wosm/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@wosm/runtime':
+        specifier: workspace:*
+        version: link:../runtime
       '@wosm/worktrunk':
         specifier: workspace:*
         version: link:../../integrations/worktree/worktrunk

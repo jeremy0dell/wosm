@@ -19,14 +19,14 @@ TUI renders snapshots/events and submits typed commands
 
 The repo is organized around these boundaries:
 
-- `apps/observer` owns runtime correlation, reconciliation, command routing, provider health, persistence, hook ingestion, diagnostics, and snapshot publication.
+- `apps/observer` owns runtime correlation, reconciliation, command routing, provider health, persistence, hook ingestion, harness ingress queuing, diagnostics, and snapshot publication.
 - `apps/cli` owns the `wosm` command surface: observer lifecycle, setup/doctor, reconcile/snapshot, hooks, debug trace, debug bundles, and TUI entrypoints.
 - `apps/tui` owns terminal UI state and interaction. It consumes observer snapshots/events through `@wosm/protocol` and must not call providers directly.
-- `apps/hook-runner` owns the small `wosm-hook` executable used by generated provider hooks.
 - `packages/contracts` owns shared schemas and types for commands, events, snapshots, observations, providers, hooks, diagnostics, and safe errors.
 - `packages/protocol` owns the local observer transport and validates request, response, and event messages.
 - `packages/runtime` owns shared runtime boundary helpers for timeouts, retry, cancellation, external commands, and typed error conversion.
-- `packages/config`, `packages/observability`, `packages/hook-bridge`, and `packages/testing` are shared support packages.
+- `packages/provider-hooks` owns the tiny `wosm-ingress` sender, provider hook compaction/reporting, and offline spool writes for generated command hooks.
+- `packages/config`, `packages/observability`, and `packages/testing` are shared support packages.
 - `integrations/...` adapt external tools: Worktrunk, tmux, Codex, OpenCode, scripted harnesses, and GitHub repository metadata.
 
 ## Source Of Truth

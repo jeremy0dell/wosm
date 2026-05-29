@@ -33,7 +33,9 @@ describeRealPi("real Pi session.create launch lane", () => {
   afterEach(async () => {
     const tasks = cleanupTasks;
     cleanupTasks = [];
-    await Promise.allSettled(tasks.map((task) => task()));
+    for (const task of tasks.reverse()) {
+      await task().catch(() => undefined);
+    }
   });
 
   it("launches Pi through tmux with the standalone WOSM extension", async () => {
@@ -56,7 +58,7 @@ describeRealPi("real Pi session.create launch lane", () => {
     const env: RealDogfoodEnvironment = {
       repoRoot: process.cwd(),
       wosmBin: join(process.cwd(), "bin", "wosm"),
-      wosmHookBin: join(process.cwd(), "bin", "wosm-hook"),
+      wosmIngressBin: join(process.cwd(), "bin", "wosm-ingress"),
       tmuxBin,
       piBin,
     };

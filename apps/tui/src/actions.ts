@@ -58,9 +58,6 @@ export function buildStartAgentCommand(row: WorktreeRow, project: ProjectView): 
     payload: {
       projectId: project.id,
       worktreeId: row.id,
-      harness: {
-        provider: project.defaults.harness,
-      },
       terminal: {
         provider: project.defaults.terminal,
         layout: commandLayout(project.defaults.layout),

@@ -31,6 +31,11 @@ import {
   runDoctor,
 } from "../diagnostics/collector.js";
 import {
+  createHarnessIngressQueue,
+  type HarnessIngressProcessResult,
+  type HarnessIngressQueue,
+} from "../hooks/harnessIngressQueue.js";
+import {
   createHarnessEventReportIngestion,
   createHookIngestion,
   type HarnessEventReportIngestion,
@@ -60,6 +65,7 @@ export type CreateObserverApiOptions = {
   clock?: RuntimeClock;
   hookIngestion?: HookIngestion;
   harnessEventReportIngestion?: HarnessEventReportIngestion;
+  harnessIngressQueue?: HarnessIngressQueue;
   hookSpoolDir?: string;
   socketPath?: string;
   stateDir?: string;
@@ -131,6 +137,15 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
         : { retention: options.config.observability.retention }),
       requestReconcile: reconcileScheduler.request,
     });
+  const harnessIngressQueue =
+    options.harnessIngressQueue ??
+    createHarnessIngressQueue({
+      clock,
+      ...(options.logger === undefined ? {} : { logger: options.logger }),
+      requestReconcile: reconcileScheduler.request,
+      processReport: processHarnessIngressReport,
+    });
+  let configuredSpoolDrain: Promise<void> | undefined;
 
   const api: ObserverApi = {
     health: async () => {
@@ -154,11 +169,13 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       if (options.socketPath !== undefined) health.socketPath = options.socketPath;
       if (options.stateDir !== undefined) health.stateDir = options.stateDir;
       if (spoolDepth !== undefined) health.hookSpoolDepth = spoolDepth;
+      health.harnessIngressQueue = harnessIngressQueue.health();
       if (coreHealth.sqlite !== undefined) health.sqlite = coreHealth.sqlite;
       if (coreHealth.lastReconcile !== undefined) health.lastReconcile = coreHealth.lastReconcile;
       return health;
     },
     stop: async (): Promise<ObserverStopReceipt> => {
+      await harnessIngressQueue.shutdown();
       await metadataRefresh?.shutdown?.();
       await options.onStop?.();
       return {
@@ -184,59 +201,23 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     reconcile: runReconcile,
     ingestHookEvent: (event: ProviderHookEvent): Promise<HookReceipt> =>
       hookIngestion.ingest(event),
-    reportHarnessEvent: async (report: HarnessEventReport): Promise<HarnessEventReportReceipt> => {
-      const receipt = await harnessEventReportIngestion.ingest(report, {
-        triggerReconcile: false,
-      });
-      if (!receipt.accepted || receipt.deduped === true) {
-        return receipt;
-      }
-      const projection = await runRuntimeBoundary(
-        {
-          operation: "observer.harnessEventReport.projectStatus",
-          clock,
-          error: {
-            tag: "StatusProjectionError",
-            code: "STATUS_PROJECTION_FAILED",
-            message: "Observer could not project the harness event status.",
-            provider: report.provider,
-          },
-        },
-        () => options.core.projectHarnessEventStatus(report),
-      );
-      if (!projection.ok) {
-        await options.logger?.error("Harness event status projection failed.", {
-          provider: report.provider,
-          reportId: report.reportId,
-          error: projection.error,
-        });
-        reconcileScheduler.request(`harness-report:${report.provider}:${report.eventType}`);
-        return HarnessEventReportReceiptSchema.parse({
-          ...receipt,
-          projected: false,
-          scheduledReconcile: true,
-          error: projection.error,
-        });
-      }
-      for (const event of projection.value.events) {
-        options.eventBus.publish(event);
-      }
-      reconcileScheduler.request(`harness-report:${report.provider}:${report.eventType}`);
-      return HarnessEventReportReceiptSchema.parse({
-        ...receipt,
-        projected: projection.value.projected,
-        scheduledReconcile: true,
-      });
-    },
+    reportHarnessEvent: async (report: HarnessEventReport): Promise<HarnessEventReportReceipt> =>
+      harnessIngressQueue.enqueue(report),
   };
 
   async function runReconcile(reason = "manual"): Promise<ReconcileReceipt> {
     if (!reconciling) {
-      reconciling = true;
-      try {
-        await drainConfiguredSpool();
-      } finally {
-        reconciling = false;
+      if (reason === "observer.startup") {
+        void drainConfiguredSpoolAndQueue().catch(async (error: unknown) => {
+          await options.logger?.error("Startup hook spool drain failed.", { error });
+        });
+      } else {
+        reconciling = true;
+        try {
+          await drainConfiguredSpoolAndQueue();
+        } finally {
+          reconciling = false;
+        }
       }
     }
 
@@ -276,13 +257,22 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     };
   }
 
+  async function drainConfiguredSpoolAndQueue(): Promise<void> {
+    await drainConfiguredSpool();
+    await harnessIngressQueue.drain();
+  }
+
   async function drainConfiguredSpool(): Promise<void> {
     if (options.hookSpoolDir === undefined) {
       return;
     }
+    if (configuredSpoolDrain !== undefined) {
+      await configuredSpoolDrain;
+      return;
+    }
     const spoolDir = options.hookSpoolDir;
 
-    const result = await runRuntimeBoundary(
+    configuredSpoolDrain = runRuntimeBoundary(
       {
         operation: "observer.hookSpool.drain",
         clock,
@@ -299,14 +289,83 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
           eventBus: options.eventBus,
           clock,
           ingest: (event) => hookIngestion.ingest(event, { triggerReconcile: false }),
-          report: (report) =>
-            harnessEventReportIngestion.ingest(report, { triggerReconcile: false }),
+          report: async (report) => {
+            const result = await processHarnessIngressReportInner(report);
+            if (result.reconcileReason !== undefined) {
+              reconcileScheduler.request(result.reconcileReason);
+            }
+            return result.receipt;
+          },
         }),
-    );
+    )
+      .then((result) => {
+        if (!result.ok) {
+          throw result.error;
+        }
+        harnessIngressQueue.recordSpoolDrain(result.value);
+      })
+      .finally(() => {
+        configuredSpoolDrain = undefined;
+      });
 
-    if (!result.ok) {
-      throw result.error;
+    await configuredSpoolDrain;
+  }
+
+  function processHarnessIngressReport(
+    report: HarnessEventReport,
+  ): Promise<HarnessIngressProcessResult> {
+    return processHarnessIngressReportInner(report);
+  }
+
+  async function processHarnessIngressReportInner(
+    report: HarnessEventReport,
+  ): Promise<HarnessIngressProcessResult> {
+    const receipt = await harnessEventReportIngestion.ingest(report, {
+      triggerReconcile: false,
+    });
+    if (!receipt.accepted || receipt.deduped === true) {
+      return { receipt };
     }
+    const projection = await runRuntimeBoundary(
+      {
+        operation: "observer.harnessEventReport.projectStatus",
+        clock,
+        error: {
+          tag: "StatusProjectionError",
+          code: "STATUS_PROJECTION_FAILED",
+          message: "Observer could not project the harness event status.",
+          provider: report.provider,
+        },
+      },
+      () => options.core.projectHarnessEventStatus(report),
+    );
+    if (!projection.ok) {
+      await options.logger?.error("Harness event status projection failed.", {
+        provider: report.provider,
+        reportId: report.reportId,
+        error: projection.error,
+      });
+      return {
+        receipt: HarnessEventReportReceiptSchema.parse({
+          ...receipt,
+          projected: false,
+          scheduledReconcile: true,
+          error: projection.error,
+        }),
+        reconcileReason: `harness-report:${report.provider}:${report.eventType}`,
+      };
+    }
+    for (const event of projection.value.events) {
+      options.eventBus.publish(event);
+    }
+    return {
+      receipt: HarnessEventReportReceiptSchema.parse({
+        ...receipt,
+        projected: projection.value.projected,
+        scheduledReconcile: true,
+      }),
+      reconcileReason: `harness-report:${report.provider}:${report.eventType}`,
+    };
   }
 
   return api;

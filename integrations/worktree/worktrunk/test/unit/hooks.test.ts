@@ -17,13 +17,16 @@ describe("Worktrunk hook setup", () => {
     const plan = await planWorktrunkHooks({
       worktrunkConfigPath: configPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
-      hookBin: "/usr/local/bin/wosm-hook",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
+      hookBin: "/usr/local/bin/wosm-ingress",
     });
 
     expect(plan.changed).toBe(true);
     expect(plan.missing).toEqual(["post-create", "post-switch", "pre-remove", "post-remove"]);
     expect(plan.commands["post-create"]).toBe(
-      "/usr/local/bin/wosm-hook --config /tmp/wosm/config.toml worktrunk post-create",
+      "/usr/local/bin/wosm-ingress --socket /tmp/wosm/run/observer.sock --state-dir /tmp/wosm/state --spool-dir /tmp/wosm/state/spool/hooks --config /tmp/wosm/config.toml worktrunk post-create",
     );
     await expect(readFile(configPath, "utf8")).rejects.toThrow();
   });
@@ -40,21 +43,31 @@ describe("Worktrunk hook setup", () => {
     const installed = await installWorktrunkHooks({
       worktrunkConfigPath: configPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
     });
     const second = await installWorktrunkHooks({
       worktrunkConfigPath: configPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
     });
     const contents = await readFile(configPath, "utf8");
 
     expect(installed.backupPath).toBeDefined();
     expect(second.changed).toBe(false);
     expect(contents).toContain("echo existing");
-    expect(contents).toContain("wosm-hook --config /tmp/wosm/config.toml worktrunk post-create");
+    expect(contents).toContain("wosm-ingress");
+    expect(contents).not.toContain("wosm-hook");
     await expect(
       doctorWorktrunkHooks({
         worktrunkConfigPath: configPath,
         wosmConfigPath: "/tmp/wosm/config.toml",
+        observerSocketPath: "/tmp/wosm/run/observer.sock",
+        stateDir: "/tmp/wosm/state",
+        hookSpoolDir: "/tmp/wosm/state/spool/hooks",
       }),
     ).resolves.toMatchObject({
       status: "ok",
@@ -68,18 +81,22 @@ describe("Worktrunk hook setup", () => {
     await installWorktrunkHooks({
       worktrunkConfigPath: configPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
     });
 
     const removed = await uninstallWorktrunkHooks({
       worktrunkConfigPath: configPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
     });
     const contents = await readFile(configPath, "utf8");
 
     expect(removed.installed).toBe(false);
-    expect(contents).not.toContain(
-      "wosm-hook --config /tmp/wosm/config.toml worktrunk post-create",
-    );
+    expect(contents).not.toContain("wosm-ingress");
   });
 
   it("replaces and uninstalls legacy generated wosm hook commands", async () => {
@@ -119,7 +136,9 @@ describe("Worktrunk hook setup", () => {
       wosmConfigPath: "/tmp/wosm/config.toml",
     });
     expect(plan.changed).toBe(true);
-    expect(plan.after).toContain("wosm-hook --config /tmp/wosm/config.toml worktrunk post-create");
+    expect(plan.after).toContain(
+      "wosm-ingress --config /tmp/wosm/config.toml worktrunk post-create",
+    );
     expect(plan.after).not.toContain(" hook worktrunk post-create");
 
     const removed = await uninstallWorktrunkHooks({
@@ -131,21 +150,6 @@ describe("Worktrunk hook setup", () => {
     expect(removed.installed).toBe(false);
     expect(contents).toContain("echo existing");
     expect(contents).not.toContain("hook worktrunk");
-  });
-
-  it("can generate the legacy wosm hook command for compatibility", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-wt-hooks-"));
-    const configPath = join(root, "config.toml");
-
-    const plan = await planWorktrunkHooks({
-      worktrunkConfigPath: configPath,
-      wosmConfigPath: "/tmp/wosm/config.toml",
-      wosmBin: "/usr/local/bin/wosm",
-    });
-
-    expect(plan.commands["post-create"]).toBe(
-      "/usr/local/bin/wosm --config /tmp/wosm/config.toml hook worktrunk post-create",
-    );
   });
 
   it("maps invalid hook config TOML to a typed setup error", async () => {

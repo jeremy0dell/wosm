@@ -1,4 +1,5 @@
 import type { WosmConfig } from "@wosm/config";
+import type { HarnessEventReportReceipt } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
   createFakeHarnessRun,
@@ -11,6 +12,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   createCommandQueue,
+  createHarnessEventReportIngestion,
   createObserverApi,
   createObserverCore,
   createObserverEventBus,
@@ -195,6 +197,125 @@ describe("observer hook ingestion", () => {
     sqlite.close();
   });
 
+  it("acks harness event reports before slow queue processing finishes", async () => {
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({ clock });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const eventBus = createObserverEventBus();
+    const core = createObserverCore({
+      config,
+      providers: new ProviderRegistry({
+        worktree: new FakeWorktreeProvider({ now }),
+        terminal: new FakeTerminalProvider({ now }),
+        harnesses: [new FakeHarnessProvider({ now })],
+      }),
+      persistence,
+      sqlite,
+      clock,
+    });
+    const gate = deferred();
+    const api = createObserverApi({
+      core,
+      persistence,
+      commandQueue: createCommandQueue({ persistence, clock, idFactory: ids(), eventBus }),
+      eventBus,
+      clock,
+      harnessEventReportIngestion: {
+        ingest: async (report): Promise<HarnessEventReportReceipt> => {
+          await gate.promise;
+          return acceptedReportReceipt(report.reportId, report.provider, report.eventType);
+        },
+      },
+    });
+
+    const receipt = await api.reportHarnessEvent(harnessReport("report_slow_1"));
+
+    expect(receipt).toMatchObject({
+      accepted: true,
+      status: "accepted",
+      scheduledReconcile: true,
+    });
+    await expect(api.health()).resolves.toMatchObject({
+      harnessIngressQueue: {
+        depth: 1,
+        enqueued: 1,
+        processed: 0,
+      },
+    });
+
+    gate.resolve();
+    await waitFor(async () => (await api.health()).harnessIngressQueue?.processed === 1);
+    sqlite.close();
+  });
+
+  it("coalesces repeated harness reports and exposes queue metrics", async () => {
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({ clock });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const eventBus = createObserverEventBus();
+    const core = createObserverCore({
+      config,
+      providers: new ProviderRegistry({
+        worktree: new FakeWorktreeProvider({ now }),
+        terminal: new FakeTerminalProvider({ now }),
+        harnesses: [new FakeHarnessProvider({ now })],
+      }),
+      persistence,
+      sqlite,
+      clock,
+    });
+    const gate = deferred();
+    const api = createObserverApi({
+      core,
+      persistence,
+      commandQueue: createCommandQueue({ persistence, clock, idFactory: ids(), eventBus }),
+      eventBus,
+      clock,
+      harnessEventReportIngestion: {
+        ingest: async (report): Promise<HarnessEventReportReceipt> => {
+          await gate.promise;
+          return acceptedReportReceipt(report.reportId, report.provider, report.eventType);
+        },
+      },
+    });
+
+    const receipts = await Promise.all(
+      Array.from({ length: 1000 }, (_, index) =>
+        api.reportHarnessEvent(harnessReport(`report_coalesced_${index}`)),
+      ),
+    );
+
+    expect(receipts).toHaveLength(1000);
+    expect(receipts.every((receipt) => receipt.status === "accepted")).toBe(true);
+    await expect(api.health()).resolves.toMatchObject({
+      harnessIngressQueue: {
+        depth: 1,
+        enqueued: 1000,
+        coalesced: 999,
+        dropped: 0,
+        processed: 0,
+      },
+    });
+
+    gate.resolve();
+    await waitFor(async () => (await api.health()).harnessIngressQueue?.processed === 1);
+    await expect(api.health()).resolves.toMatchObject({
+      harnessIngressQueue: {
+        depth: 0,
+        processed: 1,
+      },
+    });
+    sqlite.close();
+  });
+
   it("deduplicates hook ids before provider dispatch and persistence", async () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ clock });
@@ -250,6 +371,34 @@ describe("observer hook ingestion", () => {
     expect(
       (await persistence.listEvents({ type: "hook.ingested" })).map((event) => event.event),
     ).toHaveLength(1);
+    sqlite.close();
+  });
+
+  it("deduplicates harness report ids before duplicate persistence", async () => {
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({ clock });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const eventBus = createObserverEventBus();
+    const ingestion = createHarnessEventReportIngestion({
+      persistence,
+      eventBus,
+      clock,
+    });
+    const report = harnessReport("report_dedupe_1");
+
+    const first = await ingestion.ingest(report, { triggerReconcile: false });
+    const second = await ingestion.ingest(report, { triggerReconcile: false });
+
+    expect(first).toMatchObject({ status: "accepted", deduped: false });
+    expect(second).toMatchObject({ status: "accepted", deduped: true });
+    expect(
+      (await persistence.listEvents({ type: "harness.eventReported" })).map((event) => event.event),
+    ).toHaveLength(1);
+    await expect(persistence.listProviderObservations()).resolves.toHaveLength(1);
     sqlite.close();
   });
 
@@ -463,6 +612,71 @@ function nextObserverReconciled(eventBus: ReturnType<typeof createObserverEventB
       await events.return?.();
     },
   };
+}
+
+function harnessReport(reportId: string) {
+  return {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    reportId,
+    provider: "codex",
+    kind: "harness" as const,
+    eventType: "PreToolUse",
+    observedAt: now,
+    status: {
+      value: "working" as const,
+      confidence: "medium" as const,
+      reason: "Codex is about to use Bash.",
+      source: "harness_hook" as const,
+      updatedAt: now,
+    },
+    correlation: {
+      worktreeId: "wt_web_task",
+      sessionId: "ses_web_task",
+      terminalTargetId: "tmux:wosm:@1:%2",
+      cwd: "/tmp/wosm/web/task",
+    },
+    providerData: {
+      turnId: "turn_1",
+      toolName: "Bash",
+    },
+  };
+}
+
+function acceptedReportReceipt(
+  reportId: string,
+  provider: string,
+  eventType: string,
+): HarnessEventReportReceipt {
+  return {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    reportId,
+    provider,
+    eventType,
+    accepted: true,
+    status: "accepted",
+    receivedAt: now,
+    projected: false,
+    scheduledReconcile: false,
+  };
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 1000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Timed out waiting for condition.");
 }
 
 class RecordingHarnessProvider extends FakeHarnessProvider {

@@ -39,10 +39,11 @@ export type CodexHookPlanOptions = {
   codexConfigPath?: string;
   hookScriptPath?: string;
   stateDir?: string;
+  observerSocketPath?: string;
+  hookSpoolDir?: string;
+  autoStartFromHooks?: boolean;
   wosmConfigPath?: string;
   hookBin?: string;
-  /** @deprecated Use `hookBin`; `wosmBin` generates the legacy `wosm hook ...` command. */
-  wosmBin?: string;
   env?: NodeJS.ProcessEnv;
   homeDir?: string;
 };
@@ -263,17 +264,34 @@ export async function doctorCodexHooks(
 
 function scriptOptions(
   hookScriptPath: string,
-  options: Pick<CodexHookPlanOptions, "wosmConfigPath" | "hookBin" | "wosmBin">,
+  options: Pick<
+    CodexHookPlanOptions,
+    | "wosmConfigPath"
+    | "observerSocketPath"
+    | "stateDir"
+    | "hookSpoolDir"
+    | "autoStartFromHooks"
+    | "hookBin"
+  >,
 ): CodexHookScriptOptions {
   const input: CodexHookScriptOptions = { hookScriptPath };
   if (options.wosmConfigPath !== undefined) {
     input.wosmConfigPath = options.wosmConfigPath;
   }
+  if (options.observerSocketPath !== undefined) {
+    input.observerSocketPath = options.observerSocketPath;
+  }
+  if (options.stateDir !== undefined) {
+    input.stateDir = options.stateDir;
+  }
+  if (options.hookSpoolDir !== undefined) {
+    input.hookSpoolDir = options.hookSpoolDir;
+  }
+  if (options.autoStartFromHooks !== undefined) {
+    input.autoStartFromHooks = options.autoStartFromHooks;
+  }
   if (options.hookBin !== undefined) {
     input.hookBin = options.hookBin;
-  }
-  if (options.wosmBin !== undefined) {
-    input.wosmBin = options.wosmBin;
   }
   return input;
 }

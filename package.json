@@ -5,7 +5,7 @@
   "type": "module",
   "bin": {
     "wosm": "./bin/wosm",
-    "wosm-hook": "./bin/wosm-hook",
+    "wosm-ingress": "./bin/wosm-ingress",
     "wosm-tmux-popup": "./integrations/terminal/tmux/bin/wosm-popup"
   },
   "packageManager": "pnpm@11.0.0",
@@ -22,7 +22,9 @@
     "agent:reset": "node scripts/agent-reset.mjs",
     "agent:reset:run": "node scripts/agent-reset.mjs --yes",
     "wosm": "bin/wosm",
-    "wosm-hook": "bin/wosm-hook",
+    "wosm:reset": "node scripts/wosm-reset.mjs",
+    "wosm:tui-dev": "node scripts/tui-dev.mjs",
+    "wosm-ingress": "bin/wosm-ingress",
     "wosm:link": "pnpm link --global",
     "dev": "node scripts/tui-dev.mjs",
     "typecheck": "turbo run typecheck",

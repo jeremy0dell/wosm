@@ -1,3 +1,6 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   BuildHarnessLaunchRequest,
   HarnessRunObservation,
@@ -5,6 +8,7 @@ import type {
 } from "@wosm/contracts";
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
+import { installCodexHooks } from "../../src/hooks";
 import { CodexHarnessProvider } from "../../src/provider";
 
 const now = "2026-05-21T12:00:00.000Z";
@@ -146,6 +150,53 @@ describe("CodexHarnessProvider", () => {
         permissionMode: "yolo",
       },
     });
+  });
+
+  it("uses observer hook paths when checking installed hook diagnostics", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-codex-provider-"));
+    const codexHome = join(root, "codex-home");
+    const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
+    const wosmConfigPath = join(root, "wosm.config.toml");
+    const observerSocketPath = join(root, "run", "observer.sock");
+    const stateDir = join(root, "state");
+    const hookSpoolDir = join(stateDir, "spool", "hooks");
+
+    await installCodexHooks({
+      hookScriptPath,
+      wosmConfigPath,
+      observerSocketPath,
+      stateDir,
+      hookSpoolDir,
+      autoStartFromHooks: false,
+      env: { CODEX_HOME: codexHome },
+    });
+
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = codexHome;
+    try {
+      const provider = new CodexHarnessProvider({
+        command: "codex-test",
+        installHooks: true,
+        observerSocketPath,
+        stateDir,
+        hookSpoolDir,
+        autoStartFromHooks: false,
+        runner: async (input) => result(input, "Logged in with ChatGPT\n"),
+      });
+
+      await expect(provider.doctorChecks({ wosmConfigPath })).resolves.toContainEqual(
+        expect.objectContaining({
+          name: "codex-hooks",
+          status: "ok",
+        }),
+      );
+    } finally {
+      if (previousCodexHome === undefined) {
+        delete process.env.CODEX_HOME;
+      } else {
+        process.env.CODEX_HOME = previousCodexHome;
+      }
+    }
   });
 
   it("classifies and ingests Codex observations through provider-local parsing", async () => {

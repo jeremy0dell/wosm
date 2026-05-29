@@ -56,6 +56,13 @@ export type PersistedEvent = {
   spanId?: string;
 };
 
+export type IngressDedupeKind = "hook" | "harness_report";
+
+export type IngressDedupeKey = {
+  kind: IngressDedupeKind;
+  id: string;
+};
+
 export type PersistedCommandError = {
   id: string;
   commandId: CommandId;
@@ -97,6 +104,33 @@ export type PersistedProviderObservation = {
   observedAt: string;
   expiresAt?: string | undefined;
   expired: boolean;
+};
+
+export type RecordProviderObservationInput = {
+  provider: ProviderId;
+  providerType: ProviderObservationType;
+  entityKind: ProviderObservationKind;
+  entityKey: string;
+  payload: unknown;
+  observedAt?: string;
+  expiresAt?: string | undefined;
+};
+
+export type EventRecordOptions = {
+  source?: string;
+  commandId?: CommandId;
+  traceId?: string;
+  spanId?: string;
+  createdAt?: string;
+};
+
+export type EventIngressDedupeResult = {
+  deduped: boolean;
+  event?: PersistedEvent;
+};
+
+export type EventAndObservationIngressDedupeResult = EventIngressDedupeResult & {
+  observation?: PersistedProviderObservation;
 };
 
 export type PersistedWorktreeMetadataCurrent<
@@ -216,29 +250,26 @@ export type ObserverPersistence = {
   getCommand(commandId: CommandId): Promise<PersistedCommand | undefined>;
   listCommands(): Promise<PersistedCommand[]>;
   listCommandErrors(commandId?: CommandId): Promise<PersistedCommandError[]>;
-  recordEvent(
+  recordEvent(event: WosmEvent, options?: EventRecordOptions): Promise<PersistedEvent>;
+  recordEventWithIngressDedupe(
     event: WosmEvent,
-    options?: {
-      source?: string;
-      commandId?: CommandId;
-      traceId?: string;
-      spanId?: string;
-      createdAt?: string;
+    options: EventRecordOptions & {
+      dedupe: IngressDedupeKey;
     },
-  ): Promise<PersistedEvent>;
+  ): Promise<EventIngressDedupeResult>;
+  recordEventAndProviderObservationWithIngressDedupe(input: {
+    event: WosmEvent;
+    eventOptions: EventRecordOptions;
+    observation: RecordProviderObservationInput;
+    dedupe: IngressDedupeKey;
+  }): Promise<EventAndObservationIngressDedupeResult>;
   listEvents(filter?: {
     commandId?: CommandId;
     type?: WosmEvent["type"];
   }): Promise<PersistedEvent[]>;
-  recordProviderObservation(input: {
-    provider: ProviderId;
-    providerType: ProviderObservationType;
-    entityKind: ProviderObservationKind;
-    entityKey: string;
-    payload: unknown;
-    observedAt?: string;
-    expiresAt?: string | undefined;
-  }): Promise<PersistedProviderObservation>;
+  recordProviderObservation(
+    input: RecordProviderObservationInput,
+  ): Promise<PersistedProviderObservation>;
   listProviderObservations(options?: {
     entityKind?: ProviderObservationKind | readonly ProviderObservationKind[];
     includeExpired?: boolean;
