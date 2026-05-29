@@ -1,3 +1,5 @@
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { ObserverPaths } from "@wosm/config";
 import type {
   HookPayloadSummary,
@@ -9,6 +11,7 @@ import { safeErrorFromUnknown, systemClock } from "@wosm/runtime";
 import {
   type ProviderHookObserverStartupDeps,
   startProviderHookObserver,
+  waitForProviderHookObserverHealth,
 } from "./observerStartup.js";
 
 export type ProviderDeliveryAttempt = {
@@ -25,7 +28,8 @@ type ReceiptRecorder = (input: {
   receipt: HookReceipt;
 }) => HookReceipt | Promise<HookReceipt>;
 
-const lastStartByStateDir = new Map<string, number>();
+const autoStartLockName = "hook-autostart.lock";
+const minimumAutoStartLockStaleMs = 5000;
 
 export async function deliverProviderHookWithSpooling(input: {
   paths: ObserverPaths;
@@ -96,40 +100,173 @@ async function maybeStartObserver(input: {
   rateLimitMs: number;
   deps: ProviderDeliveryPolicyDeps;
 }) {
-  const now = (input.deps.clock ?? systemClock).now().getTime();
-  const lastStart = lastStartByStateDir.get(input.paths.stateDir) ?? 0;
-  if (now - lastStart < input.rateLimitMs) {
+  const lock = await acquireAutoStartLock({
+    paths: input.paths,
+    staleMs: Math.max(input.rateLimitMs, input.timeoutMs, minimumAutoStartLockStaleMs),
+    deps: input.deps,
+  });
+
+  if (lock.status === "contended") {
+    return waitForContendedAutoStart({
+      paths: input.paths,
+      timeoutMs: input.timeoutMs,
+      deps: input.deps,
+    });
+  }
+  if (lock.status === "failed") {
+    return { ok: false as const, error: lock.error };
+  }
+
+  try {
+    const started = await startProviderHookObserver(
+      {
+        configPath: input.configPath,
+        paths: input.paths,
+        timeoutMs: input.timeoutMs,
+        observerEntryPath: input.observerEntryPath,
+      },
+      input.deps,
+    );
+    if (started.status === "running") {
+      return { ok: true as const };
+    }
     return {
       ok: false as const,
-      error: safeErrorFromUnknown(undefined, {
-        tag: "HookAutoStartRateLimitError",
-        code: "HOOK_AUTOSTART_RATE_LIMITED",
-        message: "Observer auto-start from provider hooks is rate-limited.",
+      error:
+        started.error ??
+        safeErrorFromUnknown(undefined, {
+          tag: "ObserverStartupError",
+          code: "OBSERVER_START_FAILED",
+          message: "Observer could not be started for provider hook delivery.",
+        }),
+    };
+  } finally {
+    await lock.release();
+  }
+}
+
+type AutoStartLock =
+  | {
+      status: "acquired";
+      release(): Promise<void>;
+    }
+  | {
+      status: "contended";
+    }
+  | {
+      status: "failed";
+      error: SafeError;
+    };
+
+async function acquireAutoStartLock(input: {
+  paths: ObserverPaths;
+  staleMs: number;
+  deps: ProviderDeliveryPolicyDeps;
+}): Promise<AutoStartLock> {
+  const lockDir = autoStartLockDir(input.paths);
+  try {
+    await mkdir(dirname(lockDir), { recursive: true, mode: 0o700 });
+  } catch (error) {
+    return {
+      status: "failed",
+      error: safeErrorFromUnknown(error, {
+        tag: "HookAutoStartLockError",
+        code: "HOOK_AUTOSTART_LOCK_FAILED",
+        message: "Observer auto-start lock directory could not be prepared.",
       }),
     };
   }
-  lastStartByStateDir.set(input.paths.stateDir, now);
 
-  const started = await startProviderHookObserver(
-    {
-      configPath: input.configPath,
-      paths: input.paths,
-      timeoutMs: input.timeoutMs,
-      observerEntryPath: input.observerEntryPath,
-    },
-    input.deps,
-  );
-  if (started.status === "running") {
-    return { ok: true as const };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await mkdir(lockDir, { mode: 0o700 });
+      await writeAutoStartLockOwner(lockDir, input.deps);
+      return {
+        status: "acquired",
+        release: async () => {
+          await rm(lockDir, { recursive: true, force: true });
+        },
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        return {
+          status: "failed",
+          error: safeErrorFromUnknown(error, {
+            tag: "HookAutoStartLockError",
+            code: "HOOK_AUTOSTART_LOCK_FAILED",
+            message: "Observer auto-start lock could not be acquired.",
+          }),
+        };
+      }
+      if (await isAutoStartLockStale(lockDir, input.staleMs)) {
+        await rm(lockDir, { recursive: true, force: true });
+        continue;
+      }
+      return { status: "contended" };
+    }
   }
-  return {
-    ok: false as const,
-    error:
-      started.error ??
-      safeErrorFromUnknown(undefined, {
-        tag: "ObserverStartupError",
-        code: "OBSERVER_START_FAILED",
-        message: "Observer could not be started for provider hook delivery.",
+
+  return { status: "contended" };
+}
+
+async function waitForContendedAutoStart(input: {
+  paths: ObserverPaths;
+  timeoutMs: number;
+  deps: ProviderDeliveryPolicyDeps;
+}) {
+  try {
+    await waitForProviderHookObserverHealth(
+      {
+        paths: input.paths,
+        timeoutMs: input.timeoutMs,
+      },
+      input.deps,
+    );
+    return { ok: true as const };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: safeErrorFromUnknown(error, {
+        tag: "HookAutoStartLockError",
+        code: "HOOK_AUTOSTART_LOCKED",
+        message: "Observer did not become healthy while another hook was starting it.",
       }),
-  };
+    };
+  }
+}
+
+function autoStartLockDir(paths: ObserverPaths): string {
+  return join(paths.stateDir, "run", autoStartLockName);
+}
+
+async function writeAutoStartLockOwner(
+  lockDir: string,
+  deps: ProviderDeliveryPolicyDeps,
+): Promise<void> {
+  const clock = deps.clock ?? systemClock;
+  try {
+    await writeFile(
+      join(lockDir, "owner.json"),
+      `${JSON.stringify(
+        {
+          pid: process.pid,
+          acquiredAt: clock.now().toISOString(),
+        },
+        null,
+        2,
+      )}\n`,
+      { mode: 0o600 },
+    );
+  } catch {
+    // Owner metadata is diagnostic-only; the lock directory itself is the authority.
+  }
+}
+
+async function isAutoStartLockStale(lockDir: string, staleMs: number): Promise<boolean> {
+  try {
+    const info = await stat(lockDir);
+    return Date.now() - info.mtimeMs > staleMs;
+  } catch {
+    return true;
+  }
 }
