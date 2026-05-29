@@ -1,4 +1,5 @@
-import { runCli, runTuiCommand } from "@wosm/cli";
+import { runCli } from "@wosm/cli";
+import { runTuiCommand } from "@wosm/cli/internal";
 import type { RunTuiOptions } from "@wosm/tui";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
@@ -402,6 +403,24 @@ describe("CLI tui command", () => {
       status: "unavailable",
       code: 1,
     });
+  });
+
+  it("rejects invalid TUI timeout values before observer startup", async () => {
+    const fixture = await createTempState();
+
+    await expect(
+      runTuiCommand(
+        ["--timeout-ms", "-1"],
+        { config: fixture.config },
+        {
+          observer: {
+            spawnObserver: async () => {
+              throw new Error("observer should not start for invalid timeout input");
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow("--timeout-ms must be a positive integer.");
   });
 });
 

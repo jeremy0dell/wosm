@@ -1,12 +1,14 @@
-export * from "./commands/command.js";
-export * from "./commands/configDiagnostics.js";
-export * from "./commands/debugBundle.js";
-export * from "./commands/debugTrace.js";
-export * from "./commands/doctor.js";
-export * from "./commands/observer.js";
-export * from "./commands/popup.js";
-export * from "./commands/tui.js";
-export * from "./main.js";
-export * from "./observerProcess.js";
-export * from "./paths.js";
-export * from "./stdin.js";
+export type { CliRunOptions, CliRunResult } from "./main.js";
+export { runCli } from "./main.js";
+export type {
+  ObserverProcessOptions,
+  ObserverStatus,
+  SpawnObserverInput,
+} from "./observerProcess.js";
+export {
+  getObserverStatus,
+  restartObserver,
+  startObserver,
+  stopObserver,
+  waitForObserverHealth,
+} from "./observerProcess.js";

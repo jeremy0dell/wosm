@@ -1,9 +1,10 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import type { WosmConfig } from "@wosm/config";
 import type { CommandId, CommandReceipt, CommandRecord, WosmCommand } from "@wosm/contracts";
-import { WosmCommandSchema } from "@wosm/contracts";
+import { CommandIdSchema, WosmCommandSchema } from "@wosm/contracts";
 import { createObserverClient, type ObserverApi } from "@wosm/protocol";
 import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
+import { parsePositiveIntegerOption } from "../args.js";
 import {
   type ObserverProcessDeps,
   type ObserverStatus,
@@ -250,9 +251,10 @@ function parseGetArgs(args: string[]): Extract<ParsedCommandArgs, { action: "get
   if (commandId === undefined) {
     throw new Error("command get requires a command id.");
   }
+  const parsedCommandId = parseCommandId(commandId);
   const parsed: Extract<ParsedCommandArgs, { action: "get" }> = {
     action: "get",
-    commandId,
+    commandId: parsedCommandId,
   };
 
   for (let index = 1; index < args.length; index += 1) {
@@ -269,14 +271,15 @@ function parseGetArgs(args: string[]): Extract<ParsedCommandArgs, { action: "get
 }
 
 function parseTimeoutMs(value: string | undefined, option: string): number {
-  if (value === undefined) {
-    throw new Error(`${option} requires a value.`);
+  return parsePositiveIntegerOption(value, option);
+}
+
+function parseCommandId(value: string): CommandId {
+  const parsed = CommandIdSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new Error(`Invalid command id: ${parsed.error.message}`);
   }
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`${option} must be a positive integer.`);
-  }
-  return parsed;
+  return parsed.data;
 }
 
 function assertRunning(

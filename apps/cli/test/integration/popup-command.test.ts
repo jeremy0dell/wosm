@@ -1,6 +1,10 @@
 import { fileURLToPath } from "node:url";
-import type { ObserverProcessDeps } from "@wosm/cli";
-import { runCli, runPopupCommand, shouldSuppressCliProcessOutput } from "@wosm/cli";
+import { runCli } from "@wosm/cli";
+import {
+  type ObserverProcessDeps,
+  runPopupCommand,
+  shouldSuppressCliProcessOutput,
+} from "@wosm/cli/internal";
 import type { TmuxPopupOptions } from "@wosm/tmux";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";

@@ -6,13 +6,21 @@ import type {
   DiagnosticEvidenceIndex,
   ErrorEnvelope,
   LogRecord,
+  SafeError,
 } from "@wosm/contracts";
 import {
+  CommandIdSchema,
   CommandRecordSchema,
   DiagnosticEvidenceIndexSchema,
   ErrorEnvelopeSchema,
   LogRecordSchema,
+  ProviderIdSchema,
+  SafeErrorSchema,
+  SpanIdSchema,
+  TraceIdSchema,
+  WosmCommandTypeSchema,
 } from "@wosm/contracts";
+import { z } from "zod";
 import { resolveObserverPaths } from "../paths.js";
 
 export type DebugTraceCommandOptions = {
@@ -48,6 +56,9 @@ export type DebugTraceResult = {
   suggestedCommands: string[];
 };
 
+type DebugTraceCommandSummary = NonNullable<DebugTraceResult["command"]>;
+type DebugTraceErrorSummary = NonNullable<DebugTraceResult["error"]>;
+
 type DebugTraceArgs = {
   query?: string;
   latestFailure: boolean;
@@ -63,6 +74,33 @@ type DebugTraceMatch = {
   matchedFiles: string[];
   createdAt?: string;
 };
+
+type ParsedDebugTraceLogAttributes = {
+  commandId?: string;
+  traceId?: string;
+  spanId?: string;
+  commandType?: string;
+  error?: DebugTraceErrorSummary;
+};
+
+const LegacyLogAttributeErrorSchema = z
+  .object({
+    code: z.string().min(1).optional(),
+    message: z.string().min(1).optional(),
+    provider: ProviderIdSchema.optional(),
+    diagnosticId: z.string().min(1).optional(),
+  })
+  .strict();
+
+const DebugTraceLogAttributesSchema = z
+  .object({
+    commandId: CommandIdSchema.optional(),
+    traceId: TraceIdSchema.optional(),
+    spanId: SpanIdSchema.optional(),
+    commandType: WosmCommandTypeSchema.optional(),
+    error: z.unknown().optional(),
+  })
+  .passthrough();
 
 export async function runDebugTraceCommand(
   args: string[],
@@ -322,12 +360,11 @@ function errorMatchesQuery(error: ErrorEnvelope, query: string): boolean {
 }
 
 function matchFromLog(log: LogRecord, path: string, query: string | undefined): DebugTraceMatch {
-  const attributes = recordAttributes(log);
-  const commandId = stringField(attributes, "commandId") ?? log.commandId;
-  const traceId = stringField(attributes, "traceId") ?? log.traceId;
-  const spanId = stringField(attributes, "spanId") ?? log.spanId;
-  const commandType = stringField(attributes, "commandType");
-  const error = recordField(attributes, "error");
+  const attributes = parseDebugTraceLogAttributes(log.attributes);
+  const commandId = attributes.commandId ?? log.commandId;
+  const traceId = attributes.traceId ?? log.traceId;
+  const spanId = attributes.spanId ?? log.spanId;
+  const commandType = attributes.commandType;
   const command =
     commandId === undefined
       ? undefined
@@ -346,16 +383,16 @@ function matchFromLog(log: LogRecord, path: string, query: string | undefined): 
     matchedFiles: [path],
     createdAt: log.timestamp,
   };
-  const errorResult = errorFromAttributes(error);
+  const errorResult = attributes.error;
   if (errorResult !== undefined) match.error = errorResult;
   return match;
 }
 
 function isFailedCommandLog(log: LogRecord): boolean {
+  const attributes = parseDebugTraceLogAttributes(log.attributes);
   return (
     log.level === "error" &&
-    (log.message.toLowerCase().includes("command failed") ||
-      recordField(log.attributes, "error") !== undefined)
+    (log.message.toLowerCase().includes("command failed") || attributes.error !== undefined)
   );
 }
 
@@ -383,7 +420,7 @@ function commandSummary(command: CommandRecord | undefined): DebugTraceResult["c
   if (command === undefined) {
     return undefined;
   }
-  const summary: NonNullable<DebugTraceResult["command"]> = {
+  const summary: DebugTraceCommandSummary = {
     id: command.id,
     type: command.type,
     status: command.status,
@@ -397,7 +434,7 @@ function errorSummary(error: ErrorEnvelope | undefined): DebugTraceResult["error
   if (error === undefined) {
     return undefined;
   }
-  const summary: NonNullable<DebugTraceResult["error"]> = {
+  const summary: DebugTraceErrorSummary = {
     id: error.id,
     code: error.code,
     message: error.message,
@@ -406,20 +443,51 @@ function errorSummary(error: ErrorEnvelope | undefined): DebugTraceResult["error
   return summary;
 }
 
-function errorFromAttributes(error: unknown): DebugTraceResult["error"] {
-  if (!error || typeof error !== "object") {
+function safeErrorSummary(error: SafeError): DebugTraceResult["error"] {
+  const summary: DebugTraceErrorSummary = {
+    code: error.code,
+    message: error.message,
+  };
+  if (error.provider !== undefined) summary.provider = error.provider;
+  if (error.diagnosticId !== undefined) summary.diagnosticId = error.diagnosticId;
+  return summary;
+}
+
+function parseDebugTraceLogAttributes(
+  attributes: LogRecord["attributes"] | undefined,
+): ParsedDebugTraceLogAttributes {
+  const parsed = DebugTraceLogAttributesSchema.safeParse(attributes ?? {});
+  if (!parsed.success) {
+    return {};
+  }
+  const result: ParsedDebugTraceLogAttributes = {};
+  if (parsed.data.commandId !== undefined) result.commandId = parsed.data.commandId;
+  if (parsed.data.traceId !== undefined) result.traceId = parsed.data.traceId;
+  if (parsed.data.spanId !== undefined) result.spanId = parsed.data.spanId;
+  if (parsed.data.commandType !== undefined) result.commandType = parsed.data.commandType;
+  const error = parseLogAttributeError(parsed.data.error);
+  if (error !== undefined) result.error = error;
+  return result;
+}
+
+function parseLogAttributeError(error: unknown): DebugTraceResult["error"] {
+  const safeError = SafeErrorSchema.safeParse(error);
+  if (safeError.success) {
+    return safeErrorSummary(safeError.data);
+  }
+  const envelope = ErrorEnvelopeSchema.safeParse(error);
+  if (envelope.success) {
+    return errorSummary(envelope.data);
+  }
+  const legacy = LegacyLogAttributeErrorSchema.safeParse(error);
+  if (!legacy.success) {
     return undefined;
   }
-  const record = error as Record<string, unknown>;
-  const summary: NonNullable<DebugTraceResult["error"]> = {};
-  const code = stringField(record, "code");
-  if (code !== undefined) summary.code = code;
-  const message = stringField(record, "message");
-  if (message !== undefined) summary.message = message;
-  const provider = stringField(record, "provider");
-  if (provider !== undefined) summary.provider = provider;
-  const diagnosticId = stringField(record, "diagnosticId");
-  if (diagnosticId !== undefined) summary.diagnosticId = diagnosticId;
+  const summary: DebugTraceErrorSummary = {};
+  if (legacy.data.code !== undefined) summary.code = legacy.data.code;
+  if (legacy.data.message !== undefined) summary.message = legacy.data.message;
+  if (legacy.data.provider !== undefined) summary.provider = legacy.data.provider;
+  if (legacy.data.diagnosticId !== undefined) summary.diagnosticId = legacy.data.diagnosticId;
   return Object.keys(summary).length === 0 ? undefined : summary;
 }
 
@@ -449,17 +517,4 @@ function timestamp(match: DebugTraceMatch): number {
 
 function recordContains(value: unknown, query: string): boolean {
   return JSON.stringify(value).includes(query);
-}
-
-function recordAttributes(log: LogRecord): Record<string, unknown> {
-  return log.attributes ?? {};
-}
-
-function recordField(record: Record<string, unknown> | undefined, key: string): unknown {
-  return record?.[key];
-}
-
-function stringField(record: Record<string, unknown>, key: string): string | undefined {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
 }

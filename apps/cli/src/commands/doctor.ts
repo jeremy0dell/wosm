@@ -1,8 +1,10 @@
 import { stat } from "node:fs/promises";
 import type { WosmConfig } from "@wosm/config";
 import type { DoctorCheck, DoctorOptions, DoctorReport } from "@wosm/contracts";
+import { DoctorOptionsSchema } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
 import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
+import { parseRequiredOptionValue } from "../args.js";
 import {
   type ObserverProcessDeps,
   type ObserverStatus,
@@ -67,15 +69,18 @@ export async function runDoctorCommand(
 }
 
 function parseDoctorOptions(args: string[]): DoctorOptions {
-  const result: NonNullable<DoctorOptions> = {};
+  const result: {
+    projectId?: string;
+    deep?: true;
+  } = {};
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--deep") {
       result.deep = true;
       continue;
     }
-    if (arg === "--project" && args[index + 1] !== undefined) {
-      result.projectId = args[index + 1];
+    if (arg === "--project") {
+      result.projectId = parseRequiredOptionValue(args[index + 1], "--project");
       index += 1;
       continue;
     }
@@ -83,7 +88,12 @@ function parseDoctorOptions(args: string[]): DoctorOptions {
       throw new Error(`Unknown doctor option: ${arg}`);
     }
   }
-  return Object.keys(result).length === 0 ? undefined : result;
+  const options = Object.keys(result).length === 0 ? undefined : result;
+  const parsed = DoctorOptionsSchema.safeParse(options);
+  if (!parsed.success) {
+    throw new Error(`Invalid doctor options: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
 export async function observerRuntimeFreshnessCheck(
