@@ -3,6 +3,7 @@ import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
 import { dismissTmuxPopup, resolveTmuxPopupFocusOrigin } from "@wosm/tmux";
 import { type RunTuiOptions, runTui, type TuiRunResult } from "@wosm/tui";
+import { parsePositiveIntegerOption } from "../args.js";
 import {
   type ObserverProcessDeps,
   type ObserverStatus,
@@ -173,6 +174,6 @@ function takeTimeoutOption(
   }
   return {
     args: [...args.slice(0, index), ...args.slice(index + 2)],
-    timeoutMs: Number(value),
+    timeoutMs: parsePositiveIntegerOption(value, "--timeout-ms"),
   };
 }

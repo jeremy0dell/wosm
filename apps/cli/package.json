@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "import": "./dist/internal.js"
     }
   },
   "bin": {
@@ -26,6 +30,7 @@
     "@wosm/runtime": "workspace:*",
     "@wosm/tui": "workspace:*",
     "@wosm/tmux": "workspace:*",
-    "@wosm/worktrunk": "workspace:*"
+    "@wosm/worktrunk": "workspace:*",
+    "zod": "^4.1.12"
   }
 }

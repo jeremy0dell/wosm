@@ -1,4 +1,5 @@
-import { runCli, runObserverCommand } from "@wosm/cli";
+import { runCli } from "@wosm/cli";
+import { runObserverCommand } from "@wosm/cli/internal";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
 
@@ -107,5 +108,21 @@ describe("CLI observer commands", () => {
         stopped: true,
       },
     });
+  });
+
+  it("rejects invalid observer timeout values before contacting the observer", async () => {
+    const fixture = await createTempState();
+
+    await expect(
+      runObserverCommand(
+        ["status", "--timeout-ms", "nope"],
+        { config: fixture.config },
+        {
+          clientFactory: () => {
+            throw new Error("observer should not be contacted for invalid timeout input");
+          },
+        },
+      ),
+    ).rejects.toThrow("--timeout-ms must be a positive integer.");
   });
 });

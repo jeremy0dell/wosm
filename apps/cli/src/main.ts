@@ -2,6 +2,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
+import { parseRequiredOptionValue } from "./args.js";
 import { runCodexHooksCommand } from "./commands/codexHooks.js";
 import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
 import {
@@ -33,6 +34,20 @@ export type CliRunOptions = {
   popupDeps?: PopupCommandDeps | undefined;
   tuiDeps?: TuiCommandDeps | undefined;
 };
+
+const configBackedCommands = [
+  "doctor",
+  "hooks",
+  "command",
+  "observer",
+  "popup",
+  "reconcile",
+  "snapshot",
+  "tui",
+  "worktrunk",
+] as const;
+
+const topLevelCommands = ["debug", ...configBackedCommands] as const;
 
 export async function runCli(
   argv = process.argv.slice(2),
@@ -270,8 +285,12 @@ function repoRootFromCliModule(): string {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const invoked = parseGlobalOptions(process.argv.slice(2)).args;
-  const suppressOutput = shouldSuppressCliProcessOutput(invoked);
+  let suppressOutput = false;
+  try {
+    suppressOutput = shouldSuppressCliProcessOutput(parseGlobalOptions(process.argv.slice(2)).args);
+  } catch {
+    suppressOutput = false;
+  }
   runCli()
     .then((result) => {
       if (!suppressOutput && result.output !== undefined) {
@@ -317,7 +336,11 @@ function parseGlobalOptions(argv: string[]): { args: string[]; configPath?: stri
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--config") {
-      configPath = argv[index + 1];
+      const value = parseRequiredOptionValue(argv[index + 1], "--config");
+      if (value.startsWith("--") || isTopLevelCommand(value)) {
+        throw new Error("--config requires a value.");
+      }
+      configPath = value;
       index += 1;
       continue;
     }
@@ -336,15 +359,9 @@ function commandRequiresConfig(command: string, args: string[]): boolean {
   if (command === "debug") {
     return args[0] === "bundle" || args[0] === "trace";
   }
-  return [
-    "doctor",
-    "hooks",
-    "command",
-    "observer",
-    "popup",
-    "reconcile",
-    "snapshot",
-    "tui",
-    "worktrunk",
-  ].includes(command);
+  return configBackedCommands.includes(command as (typeof configBackedCommands)[number]);
+}
+
+function isTopLevelCommand(value: string): boolean {
+  return topLevelCommands.includes(value as (typeof topLevelCommands)[number]);
 }

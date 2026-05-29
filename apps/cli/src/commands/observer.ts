@@ -1,5 +1,6 @@
 import type { WosmConfig } from "@wosm/config";
 import type { ObserverHealth, ObserverStopReceipt } from "@wosm/contracts";
+import { parsePositiveIntegerOption } from "../args.js";
 import {
   getObserverStatus,
   type ObserverProcessDeps,
@@ -102,7 +103,7 @@ function takeTimeoutOption(
   }
   return {
     args: [...args.slice(0, index), ...args.slice(index + 2)],
-    timeoutMs: Number(value),
+    timeoutMs: parsePositiveIntegerOption(value, "--timeout-ms"),
   };
 }
 
