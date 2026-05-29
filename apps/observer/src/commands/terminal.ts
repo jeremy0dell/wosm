@@ -3,6 +3,8 @@ import type { RuntimeClock } from "@wosm/runtime";
 import type { ObserverPersistence } from "../persistence/index.js";
 import type { ObserverCore } from "../reconcile/core.js";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
+import { assertCommandType } from "./assertCommand.js";
+import { throwIfAborted } from "./cancellation.js";
 import { publishRemovedSessionIfAbsent } from "./cleanup/events.js";
 import {
   assertTerminalCloseAllowed,
@@ -10,7 +12,7 @@ import {
   terminalTargetMissingError,
 } from "./cleanup/index.js";
 import { closeTerminalTarget } from "./cleanup/operations.js";
-import type { CommandHandler, CommandHandlerContext } from "./queue.js";
+import type { CommandHandler } from "./queue.js";
 import { reconcileAndPublish } from "./reconcile.js";
 
 export type CreateTerminalFocusHandlerOptions = {
@@ -31,11 +33,11 @@ export function createTerminalFocusHandler(
   options: CreateTerminalFocusHandlerOptions,
 ): CommandHandler {
   return async (context) => {
-    assertTerminalFocusCommand(context);
+    assertCommandType(context, "terminal.focus");
     throwIfAborted(context.signal);
     const targetId = resolveTerminalFocusTargetId({
       core: options.core,
-      command: context.command,
+      payload: context.command.payload,
       providerId: options.terminal.id,
     });
     throwIfAborted(context.signal);
@@ -48,7 +50,7 @@ export function createTerminalCloseHandler(
   options: CreateTerminalCloseHandlerOptions,
 ): CommandHandler {
   return async (context) => {
-    assertTerminalCloseCommand(context);
+    assertCommandType(context, "terminal.close");
     throwIfAborted(context.signal);
     const snapshot = options.core.getSnapshot();
     const resolved = resolveTerminalTargetOrThrow({
@@ -93,56 +95,33 @@ export function createTerminalCloseHandler(
 
 function resolveTerminalFocusTargetId(input: {
   core: ObserverCore;
-  command: Extract<CommandHandlerContext["command"], { type: "terminal.focus" }>;
+  payload: TerminalFocusPayload;
   providerId: string;
 }): string {
-  const payload = input.command.payload;
-  if (payload.targetId !== undefined) {
-    return payload.targetId;
-  }
-
-  const snapshot = input.core.getSnapshot();
-  if (payload.sessionId !== undefined) {
-    const session = snapshot.sessions.find((candidate) => candidate.id === payload.sessionId);
-    const targetId =
-      session?.terminal.primaryAgentTargetId ?? session?.terminal.workspaceTargetId ?? undefined;
-    if (targetId !== undefined) {
-      return targetId;
+  try {
+    return resolveTerminalTargetOrThrow({
+      snapshot: input.core.getSnapshot(),
+      payload: input.payload,
+      providerId: input.providerId,
+    }).targetId;
+  } catch (error) {
+    if (isWorktreeMissingError(error)) {
+      const missing: { sessionId?: string; worktreeId?: string } = {};
+      if (input.payload.sessionId !== undefined) missing.sessionId = input.payload.sessionId;
+      if (input.payload.worktreeId !== undefined) missing.worktreeId = input.payload.worktreeId;
+      throw terminalTargetMissingError(input.providerId, missing);
     }
-  }
-
-  if (payload.worktreeId !== undefined) {
-    const row = snapshot.rows.find((candidate) => candidate.id === payload.worktreeId);
-    const targetId = row?.terminal?.primaryAgentTargetId ?? row?.terminal?.workspaceTargetId;
-    if (targetId !== undefined) {
-      return targetId;
-    }
-  }
-
-  throw terminalTargetMissingError(input.providerId, {
-    ...(payload.worktreeId === undefined ? {} : { worktreeId: payload.worktreeId }),
-    ...(payload.sessionId === undefined ? {} : { sessionId: payload.sessionId }),
-  });
-}
-
-function assertTerminalFocusCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "terminal.focus" }>;
-} {
-  if (context.command.type !== "terminal.focus") {
-    throw new Error(`Expected terminal.focus command, received ${context.command.type}.`);
+    throw error;
   }
 }
 
-function assertTerminalCloseCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "terminal.close" }>;
-} {
-  if (context.command.type !== "terminal.close") {
-    throw new Error(`Expected terminal.close command, received ${context.command.type}.`);
-  }
+function isWorktreeMissingError(error: unknown): error is { code: "WORKTREE_NOT_FOUND" } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "WORKTREE_NOT_FOUND"
+  );
 }
 
 function focusContextFromPayload(payload: TerminalFocusPayload): TerminalFocusContext | undefined {
@@ -152,16 +131,4 @@ function focusContextFromPayload(payload: TerminalFocusPayload): TerminalFocusCo
   const context: TerminalFocusContext = {};
   context.origin = payload.origin;
   return context;
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw (
-      signal.reason ?? {
-        tag: "CancellationError",
-        code: "COMMAND_CANCELLED",
-        message: "Observer command was cancelled.",
-      }
-    );
-  }
 }

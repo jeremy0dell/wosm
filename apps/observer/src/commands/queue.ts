@@ -8,14 +8,11 @@ import type {
 } from "@wosm/contracts";
 import { CommandReceiptSchema, WosmCommandSchema } from "@wosm/contracts";
 import { createTraceContext, type JsonlLogger } from "@wosm/observability";
-import {
-  type RuntimeClock,
-  runRuntimeBoundaryWithTimeout,
-  systemClock,
-  toIsoTimestamp,
-} from "@wosm/runtime";
+import { type RuntimeClock, runRuntimeBoundaryWithTimeout, systemClock } from "@wosm/runtime";
 import { createErrorEnvelope, toSafeError } from "../diagnostics/errors.js";
 import type { ObserverIdFactory, ObserverPersistence } from "../persistence/index.js";
+import { nowIso } from "../utils/time.js";
+import { commandCancellationError, linkAbortSignals, throwIfAborted } from "./cancellation.js";
 
 export type CommandHandlerContext = {
   commandId: CommandId;
@@ -242,12 +239,12 @@ async function executeCommand(
       const linked = linkAbortSignals(signal, runtime?.signal);
       try {
         // Check before and after handler work because provider calls may notice abort cooperatively.
-        throwIfCommandCancelled(linked.signal);
+        throwIfAborted(linked.signal);
         if (handler === undefined) {
           throw missingCommandHandlerError();
         }
         await handler({ ...context, signal: linked.signal });
-        throwIfCommandCancelled(linked.signal);
+        throwIfAborted(linked.signal);
       } finally {
         linked.cleanup();
       }
@@ -338,55 +335,6 @@ function missingCommandHandlerError() {
   };
 }
 
-function commandCancellationError() {
-  return {
-    tag: "CancellationError",
-    code: "COMMAND_CANCELLED",
-    message: "Observer command was cancelled.",
-  };
-}
-
-function throwIfCommandCancelled(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw signal.reason ?? commandCancellationError();
-  }
-}
-
-function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
-  signal: AbortSignal;
-  cleanup(): void;
-} {
-  const controller = new AbortController();
-  const listeners: Array<() => void> = [];
-  const abort = (signal: AbortSignal) => {
-    if (!controller.signal.aborted) {
-      controller.abort(signal.reason ?? commandCancellationError());
-    }
-  };
-
-  for (const signal of signals) {
-    if (signal === undefined) {
-      continue;
-    }
-    if (signal.aborted) {
-      abort(signal);
-      continue;
-    }
-    const listener = () => abort(signal);
-    signal.addEventListener("abort", listener, { once: true });
-    listeners.push(() => signal.removeEventListener("abort", listener));
-  }
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      for (const listener of listeners) {
-        listener();
-      }
-    },
-  };
-}
-
 // Prefer the narrowest scope so commands touching the same session, worktree, or project serialize.
 function commandScope(command: WosmCommand): string {
   if ("targetId" in command.payload && typeof command.payload.targetId === "string") {
@@ -404,6 +352,4 @@ function commandScope(command: WosmCommand): string {
   return "global";
 }
 
-function now(clock: RuntimeClock): string {
-  return toIsoTimestamp(clock.now());
-}
+const now = nowIso;

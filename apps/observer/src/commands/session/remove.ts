@@ -4,6 +4,7 @@ import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
 import type { ObserverCore } from "../../reconcile/core.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
+import { assertCommandType } from "../assertCommand.js";
 import {
   assertSessionCloseAllowed,
   assertWorktreeRemovalAllowed,
@@ -18,7 +19,7 @@ import {
   stopHarnessForWorktree,
   worktreeMissingError,
 } from "../cleanup/index.js";
-import type { CommandHandler, CommandHandlerContext } from "../queue.js";
+import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import { throwIfAborted } from "./shared.js";
 
@@ -36,7 +37,7 @@ export function createSessionRemoveHandler(
   options: CreateSessionRemoveHandlerOptions,
 ): CommandHandler {
   return async (context) => {
-    assertSessionRemoveCommand(context);
+    assertCommandType(context, "session.remove");
     throwIfAborted(context.signal);
 
     const payload = context.command.payload;
@@ -117,14 +118,4 @@ export function createSessionRemoveHandler(
       });
     }
   };
-}
-
-function assertSessionRemoveCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "session.remove" }>;
-} {
-  if (context.command.type !== "session.remove") {
-    throw new Error(`Expected session.remove command, received ${context.command.type}.`);
-  }
 }

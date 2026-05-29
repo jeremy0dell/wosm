@@ -2,7 +2,6 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ConfigDiagnostic, WosmConfig } from "@wosm/config";
 import type {
-  CommandRecord,
   DiagnosticCollectionOptions,
   DiagnosticSnapshot,
   DoctorCheck,
@@ -27,6 +26,7 @@ import {
 } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
 import { runRuntimeBoundaryWithTimeout, systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { commandRecordFromPersisted } from "../commands/record.js";
 import type {
   ObserverPersistence,
   PersistedCommand,
@@ -123,7 +123,7 @@ export async function collectDiagnosticSnapshot(
     observerHealth,
     snapshot,
     providerHealth: snapshot.providerHealth,
-    commands: filteredCommands.map(commandRecord),
+    commands: filteredCommands.map(commandRecordFromPersisted),
     events: events.map((event) => event.event),
     errors: commandErrors.map((error) => error.envelope),
     logs,
@@ -313,22 +313,6 @@ function stringAttribute(
 ): string | undefined {
   const value = attributes?.[key];
   return typeof value === "string" ? value : undefined;
-}
-
-function commandRecord(command: PersistedCommand): CommandRecord {
-  const record: CommandRecord = {
-    id: command.id,
-    type: command.type,
-    command: command.command,
-    status: command.status,
-    createdAt: command.createdAt,
-  };
-  if (command.startedAt !== undefined) record.startedAt = command.startedAt;
-  if (command.finishedAt !== undefined) record.finishedAt = command.finishedAt;
-  if (command.traceId !== undefined) record.traceId = command.traceId;
-  if (command.spanId !== undefined) record.spanId = command.spanId;
-  if (command.error !== undefined) record.error = command.error;
-  return record;
 }
 
 function configSummary(

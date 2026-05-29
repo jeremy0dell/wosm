@@ -5,7 +5,9 @@ import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
 import type { ObserverCore } from "../../reconcile/core.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
-import type { CommandHandler, CommandHandlerContext } from "../queue.js";
+import { nowIso } from "../../utils/time.js";
+import { assertCommandType } from "../assertCommand.js";
+import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import {
   closeTerminalTargetBestEffort,
@@ -44,7 +46,7 @@ export function createSessionCreateHandler(
   };
 
   return async (context) => {
-    assertSessionCreateCommand(context);
+    assertCommandType(context, "session.create");
     throwIfAborted(context.signal);
 
     const payload = context.command.payload;
@@ -212,16 +214,4 @@ export function createSessionCreateHandler(
   };
 }
 
-function now(clock: RuntimeClock | undefined): string {
-  return (clock?.now() ?? new Date()).toISOString();
-}
-
-function assertSessionCreateCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "session.create" }>;
-} {
-  if (context.command.type !== "session.create") {
-    throw new Error(`Expected session.create command, received ${context.command.type}.`);
-  }
-}
+const now = nowIso;

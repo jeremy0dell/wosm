@@ -1,12 +1,11 @@
 import type {
-  HarnessProvider,
   SafeError,
   SessionView,
   TerminalTargetId,
   WorktreeRow,
   WosmSnapshot,
 } from "@wosm/contracts";
-import type { ProviderRegistry } from "../../providers/registry.js";
+import { worktreeMissingError as createWorktreeMissingError } from "../errors.js";
 
 type TerminalTargetPayload = {
   targetId?: string | undefined;
@@ -55,23 +54,6 @@ export function resolveRowForSession(
   session: SessionView,
 ): WorktreeRow | undefined {
   return snapshot.rows.find((candidate) => candidate.id === session.worktreeId);
-}
-
-export function resolveHarnessProviderOrThrow(
-  providers: ProviderRegistry,
-  providerId: string,
-): HarnessProvider {
-  const provider = providers.harnesses.get(providerId);
-  if (provider !== undefined) {
-    return provider;
-  }
-  const error: SafeError = {
-    tag: "HarnessProviderError",
-    code: "HARNESS_PROVIDER_UNAVAILABLE",
-    message: "The requested harness provider is not registered.",
-    provider: providerId,
-  };
-  throw error;
 }
 
 export function resolveTerminalTargetOrThrow(input: {
@@ -154,15 +136,12 @@ export function sessionMissingError(sessionId: string): SafeError {
 }
 
 export function worktreeMissingError(worktreeId: string, projectId?: string): SafeError {
-  const error: SafeError = {
-    tag: "CommandValidationError",
-    code: "WORKTREE_NOT_FOUND",
+  return createWorktreeMissingError({
+    worktreeId,
+    projectId,
     message: "The requested worktree is not visible in the observer snapshot.",
     hint: "Refresh the dashboard and retry.",
-    worktreeId,
-  };
-  if (projectId !== undefined) error.projectId = projectId;
-  return error;
+  });
 }
 
 export function terminalTargetMissingError(

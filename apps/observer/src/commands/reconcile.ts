@@ -2,7 +2,8 @@ import type { WosmSnapshot } from "@wosm/contracts";
 import type { RuntimeClock } from "@wosm/runtime";
 import type { ObserverCore } from "../reconcile/core.js";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
-import type { CommandHandler, CommandHandlerContext } from "./queue.js";
+import { assertCommandType } from "./assertCommand.js";
+import type { CommandHandler } from "./queue.js";
 
 export type ReconcileAndPublishOptions = {
   core: ObserverCore;
@@ -34,21 +35,11 @@ export function createObserverReconcileHandler(
   options: ReconcileAndPublishOptions,
 ): CommandHandler {
   return async (context) => {
-    assertReconcileCommand(context);
+    assertCommandType(context, "observer.reconcile");
     await reconcileAndPublish({
       ...options,
       reason: context.command.payload.reason ?? "command",
       trace: context.trace,
     });
   };
-}
-
-function assertReconcileCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "observer.reconcile" }>;
-} {
-  if (context.command.type !== "observer.reconcile") {
-    throw new Error(`Expected observer.reconcile command, received ${context.command.type}.`);
-  }
 }
