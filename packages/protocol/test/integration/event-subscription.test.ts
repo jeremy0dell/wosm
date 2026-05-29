@@ -1,17 +1,20 @@
 import type { EventFilter, WosmEvent } from "@wosm/contracts";
-import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import {
   connectUnixSocket,
   createObserverClient,
   listenUnixSocket,
-  type ObserverApi,
   PROTOCOL_SCHEMA_VERSION,
   startProtocolServer,
 } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../tests/support/sockets";
-
-const now = "2026-05-20T12:00:00.000Z";
+import {
+  createFakeObserverApi,
+  ids,
+  protocolTestNow as now,
+  stream,
+  waitFor,
+} from "../support/fixtures.js";
 
 describe("protocol event subscriptions", () => {
   it("streams command and hook events to subscribers", async () => {
@@ -32,7 +35,7 @@ describe("protocol event subscriptions", () => {
     ];
     let observedFilter: EventFilter | undefined;
     const api = {
-      ...minimalApi(),
+      ...createFakeObserverApi(),
       subscribe: (filter?: EventFilter) => {
         observedFilter = filter;
         return stream(events);
@@ -79,7 +82,7 @@ describe("protocol event subscriptions", () => {
       }),
     };
     const api = {
-      ...minimalApi(),
+      ...createFakeObserverApi(),
       subscribe: () => blockedEvents,
     };
     const server = await startProtocolServer({ socketPath, api });
@@ -135,87 +138,3 @@ describe("protocol event subscriptions", () => {
     }
   });
 });
-
-function minimalApi(): ObserverApi {
-  return {
-    health: async () => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      status: "healthy",
-      pid: 1234,
-      startedAt: now,
-      version: "0.0.0",
-    }),
-    stop: async () => ({ schemaVersion: WOSM_SCHEMA_VERSION, stopped: true, at: now }),
-    getSnapshot: async () => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      generatedAt: now,
-      observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
-      providerHealth: {},
-      projects: [],
-      rows: [],
-      sessions: [],
-      counts: {
-        projects: 0,
-        worktrees: 0,
-        agents: 0,
-        working: 0,
-        idle: 0,
-        attention: 0,
-        unknown: 0,
-      },
-      alerts: [],
-    }),
-    subscribe: () => stream([]),
-    dispatch: async () => ({ commandId: "cmd_1", accepted: true, status: "accepted" }),
-    getCommand: async () => undefined,
-    reconcile: async () => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      reason: "manual",
-      reconciledAt: now,
-      snapshot: await minimalApi().getSnapshot(),
-    }),
-    ingestHookEvent: async (event) => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      hookId: "hook_1",
-      provider: event.provider,
-      event: event.event,
-      accepted: true,
-      status: "ingested",
-      receivedAt: event.receivedAt,
-      reconciled: true,
-    }),
-    reportHarnessEvent: async (report) => ({
-      schemaVersion: WOSM_SCHEMA_VERSION,
-      reportId: report.reportId,
-      provider: report.provider,
-      eventType: report.eventType,
-      accepted: true,
-      status: "accepted",
-      receivedAt: report.observedAt,
-      projected: false,
-      scheduledReconcile: true,
-    }),
-  };
-}
-
-async function* stream(events: WosmEvent[]): AsyncIterable<WosmEvent> {
-  for (const event of events) {
-    yield event;
-  }
-}
-
-function ids(prefix: string): () => string {
-  let id = 0;
-  return () => `${prefix}_${++id}`;
-}
-
-async function waitFor(predicate: () => boolean, timeoutMs = 500): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() <= deadline) {
-    if (predicate()) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error("Timed out waiting for predicate.");
-}
