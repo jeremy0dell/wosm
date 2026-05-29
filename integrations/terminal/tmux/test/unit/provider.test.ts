@@ -1,8 +1,9 @@
-import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
+import type { ExternalCommandInput } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
 import { tmuxListTargetsFormat } from "../../src/parse";
 import { TmuxProvider } from "../../src/provider";
 import { buildWorkbenchWindowName } from "../../src/topology";
+import { tmuxCommandResult } from "../support/commands";
 
 const now = "2026-05-21T12:00:00.000Z";
 const project = {
@@ -64,9 +65,9 @@ describe("TmuxProvider", () => {
           throw Object.assign(new Error("missing"), { code: 1, stderr: "can't find session" });
         }
         if (input.args?.[0] === "display-message") {
-          return result(input, "wosm\t@7\t%8");
+          return tmuxCommandResult(input, "wosm\t@7\t%8");
         }
-        return result(input, "");
+        return tmuxCommandResult(input, "");
       },
     });
 
@@ -113,15 +114,15 @@ describe("TmuxProvider", () => {
       runner: async (input) => {
         calls.push(input);
         if (input.args?.[0] === "new-window") {
-          return result(input, "wosm\t@9\t%10");
+          return tmuxCommandResult(input, "wosm\t@9\t%10");
         }
         if (input.args?.[0] === "list-windows") {
-          return result(input, "web-other-branch\n");
+          return tmuxCommandResult(input, "web-other-branch\n");
         }
         if (input.args?.[0] === "display-message") {
-          return result(input, "wosm\t@9\t%10");
+          return tmuxCommandResult(input, "wosm\t@9\t%10");
         }
-        return result(input, "");
+        return tmuxCommandResult(input, "");
       },
     });
 
@@ -196,10 +197,10 @@ describe("TmuxProvider", () => {
       runner: async (input) => {
         calls.push(input);
         if (input.args?.[0] === "new-window") {
-          return result(input, "wosm\t@new\t%new");
+          return tmuxCommandResult(input, "wosm\t@new\t%new");
         }
         if (input.args?.[0] === "list-panes") {
-          return result(
+          return tmuxCommandResult(
             input,
             [
               "wosm",
@@ -222,12 +223,12 @@ describe("TmuxProvider", () => {
           );
         }
         if (input.args?.[0] === "list-windows") {
-          return result(input, `${collidingWindowName}\n`);
+          return tmuxCommandResult(input, `${collidingWindowName}\n`);
         }
         if (input.args?.[0] === "display-message") {
-          return result(input, "wosm\t@new\t%new");
+          return tmuxCommandResult(input, "wosm\t@new\t%new");
         }
-        return result(input, "");
+        return tmuxCommandResult(input, "");
       },
     });
 
@@ -303,10 +304,10 @@ describe("TmuxProvider", () => {
       runner: async (input) => {
         calls.push(input);
         if (input.args?.[0] === "list-windows") {
-          return result(input, "web-feature-auth\n");
+          return tmuxCommandResult(input, "web-feature-auth\n");
         }
         if (input.args?.[0] === "list-panes") {
-          return result(
+          return tmuxCommandResult(
             input,
             [
               "wosm",
@@ -329,9 +330,9 @@ describe("TmuxProvider", () => {
           );
         }
         if (input.args?.[0] === "display-message") {
-          return result(input, "wosm\t@old\t%old");
+          return tmuxCommandResult(input, "wosm\t@old\t%old");
         }
-        return result(input, "");
+        return tmuxCommandResult(input, "");
       },
     });
 
@@ -381,13 +382,13 @@ describe("TmuxProvider", () => {
       runner: async (input) => {
         calls.push(input);
         if (input.args?.[0] === "new-window") {
-          return result(input, "wosm\t@fresh\t%fresh");
+          return tmuxCommandResult(input, "wosm\t@fresh\t%fresh");
         }
         if (input.args?.[0] === "list-windows") {
-          return result(input, "web-other\n");
+          return tmuxCommandResult(input, "web-other\n");
         }
         if (input.args?.[0] === "list-panes") {
-          return result(
+          return tmuxCommandResult(
             input,
             [
               "wosm",
@@ -410,9 +411,9 @@ describe("TmuxProvider", () => {
           );
         }
         if (input.args?.[0] === "display-message") {
-          return result(input, "wosm\t@fresh\t%fresh");
+          return tmuxCommandResult(input, "wosm\t@fresh\t%fresh");
         }
-        return result(input, "");
+        return tmuxCommandResult(input, "");
       },
     });
 
@@ -480,7 +481,7 @@ describe("TmuxProvider", () => {
       clock: { now: () => new Date(now) },
       runner: async (input) => {
         calls.push(input);
-        return result(
+        return tmuxCommandResult(
           input,
           [
             "wosm",
@@ -543,7 +544,7 @@ describe("TmuxProvider", () => {
     const provider = new TmuxProvider({
       runner: async (input) => {
         calls.push(input);
-        return result(input, "");
+        return tmuxCommandResult(input, "");
       },
     });
 
@@ -569,7 +570,7 @@ describe("TmuxProvider", () => {
       clock: { now: () => new Date(now) },
       runner: async (input) => {
         calls.push(input);
-        return result(input, "");
+        return tmuxCommandResult(input, "");
       },
     });
 
@@ -640,9 +641,9 @@ describe("TmuxProvider", () => {
       runner: async (input) => {
         calls.push(input);
         if (input.args?.[0] === "display-message") {
-          return result(input, "1\t2\tcodex");
+          return tmuxCommandResult(input, "1\t2\tcodex");
         }
-        return result(input, "");
+        return tmuxCommandResult(input, "");
       },
     });
 
@@ -750,13 +751,3 @@ describe("TmuxProvider", () => {
     expect(aborted).toBe(true);
   });
 });
-
-function result(input: ExternalCommandInput, stdout: string): ExternalCommandResult {
-  return {
-    command: input.command,
-    args: input.args ?? [],
-    stdout,
-    stderr: "",
-    exitCode: 0,
-  };
-}

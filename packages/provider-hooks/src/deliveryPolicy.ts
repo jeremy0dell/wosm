@@ -19,8 +19,6 @@ export type ProviderDeliveryAttempt = {
   error?: SafeError;
 };
 
-export type ProviderDeliveryPolicyDeps = ProviderHookObserverStartupDeps;
-
 type ReceiptRecorder = (input: {
   paths: ObserverPaths;
   event: ProviderHookEvent;
@@ -40,7 +38,7 @@ export async function deliverProviderHookWithSpooling(input: {
   rateLimitMs: number;
   configPath?: string | undefined;
   observerEntryPath?: string | undefined;
-  deps: ProviderDeliveryPolicyDeps;
+  deps: ProviderHookObserverStartupDeps;
   deliver: () => Promise<ProviderDeliveryAttempt>;
   spoolReceipt: (error: SafeError | undefined) => Promise<HookReceipt>;
   recordReceipt?: ReceiptRecorder | undefined;
@@ -98,7 +96,7 @@ async function maybeStartObserver(input: {
   observerEntryPath?: string | undefined;
   timeoutMs: number;
   rateLimitMs: number;
-  deps: ProviderDeliveryPolicyDeps;
+  deps: ProviderHookObserverStartupDeps;
 }) {
   const lock = await acquireAutoStartLock({
     paths: input.paths,
@@ -161,7 +159,7 @@ type AutoStartLock =
 async function acquireAutoStartLock(input: {
   paths: ObserverPaths;
   staleMs: number;
-  deps: ProviderDeliveryPolicyDeps;
+  deps: ProviderHookObserverStartupDeps;
 }): Promise<AutoStartLock> {
   const lockDir = autoStartLockDir(input.paths);
   try {
@@ -212,7 +210,7 @@ async function acquireAutoStartLock(input: {
 async function waitForContendedAutoStart(input: {
   paths: ObserverPaths;
   timeoutMs: number;
-  deps: ProviderDeliveryPolicyDeps;
+  deps: ProviderHookObserverStartupDeps;
 }) {
   try {
     await waitForProviderHookObserverHealth(
@@ -241,7 +239,7 @@ function autoStartLockDir(paths: ObserverPaths): string {
 
 async function writeAutoStartLockOwner(
   lockDir: string,
-  deps: ProviderDeliveryPolicyDeps,
+  deps: ProviderHookObserverStartupDeps,
 ): Promise<void> {
   const clock = deps.clock ?? systemClock;
   try {

@@ -4,6 +4,7 @@ import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
 import type { ObserverCore } from "../../reconcile/core.js";
 import type { ObserverEventBus } from "../../runtime/eventBus.js";
+import { assertCommandType } from "../assertCommand.js";
 import {
   assertSessionCloseAllowed,
   closeSessionResources,
@@ -11,7 +12,7 @@ import {
   resolveRowForSession,
   resolveSessionOrThrow,
 } from "../cleanup/index.js";
-import type { CommandHandler, CommandHandlerContext } from "../queue.js";
+import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import { throwIfAborted } from "./shared.js";
 
@@ -29,7 +30,7 @@ export function createSessionCloseHandler(
   options: CreateSessionCloseHandlerOptions,
 ): CommandHandler {
   return async (context) => {
-    assertSessionCloseCommand(context);
+    assertCommandType(context, "session.close");
     throwIfAborted(context.signal);
 
     const payload = context.command.payload;
@@ -65,14 +66,4 @@ export function createSessionCloseHandler(
       clock: options.clock,
     });
   };
-}
-
-function assertSessionCloseCommand(
-  context: CommandHandlerContext,
-): asserts context is CommandHandlerContext & {
-  command: Extract<CommandHandlerContext["command"], { type: "session.close" }>;
-} {
-  if (context.command.type !== "session.close") {
-    throw new Error(`Expected session.close command, received ${context.command.type}.`);
-  }
 }

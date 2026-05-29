@@ -5,6 +5,7 @@ import type {
 } from "@wosm/contracts";
 import { HarnessEventObservationSchema } from "@wosm/contracts";
 import type { PersistedProviderObservation } from "../persistence/index.js";
+import { isRecord } from "../utils/guards.js";
 
 export type ObserverHarnessRun = {
   run: HarnessRunObservation;
@@ -180,10 +181,6 @@ function providerDataWithOverlay(
   }
   providerData.statusOverlay = statusOverlay;
   return providerData;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function compareOverlays(left: StatusOverlay, right: StatusOverlay): number {

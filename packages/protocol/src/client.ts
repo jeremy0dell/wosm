@@ -1,60 +1,33 @@
 import type {
   CommandId,
-  CommandReceipt,
   CommandRecord,
   DiagnosticCollectionOptions,
-  DiagnosticSnapshot,
   DoctorOptions,
-  DoctorReport,
   EventFilter,
   HarnessEventReport,
-  HarnessEventReportReceipt,
-  HookReceipt,
-  ObserverHealth,
-  ObserverStopReceipt,
   ProviderHookEvent,
-  ReconcileReceipt,
   WosmCommand,
   WosmEvent,
-  WosmSnapshot,
 } from "@wosm/contracts";
-import {
-  CommandReceiptSchema,
-  CommandRecordSchema,
-  DiagnosticSnapshotSchema,
-  DoctorReportSchema,
-  HarnessEventReportReceiptSchema,
-  HookReceiptSchema,
-  ObserverHealthSchema,
-  ObserverStopReceiptSchema,
-  ReconcileReceiptSchema,
-  WosmEventSchema,
-  WosmSnapshotSchema,
-} from "@wosm/contracts";
+import { WosmEventSchema } from "@wosm/contracts";
 import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
+import type { z } from "zod";
+import type { ObserverApi } from "./api.js";
 import {
-  PROTOCOL_SCHEMA_VERSION,
   ProtocolEventEnvelopeSchema,
   type ProtocolMethod,
-  ProtocolRequestSchema,
   ProtocolResponseSchema,
+  ProtocolResultSchemas,
+  protocolRequest,
   protocolSafeError,
+  protocolSocketClosedError,
 } from "./messages.js";
+import { unwrapBoundaryResult } from "./runtime.js";
 import { connectUnixSocket, type NdjsonConnection } from "./transport.js";
 
-export type ObserverClient = {
-  health(): Promise<ObserverHealth>;
-  stop(): Promise<ObserverStopReceipt>;
-  getSnapshot(options?: { includeDebug?: boolean }): Promise<WosmSnapshot>;
-  subscribe(filter?: EventFilter): AsyncIterable<WosmEvent>;
-  dispatch(command: WosmCommand): Promise<CommandReceipt>;
-  getCommand(commandId: CommandId): Promise<CommandRecord | undefined>;
-  reconcile(reason?: string): Promise<ReconcileReceipt>;
-  ingestHookEvent(event: ProviderHookEvent): Promise<HookReceipt>;
-  reportHarnessEvent(report: HarnessEventReport): Promise<HarnessEventReportReceipt>;
-  runDoctor(options?: DoctorOptions): Promise<DoctorReport>;
-  collectDiagnostics(options?: DiagnosticCollectionOptions): Promise<DiagnosticSnapshot>;
-};
+type ProtocolResult<TMethod extends ProtocolMethod> = z.infer<
+  (typeof ProtocolResultSchemas)[TMethod]
+>;
 
 export type CreateObserverClientOptions = {
   socketPath: string;
@@ -64,55 +37,43 @@ export type CreateObserverClientOptions = {
 
 const defaultRequestId = () => `req_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-export function createObserverClient(options: CreateObserverClientOptions): ObserverClient {
+export function createObserverClient(options: CreateObserverClientOptions): ObserverApi {
   const requestId = options.requestId ?? defaultRequestId;
 
   return {
-    health: async () =>
-      ObserverHealthSchema.parse(await call(options, requestId(), "observer.health")),
-    stop: async () =>
-      ObserverStopReceiptSchema.parse(await call(options, requestId(), "observer.stop")),
-    getSnapshot: async (params) =>
-      WosmSnapshotSchema.parse(await call(options, requestId(), "snapshot.get", params)),
-    dispatch: async (command) =>
-      CommandReceiptSchema.parse(await call(options, requestId(), "command.dispatch", { command })),
-    getCommand: async (commandId) => {
+    health: async () => call(options, requestId(), "observer.health"),
+    stop: async () => call(options, requestId(), "observer.stop"),
+    getSnapshot: async (params) => call(options, requestId(), "snapshot.get", params),
+    dispatch: async (command: WosmCommand) =>
+      call(options, requestId(), "command.dispatch", { command }),
+    getCommand: async (commandId: CommandId) => {
       const result = await call(options, requestId(), "command.get", { commandId });
-      return result === null ? undefined : CommandRecordSchema.parse(result);
+      return result === null ? undefined : (result satisfies CommandRecord);
     },
-    reconcile: async (reason) =>
-      ReconcileReceiptSchema.parse(
-        await call(
-          options,
-          requestId(),
-          "observer.reconcile",
-          reason === undefined ? undefined : { reason },
-        ),
+    reconcile: async (reason?: string) =>
+      call(
+        options,
+        requestId(),
+        "observer.reconcile",
+        reason === undefined ? undefined : { reason },
       ),
-    ingestHookEvent: async (event) =>
-      HookReceiptSchema.parse(
-        await call(options, requestId(), "observer.ingestHookEvent", { event }),
-      ),
-    reportHarnessEvent: async (report) =>
-      HarnessEventReportReceiptSchema.parse(
-        await call(options, requestId(), "observer.harnessEvent.report", { report }),
-      ),
-    runDoctor: async (params) =>
-      DoctorReportSchema.parse(await call(options, requestId(), "doctor.run", params)),
-    collectDiagnostics: async (params) =>
-      DiagnosticSnapshotSchema.parse(
-        await call(options, requestId(), "diagnostics.collect", params),
-      ),
-    subscribe: (filter) => subscribe(options, requestId(), filter),
+    ingestHookEvent: async (event: ProviderHookEvent) =>
+      call(options, requestId(), "observer.ingestHookEvent", { event }),
+    reportHarnessEvent: async (report: HarnessEventReport) =>
+      call(options, requestId(), "observer.harnessEvent.report", { report }),
+    runDoctor: async (params?: DoctorOptions) => call(options, requestId(), "doctor.run", params),
+    collectDiagnostics: async (params?: DiagnosticCollectionOptions) =>
+      call(options, requestId(), "diagnostics.collect", params),
+    subscribe: (filter?: EventFilter) => subscribe(options, requestId(), filter),
   };
 }
 
-async function call(
+async function call<TMethod extends ProtocolMethod>(
   options: CreateObserverClientOptions,
   id: string,
-  method: ProtocolMethod,
+  method: TMethod,
   params?: unknown,
-): Promise<unknown> {
+): Promise<ProtocolResult<TMethod>> {
   const result = await runRuntimeBoundaryWithTimeout(
     {
       operation: `protocol.client.${method}`,
@@ -134,15 +95,7 @@ async function call(
       );
       try {
         return await withConnectionAbort(connection, signal, async () => {
-          connection.send(
-            ProtocolRequestSchema.parse({
-              schemaVersion: PROTOCOL_SCHEMA_VERSION,
-              jsonrpc: "2.0",
-              id,
-              method,
-              ...(params === undefined ? {} : { params }),
-            }),
-          );
+          connection.send(protocolRequest(id, method, params));
 
           for await (const message of connection.messages()) {
             const response = ProtocolResponseSchema.parse(message);
@@ -152,13 +105,10 @@ async function call(
             if ("error" in response) {
               throw response.error;
             }
-            return response.result;
+            return ProtocolResultSchemas[method].parse(response.result) as ProtocolResult<TMethod>;
           }
 
-          throw protocolSafeError({
-            code: "PROTOCOL_SOCKET_CLOSED",
-            message: "Observer socket closed before a protocol response arrived.",
-          });
+          throw protocolSocketClosedError();
         });
       } finally {
         connection.close();
@@ -166,10 +116,7 @@ async function call(
     },
   );
 
-  if (!result.ok) {
-    throw result.error;
-  }
-  return result.value;
+  return unwrapBoundaryResult(result);
 }
 
 async function* subscribe(
@@ -182,15 +129,7 @@ async function* subscribe(
     options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs },
   );
   try {
-    connection.send(
-      ProtocolRequestSchema.parse({
-        schemaVersion: PROTOCOL_SCHEMA_VERSION,
-        jsonrpc: "2.0",
-        id,
-        method: "events.subscribe",
-        ...(filter === undefined ? {} : { params: filter }),
-      }),
-    );
+    connection.send(protocolRequest(id, "events.subscribe", filter));
 
     const iterator = connection.messages()[Symbol.asyncIterator]();
     const ack = await nextProtocolMessage(connection, iterator, {
@@ -244,18 +183,12 @@ async function nextProtocolMessage(
       withConnectionAbort(connection, signal, async () => {
         const next = await iterator.next();
         if (next.done) {
-          throw protocolSafeError({
-            code: "PROTOCOL_SOCKET_CLOSED",
-            message: "Observer socket closed before a protocol response arrived.",
-          });
+          throw protocolSocketClosedError();
         }
         return next.value;
       }),
   );
-  if (!result.ok) {
-    throw result.error;
-  }
-  return result.value;
+  return unwrapBoundaryResult(result);
 }
 
 async function withConnectionAbort<T>(

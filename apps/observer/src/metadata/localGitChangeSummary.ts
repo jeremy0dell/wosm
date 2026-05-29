@@ -9,10 +9,10 @@ import { WorktreeChangeSummarySchema } from "@wosm/contracts";
 import {
   type ExternalCommandRunner,
   type RuntimeClock,
-  runExternalCommand,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
+import { type GitCommandContext, runGitCommand, runOptionalGitCommand } from "./gitCommand.js";
 
 export type LocalGitWorktree = {
   id: string;
@@ -43,13 +43,6 @@ export type ParsedGitNumstat = {
   deletions: number;
   filesChanged: number;
   binaryFiles: number;
-};
-
-type GitCommandContext = {
-  cwd: string;
-  timeoutMs: number;
-  runner?: ExternalCommandRunner;
-  signal?: AbortSignal;
 };
 
 type ResolvedBase = {
@@ -358,27 +351,21 @@ async function runOptionalGit(
   command: GitCommandContext,
   args: string[],
 ): Promise<string | undefined> {
-  try {
-    return (await runGit(command, args)).stdout;
-  } catch {
-    return undefined;
-  }
+  return (
+    await runOptionalGitCommand(command, args, {
+      maxOutputChars: 64 * 1024,
+      errorOnNonZeroExit: () =>
+        localGitMetadataError("LOCAL_GIT_COMMAND_FAILED", "Git command failed."),
+    })
+  )?.stdout;
 }
 
 async function runGit(command: GitCommandContext, args: string[]) {
-  const input: Parameters<typeof runExternalCommand>[0] = {
-    command: "git",
-    args,
-    cwd: command.cwd,
-    timeoutMs: command.timeoutMs,
+  return runGitCommand(command, args, {
     maxOutputChars: 64 * 1024,
-  };
-  if (command.signal !== undefined) input.signal = command.signal;
-  const result = await runExternalCommand(input, command.runner);
-  if (result.exitCode !== 0) {
-    throw localGitMetadataError("LOCAL_GIT_COMMAND_FAILED", "Git command failed.");
-  }
-  return result;
+    errorOnNonZeroExit: () =>
+      localGitMetadataError("LOCAL_GIT_COMMAND_FAILED", "Git command failed."),
+  });
 }
 
 function isUnqualifiedBase(base: string, remotes: string[]): boolean {

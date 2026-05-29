@@ -17,6 +17,7 @@ import { createProviderRegistry } from "../providers/factory.js";
 import { createObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
 import { openObserverSqlite } from "../sqlite.js";
 import { createObserverApi } from "./api.js";
+import { emptyConfig } from "./emptyConfig.js";
 import { createObserverEventBus } from "./eventBus.js";
 import { createObserverLogger } from "./logging.js";
 import { type ObserverServer, startObserverServer } from "./server.js";
@@ -42,21 +43,20 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
   const spoolDir = hookSpoolDir(stateDir);
   await mkdir(stateDir, { recursive: true, mode: 0o700 });
 
-  const clock = systemClock;
   const sqlite = openObserverSqlite({
     path: join(stateDir, "observer.sqlite"),
-    clock,
+    clock: systemClock,
   });
-  const persistence = createObserverPersistence({ sqlite, clock });
+  const persistence = createObserverPersistence({ sqlite, clock: systemClock });
   const eventBus = createObserverEventBus();
-  const logger = createObserverLogger({ stateDir, clock });
+  const logger = createObserverLogger({ stateDir, clock: systemClock });
   const retentionDays = providerObservationRetentionDays(config.observability?.retention);
-  const pruneAt = toIsoTimestamp(clock.now());
+  const pruneAt = toIsoTimestamp(systemClock.now());
   await persistence.pruneExpiredProviderObservations(
     pruneAt,
     providerObservationLegacyCutoff(pruneAt, retentionDays),
   );
-  const commandQueue = createCommandQueue({ persistence, clock, eventBus, logger });
+  const commandQueue = createCommandQueue({ persistence, clock: systemClock, eventBus, logger });
   const providerOptions: Parameters<typeof createProviderRegistry>[1] = {};
   if (options.configPath !== undefined) {
     providerOptions.configPath = loadedConfig.configPath;
@@ -67,7 +67,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     providers,
     persistence,
     sqlite,
-    clock,
+    clock: systemClock,
     logger,
   });
   registerObserverCommandHandlers({
@@ -77,7 +77,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     projects: providerProjectsFromConfig(config),
     persistence,
     eventBus,
-    clock,
+    clock: systemClock,
     logger,
   });
 
@@ -109,7 +109,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     config,
     ...(options.configPath === undefined ? {} : { configPath: loadedConfig.configPath }),
     configDiagnostics: loadedConfig.diagnostics,
-    clock,
+    clock: systemClock,
     logger,
     onStop: () => {
       setTimeout(() => {
@@ -118,7 +118,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     },
   });
 
-  server = await startObserverServer({ socketPath, api, clock });
+  server = await startObserverServer({ socketPath, api, clock: systemClock });
   const stopFromSignal = () => {
     void stopObserver();
   };
@@ -166,19 +166,6 @@ function parseArgs(argv: string[]): {
     }
   }
   return result;
-}
-
-function emptyConfig(): WosmConfig {
-  return {
-    schemaVersion: 1,
-    defaults: {
-      worktreeProvider: "noop-worktree",
-      terminal: "noop-terminal",
-      harness: "noop-harness",
-      layout: "agent-shell",
-    },
-    projects: [],
-  };
 }
 
 function resolveObserverSocketPath(

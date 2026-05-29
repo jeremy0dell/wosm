@@ -1,5 +1,6 @@
 import type { HarnessLaunchPlan, TerminalLaunchProcessRequest } from "@wosm/contracts";
 import { z } from "zod";
+import { shellQuote } from "./shell.js";
 
 export const TmuxLaunchPaneProviderDataSchema = z
   .object({
@@ -42,8 +43,4 @@ function quoteCommand(value: string): string {
 
 function quoteArg(value: string): string {
   return /^[A-Za-z0-9_@%+=,.-]+$/.test(value) ? value : shellQuote(value);
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
 }

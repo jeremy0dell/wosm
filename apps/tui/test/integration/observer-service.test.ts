@@ -15,12 +15,7 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
-import {
-  listenUnixSocket,
-  type ObserverApi,
-  type ObserverClient,
-  startProtocolServer,
-} from "@wosm/protocol";
+import { listenUnixSocket, type ObserverApi, startProtocolServer } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../tests/support/sockets";
 import { createTuiObserverService } from "../../src/services/observerService.js";
@@ -328,7 +323,7 @@ function cleanupStream(onReturn: () => void): AsyncIterable<WosmEvent> {
   };
 }
 
-function fakeClient(overrides: Partial<ObserverClient>): ObserverClient {
+function fakeClient(overrides: Partial<ObserverApi>): ObserverApi {
   return {
     health: async () => fakeHealth(),
     stop: async () => ({ schemaVersion: WOSM_SCHEMA_VERSION, stopped: true, at: fixtureNow }),

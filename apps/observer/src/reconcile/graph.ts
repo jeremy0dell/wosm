@@ -1,5 +1,4 @@
 import type {
-  AgentState,
   HarnessCapabilities,
   HarnessRunObservation,
   OrphanedRuntimeState,
@@ -16,9 +15,10 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { pathIsSameOrInside } from "@wosm/runtime";
 import { type ObserverHarnessRun, observerHarnessRunFromRun } from "./harnessEventStatus.js";
+import { countsForRows, statusPolicy } from "./statusPolicy.js";
 
-export type ObserverGraphProject = ProviderProjectConfig;
 export type ObserverGraphHarnessRun = HarnessRunObservation | ObserverHarnessRun;
 
 export type ObserverGraphInput = {
@@ -29,7 +29,7 @@ export type ObserverGraphInput = {
     version: string;
     healthy?: boolean;
   };
-  projects: ObserverGraphProject[];
+  projects: ProviderProjectConfig[];
   worktreeProviderId: ProviderId;
   providerHealth: Record<string, ProviderHealth>;
   harnesses?: SnapshotHarness[];
@@ -56,72 +56,6 @@ const confidenceRank = {
   high: 3,
   medium: 2,
   low: 1,
-};
-
-// Lower priority values sort first; this is the user-facing urgency order for rows.
-const statusPolicy: Record<
-  AgentState | "no_agent",
-  {
-    label: WorktreeRow["display"]["statusLabel"];
-    priority: number;
-    alert: boolean;
-    warning: boolean;
-  }
-> = {
-  needs_attention: {
-    label: "needs attention",
-    priority: 10,
-    alert: true,
-    warning: false,
-  },
-  stuck: {
-    label: "stuck",
-    priority: 20,
-    alert: true,
-    warning: true,
-  },
-  working: {
-    label: "working",
-    priority: 30,
-    alert: false,
-    warning: false,
-  },
-  starting: {
-    label: "starting",
-    priority: 35,
-    alert: false,
-    warning: false,
-  },
-  idle: {
-    label: "idle",
-    priority: 40,
-    alert: false,
-    warning: false,
-  },
-  unknown: {
-    label: "unknown",
-    priority: 50,
-    alert: false,
-    warning: false,
-  },
-  exited: {
-    label: "exited",
-    priority: 60,
-    alert: false,
-    warning: false,
-  },
-  none: {
-    label: "no agent",
-    priority: 70,
-    alert: false,
-    warning: false,
-  },
-  no_agent: {
-    label: "no agent",
-    priority: 70,
-    alert: false,
-    warning: false,
-  },
 };
 
 export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
@@ -178,13 +112,13 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
       root: project.root,
       defaults: project.defaults,
       health: input.providerHealth[input.worktreeProviderId] ?? unknownProviderHealth(input),
-      counts: countRows(rows),
+      counts: countsForRows(rows),
     };
   });
 
   const counts = {
     projects: input.projects.length,
-    ...countRows(allRows),
+    ...countsForRows(allRows),
   };
 
   const observerHealthy =
@@ -216,7 +150,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
 }
 
 type BuildWorktreeRowInput = {
-  project: ObserverGraphProject;
+  project: ProviderProjectConfig;
   worktree: WorktreeObservation;
   terminal?: TerminalTargetObservation;
   harnessRun?: ObserverHarnessRun;
@@ -288,7 +222,7 @@ function rowAgent(harnessRun: ObserverHarnessRun): WorktreeRow["agent"] {
 }
 
 type BuildSessionInput = {
-  project: ObserverGraphProject;
+  project: ProviderProjectConfig;
   worktree: WorktreeObservation;
   terminal?: TerminalTargetObservation;
   harnessRun?: ObserverHarnessRun;
@@ -372,26 +306,6 @@ function terminalTargetMatchesWorktree(
   return pathIsSameOrInside(terminal.cwd, worktree.path);
 }
 
-function pathIsSameOrInside(candidate: string, root: string): boolean {
-  const normalizedCandidate = normalizeLocalPath(candidate);
-  const normalizedRoot = normalizeLocalPath(root);
-  if (normalizedCandidate === normalizedRoot) {
-    return true;
-  }
-  if (normalizedRoot === "/") {
-    return normalizedCandidate.startsWith("/");
-  }
-  return normalizedCandidate.startsWith(`${normalizedRoot}/`);
-}
-
-function normalizeLocalPath(value: string): string {
-  const trimmed = value.trim();
-  const withoutTrailingSlash = trimmed.length > 1 ? trimmed.replace(/\/+$/g, "") : trimmed;
-  return withoutTrailingSlash.startsWith("/private/var/")
-    ? `/var/${withoutTrailingSlash.slice("/private/var/".length)}`
-    : withoutTrailingSlash;
-}
-
 function chooseHarnessRun(
   worktree: WorktreeObservation,
   terminal: TerminalTargetObservation | undefined,
@@ -433,38 +347,6 @@ function compareHarnessRuns(left: ObserverHarnessRun, right: ObserverHarnessRun)
     confidenceRank[right.status.confidence] - confidenceRank[left.status.confidence] ||
     Date.parse(right.status.updatedAt) - Date.parse(left.status.updatedAt) ||
     left.run.id.localeCompare(right.run.id)
-  );
-}
-
-function countRows(rows: WorktreeRow[]) {
-  return rows.reduce(
-    (counts, row) => {
-      counts.worktrees += 1;
-      if (row.agent !== undefined) {
-        counts.agents += 1;
-        if (row.agent.state === "working") {
-          counts.working += 1;
-        }
-        if (row.agent.state === "idle") {
-          counts.idle += 1;
-        }
-        if (row.agent.state === "needs_attention") {
-          counts.attention += 1;
-        }
-        if (row.agent.state === "unknown") {
-          counts.unknown += 1;
-        }
-      }
-      return counts;
-    },
-    {
-      worktrees: 0,
-      agents: 0,
-      working: 0,
-      idle: 0,
-      attention: 0,
-      unknown: 0,
-    },
   );
 }
 
@@ -542,7 +424,7 @@ function orphans(
   input: ObserverGraphInput,
   harnessRuns: ObserverHarnessRun[],
   worktreesById: Map<string, WorktreeObservation>,
-  projectsById: Map<string, ObserverGraphProject>,
+  projectsById: Map<string, ProviderProjectConfig>,
   harnessRunsById: Map<string, HarnessRunObservation>,
 ): { orphans?: OrphanedRuntimeState[] } {
   // Runtime state without a configured worktree remains visible as an orphan instead of disappearing.

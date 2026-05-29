@@ -19,8 +19,6 @@ export type ProviderIngressCommandOptions = {
   observerEntryPath?: string | undefined;
 };
 
-export type ProviderIngressCommandResult = HookReceipt;
-
 export type ProviderIngressMainResult = {
   code: number;
   stdout: string;
@@ -42,7 +40,7 @@ export async function runProviderIngressCommand(
   argv = process.argv.slice(2),
   options: ProviderIngressCommandOptions = {},
   deps: ProviderHookSenderDeps = {},
-): Promise<ProviderIngressCommandResult> {
+): Promise<HookReceipt> {
   const parsed = parseArgs(argv);
   const [provider, event] = parsed.providerArgs;
   if (provider === undefined) {

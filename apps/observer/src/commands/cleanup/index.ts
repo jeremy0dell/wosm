@@ -7,8 +7,8 @@ export {
   resolveTerminalTargetOrThrow,
   resolveWorktreeRowOrThrow,
   sessionMissingError,
+  snapshotWorktreeMissingError,
   terminalTargetIdForRow,
   terminalTargetIdForSession,
   terminalTargetMissingError,
-  worktreeMissingError,
 } from "./resolve.js";
