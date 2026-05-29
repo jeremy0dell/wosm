@@ -16,6 +16,7 @@ import type { ObserverApi } from "./api.js";
 import {
   ProtocolEventEnvelopeSchema,
   type ProtocolMethod,
+  type ProtocolResponse,
   ProtocolResponseSchema,
   ProtocolResultSchemas,
   protocolRequest,
@@ -75,48 +76,76 @@ async function call<TMethod extends ProtocolMethod>(
   params?: unknown,
 ): Promise<ProtocolResult<TMethod>> {
   const result = await runRuntimeBoundaryWithTimeout(
-    {
-      operation: `protocol.client.${method}`,
-      timeoutMs: requestTimeoutMs(options),
-      error: protocolSafeError({
-        code: "PROTOCOL_REQUEST_FAILED",
-        message: "Observer protocol request failed.",
-      }),
-      timeoutError: protocolSafeError({
-        tag: "TimeoutError",
-        code: "PROTOCOL_REQUEST_TIMEOUT",
-        message: "Observer protocol request timed out.",
-      }),
-    },
-    async ({ signal }: { signal: AbortSignal }) => {
-      const connection = await connectUnixSocket(
-        options.socketPath,
-        options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs },
-      );
-      try {
-        return await withConnectionAbort(connection, signal, async () => {
-          connection.send(protocolRequest(id, method, params));
-
-          for await (const message of connection.messages()) {
-            const response = ProtocolResponseSchema.parse(message);
-            if (response.id !== id) {
-              continue;
-            }
-            if ("error" in response) {
-              throw response.error;
-            }
-            return ProtocolResultSchemas[method].parse(response.result) as ProtocolResult<TMethod>;
-          }
-
-          throw protocolSocketClosedError();
-        });
-      } finally {
-        connection.close();
-      }
-    },
+    protocolClientBoundary(method, requestTimeoutMs(options)),
+    ({ signal }) =>
+      withProtocolConnection(options, signal, (connection) =>
+        sendRequestAndReadResult(connection, id, method, params),
+      ),
   );
 
   return unwrapBoundaryResult(result);
+}
+
+function protocolClientBoundary(method: ProtocolMethod, timeoutMs: number) {
+  return {
+    operation: `protocol.client.${method}`,
+    timeoutMs,
+    error: protocolSafeError({
+      code: "PROTOCOL_REQUEST_FAILED",
+      message: "Observer protocol request failed.",
+    }),
+    timeoutError: protocolSafeError({
+      tag: "TimeoutError",
+      code: "PROTOCOL_REQUEST_TIMEOUT",
+      message: "Observer protocol request timed out.",
+    }),
+  };
+}
+
+async function withProtocolConnection<T>(
+  options: CreateObserverClientOptions,
+  signal: AbortSignal,
+  task: (connection: NdjsonConnection) => Promise<T>,
+): Promise<T> {
+  const connection = await connectUnixSocket(
+    options.socketPath,
+    options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs },
+  );
+
+  try {
+    return await withConnectionAbort(connection, signal, () => task(connection));
+  } finally {
+    connection.close();
+  }
+}
+
+async function sendRequestAndReadResult<TMethod extends ProtocolMethod>(
+  connection: NdjsonConnection,
+  id: string,
+  method: TMethod,
+  params?: unknown,
+): Promise<ProtocolResult<TMethod>> {
+  connection.send(protocolRequest(id, method, params));
+
+  for await (const message of connection.messages()) {
+    const response = ProtocolResponseSchema.parse(message);
+    if (response.id !== id) {
+      continue;
+    }
+    return parseProtocolResponseResult(response, method);
+  }
+
+  throw protocolSocketClosedError();
+}
+
+function parseProtocolResponseResult<TMethod extends ProtocolMethod>(
+  response: ProtocolResponse,
+  method: TMethod,
+): ProtocolResult<TMethod> {
+  if ("error" in response) {
+    throw response.error;
+  }
+  return ProtocolResultSchemas[method].parse(response.result) as ProtocolResult<TMethod>;
 }
 
 async function* subscribe(
