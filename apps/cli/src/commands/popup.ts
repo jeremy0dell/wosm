@@ -14,6 +14,7 @@ export type PopupCommandDeps = Partial<
     | "enterWorkbench"
     | "env"
     | "preferRegisteredDevPopup"
+    | "registeredDevPopupRoot"
     | "runner"
     | "tuiCommand"
     | "uiSessionName"
@@ -32,6 +33,7 @@ export type PopupCommandOptions = {
   env?: TmuxPopupOptions["env"] | undefined;
   observer?: ObserverProcessDeps | undefined;
   preferRegisteredDevPopup?: TmuxPopupOptions["preferRegisteredDevPopup"] | undefined;
+  registeredDevPopupRoot?: TmuxPopupOptions["registeredDevPopupRoot"] | undefined;
   tuiCommand?: TmuxPopupOptions["tuiCommand"] | undefined;
   uiSessionName?: TmuxPopupOptions["uiSessionName"] | undefined;
 };
@@ -64,6 +66,7 @@ export async function runPopupCommand(
   const env = options.env ?? deps.env;
   const preferRegisteredDevPopup =
     options.preferRegisteredDevPopup ?? deps.preferRegisteredDevPopup;
+  const registeredDevPopupRoot = options.registeredDevPopupRoot ?? deps.registeredDevPopupRoot;
   const tuiCommand = options.tuiCommand ?? deps.tuiCommand;
   const uiSessionName = options.uiSessionName ?? deps.uiSessionName;
   const observer = await prepareObserverForPopup(options, options.observer ?? deps.observer);
@@ -79,6 +82,7 @@ export async function runPopupCommand(
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     ...(env === undefined ? {} : { env }),
     ...(preferRegisteredDevPopup === undefined ? {} : { preferRegisteredDevPopup }),
+    ...(registeredDevPopupRoot === undefined ? {} : { registeredDevPopupRoot }),
     ...(runner === undefined ? {} : { runner }),
     ...(tuiCommand === undefined ? {} : { tuiCommand }),
     ...(uiSessionName === undefined ? {} : { uiSessionName }),

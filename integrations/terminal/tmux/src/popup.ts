@@ -20,6 +20,7 @@ export type TmuxPopupOptions = {
   env?: Record<string, string | undefined>;
   focusClientId?: string;
   preferRegisteredDevPopup?: boolean;
+  registeredDevPopupRoot?: string;
   runner?: ExternalCommandRunner;
   timeoutMs?: number;
   tuiCommand?: string;
@@ -444,12 +445,19 @@ function popupCommandInput(
 }
 
 async function resolvePersistentPopupUi(
-  options: Pick<TmuxPopupOptions, "preferRegisteredDevPopup" | "tuiCommand" | "uiSessionName">,
+  options: Pick<
+    TmuxPopupOptions,
+    "preferRegisteredDevPopup" | "registeredDevPopupRoot" | "tuiCommand" | "uiSessionName"
+  >,
   input: TmuxPopupCommandInput,
 ): Promise<TmuxPersistentPopupUi> {
   if (options.preferRegisteredDevPopup === true) {
     const registered = await resolveRegisteredDevPopupUi(input);
-    if (registered !== undefined) {
+    if (
+      registered !== undefined &&
+      registered.root !== undefined &&
+      registered.root === options.registeredDevPopupRoot
+    ) {
       return {
         command: registered.command,
         registerFastPopup: false,

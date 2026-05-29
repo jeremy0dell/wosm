@@ -9,6 +9,13 @@ Status: current living doc for development, test, and documentation workflow.
 - Use `pnpm wosm:link` only when you intentionally want the current checkout linked as the global `wosm`.
 - External tools are optional unless the lane needs them: Worktrunk for real worktree workflows, tmux for the reference terminal provider, and Codex/OpenCode for real harness workflows.
 
+## Local TUI Workflow
+
+- `pnpm wosm` opens the normal wosm popup from the current checkout's built CLI when run inside tmux.
+- `pnpm wosm tui` opens the normal wosm TUI fullscreen from the current checkout's built CLI.
+- `pnpm wosm:tui-dev` starts the live-rebuilding dev TUI for the checkout where it is run. While that process is alive, popup routing can reuse that dev UI only from the same checkout root. If another checkout already owns the dev popup, the command shows that root/session and asks whether to stop it before starting here.
+- `pnpm wosm:reset` clears wosm tmux popup registrations for the current checkout and opens wosm normally from built code. Inside tmux that means a fresh popup; outside tmux that means the fullscreen TUI.
+
 ## Deterministic Gates
 
 The deterministic local gate is:

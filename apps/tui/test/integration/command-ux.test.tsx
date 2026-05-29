@@ -34,7 +34,6 @@ describe("TUI command UX", () => {
       payload: {
         projectId: "web",
         worktreeId: "wt_web_no_agent",
-        harness: { provider: "codex" },
         terminal: {
           provider: "tmux",
           layout: "agent-build-shell",

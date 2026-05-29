@@ -203,6 +203,7 @@ describe("tmux popup", () => {
     await expect(
       openTmuxPopup({
         preferRegisteredDevPopup: true,
+        registeredDevPopupRoot: "/worktrees/tui-layout",
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "display-message") {
@@ -351,6 +352,62 @@ describe("tmux popup", () => {
     ]);
     const displayPopupArgs = calls.at(-1)?.args;
     expect(displayPopupArgs?.at(-1)).toContain("attach-session -t _wosm-ui");
+  });
+
+  it("falls back to the normal persistent UI when the registered dev root differs", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const devCommand = "env WOSM_TUI_DEV=1 node /other/scripts/tui-watch-runner.mjs /other/cli";
+
+    await expect(
+      openTmuxPopup({
+        preferRegisteredDevPopup: true,
+        registeredDevPopupRoot: "/current",
+        tuiCommand: "node current-wosm tui --popup --persistent",
+        runner: async (input) => {
+          calls.push(input);
+          if (input.args?.[0] === "display-message") {
+            return result(input, "client_1\n");
+          }
+          if (input.args?.includes("@wosm_tui_dev_session_name")) {
+            return result(input, "_wosm-ui-dev-other-1234abcd\n");
+          }
+          if (input.args?.includes("@wosm_tui_dev_command")) {
+            return result(input, `${devCommand}\n`);
+          }
+          if (input.args?.includes("@wosm_tui_dev_owner")) {
+            return result(input, `${process.pid}:test\n`);
+          }
+          if (input.args?.includes("@wosm_tui_dev_root")) {
+            return result(input, "/other\n");
+          }
+          if (
+            input.args?.[0] === "show-options" &&
+            input.args.includes("@wosm_popup_ui_signature")
+          ) {
+            return result(input, "v1:node current-wosm tui --popup --persistent\n");
+          }
+          return result(input);
+        },
+        env: {
+          TMUX: "/tmp/tmux-501/default,123,0",
+        },
+      }),
+    ).resolves.toEqual({ opened: true });
+
+    expect(calls.map((call) => call.args)).toEqual([
+      ["display-message", "-p", "#{client_name}"],
+      ["show-options", "-gqv", "@wosm_popup_client"],
+      ["set-option", "-gq", "@wosm_popup_client", "client_1"],
+      ["set-option", "-gq", "@wosm_popup_focus_client", "client_1"],
+      ["show-options", "-gqv", "@wosm_tui_dev_session_name"],
+      ["show-options", "-gqv", "@wosm_tui_dev_command"],
+      ["show-options", "-gqv", "@wosm_tui_dev_owner"],
+      ["show-options", "-gqv", "@wosm_tui_dev_root"],
+      ["has-session", "-t", "_wosm-ui"],
+      ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      ...fastPopupRegistrationCalls("_wosm-ui", "node current-wosm tui --popup --persistent"),
+      expect.arrayContaining(["display-popup", "-c", "client_1"]),
+    ]);
   });
 
   it("closes an active popup for the current client without killing the UI session", async () => {

@@ -119,6 +119,53 @@ describe("provider hook ingress command", () => {
     expect(JSON.stringify(observedReport)).not.toContain("pnpm test");
   });
 
+  it("passes the delivery timeout to the observer protocol client", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let observedTimeoutMs: number | undefined;
+
+    const receipt = await runProviderIngressCommand(
+      [
+        "--socket",
+        fixture.socketPath,
+        "--state-dir",
+        fixture.stateDir,
+        "--config",
+        configPath,
+        "--delivery-timeout-ms",
+        "4321",
+        "codex",
+      ],
+      {
+        stdin: JSON.stringify(codexPayload()),
+        env: wosmEnv(),
+      },
+      {
+        clock: { now: () => new Date(now) },
+        hookId: () => "report_codex_timeout",
+        clientFactory: (_socketPath, options) => {
+          observedTimeoutMs = options.timeoutMs;
+          return {
+            reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => ({
+              schemaVersion: "0.3.0",
+              reportId: report.reportId,
+              provider: report.provider,
+              eventType: report.eventType,
+              accepted: true,
+              status: "accepted",
+              receivedAt: report.observedAt,
+              projected: false,
+              scheduledReconcile: true,
+            }),
+          } as never;
+        },
+      },
+    );
+
+    expect(receipt.status).toBe("ingested");
+    expect(observedTimeoutMs).toBe(4321);
+  });
+
   it("spools compact Codex reports when online delivery is unavailable", async () => {
     const fixture = await createTempState();
 

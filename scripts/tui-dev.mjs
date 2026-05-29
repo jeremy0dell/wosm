@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, openSync, writeSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { createInterface } from "node:readline/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,6 +41,15 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
       "--popup",
       "--persistent",
     ]);
+  const runDirectTui = shouldRunDirectTui(argv, env);
+  const keepAliveAfterLauncherExit = shouldKeepAliveAfterLauncherExit(argv, env);
+
+  if (keepAliveAfterLauncherExit) {
+    await guardAgainstForeignDevPopup({
+      currentRoot: repoRoot,
+      env,
+    });
+  }
 
   const logPath = join(repoRoot, ".turbo/tui-dev-build.log");
   await mkdir(dirname(logPath), { recursive: true });
@@ -92,8 +102,6 @@ export async function runTuiDev({ argv = process.argv.slice(2), env = process.en
     WOSM_TUI_DEV_OWNER: devOwner,
     WOSM_TUI_SESSION_NAME: devSessionName,
   };
-  const runDirectTui = shouldRunDirectTui(argv, env);
-  const keepAliveAfterLauncherExit = shouldKeepAliveAfterLauncherExit(argv, env);
   const nodeArgs = runDirectTui ? [tuiWatchRunner, cliEntry, ...argv] : [cliEntry, ...argv];
   if (keepAliveAfterLauncherExit) {
     registerDevPopupPreference({
@@ -222,6 +230,131 @@ export function defaultDevSessionNameForRoot(root) {
     .slice(0, 32);
   const hash = createHash("sha256").update(root).digest("hex").slice(0, 8);
   return `_wosm-ui-dev-${slug.length === 0 ? "checkout" : slug}-${hash}`;
+}
+
+export function parseDevPopupOwnerPid(owner) {
+  const rawPid = owner?.split(":", 1)[0];
+  if (rawPid === undefined || rawPid.length === 0 || /[^0-9]/.test(rawPid)) {
+    return undefined;
+  }
+  return Number(rawPid);
+}
+
+export function isForeignLiveDevPopup(input, isProcessAlive = processIsAlive) {
+  if (input.root === undefined || input.root.length === 0 || input.root === input.currentRoot) {
+    return false;
+  }
+  if (input.sessionName === undefined || input.sessionName.length === 0) {
+    return false;
+  }
+  const pid = parseDevPopupOwnerPid(input.owner);
+  return pid === undefined ? true : isProcessAlive(pid);
+}
+
+async function guardAgainstForeignDevPopup(options) {
+  if (!isInsideTmux(options.env)) {
+    return;
+  }
+  const registration = readDevPopupRegistration(options.env);
+  if (
+    !isForeignLiveDevPopup({
+      currentRoot: options.currentRoot,
+      root: registration.root,
+      owner: registration.owner,
+      sessionName: registration.sessionName,
+    })
+  ) {
+    return;
+  }
+
+  const message = [
+    "A wosm dev TUI is already registered from another checkout.",
+    `root: ${registration.root ?? "(unknown)"}`,
+    `session: ${registration.sessionName ?? "(unknown)"}`,
+    `owner: ${registration.owner ?? "(unknown)"}`,
+  ].join("\n");
+  process.stderr.write(`${message}\n`);
+
+  if (!process.stdin.isTTY || !process.stderr.isTTY) {
+    throw new Error(
+      "Refusing to start a second dev TUI non-interactively. Stop the other pnpm wosm:tui-dev process first.",
+    );
+  }
+
+  const confirm = await promptYesNo("Stop that dev TUI and start this checkout instead? [y/N] ");
+  if (!confirm) {
+    throw new Error("Cancelled.");
+  }
+  stopRegisteredDevPopup(registration, options.env);
+}
+
+function readDevPopupRegistration(env) {
+  const tmux = env.WOSM_TMUX_BIN ?? "tmux";
+  return {
+    command: readTmuxGlobalOption(tmux, devPopupOptionNames.command, env),
+    owner: readTmuxGlobalOption(tmux, devPopupOptionNames.owner, env),
+    root: readTmuxGlobalOption(tmux, devPopupOptionNames.root, env),
+    sessionName: readTmuxGlobalOption(tmux, devPopupOptionNames.sessionName, env),
+  };
+}
+
+function readTmuxGlobalOption(tmux, name, env) {
+  const result = spawnSync(tmux, ["show-options", "-gqv", name], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+    env,
+  });
+  const value = result.stdout.trim();
+  return value.length === 0 ? undefined : value;
+}
+
+async function promptYesNo(question) {
+  const readline = createInterface({
+    input: process.stdin,
+    output: process.stderr,
+  });
+  try {
+    const answer = await readline.question(question);
+    return answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes";
+  } finally {
+    readline.close();
+  }
+}
+
+function stopRegisteredDevPopup(registration, env) {
+  const tmux = env.WOSM_TMUX_BIN ?? "tmux";
+  const pid = parseDevPopupOwnerPid(registration.owner);
+  if (pid !== undefined) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // The owner may have exited between the prompt and confirmation.
+    }
+  }
+  if (registration.sessionName !== undefined) {
+    spawnSync(tmux, ["kill-session", "-t", registration.sessionName], {
+      cwd: repoRoot,
+      stdio: "ignore",
+      env,
+    });
+  }
+  for (const name of Object.values(devPopupOptionNames)) {
+    spawnSync(tmux, ["set-option", "-gq", "-u", name], {
+      cwd: repoRoot,
+      stdio: "ignore",
+      env,
+    });
+  }
+}
+
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function registerDevPopupPreference(options) {

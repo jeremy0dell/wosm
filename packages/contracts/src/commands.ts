@@ -50,6 +50,14 @@ export const HarnessCommandOptionsSchema = z
   })
   .strict();
 
+export const StartAgentHarnessCommandOptionsSchema = z
+  .object({
+    provider: ProviderIdSchema.optional(),
+    mode: z.enum(["interactive", "exec"]).optional(),
+    profile: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
 export const TerminalCommandOptionsSchema = z
   .object({
     provider: ProviderIdSchema,
@@ -76,7 +84,7 @@ export const StartAgentPayloadSchema = z
   .object({
     projectId: ProjectIdSchema,
     worktreeId: WorktreeIdSchema,
-    harness: HarnessCommandOptionsSchema.omit({ approvalPolicy: true, sandboxMode: true }),
+    harness: StartAgentHarnessCommandOptionsSchema.optional(),
     terminal: TerminalCommandOptionsSchema.partial().optional(),
     initialPrompt: nonEmptyStringSchema.optional(),
   })

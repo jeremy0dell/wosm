@@ -541,6 +541,93 @@ describe("session command vertical slice", () => {
     fixture.sqlite.close();
   });
 
+  it("starts an existing worktree with its remembered harness when no provider is requested", async () => {
+    const rememberedHarness = new CapturingHarnessProvider({ id: "remembered-harness", now });
+    const defaultHarness = new CapturingHarnessProvider({ id: "fake-harness", now });
+    const existingWorktree = createFakeWorktree({
+      id: "wt_web_remembered",
+      projectId: "web",
+      branch: "remembered",
+      now,
+    });
+    const terminal = new FakeTerminalProvider({
+      now,
+      onLaunch: async ({ launchPlan }) => {
+        rememberedHarness.addRun(
+          createFakeHarnessRun({
+            id: "run_web_remembered",
+            provider: "remembered-harness",
+            projectId: "web",
+            worktreeId: "wt_web_remembered",
+            sessionId: launchPlan.env?.WOSM_SESSION_ID,
+            state: "working",
+            now,
+          }),
+        );
+      },
+    });
+    const fixture = createFixture({
+      terminal,
+      harnesses: [defaultHarness, rememberedHarness],
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [existingWorktree],
+      }),
+      sessionIds: ["ses_remembered_next"],
+    });
+    await fixture.persistence.persistReconcileResult({
+      projects: config.projects,
+      worktrees: [existingWorktree],
+      terminalTargets: [],
+      harnessRuns: [
+        createFakeHarnessRun({
+          id: "run_web_remembered_previous",
+          provider: "remembered-harness",
+          projectId: "web",
+          worktreeId: "wt_web_remembered",
+          sessionId: "ses_remembered_previous",
+          state: "exited",
+          now: "2026-05-21T11:00:00.000Z",
+        }),
+        createFakeHarnessRun({
+          id: "run_web_default_later",
+          provider: "fake-harness",
+          projectId: "web",
+          worktreeId: "wt_web_remembered",
+          sessionId: "ses_default_later",
+          state: "exited",
+          now: "2026-05-21T11:30:00.000Z",
+        }),
+      ],
+      observedAt: "2026-05-21T11:00:00.000Z",
+    });
+    await fixture.core.reconcile("pre-start-agent-remembered");
+
+    await fixture.queue.dispatch({
+      type: "session.startAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_remembered",
+        terminal: { provider: "fake-terminal", focus: false },
+      },
+    });
+    await fixture.queue.drain();
+
+    expect(defaultHarness.lastBuildRequest).toBeUndefined();
+    expect(rememberedHarness.lastBuildRequest).toMatchObject({
+      sessionId: "ses_remembered_next",
+      worktree: {
+        id: "wt_web_remembered",
+      },
+    });
+    expect(fixture.core.getSnapshot().rows[0]?.agent).toMatchObject({
+      harness: "remembered-harness",
+      sessionId: "ses_remembered_next",
+      state: "working",
+    });
+    fixture.sqlite.close();
+  });
+
   it("rejects session.startAgent when a primary agent already exists", async () => {
     const fixture = createFixture({
       worktree: new FakeWorktreeProvider({
@@ -764,6 +851,7 @@ function createFixture(
     worktree?: FakeWorktreeProvider;
     terminal?: FakeTerminalProvider;
     harness?: HarnessProvider;
+    harnesses?: HarnessProvider[];
     sessionIds?: string[];
   } = {},
 ) {
@@ -776,7 +864,7 @@ function createFixture(
   const providers = new ProviderRegistry({
     worktree: options.worktree ?? new FakeWorktreeProvider({ now }),
     terminal: options.terminal ?? new FakeTerminalProvider({ now }),
-    harnesses: [options.harness ?? new FakeHarnessProvider({ now })],
+    harnesses: options.harnesses ?? [options.harness ?? new FakeHarnessProvider({ now })],
   });
   const core = createObserverCore({
     config,

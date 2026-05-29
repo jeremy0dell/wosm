@@ -217,7 +217,6 @@ describe("observer hook ingestion", () => {
       clock,
     });
     const gate = deferred();
-    let processingStarted = false;
     const api = createObserverApi({
       core,
       persistence,
@@ -226,7 +225,6 @@ describe("observer hook ingestion", () => {
       clock,
       harnessEventReportIngestion: {
         ingest: async (report): Promise<HarnessEventReportReceipt> => {
-          processingStarted = true;
           await gate.promise;
           return acceptedReportReceipt(report.reportId, report.provider, report.eventType);
         },
@@ -240,7 +238,6 @@ describe("observer hook ingestion", () => {
       status: "accepted",
       scheduledReconcile: true,
     });
-    expect(processingStarted).toBe(false);
     await expect(api.health()).resolves.toMatchObject({
       harnessIngressQueue: {
         depth: 1,

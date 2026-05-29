@@ -92,6 +92,7 @@ describeRealTmux("real tmux dev popup routing", () => {
       clientName: ptyClient.clientName,
       devCommand,
       expectedSession: devSession,
+      registeredDevPopupRoot: tempRoot,
     });
     await waitForFileText(devMarker, "start\n");
     const firstDevPid = await panePid(wrapper, devSession);
@@ -101,6 +102,7 @@ describeRealTmux("real tmux dev popup routing", () => {
       clientName: ptyClient.clientName,
       devCommand,
       expectedSession: devSession,
+      registeredDevPopupRoot: tempRoot,
     });
     const secondDevPid = await panePid(wrapper, devSession);
     const devStarts = await readFile(devMarker, "utf8");
@@ -114,6 +116,7 @@ describeRealTmux("real tmux dev popup routing", () => {
       clientName: ptyClient.clientName,
       devCommand: normalCommand,
       expectedSession: normalSession,
+      registeredDevPopupRoot: tempRoot,
       uiSessionName: normalSession,
     });
 
@@ -145,6 +148,7 @@ async function openAndCloseRegisteredPopup(input: {
   clientName: string;
   devCommand: string;
   expectedSession: string;
+  registeredDevPopupRoot?: string;
   uiSessionName?: string;
 }): Promise<void> {
   let settled = false;
@@ -154,6 +158,9 @@ async function openAndCloseRegisteredPopup(input: {
       WOSM_FOCUS_CLIENT_ID: input.clientName,
     },
     preferRegisteredDevPopup: true,
+    ...(input.registeredDevPopupRoot === undefined
+      ? {}
+      : { registeredDevPopupRoot: input.registeredDevPopupRoot }),
     timeoutMs: 10_000,
     tuiCommand: input.devCommand,
     ...(input.uiSessionName === undefined ? {} : { uiSessionName: input.uiSessionName }),

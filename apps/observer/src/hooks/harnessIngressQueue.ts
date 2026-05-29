@@ -11,6 +11,11 @@ import {
 } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import {
+  Deferred,
+  Effect,
+  Fiber,
+  Queue,
+  Ref,
   type RuntimeClock,
   safeErrorFromUnknown,
   systemClock,
@@ -43,6 +48,10 @@ type QueuedHarnessReport = {
   receivedAt: string;
 };
 
+type ReadyKey = {
+  key: string;
+};
+
 type QueueMetrics = {
   enqueued: number;
   processed: number;
@@ -54,6 +63,21 @@ type QueueMetrics = {
   lastDrain?: HarnessIngressQueueHealth["lastDrain"];
 };
 
+type HarnessIngressQueueState = {
+  pending: Map<string, QueuedHarnessReport>;
+  seenReportIds: Set<string>;
+  seenReportIdOrder: string[];
+  metrics: QueueMetrics;
+  active: number;
+  shuttingDown: boolean;
+  waiters: Deferred.Deferred<void>[];
+};
+
+type EnqueueStateResult = {
+  receipt: HarnessEventReportReceipt;
+  readyKey?: string;
+};
+
 const maxRememberedReportIds = 10_000;
 const defaultMaxPendingReports = 10_000;
 
@@ -62,106 +86,48 @@ export function createHarnessIngressQueue(
 ): HarnessIngressQueue {
   const clock = options.clock ?? systemClock;
   const maxPendingReports = options.maxPendingReports ?? defaultMaxPendingReports;
-  const pending = new Map<string, QueuedHarnessReport>();
-  const readyKeys: string[] = [];
-  const seenReportIds: string[] = [];
-  const seenReportIdSet = new Set<string>();
-  const metrics: QueueMetrics = {
-    enqueued: 0,
-    processed: 0,
-    coalesced: 0,
-    dropped: 0,
-    failed: 0,
-  };
-  let scheduled = false;
-  let processing: Promise<void> | undefined;
-  let shuttingDown = false;
+  const workQueue = Effect.runSync(Queue.unbounded<ReadyKey>());
+  const state = Effect.runSync(Ref.make<HarnessIngressQueueState>(initialState()));
+  const worker = Effect.runFork(
+    Queue.take(workQueue).pipe(
+      Effect.flatMap(({ key }) => processKey(key)),
+      Effect.forever,
+    ),
+  );
 
   const queue: HarnessIngressQueue = {
     enqueue: (inputReport) => {
       const report = HarnessEventReportSchema.parse(inputReport);
       const receivedAt = toIsoTimestamp(clock.now());
-      if (shuttingDown) {
-        return dropReport(report, receivedAt, {
-          tag: "CancellationError",
-          code: "HARNESS_INGRESS_QUEUE_SHUTTING_DOWN",
-          message: "Observer harness ingress queue is shutting down.",
-          provider: report.provider,
-        });
-      }
-      if (seenReportIdSet.has(report.reportId)) {
-        return HarnessEventReportReceiptSchema.parse({
-          schemaVersion: WOSM_SCHEMA_VERSION,
-          reportId: report.reportId,
-          provider: report.provider,
-          eventType: report.eventType,
-          accepted: true,
-          status: "accepted",
-          receivedAt,
-          projected: false,
-          scheduledReconcile: false,
-          deduped: true,
-        });
-      }
 
-      const key = coalesceKey(report);
-      if (pending.has(key)) {
-        metrics.coalesced += 1;
-      } else {
-        if (pending.size >= maxPendingReports) {
-          return dropReport(report, receivedAt, {
-            tag: "BackpressureError",
-            code: "HARNESS_INGRESS_QUEUE_FULL",
-            message: "Observer harness ingress queue is full.",
-            provider: report.provider,
-          });
-        }
-        readyKeys.push(key);
+      const result = Effect.runSync(
+        Ref.modify(state, (current) =>
+          enqueueInState(current, report, receivedAt, maxPendingReports),
+        ),
+      );
+      if (result.readyKey !== undefined) {
+        void Effect.runFork(Queue.offer(workQueue, { key: result.readyKey }));
       }
-      rememberReportId(report.reportId);
-      pending.set(key, { report, receivedAt });
-      metrics.enqueued += 1;
-      scheduleProcessing();
-
-      return HarnessEventReportReceiptSchema.parse({
-        schemaVersion: WOSM_SCHEMA_VERSION,
-        reportId: report.reportId,
-        provider: report.provider,
-        eventType: report.eventType,
-        accepted: true,
-        status: "accepted",
-        receivedAt,
-        projected: false,
-        scheduledReconcile: true,
-        deduped: false,
-      });
+      return result.receipt;
     },
 
-    drain: async () => {
-      for (;;) {
-        const active = processing;
-        if (active === undefined && pending.size === 0 && readyKeys.length === 0) {
-          return;
-        }
-        if (active !== undefined) {
-          await active;
-          continue;
-        }
-        if (!scheduled && readyKeys.length > 0) {
-          scheduleProcessing();
-        }
-        await nextMacrotask();
-      }
-    },
+    drain: () => Effect.runPromise(drainEffect()),
 
-    shutdown: async () => {
-      shuttingDown = true;
-      await queue.drain();
-    },
+    shutdown: () =>
+      Effect.runPromise(
+        updateState((current) => [undefined, { ...current, shuttingDown: true }] as const).pipe(
+          Effect.zipRight(drainEffect()),
+          Effect.zipRight(Queue.shutdown(workQueue)),
+          Effect.zipRight(Fiber.interrupt(worker)),
+          Effect.asVoid,
+        ),
+      ),
 
     health: () => {
+      const current = Effect.runSync(Ref.get(state));
+      const metrics = current.metrics;
       const health: HarnessIngressQueueHealth = {
-        depth: pending.size,
+        depth: current.pending.size + current.active,
         enqueued: metrics.enqueued,
         processed: metrics.processed,
         coalesced: metrics.coalesced,
@@ -181,104 +147,325 @@ export function createHarnessIngressQueue(
     },
 
     recordSpoolDrain: (input) => {
-      metrics.lastDrain = {
-        scanned: input.scanned,
-        drained: input.drained,
-        failed: input.failed,
-        finishedAt: toIsoTimestamp(clock.now()),
-      };
+      Effect.runSync(
+        Ref.update(state, (current) => recordSpoolDrainInState(current, input, clock)),
+      );
     },
   };
 
-  function scheduleProcessing(): void {
-    if (scheduled || processing !== undefined) {
-      return;
-    }
-    scheduled = true;
-    setTimeout(() => {
-      scheduled = false;
-      processing = processReadyReports().finally(() => {
-        processing = undefined;
-        if (readyKeys.length > 0) {
-          scheduleProcessing();
+  function drainEffect(): Effect.Effect<void> {
+    return Effect.gen(function* () {
+      const waiter = yield* Deferred.make<void>();
+      const alreadyIdle = yield* Ref.modify(state, (current) => {
+        if (isIdle(current)) {
+          return [true, current] as const;
         }
+        const waiters: Deferred.Deferred<void>[] = [...current.waiters, waiter];
+        return [false, { ...current, waiters }] as const;
       });
-    }, 0);
+
+      if (!alreadyIdle) {
+        yield* Deferred.await(waiter);
+      }
+    });
   }
 
-  async function processReadyReports(): Promise<void> {
-    const reconcileReasons = new Set<string>();
-    while (readyKeys.length > 0) {
-      const key = readyKeys.shift();
-      if (key === undefined) {
-        continue;
-      }
-      const queued = pending.get(key);
+  function processKey(key: string): Effect.Effect<void> {
+    return Effect.gen(function* () {
+      const queued = yield* updateState((current) => takeQueuedReport(current, key));
       if (queued === undefined) {
-        continue;
+        return;
       }
-      pending.delete(key);
-      try {
-        const result = await options.processReport(queued.report);
-        metrics.processed += 1;
-        metrics.lastProcessedAt = toIsoTimestamp(clock.now());
-        if (result.receipt.status === "rejected") {
-          metrics.failed += 1;
-          if (result.receipt.error !== undefined) {
-            metrics.lastError = result.receipt.error;
-          }
+
+      const reconcileReason = yield* Effect.tryPromise({
+        try: () => options.processReport(queued.report),
+        catch: (error) =>
+          safeErrorFromUnknown(error, {
+            tag: "HarnessIngressQueueError",
+            code: "HARNESS_INGRESS_PROCESS_FAILED",
+            message: "Observer harness ingress queue could not process a queued report.",
+            provider: queued.report.provider,
+          }),
+      }).pipe(
+        Effect.flatMap((result) =>
+          updateState(
+            (current) => [result.reconcileReason, recordProcessed(current, result, clock)] as const,
+          ),
+        ),
+        Effect.catchAll((error) =>
+          updateState((current) => [undefined, recordFailed(current, error, clock)] as const).pipe(
+            Effect.zipRight(logProcessingError(queued.report, error)),
+            Effect.as(undefined),
+          ),
+        ),
+        Effect.ensuring(updateState((current) => [undefined, decrementActive(current)] as const)),
+      );
+
+      if (reconcileReason !== undefined) {
+        options.requestReconcile?.(reconcileReason);
+      }
+    });
+  }
+
+  function updateState<A>(
+    f: (current: HarnessIngressQueueState) => readonly [A, HarnessIngressQueueState],
+  ): Effect.Effect<A> {
+    return Ref.modify(
+      state,
+      (current): readonly [readonly [A, Deferred.Deferred<void>[]], HarnessIngressQueueState] => {
+        const [value, next] = f(current);
+        if (!isIdle(next) || next.waiters.length === 0) {
+          const waiters: Deferred.Deferred<void>[] = [];
+          return [[value, waiters] as const, next] as const;
         }
-        if (result.reconcileReason !== undefined) {
-          reconcileReasons.add(result.reconcileReason);
-        }
-      } catch (error) {
-        metrics.failed += 1;
-        metrics.lastProcessedAt = toIsoTimestamp(clock.now());
-        metrics.lastError = safeErrorFromUnknown(error, {
+        const waiters = next.waiters;
+        return [[value, waiters] as const, { ...next, waiters: [] }] as const;
+      },
+    ).pipe(
+      Effect.flatMap(([value, waiters]) =>
+        Effect.forEach(waiters, (waiter) => Deferred.succeed(waiter, undefined), {
+          discard: true,
+        }).pipe(Effect.as(value)),
+      ),
+    );
+  }
+
+  function logProcessingError(report: HarnessEventReport, error: SafeError): Effect.Effect<void> {
+    const logger = options.logger;
+    if (logger === undefined) {
+      return Effect.succeed(undefined);
+    }
+    return Effect.tryPromise({
+      try: async () => {
+        await logger.error("Harness ingress queue processing failed.", {
+          provider: report.provider,
+          reportId: report.reportId,
+          error,
+        });
+      },
+      catch: (logError) =>
+        safeErrorFromUnknown(logError, {
           tag: "HarnessIngressQueueError",
-          code: "HARNESS_INGRESS_PROCESS_FAILED",
-          message: "Observer harness ingress queue could not process a queued report.",
-          provider: queued.report.provider,
-        });
-        await options.logger?.error("Harness ingress queue processing failed.", {
-          provider: queued.report.provider,
-          reportId: queued.report.reportId,
-          error: metrics.lastError,
-        });
-      }
-    }
-
-    if (reconcileReasons.size > 0) {
-      options.requestReconcile?.(batchReconcileReason(reconcileReasons));
-    }
-  }
-
-  function rememberReportId(reportId: string): void {
-    seenReportIds.push(reportId);
-    seenReportIdSet.add(reportId);
-    while (seenReportIds.length > maxRememberedReportIds) {
-      const oldReportId = seenReportIds.shift();
-      if (oldReportId !== undefined) {
-        seenReportIdSet.delete(oldReportId);
-      }
-    }
-  }
-
-  function dropReport(
-    report: HarnessEventReport,
-    receivedAt: string,
-    error: SafeError,
-  ): HarnessEventReportReceipt {
-    metrics.dropped += 1;
-    metrics.lastError = error;
-    return rejectedReceipt(report, receivedAt, error);
+          code: "HARNESS_INGRESS_LOG_FAILED",
+          message: "Observer harness ingress queue could not log a processing failure.",
+          provider: report.provider,
+        }),
+    }).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
   }
 
   return queue;
 }
 
-function nextMacrotask(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+function initialState(): HarnessIngressQueueState {
+  return {
+    pending: new Map(),
+    seenReportIds: new Set(),
+    seenReportIdOrder: [],
+    metrics: {
+      enqueued: 0,
+      processed: 0,
+      coalesced: 0,
+      dropped: 0,
+      failed: 0,
+    },
+    active: 0,
+    shuttingDown: false,
+    waiters: [],
+  };
+}
+
+function enqueueInState(
+  current: HarnessIngressQueueState,
+  report: HarnessEventReport,
+  receivedAt: string,
+  maxPendingReports: number,
+): readonly [EnqueueStateResult, HarnessIngressQueueState] {
+  if (current.shuttingDown) {
+    const error: SafeError = {
+      tag: "CancellationError",
+      code: "HARNESS_INGRESS_QUEUE_SHUTTING_DOWN",
+      message: "Observer harness ingress queue is shutting down.",
+      provider: report.provider,
+    };
+    return [
+      { receipt: rejectedReceipt(report, receivedAt, error) },
+      recordDropped(current, error),
+    ] as const;
+  }
+
+  if (current.seenReportIds.has(report.reportId)) {
+    return [{ receipt: acceptedReceipt(report, receivedAt, true) }, current] as const;
+  }
+
+  const key = coalesceKey(report);
+  const alreadyPending = current.pending.has(key);
+  if (!alreadyPending && current.pending.size + current.active >= maxPendingReports) {
+    const error: SafeError = {
+      tag: "BackpressureError",
+      code: "HARNESS_INGRESS_QUEUE_FULL",
+      message: "Observer harness ingress queue is full.",
+      provider: report.provider,
+    };
+    return [
+      { receipt: rejectedReceipt(report, receivedAt, error) },
+      recordDropped(current, error),
+    ] as const;
+  }
+
+  const pending = new Map(current.pending);
+  pending.set(key, { report, receivedAt });
+
+  const metrics: QueueMetrics = {
+    ...current.metrics,
+    enqueued: current.metrics.enqueued + 1,
+  };
+  if (alreadyPending) {
+    metrics.coalesced = current.metrics.coalesced + 1;
+  }
+
+  const { seenReportIds, seenReportIdOrder } = rememberReportId(current, report.reportId);
+  const result: EnqueueStateResult = {
+    receipt: acceptedReceipt(report, receivedAt, false),
+  };
+  if (!alreadyPending) {
+    result.readyKey = key;
+  }
+
+  return [
+    result,
+    {
+      ...current,
+      pending,
+      seenReportIds,
+      seenReportIdOrder,
+      metrics,
+    },
+  ] as const;
+}
+
+function takeQueuedReport(
+  current: HarnessIngressQueueState,
+  key: string,
+): readonly [QueuedHarnessReport | undefined, HarnessIngressQueueState] {
+  const queued = current.pending.get(key);
+  if (queued === undefined) {
+    return [undefined, current] as const;
+  }
+
+  const pending = new Map(current.pending);
+  pending.delete(key);
+  return [queued, { ...current, pending, active: current.active + 1 }] as const;
+}
+
+function recordProcessed(
+  current: HarnessIngressQueueState,
+  result: HarnessIngressProcessResult,
+  clock: RuntimeClock,
+): HarnessIngressQueueState {
+  const metrics: QueueMetrics = {
+    ...current.metrics,
+    processed: current.metrics.processed + 1,
+    lastProcessedAt: toIsoTimestamp(clock.now()),
+  };
+  if (result.receipt.status === "rejected") {
+    metrics.failed = current.metrics.failed + 1;
+    if (result.receipt.error !== undefined) {
+      metrics.lastError = result.receipt.error;
+    }
+  }
+  return { ...current, metrics };
+}
+
+function recordFailed(
+  current: HarnessIngressQueueState,
+  error: SafeError,
+  clock: RuntimeClock,
+): HarnessIngressQueueState {
+  return {
+    ...current,
+    metrics: {
+      ...current.metrics,
+      failed: current.metrics.failed + 1,
+      lastProcessedAt: toIsoTimestamp(clock.now()),
+      lastError: error,
+    },
+  };
+}
+
+function recordDropped(
+  current: HarnessIngressQueueState,
+  error: SafeError,
+): HarnessIngressQueueState {
+  return {
+    ...current,
+    metrics: {
+      ...current.metrics,
+      dropped: current.metrics.dropped + 1,
+      lastError: error,
+    },
+  };
+}
+
+function recordSpoolDrainInState(
+  current: HarnessIngressQueueState,
+  input: { scanned: number; drained: number; failed: number },
+  clock: RuntimeClock,
+): HarnessIngressQueueState {
+  return {
+    ...current,
+    metrics: {
+      ...current.metrics,
+      lastDrain: {
+        scanned: input.scanned,
+        drained: input.drained,
+        failed: input.failed,
+        finishedAt: toIsoTimestamp(clock.now()),
+      },
+    },
+  };
+}
+
+function decrementActive(current: HarnessIngressQueueState): HarnessIngressQueueState {
+  return { ...current, active: Math.max(0, current.active - 1) };
+}
+
+function isIdle(current: HarnessIngressQueueState): boolean {
+  return current.pending.size === 0 && current.active === 0;
+}
+
+function rememberReportId(
+  current: HarnessIngressQueueState,
+  reportId: string,
+): Pick<HarnessIngressQueueState, "seenReportIds" | "seenReportIdOrder"> {
+  const seenReportIds = new Set(current.seenReportIds);
+  const seenReportIdOrder = [...current.seenReportIdOrder, reportId];
+  seenReportIds.add(reportId);
+  while (seenReportIdOrder.length > maxRememberedReportIds) {
+    const oldReportId = seenReportIdOrder.shift();
+    if (oldReportId !== undefined) {
+      seenReportIds.delete(oldReportId);
+    }
+  }
+  return { seenReportIds, seenReportIdOrder };
+}
+
+function acceptedReceipt(
+  report: HarnessEventReport,
+  receivedAt: string,
+  deduped: boolean,
+): HarnessEventReportReceipt {
+  return HarnessEventReportReceiptSchema.parse({
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    reportId: report.reportId,
+    provider: report.provider,
+    eventType: report.eventType,
+    accepted: true,
+    status: "accepted",
+    receivedAt,
+    projected: false,
+    scheduledReconcile: !deduped,
+    deduped,
+  });
 }
 
 function rejectedReceipt(
@@ -339,12 +526,4 @@ function stringField(input: unknown, key: string): string | undefined {
     return String(value);
   }
   return undefined;
-}
-
-function batchReconcileReason(reasons: Set<string>): string {
-  const sorted = [...reasons].sort();
-  if (sorted.length === 1) {
-    return sorted[0] ?? "harness-report-batch";
-  }
-  return `harness-report-batch:${sorted.length}`;
 }

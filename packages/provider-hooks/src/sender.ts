@@ -38,8 +38,15 @@ export type ProviderHookSenderOptions = {
   rateLimitMs?: number | undefined;
 };
 
+type ProviderHookClientFactoryOptions = {
+  timeoutMs: number;
+};
+
 export type ProviderHookSenderDeps = ProviderDeliveryPolicyDeps & {
-  clientFactory?: (socketPath: string) => ReturnType<typeof createObserverClient>;
+  clientFactory?: (
+    socketPath: string,
+    options: ProviderHookClientFactoryOptions,
+  ) => ReturnType<typeof createObserverClient>;
   clock?: RuntimeClock;
   writeSpool?: typeof writeHookSpoolRecord;
   writeReportSpool?: typeof writeHarnessEventReportSpoolRecord;
@@ -66,6 +73,7 @@ export type SendPiHookInput = ProviderHookSenderOptions & {
 };
 
 const defaultHookId = () => `hook_${Date.now()}_${randomUUID()}`;
+const defaultDeliveryTimeoutMs = 2000;
 
 export async function sendWorktrunkHookEvent(
   input: ProviderHookSenderOptions & { event: string; payload?: unknown },
@@ -108,7 +116,13 @@ export async function sendProviderHookEvent(
     configPath: input.configPath,
     observerEntryPath: input.observerEntryPath,
     deps,
-    deliver: () => attemptHookDelivery(input.paths, event, input.deliveryTimeoutMs ?? 750, deps),
+    deliver: () =>
+      attemptHookDelivery(
+        input.paths,
+        event,
+        input.deliveryTimeoutMs ?? defaultDeliveryTimeoutMs,
+        deps,
+      ),
     spoolReceipt: (error) => spool(input.paths, event, error, deps),
     recordReceipt: ({ paths, event, payloadSummary, receipt }) =>
       logAndReturn(paths, event, receipt, payloadSummary, deps),
@@ -220,7 +234,7 @@ export async function sendHarnessEventReport(
       attemptHarnessEventReportDelivery(
         options.paths,
         report,
-        options.deliveryTimeoutMs ?? 750,
+        options.deliveryTimeoutMs ?? defaultDeliveryTimeoutMs,
         deps,
       ),
     spoolReceipt: async (error) =>
@@ -298,7 +312,7 @@ async function deliverHook(
       },
     },
     async () => {
-      const client = (deps.clientFactory ?? defaultClientFactory)(paths.socketPath);
+      const client = observerClient(paths.socketPath, timeoutMs, deps);
       const receipt = await client.ingestHookEvent(event);
       if (receipt.status !== "ingested") {
         throw (
@@ -341,7 +355,7 @@ async function deliverHarnessEventReport(
       },
     },
     async () => {
-      const client = (deps.clientFactory ?? defaultClientFactory)(paths.socketPath);
+      const client = observerClient(paths.socketPath, timeoutMs, deps);
       const receipt = await client.reportHarnessEvent(report);
       if (receipt.status !== "accepted") {
         throw (
@@ -629,6 +643,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function defaultClientFactory(socketPath: string) {
-  return createObserverClient({ socketPath, timeoutMs: 500 });
+function observerClient(
+  socketPath: string,
+  timeoutMs: number,
+  deps: ProviderHookSenderDeps,
+): ReturnType<typeof createObserverClient> {
+  return (
+    deps.clientFactory?.(socketPath, { timeoutMs }) ??
+    createObserverClient({ socketPath, timeoutMs })
+  );
 }

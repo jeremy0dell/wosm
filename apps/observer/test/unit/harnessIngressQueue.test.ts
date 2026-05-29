@@ -55,6 +55,72 @@ describe("harness ingress queue", () => {
       },
     });
   });
+
+  it("keeps processing after a report throws", async () => {
+    const processed: string[] = [];
+    const queue = createHarnessIngressQueue({
+      clock,
+      processReport: async (report) => {
+        if (report.reportId === "report_1") {
+          throw new Error("projection failed");
+        }
+        processed.push(report.reportId);
+        return { receipt: acceptedReceipt(report) };
+      },
+    });
+
+    queue.enqueue(harnessReport("report_1", "session_1"));
+    queue.enqueue(harnessReport("report_2", "session_2"));
+    await queue.drain();
+
+    expect(processed).toEqual(["report_2"]);
+    expect(queue.health()).toMatchObject({
+      depth: 0,
+      processed: 1,
+      failed: 1,
+      lastError: {
+        code: "HARNESS_INGRESS_PROCESS_FAILED",
+      },
+    });
+  });
+
+  it("waits for active work during shutdown and rejects later enqueue", async () => {
+    const started = deferred();
+    const release = deferred();
+    const processed: string[] = [];
+    const queue = createHarnessIngressQueue({
+      clock,
+      processReport: async (report) => {
+        started.resolve();
+        await release.promise;
+        processed.push(report.reportId);
+        return { receipt: acceptedReceipt(report) };
+      },
+    });
+
+    queue.enqueue(harnessReport("report_1"));
+    await started.promise;
+
+    const shutdown = queue.shutdown();
+    const rejected = queue.enqueue(harnessReport("report_2", "session_2"));
+    expect(rejected).toMatchObject({
+      accepted: false,
+      status: "rejected",
+      error: {
+        code: "HARNESS_INGRESS_QUEUE_SHUTTING_DOWN",
+      },
+    });
+
+    release.resolve();
+    await shutdown;
+
+    expect(processed).toEqual(["report_1"]);
+    expect(queue.health()).toMatchObject({
+      depth: 0,
+      processed: 1,
+      dropped: 1,
+    });
+  });
 });
 
 function harnessReport(reportId: string, sessionId = "session_1"): HarnessEventReport {
@@ -94,4 +160,12 @@ function acceptedReceipt(report: HarnessEventReport) {
     projected: false,
     scheduledReconcile: false,
   };
+}
+
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
 }

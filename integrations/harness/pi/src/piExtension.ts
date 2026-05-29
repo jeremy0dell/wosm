@@ -160,7 +160,7 @@ function defaultSendReport(deps: PiExtensionDeps): (input: HookCommandInput) => 
     try {
       const client = createObserverClient({
         socketPath: observerSocketPath(deps.env ?? process.env),
-        timeoutMs: 750,
+        timeoutMs: 2000,
       });
       const receipt = await client.reportHarnessEvent(input.report);
       if (receipt.status !== "accepted") {

@@ -132,9 +132,11 @@ function createHarnessProvider(
     if (providerConfig?.installHooks !== undefined) {
       options.installHooks = providerConfig.installHooks;
     }
-    if (config.observer?.stateDir !== undefined) {
-      options.stateDir = config.observer.stateDir;
-    }
+    const observerPaths = resolveObserverPaths(config);
+    options.observerSocketPath = observerPaths.socketPath;
+    options.stateDir = observerPaths.stateDir;
+    options.hookSpoolDir = observerPaths.hookSpoolDir;
+    options.autoStartFromHooks = config.observer?.autoStartFromHooks !== false;
     return new CodexHarnessProvider(options);
   }
 
