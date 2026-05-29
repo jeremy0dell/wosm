@@ -440,6 +440,18 @@ describe("Phase 1 contract schemas", () => {
       "terminal focus command with popup focus origin",
     );
 
+    expectParses(
+      WosmCommandSchema,
+      {
+        type: "session.startAgent",
+        payload: {
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+        },
+      },
+      "start agent command with remembered harness",
+    );
+
     expectFails(
       WosmCommandSchema,
       {
@@ -678,6 +690,21 @@ describe("Phase 1 contract schemas", () => {
         socketPath: "/tmp/wosm/observer.sock",
         stateDir: "/tmp/wosm/state",
         hookSpoolDepth: 0,
+        harnessIngressQueue: {
+          depth: 0,
+          enqueued: 10,
+          processed: 8,
+          coalesced: 2,
+          dropped: 0,
+          failed: 0,
+          lastProcessedAt: "2026-05-20T12:00:01.000Z",
+          lastDrain: {
+            scanned: 2,
+            drained: 2,
+            failed: 0,
+            finishedAt: "2026-05-20T12:00:02.000Z",
+          },
+        },
       },
       "observer health",
     );

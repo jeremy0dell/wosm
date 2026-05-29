@@ -6,6 +6,9 @@ export type PiLaunchOptions = {
   command?: string;
   extensionPath?: string;
   configPath?: string;
+  observerSocketPath?: string;
+  stateDir?: string;
+  hookSpoolDir?: string;
 };
 
 export function buildPiLaunchPlan(
@@ -39,6 +42,9 @@ export function buildPiLaunchPlan(
   }
   if (options.configPath !== undefined) {
     providerDataInput.configPathProvided = true;
+  }
+  if (options.observerSocketPath !== undefined) {
+    providerDataInput.observerSocketPathProvided = true;
   }
 
   return {
@@ -77,6 +83,15 @@ function piLaunchEnv(
   if (options.configPath !== undefined) {
     env.WOSM_CONFIG_PATH = options.configPath;
   }
+  if (options.observerSocketPath !== undefined) {
+    env.WOSM_OBSERVER_SOCKET_PATH = options.observerSocketPath;
+  }
+  if (options.stateDir !== undefined) {
+    env.WOSM_OBSERVER_STATE_DIR = options.stateDir;
+  }
+  if (options.hookSpoolDir !== undefined) {
+    env.WOSM_HOOK_SPOOL_DIR = options.hookSpoolDir;
+  }
   return env;
 }
 
@@ -84,6 +99,7 @@ type PiLaunchProviderDataInput = {
   extensionPath: string;
   initialPromptProvided: boolean;
   configPathProvided?: boolean | undefined;
+  observerSocketPathProvided?: boolean | undefined;
   terminalProvider?: string | undefined;
   terminalTargetId?: string | undefined;
 };
@@ -98,6 +114,9 @@ function piProviderData(input: PiLaunchProviderDataInput): Record<string, unknow
   }
   if (input.configPathProvided === true) {
     providerData.configPathProvided = true;
+  }
+  if (input.observerSocketPathProvided === true) {
+    providerData.observerSocketPathProvided = true;
   }
   if (input.terminalProvider !== undefined) {
     providerData.terminalProvider = input.terminalProvider;

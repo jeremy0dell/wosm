@@ -1,4 +1,9 @@
-import type { ProviderProjectConfig, WorktreeObservation, WorktreeRow } from "@wosm/contracts";
+import type {
+  ProviderId,
+  ProviderProjectConfig,
+  WorktreeObservation,
+  WorktreeRow,
+} from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
 import type { ObserverPersistence } from "../../persistence/index.js";
@@ -55,11 +60,19 @@ export function createSessionStartAgentHandler(
     const project = findProjectOrThrow(options.projects, payload.projectId);
     const terminalProviderId = payload.terminal?.provider ?? project.defaults.terminal;
     const terminal = resolveTerminalProviderOrThrow(options.providers, terminalProviderId);
-    const harness = resolveHarnessProviderOrThrow(options.providers, payload.harness.provider);
     const snapshot = options.core.getSnapshot();
     const row = snapshot.rows.find((candidate) => candidate.id === payload.worktreeId);
     validateSnapshotRow(row, payload.projectId);
     assertNoCurrentAgent(row);
+    const harnessProviderId =
+      payload.harness?.provider ??
+      (await createdHarnessProviderForWorktree({
+        persistence: options.persistence,
+        projectId: payload.projectId,
+        worktreeId: payload.worktreeId,
+      })) ??
+      project.defaults.harness;
+    const harness = resolveHarnessProviderOrThrow(options.providers, harnessProviderId);
 
     const sessionId = idFactory.sessionId();
     const runtime = {
@@ -127,11 +140,11 @@ export function createSessionStartAgentHandler(
             worktree,
             terminalTarget,
             sessionId,
-            ...(payload.harness.mode === undefined ? {} : { mode: payload.harness.mode }),
+            ...(payload.harness?.mode === undefined ? {} : { mode: payload.harness.mode }),
             ...(payload.initialPrompt === undefined
               ? {}
               : { initialPrompt: payload.initialPrompt }),
-            ...(payload.harness.profile === undefined ? {} : { profile: payload.harness.profile }),
+            ...(payload.harness?.profile === undefined ? {} : { profile: payload.harness.profile }),
           }),
       );
       throwIfAborted(context.signal);
@@ -254,4 +267,31 @@ async function lookupWorktree(input: {
     });
   }
   return worktree;
+}
+
+async function createdHarnessProviderForWorktree(input: {
+  persistence: ObserverPersistence;
+  projectId: string;
+  worktreeId: string;
+}): Promise<ProviderId | undefined> {
+  const sessions = await input.persistence.listSessions();
+  return sessions
+    .filter(
+      (session) =>
+        session.projectId === input.projectId &&
+        session.worktreeId === input.worktreeId &&
+        session.harness !== undefined,
+    )
+    .sort(compareCreatedSessions)[0]?.harness;
+}
+
+function compareCreatedSessions(
+  left: { id: string; createdAt: string; lastSeenAt: string },
+  right: { id: string; createdAt: string; lastSeenAt: string },
+): number {
+  return (
+    left.createdAt.localeCompare(right.createdAt) ||
+    left.lastSeenAt.localeCompare(right.lastSeenAt) ||
+    left.id.localeCompare(right.id)
+  );
 }

@@ -45,7 +45,7 @@ function wrapperTailLines(piBin: string, execRealPi: boolean): string[] {
     `if [ "\${1-}" = "--version" ]; then`,
     `  exec ${shellSingleQuote(piBin)} "$@"`,
     "fi",
-    "while :; do sleep 5; done",
+    "exec sleep 300",
   ];
 }
 

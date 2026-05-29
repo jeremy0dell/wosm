@@ -13,7 +13,7 @@ wosm debug bundle
 
 `wosm debug bundle` asks the observer for a diagnostic snapshot, then writes a redacted bundle under the configured state directory. If the config cannot be loaded, it writes a local invalid-config bundle next to the failing config instead of contacting the observer.
 
-Provider hooks are diagnosed as delivery hints, not runtime truth. The hook receiver assigns a stable hook id, tries bounded delivery to the observer, attempts bounded observer auto-start when enabled, and writes a spool record only when startup or delivery fails. Hook delivery decisions are written to `logs/hooks.jsonl`; hook payload attributes are redacted before they appear in logs or debug bundles.
+Provider hooks are diagnosed as delivery hints, not runtime truth. `wosm-ingress` assigns stable event ids, tries bounded delivery to the observer, attempts bounded observer auto-start when enabled, and writes a spool record only when startup or delivery fails. Harness reports are accepted into an observer-owned ingress queue before slower persistence, projection, and reconcile work. Queue depth, coalescing, drop/failure counts, and last spool-drain stats appear in observer health and diagnostic snapshots. Hook delivery decisions are written to `logs/hooks.jsonl`; hook payload attributes are redacted before they appear in logs or debug bundles.
 
 When `defaults.worktree_provider = "worktrunk"`, doctor also validates Worktrunk binary availability and lifecycle hook setup. Missing `wt` degrades provider health with `WORKTRUNK_UNAVAILABLE`, the attempted command, any resolved path, version output when available, and an install hint. Missing, disabled, or untrusted Worktrunk hooks degrade the report with a `worktrunk-hooks` check. Provider command failures from `wt` are recorded through provider health and appear in doctor output, logs, and debug bundle provider-health evidence.
 
@@ -130,7 +130,7 @@ wosm --config /path/to/config.toml worktrunk hooks doctor
 wosm --config /path/to/config.toml worktrunk hooks uninstall --yes
 ```
 
-Generated hook bodies call `wosm-hook --config /path/to/config.toml worktrunk <event>` by default. They do not contain lifecycle logic. The installer backs up the Worktrunk config, preserves unrelated hook commands, and removes only generated wosm hook entries on uninstall. `wosm hook <provider> <event>` remains as the compatibility wrapper for older generated hooks and explicit manual use.
+Generated hook bodies call `wosm-ingress --socket <observer.sock> --state-dir <state> --spool-dir <state>/spool/hooks --config /path/to/config.toml worktrunk <event>` by default. They do not contain lifecycle logic. The installer backs up the Worktrunk config, preserves unrelated hook commands, and removes only generated WOSM entries on uninstall.
 
 Generic aliases are also available for the Worktrunk hook setup surface:
 

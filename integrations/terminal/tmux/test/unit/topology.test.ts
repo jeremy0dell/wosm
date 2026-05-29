@@ -94,6 +94,25 @@ describe("tmux workbench topology", () => {
     expect(right).toMatch(/-[a-f0-9]{10}$/);
   });
 
+  it("keeps hashed workbench window names stable across macOS /var aliases", () => {
+    const branch = "wosm/customer-account-permissions-rollout-for-enterprise-alpha";
+    const worktreeId = "wt_web_customer_account_permissions";
+    const left = buildWorkbenchWindowName({
+      projectId: "web",
+      branch,
+      worktreeId,
+      path: "/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+    });
+    const right = buildWorkbenchWindowName({
+      projectId: "web",
+      branch,
+      worktreeId,
+      path: "/private/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+    });
+
+    expect(left).toBe(right);
+  });
+
   it("round-trips opaque provider target IDs without making core parse tmux fields", () => {
     const id = buildTmuxTargetId({
       sessionId: "wosm",

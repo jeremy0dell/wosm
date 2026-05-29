@@ -25,7 +25,7 @@ describe("CLI Codex hook commands", () => {
         "--hook-script",
         hookScriptPath,
         "--hook-bin",
-        "/opt/wosm-hook",
+        "/opt/wosm-ingress",
       ],
       { env },
     );
@@ -78,7 +78,7 @@ describe("CLI Codex hook commands", () => {
         "--hook-script",
         hookScriptPath,
         "--hook-bin",
-        "/opt/wosm-hook",
+        "/opt/wosm-ingress",
       ],
       { env },
     );
@@ -95,7 +95,9 @@ describe("CLI Codex hook commands", () => {
         },
       },
     });
-    await expect(readFile(hookScriptPath, "utf8")).resolves.toContain("/opt/wosm-hook --config");
+    await expect(readFile(hookScriptPath, "utf8")).resolves.toContain(
+      `/opt/wosm-ingress --socket ${join(root, "run", "observer.sock")} --state-dir ${join(root, "state")} --spool-dir ${join(root, "state", "spool", "hooks")} --config`,
+    );
     await expect(readFile(baseConfigPath, "utf8")).resolves.not.toContain(hookScriptPath);
     await writeFile(baseConfigPath, legacyGlobalCodexConfig(hookScriptPath), "utf8");
     const uninstalled = await runCli(

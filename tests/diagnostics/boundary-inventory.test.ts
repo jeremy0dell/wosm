@@ -6,7 +6,6 @@ const roots = ["apps", "packages", "integrations"];
 const providerNeutralSourceRoots = [
   "apps/tui/src",
   "packages/contracts/src",
-  "packages/hook-bridge/src",
   "packages/observability/src",
   "packages/protocol/src",
   "packages/runtime/src",
@@ -38,10 +37,6 @@ const setTimeoutAllowlist = new Map([
   [
     "apps/observer/src/metadata/gitRefInvalidation.ts",
     "Short debounce coalesces noisy Git ref watch events before requesting an observer-owned metadata reconcile.",
-  ],
-  [
-    "integrations/harness/pi/src/piExtension.ts",
-    "Standalone Pi extension cannot depend on runtime helpers; bounded hook subprocess timeout is provider-local telemetry.",
   ],
 ]);
 

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@wosm/contracts": "workspace:*",
+    "@wosm/protocol": "workspace:*",
     "@wosm/runtime": "workspace:*",
     "zod": "^4.1.12"
   }

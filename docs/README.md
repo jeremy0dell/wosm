@@ -30,13 +30,14 @@ This index classifies docs by current use. When a doc conflicts with current cod
 - [Effect boundary hardening sequence](planning/effect_boundary_hardening_sequence.md) is a scoped planning addendum for runtime timeout, retry, cancellation, queue, protocol, observer, provider, CLI, and TUI IO boundaries.
 - [Code smell remediation P1/P2](planning/code_smell_remediation_p1_p2.md) is a scoped planning addendum for optional object construction, provider diagnostics boundaries, validation, and async spread cleanup.
 - [Light commenting audit](planning/light_commenting_audit.md) is a scoped planning addendum for adding sparse comments to non-obvious runtime, provider, protocol, and correlation code paths.
-- [Harness hook ingress refactor master plan](planning/harness_hook_ingress_refactor_master_plan.md) is a scoped implementation plan for provider-neutral hook ingress and status projection; use current hook code/tests as authority before executing old slices.
+- [Harness socket ingress and observer queue plan](planning/harness_socket_ingress_and_observer_queue_plan.md) is the active plan for removing the `wosm-hook` hot path and fixing observer ingress backpressure.
 - [TUI dashboard visual notes](planning/tui_dashboard_visual_notes.md) are active product notes for TUI row layout and visual direction, not contract authority.
 
 ## Historical/Deprecated Baselines
 
 - [wosm rebuild TDD Final V1](planning/wosm_rebuild_tdd_final_v1.md) is a historical V1 baseline retained for original architecture rationale and deprecated as mandatory startup context.
 - [wosm phased development cycle Final V1](planning/wosm_phased_development_cycle_final_v1.md) is a historical V1 build sequence retained for phase archaeology and deprecated as mandatory startup context.
+- [Harness hook ingress refactor master plan](planning/harness_hook_ingress_refactor_master_plan.md) is superseded for future transport/backpressure work by the socket ingress and observer queue plan, but remains useful historical context for the first provider-neutral harness report slices.
 
 ## Completed Records And Audits
 

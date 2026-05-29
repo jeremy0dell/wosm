@@ -7,6 +7,17 @@ quote_shell() {
   printf "'"
 }
 
+script=$0
+while [ -h "$script" ]; do
+  script_dir=$(CDPATH= cd -- "$(dirname -- "$script")" && pwd)
+  link=$(readlink "$script")
+  case "$link" in
+    /*) script=$link ;;
+    *) script=$script_dir/$link ;;
+  esac
+done
+root=$(CDPATH= cd -- "$(dirname -- "$script")/../../../.." 2>/dev/null && pwd || true)
+
 clear_popup_client_if_current() {
   tmux_bin=$1
   client_id=$2
@@ -27,16 +38,6 @@ fallback_or_exit() {
   if [ -n "${WOSM_POPUP_FALLBACK_COMMAND:-}" ]; then
     exec sh -lc "$WOSM_POPUP_FALLBACK_COMMAND"
   fi
-  script=$0
-  while [ -h "$script" ]; do
-    script_dir=$(CDPATH= cd -- "$(dirname -- "$script")" && pwd)
-    link=$(readlink "$script")
-    case "$link" in
-      /*) script=$link ;;
-      *) script=$script_dir/$link ;;
-    esac
-  done
-  root=$(CDPATH= cd -- "$(dirname -- "$script")/../../../.." 2>/dev/null && pwd || true)
   if [ -n "$root" ] && [ -x "$root/bin/wosm" ]; then
     exec "$root/bin/wosm" popup
   fi
@@ -81,12 +82,19 @@ try_registered_dev_ui() {
   [ -n "$candidate_session" ] || return 1
   [ -n "$candidate_command" ] || return 1
   candidate_owner=$("$tmux_bin" show-options -gqv @wosm_tui_dev_owner 2>/dev/null || true)
+  candidate_root=$("$tmux_bin" show-options -gqv @wosm_tui_dev_root 2>/dev/null || true)
+  [ "$candidate_root" = "$root" ] || return 1
   try_ui_candidate "$candidate_session" "v1:$candidate_command" "$candidate_owner"
 }
 
 try_registered_normal_ui() {
   candidate_session=$("$tmux_bin" show-options -gqv @wosm_popup_ui_session_name 2>/dev/null || true)
   candidate_signature=$("$tmux_bin" show-options -gqv @wosm_popup_ui_expected_signature 2>/dev/null || true)
+  dev_session=$("$tmux_bin" show-options -gqv @wosm_tui_dev_session_name 2>/dev/null || true)
+  dev_root=$("$tmux_bin" show-options -gqv @wosm_tui_dev_root 2>/dev/null || true)
+  if [ -n "$candidate_session" ] && [ "$candidate_session" = "$dev_session" ] && [ "$dev_root" != "$root" ]; then
+    return 1
+  fi
   try_ui_candidate "$candidate_session" "$candidate_signature" ""
 }
 

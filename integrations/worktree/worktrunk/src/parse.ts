@@ -1,5 +1,5 @@
 import type { ProviderId, ProviderProjectConfig, WorktreeObservation } from "@wosm/contracts";
-import { WorktreeObservationSchema } from "@wosm/contracts";
+import { normalizeObservedPath, WorktreeObservationSchema } from "@wosm/contracts";
 import { stableName, stableNameHash } from "@wosm/runtime";
 import { WorktrunkProviderError } from "./errors.js";
 import {
@@ -249,14 +249,15 @@ function hasWorktreePath(item: unknown): item is WorktrunkListItem {
 }
 
 function worktreeId(projectId: string, branch: string, path: string): string {
+  const identityPath = normalizeObservedPath(path);
   const stableDisplayName = branch.startsWith("detached:")
-    ? `${branch}_${stableNameHash(["worktree-path", path], 8)}`
+    ? `${branch}_${stableNameHash(["worktree-path", identityPath], 8)}`
     : branch || path;
   return stableName({
     prefix: "wt",
     profile: "id",
     display: [projectId, stableDisplayName],
-    unique: ["worktree", projectId, path, branch],
+    unique: ["worktree", projectId, identityPath, branch],
   });
 }
 

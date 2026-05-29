@@ -44,7 +44,7 @@ export async function writeHookSpoolRecord(
   const spoolId = (options.spoolId ?? defaultSpoolId)();
   const result = await runRuntimeBoundary(
     {
-      operation: "hookBridge.hookSpool.write",
+      operation: "providerHooks.hookSpool.write",
       clock,
       error: {
         tag: "HookSpoolError",
@@ -96,7 +96,7 @@ export async function writeHarnessEventReportSpoolRecord(
   const spoolId = (options.spoolId ?? defaultSpoolId)();
   const result = await runRuntimeBoundary(
     {
-      operation: "hookBridge.harnessEventReportSpool.write",
+      operation: "providerHooks.harnessEventReportSpool.write",
       clock,
       error: {
         tag: "HookSpoolError",

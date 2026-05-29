@@ -19,7 +19,7 @@ describe("CLI Worktrunk hook commands", () => {
       "--worktrunk-config",
       worktrunkConfigPath,
       "--hook-bin",
-      "/opt/wosm-hook",
+      "/opt/wosm-ingress",
     ]);
 
     expect(result).toMatchObject({
@@ -29,7 +29,7 @@ describe("CLI Worktrunk hook commands", () => {
         changed: true,
         configPath: worktrunkConfigPath,
         commands: {
-          "post-create": `/opt/wosm-hook --config ${configPath} worktrunk post-create`,
+          "post-create": `/opt/wosm-ingress --socket ${join(root, "run", "observer.sock")} --state-dir ${join(root, "state")} --spool-dir ${join(root, "state", "spool", "hooks")} --config ${configPath} worktrunk post-create`,
         },
       },
     });

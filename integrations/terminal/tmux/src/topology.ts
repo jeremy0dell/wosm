@@ -1,4 +1,5 @@
 import type { TmuxConfig } from "@wosm/config";
+import { normalizeObservedPath } from "@wosm/contracts";
 import { stableName } from "@wosm/runtime";
 
 export type TmuxWorkbenchConfig = {
@@ -59,16 +60,11 @@ export function buildWorkbenchWindowName(input: {
   path?: string;
   forceHash?: boolean;
 }): string {
+  const identityPath = input.path === undefined ? "" : normalizeObservedPath(input.path);
   return stableName({
     profile: "tmux-window",
     display: [input.projectId, input.branch],
-    unique: [
-      "tmux-window",
-      input.projectId,
-      input.worktreeId ?? "",
-      input.path ?? "",
-      input.branch,
-    ],
+    unique: ["tmux-window", input.projectId, input.worktreeId ?? "", identityPath, input.branch],
     hash: input.forceHash === true ? "always" : "auto",
   });
 }
