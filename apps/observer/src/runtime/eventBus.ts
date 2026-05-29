@@ -1,10 +1,5 @@
 import type { EventFilter, WosmEvent } from "@wosm/contracts";
-import {
-  WosmEventSchema,
-  wosmEventCommandId,
-  wosmEventTimestamp,
-  wosmEventTraceId,
-} from "@wosm/contracts";
+import { WosmEventSchema, wosmEventMetadata } from "@wosm/contracts";
 import { Effect, Queue } from "@wosm/runtime";
 
 export type ObserverEventBus = {
@@ -83,22 +78,21 @@ function eventMatchesFilter(event: WosmEvent, filter: EventFilter | undefined): 
     }
   }
 
-  if (filter.commandId !== undefined) {
-    if (wosmEventCommandId(event) !== filter.commandId) {
+  if (
+    filter.commandId !== undefined ||
+    filter.traceId !== undefined ||
+    filter.since !== undefined
+  ) {
+    const metadata = wosmEventMetadata(event);
+
+    if (filter.commandId !== undefined && metadata.commandId !== filter.commandId) {
       return false;
     }
-  }
-
-  if (filter.traceId !== undefined) {
-    if (wosmEventTraceId(event) !== filter.traceId) {
+    if (filter.traceId !== undefined && metadata.traceId !== filter.traceId) {
       return false;
     }
-  }
-
-  if (filter.since !== undefined) {
-    const timestamp = wosmEventTimestamp(event);
-    if (timestamp !== undefined) {
-      return Date.parse(timestamp) >= Date.parse(filter.since);
+    if (filter.since !== undefined && metadata.timestamp !== undefined) {
+      return Date.parse(metadata.timestamp) >= Date.parse(filter.since);
     }
   }
 
