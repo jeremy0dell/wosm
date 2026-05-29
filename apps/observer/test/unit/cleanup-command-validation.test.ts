@@ -8,6 +8,7 @@ import {
   resolveSessionOrThrow,
   resolveWorktreeRowOrThrow,
 } from "../../src/internal";
+import { observerHarnessRunFromRun } from "../../src/reconcile/harnessEventStatus";
 
 const now = "2026-05-21T12:00:00.000Z";
 
@@ -117,14 +118,16 @@ function snapshotFor(input: { dirty: boolean; state: "none" | "working" }) {
       input.state === "none"
         ? []
         : [
-            createFakeHarnessRun({
-              id: "run_web_cleanup",
-              projectId: "web",
-              worktreeId: "wt_web_cleanup",
-              sessionId: "ses_web_cleanup",
-              state: "working",
-              now,
-            }),
+            observerHarnessRunFromRun(
+              createFakeHarnessRun({
+                id: "run_web_cleanup",
+                projectId: "web",
+                worktreeId: "wt_web_cleanup",
+                sessionId: "ses_web_cleanup",
+                state: "working",
+                now,
+              }),
+            ),
           ],
   });
 }

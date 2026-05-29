@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { CommandId, WosmEvent } from "@wosm/contracts";
-import { WosmEventSchema } from "@wosm/contracts";
+import { WosmEventSchema, wosmEventCommandId, wosmEventTimestamp } from "@wosm/contracts";
 import { stringifyJson } from "./json.js";
 import { eventFromRow, type SqliteEventRow } from "./rows.js";
 import type { PersistedEvent } from "./types.js";
@@ -54,11 +54,11 @@ export function listEvents(
 }
 
 export function eventCommandId(event: WosmEvent): CommandId | undefined {
-  return "commandId" in event ? event.commandId : undefined;
+  return wosmEventCommandId(event);
 }
 
 export function eventTimestamp(event: WosmEvent): string | undefined {
-  return "at" in event ? event.at : undefined;
+  return wosmEventTimestamp(event);
 }
 
 function readEvent(database: DatabaseSync, eventId: string): PersistedEvent {

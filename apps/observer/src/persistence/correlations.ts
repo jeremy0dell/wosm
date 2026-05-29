@@ -35,13 +35,20 @@ import type {
   PersistReconcileResultInput,
 } from "./types.js";
 
+type ProjectPersistenceInput = {
+  id: string;
+  label: string;
+  root: string;
+  repo?: string;
+};
+
 export function persistReconcileResult(
   database: DatabaseSync,
   input: PersistReconcileResultInput,
   options: { observedAt: string; idFactory: ObserverIdFactory },
 ): void {
   for (const project of input.projects) {
-    upsertProject(database, project, options.observedAt);
+    upsertProject(database, projectPersistenceInput(project), options.observedAt);
   }
   for (const worktree of input.worktrees.map((value) => WorktreeObservationSchema.parse(value))) {
     upsertWorktree(database, worktree);
@@ -146,7 +153,7 @@ export function listSessions(database: DatabaseSync): PersistedSession[] {
 
 function upsertProject(
   database: DatabaseSync,
-  project: ProviderProjectConfig | PersistedProject,
+  project: ProjectPersistenceInput,
   lastSeenAt: string,
 ): void {
   database
@@ -161,13 +168,15 @@ function upsertProject(
           last_seen_at = excluded.last_seen_at
       `,
     )
-    .run(
-      project.id,
-      project.label,
-      project.root,
-      "repo" in project ? (project.repo ?? null) : null,
-      lastSeenAt,
-    );
+    .run(project.id, project.label, project.root, project.repo ?? null, lastSeenAt);
+}
+
+function projectPersistenceInput(project: ProviderProjectConfig): ProjectPersistenceInput {
+  return {
+    id: project.id,
+    label: project.label,
+    root: project.root,
+  };
 }
 
 function upsertWorktree(database: DatabaseSync, worktree: WorktreeObservation): void {

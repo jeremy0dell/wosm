@@ -1,5 +1,5 @@
 import type { EventFilter, WosmEvent } from "@wosm/contracts";
-import { WosmEventSchema } from "@wosm/contracts";
+import { WosmEventSchema, wosmEventMetadata } from "@wosm/contracts";
 import { Effect, Queue } from "@wosm/runtime";
 
 export type ObserverEventBus = {
@@ -78,20 +78,22 @@ function eventMatchesFilter(event: WosmEvent, filter: EventFilter | undefined): 
     }
   }
 
-  if (filter.commandId !== undefined) {
-    if (!("commandId" in event) || event.commandId !== filter.commandId) {
+  if (
+    filter.commandId !== undefined ||
+    filter.traceId !== undefined ||
+    filter.since !== undefined
+  ) {
+    const metadata = wosmEventMetadata(event);
+
+    if (filter.commandId !== undefined && metadata.commandId !== filter.commandId) {
       return false;
     }
-  }
-
-  if (filter.traceId !== undefined) {
-    if (!("traceId" in event) || event.traceId !== filter.traceId) {
+    if (filter.traceId !== undefined && metadata.traceId !== filter.traceId) {
       return false;
     }
-  }
-
-  if (filter.since !== undefined && "at" in event) {
-    return Date.parse(event.at) >= Date.parse(filter.since);
+    if (filter.since !== undefined && metadata.timestamp !== undefined) {
+      return Date.parse(metadata.timestamp) >= Date.parse(filter.since);
+    }
   }
 
   return true;

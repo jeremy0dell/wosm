@@ -102,6 +102,7 @@ describe("Pi compact event parsing", () => {
       provider: "pi",
       kind: "harness",
       eventType: "tool_execution_end",
+      coalesceKey: "tool:toolu_1",
       status: {
         value: "working",
         source: "harness_event",

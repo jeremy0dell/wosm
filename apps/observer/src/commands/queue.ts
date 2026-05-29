@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type {
   CommandId,
   CommandReceipt,
+  TerminalClosePayload,
+  TerminalFocusPayload,
   TraceContext,
   WosmCommand,
   WosmEvent,
@@ -337,17 +339,37 @@ function missingCommandHandlerError() {
 
 // Prefer the narrowest scope so commands touching the same session, worktree, or project serialize.
 function commandScope(command: WosmCommand): string {
-  if ("targetId" in command.payload && typeof command.payload.targetId === "string") {
-    return `terminal-target:${command.payload.targetId}`;
+  switch (command.type) {
+    case "terminal.focus":
+    case "terminal.close":
+      return terminalCommandScope(command.payload);
+    case "session.close":
+    case "session.remove":
+    case "session.sendPrompt":
+      return `session:${command.payload.sessionId}`;
+    case "worktree.remove":
+    case "session.startAgent":
+      return `worktree:${command.payload.worktreeId}`;
+    case "worktree.create":
+    case "session.create":
+      return `project:${command.payload.projectId}`;
+    case "observer.reconcile":
+    case "hooks.install":
+      return "global";
   }
-  if ("sessionId" in command.payload && typeof command.payload.sessionId === "string") {
-    return `session:${command.payload.sessionId}`;
+  const _exhaustive: never = command;
+  return _exhaustive;
+}
+
+function terminalCommandScope(payload: TerminalFocusPayload | TerminalClosePayload): string {
+  if (payload.targetId !== undefined) {
+    return `terminal-target:${payload.targetId}`;
   }
-  if ("worktreeId" in command.payload && typeof command.payload.worktreeId === "string") {
-    return `worktree:${command.payload.worktreeId}`;
+  if (payload.sessionId !== undefined) {
+    return `session:${payload.sessionId}`;
   }
-  if ("projectId" in command.payload && typeof command.payload.projectId === "string") {
-    return `project:${command.payload.projectId}`;
+  if (payload.worktreeId !== undefined) {
+    return `worktree:${payload.worktreeId}`;
   }
   return "global";
 }

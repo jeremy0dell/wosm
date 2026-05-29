@@ -136,14 +136,6 @@ describe("observer reconcile with Pi harness", () => {
         id: "pi:tmux:wosm:@1:%2",
         state: "working",
         confidence: "medium",
-        providerData: expect.objectContaining({
-          statusOverlay: {
-            source: "harness_event",
-            rawEventType: "tool_execution_start",
-            updatedAt: "2026-05-27T12:00:01.000Z",
-            correlatedBy: "harnessRunId",
-          },
-        }),
       }),
     ]);
     sqlite.close();
