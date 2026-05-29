@@ -191,6 +191,67 @@ export const WosmEventSchema = z.discriminatedUnion("type", [
 
 export type WosmEvent = z.infer<typeof WosmEventSchema>;
 
+export type WosmEventMetadata = {
+  commandId?: z.infer<typeof CommandIdSchema>;
+  traceId?: string;
+  timestamp?: string;
+};
+
+export function wosmEventMetadata(event: WosmEvent): WosmEventMetadata {
+  switch (event.type) {
+    case "command.accepted":
+    case "command.started":
+    case "command.succeeded":
+    case "command.failed": {
+      const metadata: WosmEventMetadata = {
+        commandId: event.commandId,
+      };
+      if (event.traceId !== undefined) {
+        metadata.traceId = event.traceId;
+      }
+      return metadata;
+    }
+    case "observer.reconciled": {
+      const metadata: WosmEventMetadata = {
+        timestamp: event.at,
+      };
+      if (event.traceId !== undefined) {
+        metadata.traceId = event.traceId;
+      }
+      return metadata;
+    }
+    case "observer.started":
+    case "hook.ingested":
+    case "harness.eventReported":
+    case "hook.spoolDrained":
+      return {
+        timestamp: event.at,
+      };
+    case "project.updated":
+    case "worktree.added":
+    case "worktree.updated":
+    case "worktree.removed":
+    case "worktree.agentStateChanged":
+    case "session.created":
+    case "session.updated":
+    case "session.removed":
+    case "provider.healthChanged":
+      return {};
+  }
+}
+
+export function wosmEventCommandId(event: WosmEvent): z.infer<typeof CommandIdSchema> | undefined {
+  return wosmEventMetadata(event).commandId;
+}
+
+export function wosmEventTraceId(event: WosmEvent): string | undefined {
+  return wosmEventMetadata(event).traceId;
+}
+
+export function wosmEventTimestamp(event: WosmEvent): string | undefined {
+  return wosmEventMetadata(event).timestamp;
+}
+
 export const EventFilterSchema = z
   .object({
     type: z.union([WosmEventTypeSchema, z.array(WosmEventTypeSchema).min(1)]).optional(),

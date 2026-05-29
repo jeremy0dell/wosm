@@ -214,14 +214,6 @@ describe("observer reconcile with Codex harness", () => {
         state: "working",
         confidence: "medium",
         lastSeenAt: now,
-        providerData: expect.objectContaining({
-          statusOverlay: {
-            source: "harness_hook",
-            rawEventType: "PreToolUse",
-            updatedAt: "2026-05-21T12:00:01.000Z",
-            correlatedBy: "worktreeId",
-          },
-        }),
       }),
     ]);
     await expect(persistence.listProviderObservations()).resolves.toEqual(

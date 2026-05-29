@@ -412,6 +412,7 @@ describe("Codex hook event parsing", () => {
       provider: "codex",
       kind: "harness",
       eventType: "PostToolUse",
+      coalesceKey: "turn:turn_1:tool:call_test",
       status: {
         value: "working",
         source: "harness_hook",

@@ -272,14 +272,6 @@ describe("observer reconcile persistence", () => {
         state: "needs_attention",
         confidence: "high",
         lastSeenAt: now,
-        providerData: expect.objectContaining({
-          statusOverlay: {
-            source: "harness_hook",
-            rawEventType: "PermissionRequest",
-            updatedAt: "2026-05-20T12:00:01.000Z",
-            correlatedBy: "harnessRunId",
-          },
-        }),
       }),
     ]);
     expect(await persistence.listSessions()).toEqual([

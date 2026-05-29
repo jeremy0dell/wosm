@@ -11,7 +11,7 @@ import {
   TimestampSchema,
   WorktreeIdSchema,
 } from "./ids.js";
-import { ObservedStatusSchema } from "./observations.js";
+import { HarnessEventDiagnosticsSchema, ObservedStatusSchema } from "./observations.js";
 import { nonEmptyStringSchema, optionalProviderDataSchema } from "./shared.js";
 
 export const ProviderHookKindSchema = z.enum(["worktree", "terminal", "harness", "provider"]);
@@ -66,16 +66,7 @@ export const HarnessEventReportCorrelationSchema = z
 
 export type HarnessEventReportCorrelation = z.infer<typeof HarnessEventReportCorrelationSchema>;
 
-export const HarnessEventReportDiagnosticsSchema = z
-  .object({
-    rawEventType: nonEmptyStringSchema.optional(),
-    payloadBytes: z.number().int().nonnegative().optional(),
-    compactedBytes: z.number().int().nonnegative().optional(),
-    compacted: z.boolean().optional(),
-    truncated: z.boolean().optional(),
-    omittedFieldNames: z.array(nonEmptyStringSchema).optional(),
-  })
-  .strict();
+export const HarnessEventReportDiagnosticsSchema = HarnessEventDiagnosticsSchema;
 
 export type HarnessEventReportDiagnostics = z.infer<typeof HarnessEventReportDiagnosticsSchema>;
 
@@ -87,6 +78,7 @@ export const HarnessEventReportSchema = z
     kind: z.literal("harness"),
     eventType: nonEmptyStringSchema,
     observedAt: TimestampSchema,
+    coalesceKey: nonEmptyStringSchema.optional(),
     status: ObservedStatusSchema.optional(),
     correlation: HarnessEventReportCorrelationSchema.optional(),
     diagnostics: HarnessEventReportDiagnosticsSchema.optional(),

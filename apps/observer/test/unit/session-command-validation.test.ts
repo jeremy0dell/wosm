@@ -14,6 +14,7 @@ import {
   resolveTerminalProviderOrThrow,
 } from "../../src/commands/session/shared";
 import { buildWosmSnapshot, ProviderRegistry } from "../../src/internal";
+import { observerHarnessRunFromRun } from "../../src/reconcile/harnessEventStatus";
 
 const now = "2026-05-21T12:00:00.000Z";
 
@@ -98,13 +99,15 @@ describe("session command validation helpers", () => {
         }),
       ],
       harnessRuns: [
-        createFakeHarnessRun({
-          id: "run_web_task",
-          projectId: "web",
-          worktreeId: "wt_web_task",
-          sessionId: "ses_web_task",
-          now,
-        }),
+        observerHarnessRunFromRun(
+          createFakeHarnessRun({
+            id: "run_web_task",
+            projectId: "web",
+            worktreeId: "wt_web_task",
+            sessionId: "ses_web_task",
+            now,
+          }),
+        ),
       ],
     });
 

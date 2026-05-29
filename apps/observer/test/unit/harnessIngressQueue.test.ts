@@ -141,10 +141,7 @@ function harnessReport(reportId: string, sessionId = "session_1"): HarnessEventR
     correlation: {
       sessionId,
     },
-    providerData: {
-      turnId: "turn_1",
-      toolName: "Bash",
-    },
+    coalesceKey: "turn:turn_1:tool:Bash",
   };
 }
 
