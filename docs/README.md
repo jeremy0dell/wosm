@@ -29,6 +29,7 @@ This index classifies docs by current use. When a doc conflicts with current cod
 - [Provider hook scope guard plan](planning/provider_hook_scope_guard_plan.md) is a scoped planning addendum for hook ownership and ignored-hook behavior across provider-installed hooks.
 - [Effect boundary hardening sequence](planning/effect_boundary_hardening_sequence.md) is a scoped planning addendum for runtime timeout, retry, cancellation, queue, protocol, observer, provider, CLI, and TUI IO boundaries.
 - [Code smell remediation P1/P2](planning/code_smell_remediation_p1_p2.md) is a scoped planning addendum for optional object construction, provider diagnostics boundaries, validation, and async spread cleanup.
+- [TypeScript shape boundary audit](planning/typescript_shape_boundary_audit.md) is the current one-off audit brief for finding JavaScript-style runtime shape probing where schemas or typed unions should own the shape.
 - [Light commenting audit](planning/light_commenting_audit.md) is a scoped planning addendum for adding sparse comments to non-obvious runtime, provider, protocol, and correlation code paths.
 - [Harness socket ingress and observer queue plan](planning/harness_socket_ingress_and_observer_queue_plan.md) is the active plan for removing the `wosm-hook` hot path and fixing observer ingress backpressure.
 - [TUI dashboard visual notes](planning/tui_dashboard_visual_notes.md) are active product notes for TUI row layout and visual direction, not contract authority.
