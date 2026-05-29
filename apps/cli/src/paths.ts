@@ -1,2 +1,2 @@
-export type { ObserverPaths } from "@wosm/hook-bridge";
-export { resolveObserverPaths, resolvePath } from "@wosm/hook-bridge";
+export type { ObserverPaths } from "@wosm/config";
+export { resolveObserverPaths, resolvePath } from "@wosm/config";

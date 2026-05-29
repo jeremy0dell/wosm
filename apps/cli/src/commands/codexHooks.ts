@@ -8,7 +8,7 @@ import {
   planCodexHooks,
   uninstallCodexHooks,
 } from "@wosm/codex";
-import type { WosmConfig } from "@wosm/config";
+import { resolveObserverPaths, type WosmConfig } from "@wosm/config";
 
 export type CodexHooksCommandOptions = {
   config?: WosmConfig | undefined;
@@ -55,8 +55,6 @@ type ParsedCodexHookFlags = {
   codexConfigPath?: string;
   hookScriptPath?: string;
   hookBin?: string;
-  /** @deprecated Use `hookBin`; `wosmBin` generates the legacy `wosm hook ...` command. */
-  wosmBin?: string;
 };
 
 function buildCodexHookOptions(
@@ -73,11 +71,15 @@ function buildCodexHookOptions(
   if (options.config?.observer?.stateDir !== undefined) {
     hookOptions.stateDir = options.config.observer.stateDir;
   }
+  if (options.config !== undefined) {
+    const paths = resolveObserverPaths(options.config);
+    hookOptions.observerSocketPath = paths.socketPath;
+    hookOptions.stateDir = paths.stateDir;
+    hookOptions.hookSpoolDir = paths.hookSpoolDir;
+    hookOptions.autoStartFromHooks = options.config.observer?.autoStartFromHooks !== false;
+  }
   if (options.configPath !== undefined) {
     hookOptions.wosmConfigPath = options.configPath;
-  }
-  if (flags.wosmBin !== undefined) {
-    hookOptions.wosmBin = flags.wosmBin;
   }
   if (flags.hookBin !== undefined) {
     hookOptions.hookBin = flags.hookBin;
@@ -98,11 +100,17 @@ function copyCodexHookOptions(source: CodexHookPlanOptions, target: CodexHookPla
   if (source.stateDir !== undefined) {
     target.stateDir = source.stateDir;
   }
+  if (source.observerSocketPath !== undefined) {
+    target.observerSocketPath = source.observerSocketPath;
+  }
+  if (source.hookSpoolDir !== undefined) {
+    target.hookSpoolDir = source.hookSpoolDir;
+  }
+  if (source.autoStartFromHooks !== undefined) {
+    target.autoStartFromHooks = source.autoStartFromHooks;
+  }
   if (source.wosmConfigPath !== undefined) {
     target.wosmConfigPath = source.wosmConfigPath;
-  }
-  if (source.wosmBin !== undefined) {
-    target.wosmBin = source.wosmBin;
   }
   if (source.hookBin !== undefined) {
     target.hookBin = source.hookBin;
@@ -129,12 +137,6 @@ function parseFlags(args: string[]): ParsedCodexHookFlags {
     }
     if (arg === "--hook-script" && value !== undefined) {
       flags.hookScriptPath = value;
-      index += 1;
-      continue;
-    }
-    if (arg === "--wosm-bin" && value !== undefined) {
-      // Deprecated compatibility for older generated hook commands.
-      flags.wosmBin = value;
       index += 1;
       continue;
     }

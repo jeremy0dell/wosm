@@ -29,6 +29,9 @@ export type PiHarnessProviderOptions = {
   command?: string;
   extensionPath?: string;
   configPath?: string;
+  observerSocketPath?: string;
+  stateDir?: string;
+  hookSpoolDir?: string;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
@@ -106,6 +109,15 @@ export class PiHarnessProvider implements HarnessProvider {
     }
     if (this.#options.configPath !== undefined) {
       options.configPath = this.#options.configPath;
+    }
+    if (this.#options.observerSocketPath !== undefined) {
+      options.observerSocketPath = this.#options.observerSocketPath;
+    }
+    if (this.#options.stateDir !== undefined) {
+      options.stateDir = this.#options.stateDir;
+    }
+    if (this.#options.hookSpoolDir !== undefined) {
+      options.hookSpoolDir = this.#options.hookSpoolDir;
     }
     return buildPiLaunchPlan(request, options);
   }

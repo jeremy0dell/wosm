@@ -21,7 +21,10 @@ describe("Codex hook setup", () => {
     const plan = await planCodexHooks({
       hookScriptPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
-      hookBin: "/usr/local/bin/wosm-hook",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
+      hookBin: "/usr/local/bin/wosm-ingress",
       env: { CODEX_HOME: codexHome },
     });
 
@@ -63,11 +66,17 @@ describe("Codex hook setup", () => {
     const installed = await installCodexHooks({
       hookScriptPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
       env,
     });
     const second = await installCodexHooks({
       hookScriptPath,
       wosmConfigPath: "/tmp/wosm/config.toml",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
       env,
     });
     const config = await readFile(configPath, "utf8");
@@ -85,19 +94,24 @@ describe("Codex hook setup", () => {
     expect(config).toContain(hookScriptPath);
     expect(baseConfig).toContain("echo existing");
     expect(baseConfig).not.toContain(hookScriptPath);
-    expect(script).toContain("wosm-hook --config /tmp/wosm/config.toml codex");
-    expect(script).not.toContain(" hook codex");
+    expect(script).toContain(
+      "wosm-ingress --socket /tmp/wosm/run/observer.sock --state-dir /tmp/wosm/state --spool-dir /tmp/wosm/state/spool/hooks --config /tmp/wosm/config.toml codex",
+    );
+    expect(script).not.toContain("wosm-hook");
     expect(script).toContain("--config /tmp/wosm/config.toml");
     expect(script).toContain(
       `if [ -z "\${WOSM_SESSION_ID:-}" ] || [ -z "\${WOSM_WORKTREE_ID:-}" ]; then`,
     );
-    expect(script.indexOf("if [ -z")).toBeLessThan(script.indexOf("payload_file="));
-    expect(script).toContain('"$event" < "$payload_file" > /dev/null');
+    expect(script).not.toContain("payload_file=");
+    expect(script).toContain("codex > /dev/null");
     expect(scriptMode).toBe(0o700);
     await expect(
       doctorCodexHooks({
         hookScriptPath,
         wosmConfigPath: "/tmp/wosm/config.toml",
+        observerSocketPath: "/tmp/wosm/run/observer.sock",
+        stateDir: "/tmp/wosm/state",
+        hookSpoolDir: "/tmp/wosm/state/spool/hooks",
         enabled: true,
         env,
       }),
@@ -109,24 +123,6 @@ describe("Codex hook setup", () => {
     });
   });
 
-  it("can generate the legacy wosm hook command for compatibility", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
-    const env = codexEnv(root);
-    const configPath = join(root, "codex", "config.toml");
-    const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
-
-    await installCodexHooks({
-      codexConfigPath: configPath,
-      hookScriptPath,
-      wosmConfigPath: "/tmp/wosm/config.toml",
-      wosmBin: "/usr/local/bin/wosm",
-      env,
-    });
-
-    const script = await readFile(hookScriptPath, "utf8");
-    expect(script).toContain("/usr/local/bin/wosm --config /tmp/wosm/config.toml hook codex");
-  });
-
   it("generated script exits before payload parsing or hook invocation without ownership env", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
     const env = codexEnv(root);
@@ -136,7 +132,7 @@ describe("Codex hook setup", () => {
     await installCodexHooks({
       codexConfigPath: configPath,
       hookScriptPath,
-      hookBin: join(root, "missing-wosm-hook"),
+      hookBin: join(root, "missing-wosm-ingress"),
       env,
     });
 
@@ -154,12 +150,12 @@ describe("Codex hook setup", () => {
     }
   });
 
-  it("generated script invokes wosm-hook with Codex event when ownership env is present", async () => {
+  it("generated script invokes wosm-ingress with Codex stdin when ownership env is present", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-codex-hooks-"));
     const env = codexEnv(root);
     const configPath = join(root, "codex", "config.toml");
     const hookScriptPath = join(root, "state", "hooks", "wosm-codex-hook.sh");
-    const hookBin = join(root, "wosm-hook");
+    const hookBin = join(root, "wosm-ingress");
     const argsLog = join(root, "hook.args");
     const stdinLog = join(root, "hook.stdin");
     await writeFile(
@@ -190,9 +186,7 @@ describe("Codex hook setup", () => {
     });
 
     expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
-    await expect(readFile(argsLog, "utf8")).resolves.toBe(
-      "--config /tmp/wosm/config.toml codex PreToolUse\n",
-    );
+    await expect(readFile(argsLog, "utf8")).resolves.toBe("--config /tmp/wosm/config.toml codex\n");
     await expect(readFile(stdinLog, "utf8")).resolves.toBe(payload);
   });
 

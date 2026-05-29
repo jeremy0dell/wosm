@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { WosmConfig } from "@wosm/config";
+import type { ObserverPaths } from "@wosm/config";
 import type { ObserverHealth, SafeError } from "@wosm/contracts";
 import { createObserverClient, isSocketStale, removeStaleSocket } from "@wosm/protocol";
 import {
@@ -11,9 +11,8 @@ import {
   safeErrorFromUnknown,
   systemClock,
 } from "@wosm/runtime";
-import { type ObserverPaths, resolveObserverPaths } from "./paths.js";
 
-export type HookObserverStatus =
+export type ProviderHookObserverStatus =
   | {
       status: "running";
       paths: ObserverPaths;
@@ -25,14 +24,16 @@ export type HookObserverStatus =
       error?: SafeError;
     };
 
-export type HookObserverStartupDeps = {
+export type ProviderHookObserverStartupDeps = {
   clientFactory?: (socketPath: string) => ReturnType<typeof createObserverClient>;
-  spawnObserver?: (input: SpawnHookObserverInput) => ChildProcessLike | Promise<ChildProcessLike>;
+  spawnObserver?: (
+    input: SpawnProviderHookObserverInput,
+  ) => ChildProcessLike | Promise<ChildProcessLike>;
   clock?: RuntimeClock;
   sleep?: (ms: number) => Promise<void>;
 };
 
-export type SpawnHookObserverInput = {
+export type SpawnProviderHookObserverInput = {
   paths: ObserverPaths;
   observerEntryPath?: string;
   configPath?: string;
@@ -42,19 +43,18 @@ export type ChildProcessLike = Pick<ChildProcess, "pid" | "unref"> & {
   kill?: ChildProcess["kill"];
 };
 
-export type HookObserverStartupOptions = {
-  config?: WosmConfig | undefined;
+export type ProviderHookObserverStartupOptions = {
   configPath?: string | undefined;
   observerEntryPath?: string | undefined;
-  paths?: ObserverPaths | undefined;
+  paths: ObserverPaths;
   timeoutMs?: number | undefined;
 };
 
-export async function getHookObserverStatus(
-  options: HookObserverStartupOptions = {},
-  deps: HookObserverStartupDeps = {},
-): Promise<HookObserverStatus> {
-  const paths = options.paths ?? resolveObserverPaths(options.config);
+export async function getProviderHookObserverStatus(
+  options: ProviderHookObserverStartupOptions,
+  deps: ProviderHookObserverStartupDeps = {},
+): Promise<ProviderHookObserverStatus> {
+  const paths = options.paths;
   if (await isSocketStale(paths.socketPath)) {
     return { status: "stale", paths };
   }
@@ -79,14 +79,14 @@ export async function getHookObserverStatus(
   }
 }
 
-export async function startHookObserver(
-  options: HookObserverStartupOptions = {},
-  deps: HookObserverStartupDeps = {},
-): Promise<HookObserverStatus> {
-  const paths = options.paths ?? resolveObserverPaths(options.config);
+export async function startProviderHookObserver(
+  options: ProviderHookObserverStartupOptions,
+  deps: ProviderHookObserverStartupDeps = {},
+): Promise<ProviderHookObserverStatus> {
+  const paths = options.paths;
   const timeoutMs = options.timeoutMs ?? 30_000;
   const clock = deps.clock ?? systemClock;
-  const existing = await getHookObserverStatus({ ...options, paths }, deps);
+  const existing = await getProviderHookObserverStatus({ ...options, paths }, deps);
   if (existing.status === "running") {
     return existing;
   }
@@ -97,7 +97,7 @@ export async function startHookObserver(
   let child: ChildProcessLike | undefined;
   const result = await runRuntimeBoundaryWithTimeout(
     {
-      operation: "hookBridge.observer.start",
+      operation: "providerHooks.observer.start",
       clock,
       timeoutMs,
       error: {
@@ -114,7 +114,7 @@ export async function startHookObserver(
     async () => {
       await mkdir(paths.stateDir, { recursive: true, mode: 0o700 });
       await mkdir(dirname(paths.socketPath), { recursive: true, mode: 0o700 });
-      const spawnInput: SpawnHookObserverInput = { paths };
+      const spawnInput: SpawnProviderHookObserverInput = { paths };
       if (options.observerEntryPath !== undefined) {
         spawnInput.observerEntryPath = options.observerEntryPath;
       }
@@ -123,7 +123,7 @@ export async function startHookObserver(
       }
       child = await (deps.spawnObserver ?? defaultSpawnObserver)(spawnInput);
       child.unref?.();
-      return waitForHookObserverHealth({ paths, timeoutMs }, deps);
+      return waitForProviderHookObserverHealth({ paths, timeoutMs }, deps);
     },
   );
 
@@ -143,15 +143,15 @@ export async function startHookObserver(
   };
 }
 
-export async function waitForHookObserverHealth(
+export async function waitForProviderHookObserverHealth(
   options: { paths: ObserverPaths; timeoutMs?: number },
-  deps: HookObserverStartupDeps = {},
+  deps: ProviderHookObserverStartupDeps = {},
 ): Promise<ObserverHealth> {
   const timeoutMs = options.timeoutMs ?? 2000;
   const client = (deps.clientFactory ?? defaultClientFactory)(options.paths.socketPath);
   const result = await runRuntimeBoundaryWithRetryAndTimeout(
     {
-      operation: "hookBridge.observer.waitForHealth",
+      operation: "providerHooks.observer.waitForHealth",
       timeoutMs,
       error: {
         tag: "ObserverStartupError",
@@ -181,9 +181,9 @@ function defaultClientFactory(socketPath: string) {
   return createObserverClient({ socketPath, timeoutMs: 500 });
 }
 
-function defaultSpawnObserver(input: SpawnHookObserverInput): ChildProcessLike {
+function defaultSpawnObserver(input: SpawnProviderHookObserverInput): ChildProcessLike {
   if (input.observerEntryPath === undefined || input.observerEntryPath.length === 0) {
-    throw new Error("observerEntryPath is required to auto-start observer from hooks");
+    throw new Error("observerEntryPath is required to auto-start observer from provider hooks");
   }
   const args = [
     input.observerEntryPath,

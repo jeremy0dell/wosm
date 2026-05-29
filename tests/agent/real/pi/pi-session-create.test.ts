@@ -56,7 +56,7 @@ describeRealPi("real Pi session.create launch lane", () => {
     const env: RealDogfoodEnvironment = {
       repoRoot: process.cwd(),
       wosmBin: join(process.cwd(), "bin", "wosm"),
-      wosmHookBin: join(process.cwd(), "bin", "wosm-hook"),
+      wosmIngressBin: join(process.cwd(), "bin", "wosm-ingress"),
       tmuxBin,
       piBin,
     };

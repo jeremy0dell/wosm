@@ -1,4 +1,4 @@
-import type { WosmConfig } from "@wosm/config";
+import { resolveObserverPaths, type WosmConfig } from "@wosm/config";
 import {
   doctorWorktrunkHooks,
   installWorktrunkHooks,
@@ -24,8 +24,6 @@ type ParsedWorktrunkHookFlags = {
   yes: boolean;
   worktrunkConfigPath?: string;
   hookBin?: string;
-  /** @deprecated Use `hookBin`; `wosmBin` generates the legacy `wosm hook ...` command. */
-  wosmBin?: string;
 };
 
 export async function runWorktrunkHooksCommand(
@@ -36,11 +34,18 @@ export async function runWorktrunkHooksCommand(
   const flags = parseFlags(args.slice(1));
   const worktrunkConfigPath =
     flags.worktrunkConfigPath ?? options.config?.worktree?.worktrunk?.configPath;
+  const observerPaths =
+    options.config === undefined ? undefined : resolveObserverPaths(options.config);
   const hookOptions: WorktrunkHookPlanOptions = {
     ...(worktrunkConfigPath === undefined ? {} : { worktrunkConfigPath }),
     ...(options.configPath === undefined ? {} : { wosmConfigPath: options.configPath }),
+    ...(observerPaths === undefined ? {} : { observerSocketPath: observerPaths.socketPath }),
+    ...(observerPaths === undefined ? {} : { stateDir: observerPaths.stateDir }),
+    ...(observerPaths === undefined ? {} : { hookSpoolDir: observerPaths.hookSpoolDir }),
+    ...(options.config?.observer?.autoStartFromHooks === false
+      ? { autoStartFromHooks: false }
+      : {}),
     ...(flags.hookBin === undefined ? {} : { hookBin: flags.hookBin }),
-    ...(flags.wosmBin === undefined ? {} : { wosmBin: flags.wosmBin }),
   };
 
   if (action === "plan") {
@@ -76,12 +81,6 @@ function parseFlags(args: string[]): ParsedWorktrunkHookFlags {
     const value = args[index + 1];
     if (arg === "--worktrunk-config" && value !== undefined) {
       flags.worktrunkConfigPath = value;
-      index += 1;
-      continue;
-    }
-    if (arg === "--wosm-bin" && value !== undefined) {
-      // Deprecated compatibility for older generated hook commands.
-      flags.wosmBin = value;
       index += 1;
       continue;
     }

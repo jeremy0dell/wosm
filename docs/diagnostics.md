@@ -130,7 +130,7 @@ wosm --config /path/to/config.toml worktrunk hooks doctor
 wosm --config /path/to/config.toml worktrunk hooks uninstall --yes
 ```
 
-Generated hook bodies call `wosm-hook --config /path/to/config.toml worktrunk <event>` by default. They do not contain lifecycle logic. The installer backs up the Worktrunk config, preserves unrelated hook commands, and removes only generated wosm hook entries on uninstall. `wosm hook <provider> <event>` remains as the compatibility wrapper for older generated hooks and explicit manual use.
+Generated hook bodies call `wosm-ingress --socket <observer.sock> --state-dir <state> --spool-dir <state>/spool/hooks --config /path/to/config.toml worktrunk <event>` by default. They do not contain lifecycle logic. The installer backs up the Worktrunk config, preserves unrelated hook commands, and removes only generated WOSM entries on uninstall.
 
 Generic aliases are also available for the Worktrunk hook setup surface:
 

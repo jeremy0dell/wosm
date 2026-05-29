@@ -58,7 +58,7 @@ WOSM_CODEX_BIN="$(command -v codex)" \
 pnpm test:e2e:real
 ```
 
-Real failures must have enough evidence to triage from `doctor`, `snapshot --json --include-debug`, provider health, command records, logs, and `debug bundle`. The real Codex hook lane must show compact `wosm-hook` report evidence and observer `harness.eventReported` events for provider `codex`.
+Real failures must have enough evidence to triage from `doctor`, `snapshot --json --include-debug`, provider health, command records, logs, and `debug bundle`. The real Codex hook lane must show compact `wosm-ingress` report evidence and observer `harness.eventReported` events for provider `codex`.
 
 ## Documentation Gate
 

@@ -54,12 +54,12 @@ wosm debug bundle
 wosm observer stop
 ```
 
-### Hook Runner
+### Provider Hook Ingress
 
-`@wosm/hook-runner` provides the small `wosm-hook` bridge used by generated provider
-hooks. It parses hook stdin, reports to the observer with bounded delivery, and
-spools locally if the observer is unavailable. The older `wosm hook <provider>
-<event>` command remains available as a JSON-emitting compatibility wrapper.
+`@wosm/provider-hooks` provides the tiny `wosm-ingress` sender used by generated
+command-style provider hooks. It sends compact provider reports directly to the
+observer socket with bounded delivery and spools locally if the observer is unavailable.
+Pi extension hooks report in-process without spawning a hook command for every event.
 
 ### Observer
 

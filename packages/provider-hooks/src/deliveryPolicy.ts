@@ -1,4 +1,4 @@
-import type { WosmConfig } from "@wosm/config";
+import type { ObserverPaths } from "@wosm/config";
 import type {
   HookPayloadSummary,
   HookReceipt,
@@ -6,15 +6,17 @@ import type {
   SafeError,
 } from "@wosm/contracts";
 import { safeErrorFromUnknown, systemClock } from "@wosm/runtime";
-import { type HookObserverStartupDeps, startHookObserver } from "./observerStartup.js";
-import type { ObserverPaths } from "./paths.js";
+import {
+  type ProviderHookObserverStartupDeps,
+  startProviderHookObserver,
+} from "./observerStartup.js";
 
 export type ProviderDeliveryAttempt = {
   receipt?: HookReceipt;
   error?: SafeError;
 };
 
-export type ProviderDeliveryPolicyDeps = HookObserverStartupDeps;
+export type ProviderDeliveryPolicyDeps = ProviderHookObserverStartupDeps;
 
 type ReceiptRecorder = (input: {
   paths: ObserverPaths;
@@ -32,7 +34,6 @@ export async function deliverProviderHookWithSpooling(input: {
   autoStart: boolean;
   startupTimeoutMs: number;
   rateLimitMs: number;
-  config?: WosmConfig | undefined;
   configPath?: string | undefined;
   observerEntryPath?: string | undefined;
   deps: ProviderDeliveryPolicyDeps;
@@ -48,7 +49,6 @@ export async function deliverProviderHookWithSpooling(input: {
   if (input.autoStart) {
     const startResult = await maybeStartObserver({
       paths: input.paths,
-      config: input.config,
       configPath: input.configPath,
       observerEntryPath: input.observerEntryPath,
       timeoutMs: input.startupTimeoutMs,
@@ -90,7 +90,6 @@ async function recordReceipt(
 
 async function maybeStartObserver(input: {
   paths: ObserverPaths;
-  config?: WosmConfig | undefined;
   configPath?: string | undefined;
   observerEntryPath?: string | undefined;
   timeoutMs: number;
@@ -105,15 +104,14 @@ async function maybeStartObserver(input: {
       error: safeErrorFromUnknown(undefined, {
         tag: "HookAutoStartRateLimitError",
         code: "HOOK_AUTOSTART_RATE_LIMITED",
-        message: "Observer auto-start from hooks is rate-limited.",
+        message: "Observer auto-start from provider hooks is rate-limited.",
       }),
     };
   }
   lastStartByStateDir.set(input.paths.stateDir, now);
 
-  const started = await startHookObserver(
+  const started = await startProviderHookObserver(
     {
-      config: input.config,
       configPath: input.configPath,
       paths: input.paths,
       timeoutMs: input.timeoutMs,
@@ -131,7 +129,7 @@ async function maybeStartObserver(input: {
       safeErrorFromUnknown(undefined, {
         tag: "ObserverStartupError",
         code: "OBSERVER_START_FAILED",
-        message: "Observer could not be started for hook delivery.",
+        message: "Observer could not be started for provider hook delivery.",
       }),
   };
 }

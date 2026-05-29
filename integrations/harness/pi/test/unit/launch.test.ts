@@ -12,6 +12,9 @@ describe("buildPiLaunchPlan", () => {
       command: "/opt/pi/bin/pi",
       extensionPath: "/opt/wosm/piExtension.js",
       configPath: "/tmp/wosm/config.toml",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
     });
 
     expect(HarnessLaunchPlanSchema.parse(plan)).toEqual(plan);
@@ -30,12 +33,16 @@ describe("buildPiLaunchPlan", () => {
         WOSM_TERMINAL_PROVIDER: "tmux",
         WOSM_TERMINAL_TARGET_ID: "tmux:wosm:@1:%2",
         WOSM_CONFIG_PATH: "/tmp/wosm/config.toml",
+        WOSM_OBSERVER_SOCKET_PATH: "/tmp/wosm/run/observer.sock",
+        WOSM_OBSERVER_STATE_DIR: "/tmp/wosm/state",
+        WOSM_HOOK_SPOOL_DIR: "/tmp/wosm/state/spool/hooks",
       },
       providerData: {
         interactive: true,
         extensionPath: "/opt/wosm/piExtension.js",
         initialPromptProvided: true,
         configPathProvided: true,
+        observerSocketPathProvided: true,
         terminalProvider: "tmux",
         terminalTargetId: "tmux:wosm:@1:%2",
       },

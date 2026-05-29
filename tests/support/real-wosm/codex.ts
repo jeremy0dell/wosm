@@ -111,7 +111,7 @@ export async function installCodexHookProjectConfig(input: {
       "--hook-script",
       hookScriptPath,
       "--hook-bin",
-      input.env.wosmHookBin,
+      input.env.wosmIngressBin,
     ],
     env: {
       CODEX_HOME: codexHome,
