@@ -289,7 +289,13 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
           eventBus: options.eventBus,
           clock,
           ingest: (event) => hookIngestion.ingest(event, { triggerReconcile: false }),
-          report: async (report) => harnessIngressQueue.enqueue(report),
+          report: async (report) => {
+            const result = await processHarnessIngressReportInner(report);
+            if (result.reconcileReason !== undefined) {
+              reconcileScheduler.request(result.reconcileReason);
+            }
+            return result.receipt;
+          },
         }),
     )
       .then((result) => {

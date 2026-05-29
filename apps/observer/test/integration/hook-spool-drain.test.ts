@@ -3,12 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codexHookPayloadToHarnessEventReport, compactCodexHookPayload } from "@wosm/codex";
 import type { WosmConfig } from "@wosm/config";
+import type { HarnessEventReport, HarnessEventReportReceipt } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { FakeHarnessProvider, FakeTerminalProvider, FakeWorktreeProvider } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../tests/support/sockets";
 import {
   fileExists,
+  readHarnessEventReportSpoolRecord,
   readHookSpoolRecord,
   writeHarnessEventReportSpoolRecordFixture,
   writeHookSpoolRecordFixture,
@@ -21,6 +23,7 @@ import {
   createObserverEventBus,
   createObserverPersistence,
   drainHookSpool,
+  type HarnessEventReportIngestion,
   type HookIngestion,
   hookSpoolDir,
   openObserverSqlite,
@@ -142,18 +145,20 @@ describe("observer hook spool drain", () => {
     const spoolPath = await writeHookSpoolRecordFixture({ spoolDir, spoolId: "spool_startup" });
     const gate = deferred();
     const fixture = createFixture(spoolDir, {
-      ingest: async (event) => {
-        await gate.promise;
-        return {
-          schemaVersion: WOSM_SCHEMA_VERSION,
-          hookId: event.hookId ?? "hook_startup",
-          provider: event.provider,
-          event: event.event,
-          accepted: true,
-          status: "ingested",
-          receivedAt: event.receivedAt,
-          reconciled: false,
-        };
+      hookIngestion: {
+        ingest: async (event) => {
+          await gate.promise;
+          return {
+            schemaVersion: WOSM_SCHEMA_VERSION,
+            hookId: event.hookId ?? "hook_startup",
+            provider: event.provider,
+            event: event.event,
+            accepted: true,
+            status: "ingested",
+            receivedAt: event.receivedAt,
+            reconciled: false,
+          };
+        },
       },
     });
     const { socketPath } = await createTempSocketPath();
@@ -168,6 +173,87 @@ describe("observer hook spool drain", () => {
     gate.resolve();
     await waitFor(async () => !(await fileExists(spoolPath)));
     await server.close();
+    fixture.sqlite.close();
+  });
+
+  it("keeps harness report spool files until durable startup processing completes", async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
+    const spoolDir = hookSpoolDir(stateDir);
+    const report = codexHarnessReport("report_codex_startup_slow", "call_startup");
+    const spoolPath = await writeHarnessEventReportSpoolRecordFixture({
+      spoolDir,
+      spoolId: "spool_codex_report_startup_slow",
+      report,
+    });
+    const gate = deferred();
+    let processingStarted = false;
+    const fixture = createFixture(spoolDir, {
+      harnessEventReportIngestion: {
+        ingest: async (input): Promise<HarnessEventReportReceipt> => {
+          processingStarted = true;
+          await gate.promise;
+          return acceptedHarnessReportReceipt(input);
+        },
+      },
+    });
+    const { socketPath } = await createTempSocketPath();
+
+    const server = await startObserverServer({
+      socketPath,
+      api: fixture.api,
+      clock: fixture.clock,
+    });
+
+    await waitFor(async () => processingStarted);
+    await expect(fileExists(spoolPath)).resolves.toBe(true);
+    gate.resolve();
+    await waitFor(async () => !(await fileExists(spoolPath)));
+    await server.close();
+    fixture.sqlite.close();
+  });
+
+  it("keeps rejected harness report spool files in place", async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
+    const spoolDir = hookSpoolDir(stateDir);
+    const report = codexHarnessReport("report_codex_rejected", "call_rejected");
+    const spoolPath = await writeHarnessEventReportSpoolRecordFixture({
+      spoolDir,
+      spoolId: "spool_codex_report_rejected",
+      report,
+    });
+    const fixture = createFixture(spoolDir, {
+      harnessEventReportIngestion: {
+        ingest: async (input): Promise<HarnessEventReportReceipt> => ({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          reportId: input.reportId,
+          provider: input.provider,
+          eventType: input.eventType,
+          accepted: false,
+          status: "rejected",
+          receivedAt: now,
+          projected: false,
+          scheduledReconcile: false,
+          error: {
+            tag: "HarnessEventReportIngestionError",
+            code: "HARNESS_EVENT_REPORT_INGESTION_FAILED",
+            message: "Rejected by test ingestion.",
+            provider: input.provider,
+          },
+        }),
+      },
+    });
+
+    await fixture.api.reconcile("manual");
+
+    await expect(fileExists(spoolPath)).resolves.toBe(true);
+    await expect(
+      readHarnessEventReportSpoolRecord(spoolDir, "spool_codex_report_rejected.json"),
+    ).resolves.toMatchObject({
+      attempts: 1,
+      lastError: {
+        code: "HARNESS_EVENT_REPORT_INGESTION_FAILED",
+      },
+    });
     fixture.sqlite.close();
   });
 
@@ -240,7 +326,13 @@ describe("observer hook spool drain", () => {
   });
 });
 
-function createFixture(spoolDir: string, hookIngestion?: HookIngestion) {
+function createFixture(
+  spoolDir: string,
+  options: {
+    hookIngestion?: HookIngestion;
+    harnessEventReportIngestion?: HarnessEventReportIngestion;
+  } = {},
+) {
   const clock = { now: () => new Date(now) };
   const sqlite = openObserverSqlite({ clock });
   const persistence = createObserverPersistence({
@@ -266,11 +358,56 @@ function createFixture(spoolDir: string, hookIngestion?: HookIngestion) {
     persistence,
     commandQueue: queue,
     eventBus,
-    ...(hookIngestion === undefined ? {} : { hookIngestion }),
+    ...(options.hookIngestion === undefined ? {} : { hookIngestion: options.hookIngestion }),
+    ...(options.harnessEventReportIngestion === undefined
+      ? {}
+      : { harnessEventReportIngestion: options.harnessEventReportIngestion }),
     hookSpoolDir: spoolDir,
     clock,
   });
   return { api, eventBus, persistence, sqlite, clock };
+}
+
+function acceptedHarnessReportReceipt(report: HarnessEventReport): HarnessEventReportReceipt {
+  return {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    reportId: report.reportId,
+    provider: report.provider,
+    eventType: report.eventType,
+    accepted: true,
+    status: "accepted",
+    receivedAt: now,
+    projected: false,
+    scheduledReconcile: false,
+  };
+}
+
+function codexHarnessReport(reportId: string, toolUseId: string): HarnessEventReport {
+  const compacted = compactCodexHookPayload({
+    session_id: "codex_session_test",
+    transcript_path: null,
+    cwd: "/tmp/wosm/web/task",
+    hook_event_name: "PreToolUse",
+    model: "gpt-5.4-codex",
+    permission_mode: "default",
+    turn_id: "turn_1",
+    tool_name: "Bash",
+    tool_input: { command: "pnpm test" },
+    tool_use_id: toolUseId,
+    wosm_worktree_id: "wt_web_task",
+    wosm_session_id: "ses_web_task",
+  });
+  return codexHookPayloadToHarnessEventReport({
+    reportId,
+    observedAt: now,
+    payload: compacted.payload,
+    diagnostics: {
+      payloadBytes: compacted.originalByteCount,
+      compactedBytes: compacted.compactedByteCount,
+      compacted: compacted.compacted,
+      omittedFieldNames: compacted.omittedFieldNames,
+    },
+  });
 }
 
 const config: WosmConfig = {
