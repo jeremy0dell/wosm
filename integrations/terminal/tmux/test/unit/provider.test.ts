@@ -1,8 +1,9 @@
-import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
+import type { ExternalCommandInput } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
 import { tmuxListTargetsFormat } from "../../src/parse";
 import { TmuxProvider } from "../../src/provider";
 import { buildWorkbenchWindowName } from "../../src/topology";
+import { tmuxCommandResult as result } from "../support/commands";
 
 const now = "2026-05-21T12:00:00.000Z";
 const project = {
@@ -750,13 +751,3 @@ describe("TmuxProvider", () => {
     expect(aborted).toBe(true);
   });
 });
-
-function result(input: ExternalCommandInput, stdout: string): ExternalCommandResult {
-  return {
-    command: input.command,
-    args: input.args ?? [],
-    stdout,
-    stderr: "",
-    exitCode: 0,
-  };
-}

@@ -15,6 +15,7 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { pathIsSameOrInside } from "@wosm/runtime";
 import { type ObserverHarnessRun, observerHarnessRunFromRun } from "./harnessEventStatus.js";
 import { countsForRows, statusPolicy } from "./statusPolicy.js";
 
@@ -304,26 +305,6 @@ function terminalTargetMatchesWorktree(
     return true;
   }
   return pathIsSameOrInside(terminal.cwd, worktree.path);
-}
-
-function pathIsSameOrInside(candidate: string, root: string): boolean {
-  const normalizedCandidate = normalizeLocalPath(candidate);
-  const normalizedRoot = normalizeLocalPath(root);
-  if (normalizedCandidate === normalizedRoot) {
-    return true;
-  }
-  if (normalizedRoot === "/") {
-    return normalizedCandidate.startsWith("/");
-  }
-  return normalizedCandidate.startsWith(`${normalizedRoot}/`);
-}
-
-function normalizeLocalPath(value: string): string {
-  const trimmed = value.trim();
-  const withoutTrailingSlash = trimmed.length > 1 ? trimmed.replace(/\/+$/g, "") : trimmed;
-  return withoutTrailingSlash.startsWith("/private/var/")
-    ? `/var/${withoutTrailingSlash.slice("/private/var/".length)}`
-    : withoutTrailingSlash;
 }
 
 function chooseHarnessRun(

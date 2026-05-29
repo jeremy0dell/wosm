@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { openTmuxPopup } from "../../src/popup";
+import { shellQuote } from "../../src/shell";
 
 const execFileAsync = promisify(execFile);
 const runRealTmux = process.env.WOSM_REAL_TMUX === "1";
@@ -315,8 +316,4 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 
 function persistentMarkerCommand(markerPath: string): string {
   return `sh -c ${shellQuote(`printf 'start\\n' >> ${shellQuote(markerPath)}; while :; do sleep 1; done`)}`;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
 }
