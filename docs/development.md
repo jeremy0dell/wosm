@@ -79,8 +79,14 @@ TUI work has additional React/Ink and terminal-layout expectations. Use [TUI dev
 - Small conditional spreads are acceptable when local and obvious.
 - Do not use `...(await somePromise)` in production array or object construction. Await into a named local first.
 - Use strict schemas for untrusted input and shared payload formats. Avoid parallel hand-written validators for the same shape.
+- Treat `unknown` as a boundary-only type. Parse JSON, TOML, CLI output, hooks, and provider payloads once with a strict Zod schema or contract parser, then pass typed values inward.
+- Do not write little JavaScript-style type helper clusters such as `isRecord`, `asRecord`, `stringField`, `numberField`, or repeated `"key" in value` / `typeof value.foo === ...` checks when a shape already has, or should have, a schema or discriminated TypeScript type.
+- If a payload shape is shared, define it in `packages/contracts` and infer the TypeScript type from the schema. If it is provider-private, keep the schema local to the provider adapter/parser.
+- Inside already-typed code, use discriminated unions, exhaustive `switch` statements, typed builders, and inferred schema types instead of runtime property probing.
+- Runtime shape probing is acceptable for generic recursion, redaction, error normalization, or the first step before schema parsing; keep it small, local, and avoid duplicating a schema.
 - Provider-specific diagnostics and behavior must stay behind provider or integration boundaries.
 - Do not move raw provider payloads into contracts, normal TUI rendering, protocol-facing shapes, or observer core logic.
+- Do not make observer/core scrape provider-specific keys from generic `providerData`. Normalize those values at the provider boundary into contract fields, correlation fields, or provider-owned schema data.
 
 ## Agent Guidance Maintenance
 

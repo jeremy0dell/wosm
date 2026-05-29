@@ -22,6 +22,14 @@ Provider-specific diagnostics and behavior must stay behind provider or integrat
 
 Use strict schemas for untrusted input and shared payload formats. Avoid maintaining parallel hand-written validators for the same shape.
 
+Treat `unknown` as a boundary-only type. At JSON/TOML/CLI/hook/provider boundaries, parse once with a strict Zod schema or contract parser, then pass typed values inward.
+
+Do not add local JavaScript-style type helper clusters such as `isRecord`, `asRecord`, `stringField`, `numberField`, or repeated `"key" in value`/`typeof value.foo === ...` checks for shapes that already have, or should have, a schema or discriminated TypeScript type. If the shape is shared, put the schema in `packages/contracts`; if it is provider-private, keep a provider-local schema beside the adapter/parser.
+
+Inside already-typed code, prefer discriminated unions, exhaustive `switch` handling, typed builders, and inferred schema types over runtime property probing. Runtime shape probing is acceptable only for truly generic traversal/error-normalization code or the first step before schema parsing.
+
+Observer/core code should not scrape provider-specific keys out of generic `providerData`. Normalize those fields at the provider boundary into contract fields, correlation fields, or a provider-owned schema.
+
 This convention comes from `docs/planning/code_smell_remediation_p1_p2.md`.
 
 ## Runtime Trace Debugging
