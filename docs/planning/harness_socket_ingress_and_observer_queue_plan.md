@@ -1,6 +1,6 @@
 # Harness Socket Ingress And Observer Queue Plan
 
-**Status:** Active planning addendum
+**Status:** Phase 1 committed; Phase 2 implemented locally
 **Date:** 2026-05-29
 **Applies to:** harness integrations, provider hook delivery, observer ingress, protocol, persistence, diagnostics
 **Supersedes:** `docs/planning/harness_hook_ingress_refactor_master_plan.md` for future transport and observer backpressure work
@@ -27,6 +27,35 @@ This is one architecture change with two implementation phases:
 2. Make observer ingress enqueue-first instead of doing observer work before ack.
 
 Doing only the first phase leaves observer backpressure. Doing only the second phase leaves every high-frequency event paying process startup and config loading costs.
+
+## Implementation Status
+
+Phase 1 was committed as `7790cb7 Remove provider hook bridge hot path`.
+
+Phase 2 is implemented in the current working tree:
+
+- `observer.harnessEvent.report` now validates and enqueues before slow persistence, projection, and reconcile work.
+- The observer owns a bounded in-memory harness ingress queue with report-id dedupe, stable-key coalescing, overflow rejection, async processing, and batched reconcile reasons.
+- Hook spool report records enqueue into the same queue, and observer startup no longer waits for full spool drain completion.
+- Observer health exposes harness ingress queue depth, enqueued, processed, coalesced, dropped, failed, last error, and last drain stats.
+- Focused tests cover fast ACK under blocked processing, coalescing, spool startup non-blocking behavior, health metrics, and strict contract parsing.
+
+Current verification:
+
+```text
+pnpm test:all
+protocol profile with blocked queue worker:
+  n=200
+  p50 ~= 0.27ms
+  p90 ~= 0.43ms
+  queue depth before release: 1
+  coalesced before release: 198
+
+controlled blocking protocol handler with 25ms work:
+  n=50
+  p50 ~= 27.03ms
+  p90 ~= 28.06ms
+```
 
 ## Current Discoveries
 

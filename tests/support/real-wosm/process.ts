@@ -30,15 +30,16 @@ export class CleanupStack {
       return;
     }
     const tasks = this.#tasks.splice(0).reverse();
-    const results = await Promise.allSettled(tasks.map((task) => task()));
-    const failures = results.filter(
-      (result): result is PromiseRejectedResult => result.status === "rejected",
-    );
+    const failures: unknown[] = [];
+    for (const task of tasks) {
+      try {
+        await task();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
     if (failures.length > 0) {
-      throw new AggregateError(
-        failures.map((failure) => failure.reason),
-        "Real dogfood cleanup failed.",
-      );
+      throw new AggregateError(failures, "Real dogfood cleanup failed.");
     }
   }
 }

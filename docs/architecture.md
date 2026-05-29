@@ -19,7 +19,7 @@ TUI renders snapshots/events and submits typed commands
 
 The repo is organized around these boundaries:
 
-- `apps/observer` owns runtime correlation, reconciliation, command routing, provider health, persistence, hook ingestion, diagnostics, and snapshot publication.
+- `apps/observer` owns runtime correlation, reconciliation, command routing, provider health, persistence, hook ingestion, harness ingress queuing, diagnostics, and snapshot publication.
 - `apps/cli` owns the `wosm` command surface: observer lifecycle, setup/doctor, reconcile/snapshot, hooks, debug trace, debug bundles, and TUI entrypoints.
 - `apps/tui` owns terminal UI state and interaction. It consumes observer snapshots/events through `@wosm/protocol` and must not call providers directly.
 - `packages/contracts` owns shared schemas and types for commands, events, snapshots, observations, providers, hooks, diagnostics, and safe errors.

@@ -161,6 +161,37 @@ describe("Worktrunk list parser", () => {
     ]);
   });
 
+  it("keeps hashed worktree IDs stable across macOS /var aliases", () => {
+    const branch = "wosm/very-long-customer-account-permissions-rollout-for-enterprise-alpha";
+    const varObservation = parseWorktrunkListJson(
+      JSON.stringify([
+        {
+          path: "/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+          branch,
+        },
+      ]),
+      {
+        project,
+        observedAt: now,
+      },
+    )[0];
+    const privateVarObservation = parseWorktrunkListJson(
+      JSON.stringify([
+        {
+          path: "/private/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+          branch,
+        },
+      ]),
+      {
+        project,
+        observedAt: now,
+      },
+    )[0];
+
+    expect(varObservation?.id).toBe(privateVarObservation?.id);
+    expect(varObservation?.id).toMatch(/^wt_web_wosm_very-long-customer-account.*_[a-f0-9]{10}$/);
+  });
+
   it("rejects non-JSON output with a typed provider error", () => {
     expect(() =>
       parseWorktrunkListJson("not-json", {

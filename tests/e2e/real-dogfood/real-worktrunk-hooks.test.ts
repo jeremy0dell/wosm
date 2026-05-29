@@ -1,6 +1,8 @@
+import { join } from "node:path";
+import { runProviderIngressCommand } from "@wosm/provider-hooks";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertDebugBundleContains } from "../../support/real-wosm/assertions";
-import { writeRealWosmConfig } from "../../support/real-wosm/config";
+import { type RealWosmConfigFixture, writeRealWosmConfig } from "../../support/real-wosm/config";
 import {
   type RealDogfoodEnvironment,
   realDogfoodEnabled,
@@ -84,20 +86,16 @@ describeReal("real Worktrunk hook dogfood", () => {
       args: ["observer", "start", "--timeout-ms", "30000"],
       timeoutMs: 45_000,
     });
-    const online = await runWosmJson<HookReceipt>(env, {
-      configPath: config.configPath,
-      args: ["hook", "worktrunk", "post-create"],
+    const online = await runWorktrunkIngress(env, config, {
+      event: "post-create",
       stdin: JSON.stringify({ branch: "wosm/hook-online" }),
-      timeoutMs: 30_000,
     });
     expect(online.status).toBe("ingested");
 
     await runWosmJson(env, { configPath: config.configPath, args: ["observer", "stop"] });
-    const offline = await runWosmJson<HookReceipt>(env, {
-      configPath: config.configPath,
-      args: ["hook", "worktrunk", "post-create"],
+    const offline = await runWorktrunkIngress(env, config, {
+      event: "post-create",
       stdin: JSON.stringify({ branch: "wosm/hook-offline" }),
-      timeoutMs: 45_000,
     });
     expect(offline.status).toBe("ingested");
     await runWosmJson(env, { configPath: config.configPath, args: ["observer", "stop"] });
@@ -119,11 +117,10 @@ describeReal("real Worktrunk hook dogfood", () => {
       await killTmuxSession(env, spoolConfig.tmuxSession);
     });
 
-    const spooled = await runWosmJson<HookReceipt>(env, {
-      configPath: spoolConfig.configPath,
-      args: ["hook", "worktrunk", "post-create"],
+    const spooled = await runWorktrunkIngress(env, spoolConfig, {
+      event: "post-create",
       stdin: JSON.stringify({ branch: "wosm/hook-spooled" }),
-      timeoutMs: 30_000,
+      autoStart: false,
     });
     expect(spooled.status).toBe("spooled");
     await runWosmJson(env, {
@@ -139,3 +136,37 @@ describeReal("real Worktrunk hook dogfood", () => {
     await assertDebugBundleContains(bundle.bundlePath, "logs/observer.jsonl", spooled.hookId);
   }, 180_000);
 });
+
+async function runWorktrunkIngress(
+  env: RealDogfoodEnvironment,
+  config: RealWosmConfigFixture,
+  input: {
+    event: string;
+    stdin: string;
+    autoStart?: boolean;
+  },
+): Promise<HookReceipt> {
+  const receipt = await runProviderIngressCommand(
+    [
+      "--socket",
+      config.socketPath,
+      "--state-dir",
+      config.stateDir,
+      "--spool-dir",
+      join(config.stateDir, "spool", "hooks"),
+      "--config",
+      config.configPath,
+      ...(input.autoStart === false ? ["--no-auto-start"] : []),
+      "worktrunk",
+      input.event,
+    ],
+    {
+      stdin: input.stdin,
+      observerEntryPath: join(env.repoRoot, "apps", "observer", "dist", "runtime", "main.js"),
+    },
+  );
+  return {
+    hookId: receipt.hookId,
+    status: receipt.status,
+  };
+}

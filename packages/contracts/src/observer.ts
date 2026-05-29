@@ -33,6 +33,30 @@ export const ObserverReconcileTimingSchema = z
   })
   .strict();
 
+export const HarnessIngressQueueHealthSchema = z
+  .object({
+    depth: z.number().int().nonnegative(),
+    enqueued: z.number().int().nonnegative(),
+    processed: z.number().int().nonnegative(),
+    coalesced: z.number().int().nonnegative(),
+    dropped: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    lastProcessedAt: TimestampSchema.optional(),
+    lastError: SafeErrorSchema.optional(),
+    lastDrain: z
+      .object({
+        scanned: z.number().int().nonnegative(),
+        drained: z.number().int().nonnegative(),
+        failed: z.number().int().nonnegative(),
+        finishedAt: TimestampSchema,
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+export type HarnessIngressQueueHealth = z.infer<typeof HarnessIngressQueueHealthSchema>;
+
 export const ObserverHealthSchema = z
   .object({
     schemaVersion: SchemaVersionSchema,
@@ -44,6 +68,7 @@ export const ObserverHealthSchema = z
     stateDir: nonEmptyStringSchema.optional(),
     uptimeMs: z.number().nonnegative().optional(),
     hookSpoolDepth: z.number().int().nonnegative().optional(),
+    harnessIngressQueue: HarnessIngressQueueHealthSchema.optional(),
     providerHealth: z.record(ProviderIdSchema, ProviderHealthSchema).optional(),
     sqlite: ObserverSqliteHealthSummarySchema.optional(),
     lastReconcile: ObserverReconcileTimingSchema.optional(),
