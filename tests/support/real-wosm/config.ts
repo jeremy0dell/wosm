@@ -18,10 +18,12 @@ export type WriteRealWosmConfigOptions = {
   repo: RealTempRepo;
   projectId?: string;
   autoStartFromHooks?: boolean;
-  harnessProvider?: "codex" | "pi";
+  harnessProvider?: "codex" | "pi" | "opencode";
   codexCommand?: string;
   piCommand?: string;
+  opencodeCommand?: string;
   installCodexHooks?: boolean;
+  installOpenCodeHooks?: boolean;
   useLifecycleHooks?: boolean;
   tmuxSession?: string;
 };
@@ -97,13 +99,25 @@ export async function writeRealWosmConfig(
 
 function harnessConfigLines(
   options: WriteRealWosmConfigOptions,
-  harnessProvider: "codex" | "pi",
+  harnessProvider: "codex" | "pi" | "opencode",
 ): string[] {
   if (harnessProvider === "pi") {
     return [
       "[harness.pi]",
       "enabled = true",
       `command = ${tomlString(options.piCommand ?? requireToolPath(options.env, "pi"))}`,
+      "",
+    ];
+  }
+
+  if (harnessProvider === "opencode") {
+    return [
+      "[harness.opencode]",
+      "enabled = true",
+      `command = ${tomlString(options.opencodeCommand ?? requireToolPath(options.env, "opencode"))}`,
+      'sandbox_mode = "workspace-write"',
+      'approval_policy = "never"',
+      `install_hooks = ${options.installOpenCodeHooks === true ? "true" : "false"}`,
       "",
     ];
   }

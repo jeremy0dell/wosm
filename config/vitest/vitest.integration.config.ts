@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     ...commonTestConfig,
     include: [
+      "apps/*/src/**/*.integration.test.ts",
+      "apps/*/src/**/*.integration.test.tsx",
       "apps/*/test/integration/**/*.test.ts",
       "apps/*/test/integration/**/*.test.tsx",
       "packages/*/test/integration/**/*.test.ts",

@@ -28,13 +28,15 @@ The TUI is a terminal UI client. It renders observer snapshots and events, owns 
 - Use `apps/tui/src/selectors.ts` for snapshot-to-view grouping and filtering.
 - Use `apps/tui/src/actions.ts`, `keymap.ts`, `eventReducer.ts`, and `uiState.ts` for command construction, keyboard intent, event application, and local UI state.
 - Keep reusable rendering surfaces under `apps/tui/src/components`.
-- Put component-specific tests next to the component tree in a plural `__tests__` directory.
+- Follow `apps/tui/TESTING.md` for colocated component/hook tests, parent-boundary integration tests, and root e2e coverage.
 
 ## Testing
 
-For TUI changes, choose the narrowest tests that prove the behavior, then add broader coverage only when the change crosses layers.
+For TUI changes, choose the narrowest tests that prove the behavior, then add broader coverage only when the change crosses layers. See `apps/tui/TESTING.md` for current placement guidelines.
 
-- Component rendering belongs in source-adjacent tests under `apps/tui/src/components/**/__tests__`.
+- Component and hook behavior usually belongs in colocated tests beside the component or hook.
+- Feature/domain integration behavior belongs in a `__tests__` directory at the nearest meaningful parent boundary.
+- Full product e2e behavior may live under top-level `tests/e2e` when it crosses the TUI, observer, protocol, providers, or real terminal behavior.
 - Pure selectors, actions, keymaps, reducers, safe-error mapping, and UI state belong in `apps/tui/test/unit`.
 - Full app render, keyboard flows, command UX, observer-service integration, help overlay behavior, and popup focus/close behavior belong in `apps/tui/test/integration`.
 - Use `renderToString` when exact terminal text, spacing, layout, footer placement, or clipping matters.

@@ -1,12 +1,12 @@
-import { buildCleanupCommand, cleanupForceRequired } from "../actions.js";
-import { selectKeySlots, selectProjectSlots } from "../selectors.js";
+import { buildCleanupCommand, cleanupForceRequired } from "../actions/actions.js";
+import { selectKeySlots, selectProjectSlots } from "../selectors/selectors.js";
 import {
   closePrompt,
   openCleanupPrompt,
   setSearchQuery,
   toggleProjectCollapsed,
   updatePromptValue,
-} from "../uiState.js";
+} from "../uiState/uiState.js";
 import { isReturnInput } from "./keyEvents.js";
 import type { DashboardInputContext } from "./types.js";
 
