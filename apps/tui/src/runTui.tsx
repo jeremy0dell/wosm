@@ -1,7 +1,7 @@
 import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { render } from "ink";
 import type { ComponentProps } from "react";
-import { App } from "./App.js";
+import { App } from "./App/App.js";
 import { createTuiObserverService } from "./services/observerService.js";
 import type { TuiObserverService, TuiRunResult } from "./services/types.js";
 import { resolveTuiModeFromEnv, TuiModeProvider } from "./tuiMode.js";

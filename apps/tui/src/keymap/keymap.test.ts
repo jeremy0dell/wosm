@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCommandSnapshot } from "../test/fixtures/snapshots.js";
+import { createCommandSnapshot } from "../../test/fixtures/snapshots.js";
 import { intentForDashboardKey } from "./keymap.js";
 
 describe("TUI dashboard keymap", () => {

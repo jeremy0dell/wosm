@@ -1,15 +1,15 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useWindowSize } from "ink";
-import { CommandPrompt } from "./components/CommandPrompt.js";
-import { Dashboard } from "./components/Dashboard.js";
-import { OverlayHost } from "./components/OverlayHost/OverlayHost.js";
-import { ToastStack } from "./components/ToastStack.js";
-import { TuiFrame } from "./components/TuiFrame.js";
-import { TuiShell } from "./components/TuiShell/TuiShell.js";
-import { useDashboardInput } from "./hooks/useDashboardInput.js";
-import { useObserverDashboard } from "./hooks/useObserverDashboard.js";
-import type { TuiObserverService } from "./services/types.js";
-import { createInitialUiState, type TuiUiState } from "./uiState.js";
+import { CommandPrompt } from "../components/CommandPrompt/CommandPrompt.js";
+import { Dashboard } from "../components/Dashboard/Dashboard.js";
+import { OverlayHost } from "../components/OverlayHost/OverlayHost.js";
+import { ToastStack } from "../components/ToastStack/ToastStack.js";
+import { TuiFrame } from "../components/TuiFrame/TuiFrame.js";
+import { TuiShell } from "../components/TuiShell/TuiShell.js";
+import { useDashboardInput } from "../hooks/useDashboardInput.js";
+import { useObserverDashboard } from "../hooks/useObserverDashboard.js";
+import type { TuiObserverService } from "../services/types.js";
+import { createInitialUiState, type TuiUiState } from "../uiState/uiState.js";
 
 export type AppProps = {
   service: TuiObserverService;

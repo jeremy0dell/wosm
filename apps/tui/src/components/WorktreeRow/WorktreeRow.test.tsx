@@ -1,7 +1,7 @@
 import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
 import { renderToString } from "ink";
 import { describe, expect, it } from "vitest";
-import { fixtureNow, row } from "../../test/fixtures/snapshots.js";
+import { fixtureNow, row } from "../../../test/fixtures/snapshots.js";
 import { metadataSegments, WorktreeRow } from "./WorktreeRow.js";
 
 type AgentState = NonNullable<WorktreeRowModel["agent"]>["state"];

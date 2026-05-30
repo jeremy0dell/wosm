@@ -1,6 +1,6 @@
 import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
 import { Box, Text } from "ink";
-import { Throbber, type ThrobberVariant } from "./Throbber.js";
+import { Throbber, type ThrobberVariant } from "../Throbber/Throbber.js";
 
 export type WorktreeRowProps = {
   row: WorktreeRowModel;

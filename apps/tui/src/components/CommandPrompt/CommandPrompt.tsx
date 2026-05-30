@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import type { TuiPromptState } from "../uiState.js";
+import type { TuiPromptState } from "../../uiState/uiState.js";
 
 export type CommandPromptProps = {
   prompt: TuiPromptState | undefined;

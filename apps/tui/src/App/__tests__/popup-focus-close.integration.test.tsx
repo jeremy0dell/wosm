@@ -1,7 +1,10 @@
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
-import { createCommandSnapshot, createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
-import { FakeTuiObserverService } from "../../test/support/fakeObserverService.js";
+import {
+  createCommandSnapshot,
+  createDashboardSnapshot,
+} from "../../../test/fixtures/snapshots.js";
+import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
 import { App } from "../App.js";
 
 describe("TUI transient focus-and-close navigation", () => {

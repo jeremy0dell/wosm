@@ -1,6 +1,6 @@
 import type { SessionView, WorktreeRow, WosmEvent, WosmSnapshot } from "@wosm/contracts";
-import { safeErrorToToast } from "./services/errors.js";
-import type { TuiToast } from "./services/types.js";
+import { safeErrorToToast } from "../services/errors/errors.js";
+import type { TuiToast } from "../services/types.js";
 
 type OptionalPatch<T> = {
   [K in keyof T]?: T[K] | undefined;

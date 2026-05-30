@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createInitialUiState } from "../../uiState.js";
+import { createInitialUiState } from "../../uiState/uiState.js";
 import { overlayRenderState } from "../dashboardInput.js";
 import { dashboardInputModes } from "../dashboardModeRegistry.js";
 import { isReturnInput } from "../keyEvents.js";

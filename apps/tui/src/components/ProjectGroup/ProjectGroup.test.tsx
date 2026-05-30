@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDashboardSnapshot,
   createZeroWorktreeSnapshot,
-} from "../../test/fixtures/snapshots.js";
+} from "../../../test/fixtures/snapshots.js";
 import { ProjectGroup } from "./ProjectGroup.js";
 
 describe("ProjectGroup", () => {
