@@ -1,6 +1,6 @@
 import { Box, renderToString } from "ink";
 import { describe, expect, it, test } from "vitest";
-import { EditableTextInput } from "../EditableTextInput.js";
+import { EditableTextInput } from "./EditableTextInput.js";
 import {
   backspaceEditableText,
   clampEditableTextCursor,
@@ -10,7 +10,7 @@ import {
   insertEditableText,
   moveEditableTextCursor,
   transitionEditableTextInput,
-} from "../editing.js";
+} from "./editing.js";
 
 describe("EditableTextInput", () => {
   it("renders the cursor at the end of text", () => {

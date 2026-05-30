@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  closeOverlay,
-  createInitialUiState,
-  openHelpOverlay,
-  openPrompt,
-} from "../../src/uiState.js";
+import { closeOverlay, createInitialUiState, openHelpOverlay, openPrompt } from "./uiState.js";
 
 describe("TUI UI state", () => {
   it("opens and closes help without materializing undefined optional fields", () => {

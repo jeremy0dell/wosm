@@ -1,10 +1,10 @@
 import type { ProjectView, WosmSnapshot } from "@wosm/contracts";
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
-import { createDashboardSnapshot } from "../../../../test/fixtures/snapshots.js";
-import { createNewSessionFlow, transitionNewSessionFlow } from "../../../flows/newSession.js";
-import { newSessionBottomSheetLayout } from "../layout.js";
-import { NewSessionBottomSheet } from "../NewSessionBottomSheet.js";
+import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
+import { createNewSessionFlow, transitionNewSessionFlow } from "../../flows/newSession.js";
+import { newSessionBottomSheetLayout } from "./layout.js";
+import { NewSessionBottomSheet } from "./NewSessionBottomSheet.js";
 
 describe("NewSessionBottomSheet", () => {
   it("hugs the bottom of the terminal frame", () => {

@@ -1,8 +1,8 @@
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
-import { App } from "../../src/App.js";
-import { createDashboardSnapshot } from "../fixtures/snapshots.js";
-import { FakeTuiObserverService } from "../support/fakeObserverService.js";
+import { createDashboardSnapshot } from "../../../../test/fixtures/snapshots.js";
+import { FakeTuiObserverService } from "../../../../test/support/fakeObserverService.js";
+import { App } from "../../../App.js";
 
 describe("TUI help overlay", () => {
   it("opens help from uppercase H", async () => {

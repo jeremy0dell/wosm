@@ -1,11 +1,14 @@
 import { Box, renderToString } from "ink";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
-import { App } from "../../src/App.js";
-import { Dashboard } from "../../src/components/Dashboard.js";
-import { TuiModeProvider } from "../../src/tuiMode.js";
-import { createDashboardSnapshot, createZeroWorktreeSnapshot } from "../fixtures/snapshots.js";
-import { FakeTuiObserverService } from "../support/fakeObserverService.js";
+import {
+  createDashboardSnapshot,
+  createZeroWorktreeSnapshot,
+} from "../../test/fixtures/snapshots.js";
+import { FakeTuiObserverService } from "../../test/support/fakeObserverService.js";
+import { App } from "../App.js";
+import { Dashboard } from "../components/Dashboard.js";
+import { TuiModeProvider } from "../tuiMode.js";
 
 describe("TUI app rendering", () => {
   it("renders the project-first dashboard and required row states", () => {

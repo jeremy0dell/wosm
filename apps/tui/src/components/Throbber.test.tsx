@@ -1,7 +1,7 @@
 import { renderToString, Text } from "ink";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import { Throbber } from "../Throbber.js";
+import { Throbber } from "./Throbber.js";
 
 describe("Throbber", () => {
   it.each([

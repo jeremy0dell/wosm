@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  createCommandSnapshot,
+  createDashboardSnapshot,
+  createPromptCapableSnapshot,
+} from "../test/fixtures/snapshots.js";
+import {
   buildCleanupCommand,
   buildCreateSessionCommand,
   buildFocusCommand,
@@ -8,12 +13,7 @@ import {
   buildStartAgentCommand,
   canSendPromptToRow,
   cleanupForceRequired,
-} from "../../src/actions.js";
-import {
-  createCommandSnapshot,
-  createDashboardSnapshot,
-  createPromptCapableSnapshot,
-} from "../fixtures/snapshots.js";
+} from "./actions.js";
 
 describe("TUI command actions", () => {
   it("maps focusable rows to terminal.focus using the primary agent target", () => {
