@@ -1,4 +1,4 @@
-import type { ProjectView, WosmSnapshot } from "@wosm/contracts";
+import type { ProjectView, ProviderHealth, WosmSnapshot } from "@wosm/contracts";
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
 import { createDashboardSnapshot } from "../../../../test/fixtures/snapshots.js";
@@ -79,6 +79,24 @@ describe("NewSessionBottomSheet", () => {
     expect(agentFrame).toContain("default unknown");
     expect(agentFrame).toContain("  opencode");
     expect(agentFrame).toContain("Enter:select Esc:cancel");
+  });
+
+  it("renders only configured harnesses in the agent picker, including Codex, Pi, and OpenCode", () => {
+    const configured = createConfiguredHarnessSnapshot(["codex", "pi", "opencode"]);
+    const configuredFrame = renderAgentPickerFrame(configured);
+
+    expect(configuredFrame).toContain("› codex");
+    expect(configuredFrame).toContain("  pi");
+    expect(configuredFrame).toContain("  opencode");
+
+    const codexOnly = createConfiguredHarnessSnapshot(["codex"], {
+      healthOnly: ["pi", "opencode"],
+    });
+    const codexOnlyFrame = renderAgentPickerFrame(codexOnly);
+
+    expect(codexOnlyFrame).toContain("› codex");
+    expect(codexOnlyFrame).not.toContain("  pi");
+    expect(codexOnlyFrame).not.toContain("  opencode");
   });
 
   it("keeps the picker footer visible with eight project options", () => {
@@ -239,6 +257,44 @@ function createAgentPickerState(snapshot: WosmSnapshot, cursor = 0) {
   return {
     ...state,
     cursor,
+  };
+}
+
+function renderAgentPickerFrame(snapshot: WosmSnapshot): string {
+  const state = createAgentPickerState(snapshot);
+  return stripAnsi(
+    renderToString(
+      <Box position="relative" width={80} height={20}>
+        <NewSessionBottomSheet columns={80} rows={20} snapshot={snapshot} state={state} />
+      </Box>,
+      { columns: 80 },
+    ),
+  );
+}
+
+function createConfiguredHarnessSnapshot(
+  harnessIds: string[],
+  options: { healthOnly?: string[] } = {},
+): WosmSnapshot {
+  const snapshot = createDashboardSnapshot();
+  const healthEntries = [...harnessIds, ...(options.healthOnly ?? [])].map(
+    (id): [string, ProviderHealth] => [
+      id,
+      {
+        providerId: id,
+        providerType: "harness",
+        status: "healthy",
+        lastCheckedAt: snapshot.generatedAt,
+      },
+    ],
+  );
+  return {
+    ...snapshot,
+    harnesses: harnessIds.map((id) => ({ id, label: id })),
+    providerHealth: {
+      ...snapshot.providerHealth,
+      ...Object.fromEntries(healthEntries),
+    },
   };
 }
 

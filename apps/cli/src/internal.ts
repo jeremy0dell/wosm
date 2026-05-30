@@ -5,6 +5,7 @@ export * from "./commands/debugBundle.js";
 export * from "./commands/debugTrace.js";
 export * from "./commands/doctor.js";
 export * from "./commands/observer.js";
+export * from "./commands/opencodeHooks.js";
 export * from "./commands/popup.js";
 export * from "./commands/reconcile.js";
 export * from "./commands/snapshot.js";

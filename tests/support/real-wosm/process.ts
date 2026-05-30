@@ -124,5 +124,6 @@ function wosmChildEnv(env: RealDogfoodEnvironment): NodeJS.ProcessEnv {
   if (env.tmuxBin !== undefined) childEnv.WOSM_TMUX_BIN = env.tmuxBin;
   if (env.codexBin !== undefined) childEnv.WOSM_CODEX_BIN = env.codexBin;
   if (env.piBin !== undefined) childEnv.WOSM_PI_BIN = env.piBin;
+  if (env.opencodeBin !== undefined) childEnv.WOSM_OPENCODE_BIN = env.opencodeBin;
   return childEnv;
 }

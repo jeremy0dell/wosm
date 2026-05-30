@@ -32,6 +32,7 @@ This index classifies docs by current use. When a doc conflicts with current cod
 - [TypeScript shape boundary audit](planning/typescript_shape_boundary_audit.md) is the current one-off audit brief for finding JavaScript-style runtime shape probing where schemas or typed unions should own the shape.
 - [Light commenting audit](planning/light_commenting_audit.md) is a scoped planning addendum for adding sparse comments to non-obvious runtime, provider, protocol, and correlation code paths.
 - [Harness socket ingress and observer queue plan](planning/harness_socket_ingress_and_observer_queue_plan.md) is the active plan for removing the `wosm-hook` hot path and fixing observer ingress backpressure.
+- [OpenCode harness integration plan](planning/opencode_harness_integration_plan.md) is the active plan for real OpenCode launch, plugin event capture, observer-shaped event reports, contract changes, and deterministic plus real-provider tests.
 - [TUI dashboard visual notes](planning/tui_dashboard_visual_notes.md) are active product notes for TUI row layout and visual direction, not contract authority.
 
 ## Historical/Deprecated Baselines

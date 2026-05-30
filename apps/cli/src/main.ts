@@ -14,6 +14,7 @@ import { runDebugBundleCommand } from "./commands/debugBundle.js";
 import { runDebugTraceCommand } from "./commands/debugTrace.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
+import { runOpenCodeHooksCommand } from "./commands/opencodeHooks.js";
 import { type PopupCommandDeps, runPopupCommand } from "./commands/popup.js";
 import { runReconcileCommand } from "./commands/reconcile.js";
 import { runSnapshotCommand } from "./commands/snapshot.js";
@@ -229,7 +230,12 @@ export async function runCli(
               configPath: resolvedConfigPath,
               env: options.env,
             })
-          : undefined;
+          : provider === "opencode"
+            ? await runOpenCodeHooksCommand([hookAction, ...commandArgs.slice(2)], {
+                config,
+                env: options.env,
+              })
+            : undefined;
     if (result === undefined) {
       throw new Error(`Unknown hook provider: ${provider ?? ""}`);
     }
