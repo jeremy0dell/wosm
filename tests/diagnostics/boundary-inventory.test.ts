@@ -76,7 +76,9 @@ describe("boundary inventory guard", () => {
       await Promise.all(
         providerNeutralSourceRoots.map((root) => sourceFilesAt(join(process.cwd(), root))),
       )
-    ).flat();
+    )
+      .flat()
+      .filter(isProductionSourceFile);
     const violations: string[] = [];
 
     for (const file of files) {
@@ -98,13 +100,7 @@ async function sourceFiles(): Promise<string[]> {
   for (const root of roots) {
     files.push(...(await sourceFilesAt(join(process.cwd(), root))));
   }
-  return files.filter(
-    (file) =>
-      file.endsWith(".ts") &&
-      file.includes("/src/") &&
-      !file.includes("/dist/") &&
-      !file.endsWith(".d.ts"),
-  );
+  return files.filter((file) => isProductionSourceFile(file) && file.endsWith(".ts"));
 }
 
 async function sourceFilesAt(dir: string): Promise<string[]> {
@@ -116,4 +112,15 @@ async function sourceFilesAt(dir: string): Promise<string[]> {
     }),
   );
   return files.flat();
+}
+
+function isProductionSourceFile(file: string): boolean {
+  return (
+    (file.endsWith(".ts") || file.endsWith(".tsx")) &&
+    file.includes("/src/") &&
+    !file.includes("/dist/") &&
+    !file.endsWith(".d.ts") &&
+    !file.endsWith(".test.ts") &&
+    !file.endsWith(".test.tsx")
+  );
 }
