@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 assume_yes=0
 check_only=0
 run_brew=1
@@ -9,7 +9,7 @@ run_shell_integration=1
 
 usage() {
   cat <<'EOF'
-Usage: scripts/setup-system-dependencies.sh [options]
+Usage: scripts/setup/setup-system-dependencies.sh [options]
 
 Installs and checks external provider tools used by wosm.
 

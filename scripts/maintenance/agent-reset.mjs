@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cleanupRuntime } from "./agent-cleanup.mjs";
 
-const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const repoRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const home = homedir();
 
 if (isMain()) {
@@ -53,6 +53,9 @@ export function parseResetArgs(args) {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
+    if (arg === "--") {
+      continue;
+    }
     if (arg === "--run" || arg === "--yes") {
       options.dryRun = false;
     } else if (arg === "--dry-run") {
