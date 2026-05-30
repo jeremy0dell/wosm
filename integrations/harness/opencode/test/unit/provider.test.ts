@@ -164,7 +164,7 @@ describe("OpenCodeHarnessProvider", () => {
     const hookSpoolDir = join(stateDir, "spool", "hooks");
 
     await installOpenCodePlugin({
-      pluginPath,
+      opencodeConfigDir,
       observerSocketPath,
       stateDir,
       hookSpoolDir,
