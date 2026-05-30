@@ -1,8 +1,8 @@
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
-import { createDashboardSnapshot } from "../../../../test/fixtures/snapshots.js";
-import { createNewSessionFlow } from "../../../flows/newSession.js";
-import { OverlayHost } from "../OverlayHost.js";
+import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
+import { createNewSessionFlow } from "../../flows/newSession.js";
+import { OverlayHost } from "./OverlayHost.js";
 
 describe("OverlayHost", () => {
   it("places overlay content absolutely without adding rows or shifting siblings", () => {

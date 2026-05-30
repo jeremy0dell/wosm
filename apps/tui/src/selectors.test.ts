@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { createDashboardSnapshot } from "../test/fixtures/snapshots.js";
 import {
   selectKeySlots,
   selectProjectGroups,
   selectProjectSlots,
   selectVisibleRows,
-} from "../../src/selectors.js";
-import { createInitialUiState, setSearchQuery, toggleProjectCollapsed } from "../../src/uiState.js";
-import { createDashboardSnapshot } from "../fixtures/snapshots.js";
+} from "./selectors.js";
+import { createInitialUiState, setSearchQuery, toggleProjectCollapsed } from "./uiState.js";
 
 describe("TUI selectors", () => {
   it("groups rows project-first and keeps zero-worktree projects visible", () => {

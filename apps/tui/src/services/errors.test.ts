@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeErrorToToast, toSafeError } from "../../src/services/errors.js";
+import { safeErrorToToast, toSafeError } from "./errors.js";
 
 describe("TUI SafeError mapping", () => {
   it("preserves user-safe diagnostics from protocol errors", () => {

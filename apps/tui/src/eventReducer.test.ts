@@ -1,7 +1,7 @@
 import type { WosmEvent } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { applyWosmEvent } from "../../src/eventReducer.js";
-import { createCommandSnapshot, fixtureNow, row } from "../fixtures/snapshots.js";
+import { createCommandSnapshot, fixtureNow, row } from "../test/fixtures/snapshots.js";
+import { applyWosmEvent } from "./eventReducer.js";
 
 describe("TUI event reducer", () => {
   it("applies direct worktree row updates without requesting a snapshot refresh", () => {

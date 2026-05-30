@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
 import {
   createNewSessionFlow,
   createNewSessionNameToken,
@@ -6,8 +7,7 @@ import {
   newSessionIntentForInput,
   transitionNewSessionFlow,
   validateNewSessionCreate,
-} from "../../src/flows/newSession.js";
-import { createDashboardSnapshot } from "../fixtures/snapshots.js";
+} from "./newSession.js";
 
 describe("new session flow", () => {
   it("defaults to the first configured project and its default agent", () => {

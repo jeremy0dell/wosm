@@ -2,7 +2,7 @@ import { Box, Text } from "ink";
 import { render } from "ink-testing-library";
 import { act, type ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TuiCursor } from "../TuiCursor.js";
+import { TuiCursor } from "./TuiCursor.js";
 
 type ActEnvironmentGlobal = typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
