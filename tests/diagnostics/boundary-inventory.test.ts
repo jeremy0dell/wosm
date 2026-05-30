@@ -38,6 +38,10 @@ const setTimeoutAllowlist = new Map([
     "apps/observer/src/metadata/gitRefInvalidation.ts",
     "Short debounce coalesces noisy Git ref watch events before requesting an observer-owned metadata reconcile.",
   ],
+  [
+    "integrations/harness/opencode/src/pluginInstall.ts",
+    "Generated OpenCode plugin uses a short socket send timeout because it runs inside OpenCode, outside WOSM runtime helpers.",
+  ],
 ]);
 
 describe("boundary inventory guard", () => {
@@ -72,7 +76,9 @@ describe("boundary inventory guard", () => {
       await Promise.all(
         providerNeutralSourceRoots.map((root) => sourceFilesAt(join(process.cwd(), root))),
       )
-    ).flat();
+    )
+      .flat()
+      .filter(isProductionSourceFile);
     const violations: string[] = [];
 
     for (const file of files) {
@@ -94,13 +100,7 @@ async function sourceFiles(): Promise<string[]> {
   for (const root of roots) {
     files.push(...(await sourceFilesAt(join(process.cwd(), root))));
   }
-  return files.filter(
-    (file) =>
-      file.endsWith(".ts") &&
-      file.includes("/src/") &&
-      !file.includes("/dist/") &&
-      !file.endsWith(".d.ts"),
-  );
+  return files.filter((file) => isProductionSourceFile(file) && file.endsWith(".ts"));
 }
 
 async function sourceFilesAt(dir: string): Promise<string[]> {
@@ -112,4 +112,15 @@ async function sourceFilesAt(dir: string): Promise<string[]> {
     }),
   );
   return files.flat();
+}
+
+function isProductionSourceFile(file: string): boolean {
+  return (
+    (file.endsWith(".ts") || file.endsWith(".tsx")) &&
+    file.includes("/src/") &&
+    !file.includes("/dist/") &&
+    !file.endsWith(".d.ts") &&
+    !file.endsWith(".test.ts") &&
+    !file.endsWith(".test.tsx")
+  );
 }

@@ -222,6 +222,7 @@ export const HarnessEventObservationSchema = z
     worktreeId: WorktreeIdSchema.optional(),
     terminalTargetId: TerminalTargetIdSchema.optional(),
     harnessRunId: HarnessRunIdSchema.optional(),
+    nativeSessionId: nonEmptyStringSchema.optional(),
     cwd: nonEmptyStringSchema.optional(),
     pid: z.number().int().positive().optional(),
     status: ObservedStatusSchema.optional(),

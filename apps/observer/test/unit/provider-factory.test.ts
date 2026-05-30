@@ -145,6 +145,23 @@ describe("provider factory", () => {
     expect([...registry.harnesses.keys()]).toEqual(["codex", "opencode", "pi", "scripted"]);
   });
 
+  it("omits unconfigured built-in harnesses and shows configured Codex, Pi, and OpenCode", () => {
+    const codexOnly = createProviderRegistry(config);
+
+    expect([...codexOnly.harnesses.keys()]).toEqual(["codex"]);
+
+    const allBuiltIns = createProviderRegistry({
+      ...config,
+      harness: {
+        codex: {},
+        pi: {},
+        opencode: {},
+      },
+    });
+
+    expect([...allBuiltIns.harnesses.keys()]).toEqual(["codex", "pi", "opencode"]);
+  });
+
   it("passes Codex config defaults into the Codex harness provider", async () => {
     const registry = createProviderRegistry({
       ...config,
