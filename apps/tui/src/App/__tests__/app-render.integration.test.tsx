@@ -52,7 +52,7 @@ describe("TUI app rendering", () => {
         <Dashboard
           columns={100}
           snapshot={snapshot}
-          uiState={{ searchQuery: "", collapsedProjectIds: new Set() }}
+          viewState={{ searchQuery: "", collapsedProjectIds: new Set() }}
         />
       </Box>,
       { columns: 100 },
@@ -82,7 +82,7 @@ describe("TUI app rendering", () => {
           <Dashboard
             columns={72}
             snapshot={snapshot}
-            uiState={{ searchQuery: "", collapsedProjectIds: new Set() }}
+            viewState={{ searchQuery: "", collapsedProjectIds: new Set() }}
             quitActionLabel="close"
           />
         </Box>

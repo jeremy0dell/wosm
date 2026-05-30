@@ -8,8 +8,8 @@ The TUI is a terminal UI client. It renders observer snapshots and events, owns 
 
 - Keep `apps/tui` provider-neutral. Do not import provider packages, read SQLite, run `wt`, run `tmux`, run `git` or `gh`, or parse raw provider payloads.
 - Render normalized contracts from `@wosm/contracts` and use `@wosm/protocol` through the TUI service layer.
-- React/Ink components should stay plain and readable. Runtime orchestration belongs in services or hooks, not presentation components.
-- Selectors, keymaps, actions, UI reducers, and fixtures should stay pure TypeScript.
+- React/Ink components should stay plain and readable. Runtime orchestration belongs in services or the TUI state store, not presentation components.
+- Selectors, screen transitions, command builders, event reducers, and fixtures should stay pure TypeScript.
 - TUI service code may use `@wosm/runtime` for observer IO, subscriptions, command dispatch, timeout, retry, cancellation, and cleanup boundaries. Prefer Effect in TUI boundary code when a single path must coordinate async iterators, cancellation/interruption, cleanup, retry/reconnect, timeouts, and typed error conversion. Keep that Effect usage behind Promise/AsyncIterable facades for React callers.
 - The TUI may filter, group, sort, label, and decorate snapshot rows. It must not infer agent truth from provider-specific details.
 
@@ -24,9 +24,11 @@ The TUI is a terminal UI client. It renders observer snapshots and events, owns 
 ## Code Organization
 
 - Use `apps/tui/src/services` for observer protocol calls and error mapping.
-- Use `apps/tui/src/hooks` for TUI lifecycle orchestration such as initial snapshot load, event subscription, reconnect behavior, and command waiting.
-- Use `apps/tui/src/selectors.ts` for snapshot-to-view grouping and filtering.
-- Use `apps/tui/src/actions.ts`, `keymap.ts`, `eventReducer.ts`, and `uiState.ts` for command construction, keyboard intent, event application, and local UI state.
+- Use `apps/tui/src/state/store.ts` for TUI lifecycle orchestration such as initial snapshot load, event subscription, reconnect behavior, command dispatch, popup dismissal, and exit callbacks.
+- Use `apps/tui/src/state/screens/*` for pure screen-owned key transitions.
+- Use `apps/tui/src/state/commandBuilders.ts` for typed observer command construction.
+- Use `apps/tui/src/selectors` for snapshot-to-view grouping and filtering.
+- Keep `apps/tui/src/eventReducer` focused on applying observer events to snapshots and toasts.
 - Keep reusable rendering surfaces under `apps/tui/src/components`.
 - Follow `apps/tui/TESTING.md` for colocated component/hook tests, parent-boundary integration tests, and root e2e coverage.
 
@@ -34,10 +36,10 @@ The TUI is a terminal UI client. It renders observer snapshots and events, owns 
 
 For TUI changes, choose the narrowest tests that prove the behavior, then add broader coverage only when the change crosses layers. See `apps/tui/TESTING.md` for current placement guidelines.
 
-- Component and hook behavior usually belongs in colocated tests beside the component or hook.
+- Component and store behavior usually belongs in colocated tests beside the component or state module.
 - Feature/domain integration behavior belongs in a `__tests__` directory at the nearest meaningful parent boundary.
 - Full product e2e behavior may live under top-level `tests/e2e` when it crosses the TUI, observer, protocol, providers, or real terminal behavior.
-- Pure selectors, actions, keymaps, reducers, safe-error mapping, and UI state belong in `apps/tui/test/unit`.
+- Pure selectors, screen transitions, command builders, reducers, safe-error mapping, and state helpers belong in unit tests.
 - Full app render, keyboard flows, command UX, observer-service integration, help overlay behavior, and popup focus/close behavior belong in `apps/tui/test/integration`.
 - Use `renderToString` when exact terminal text, spacing, layout, footer placement, or clipping matters.
 - Use `ink-testing-library` when keyboard input, focus, prompt, toast, or command dispatch behavior matters.
@@ -46,9 +48,9 @@ For TUI changes, choose the narrowest tests that prove the behavior, then add br
 Useful focused commands:
 
 ```bash
-pnpm exec vitest run apps/tui/src/components/__tests__/WorktreeRow.test.tsx --config config/vitest/vitest.unit.config.ts
-pnpm exec vitest run apps/tui/test/unit/selectors.test.ts --config config/vitest/vitest.unit.config.ts
-pnpm exec vitest run apps/tui/test/integration/app-render.test.tsx --config config/vitest/vitest.integration.config.ts
+pnpm exec vitest run apps/tui/src/components/WorktreeRow/WorktreeRow.test.tsx --config config/vitest/vitest.unit.config.ts
+pnpm exec vitest run apps/tui/src/state --config config/vitest/vitest.unit.config.ts
+pnpm exec vitest run apps/tui/src/App/__tests__/app-render.integration.test.tsx --config config/vitest/vitest.integration.config.ts
 ```
 
 Before merging meaningful TUI work, run at least the touched focused tests plus the deterministic gate required by the change. For cross-layer TUI, observer, protocol, or command changes, prefer `pnpm test:all`.

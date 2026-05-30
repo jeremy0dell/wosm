@@ -1,5 +1,5 @@
 import type { ProjectView, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
-import type { TuiUiState } from "../uiState/uiState.js";
+import type { TuiViewState } from "../state/screen.js";
 
 export type ProjectGroup = {
   project: ProjectView;
@@ -7,7 +7,7 @@ export type ProjectGroup = {
   collapsed: boolean;
 };
 
-export function selectProjectGroups(snapshot: WosmSnapshot, state: TuiUiState): ProjectGroup[] {
+export function selectProjectGroups(snapshot: WosmSnapshot, state: TuiViewState): ProjectGroup[] {
   const query = normalizeSearch(state.searchQuery);
   return snapshot.projects.map((project) => {
     const collapsed = state.collapsedProjectIds.has(project.id);
@@ -23,13 +23,13 @@ export function selectProjectGroups(snapshot: WosmSnapshot, state: TuiUiState): 
   });
 }
 
-export function selectVisibleRows(snapshot: WosmSnapshot, state: TuiUiState): WorktreeRow[] {
+export function selectVisibleRows(snapshot: WosmSnapshot, state: TuiViewState): WorktreeRow[] {
   return selectProjectGroups(snapshot, state).flatMap((group) => group.rows);
 }
 
 export function selectKeySlots(
   snapshot: WosmSnapshot,
-  state: TuiUiState,
+  state: TuiViewState,
 ): Map<string, WorktreeRow> {
   const slots = new Map<string, WorktreeRow>();
   const rows = selectVisibleRows(snapshot, state).slice(0, 9);
@@ -41,7 +41,7 @@ export function selectKeySlots(
 
 export function selectProjectSlots(
   snapshot: WosmSnapshot,
-  state: TuiUiState,
+  state: TuiViewState,
 ): Map<string, ProjectView> {
   const slots = new Map<string, ProjectView>();
   const groups = selectProjectGroups(snapshot, state).slice(0, 9);
