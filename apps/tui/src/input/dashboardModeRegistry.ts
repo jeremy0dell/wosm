@@ -1,4 +1,4 @@
-import { closeOverlay } from "../uiState.js";
+import { closeOverlay } from "../uiState/uiState.js";
 import { handleDashboardKeyInput } from "./dashboardKeyInput.js";
 import { handleNewSessionInput } from "./newSessionInput.js";
 import { handlePromptInput } from "./promptInput.js";

@@ -1,5 +1,5 @@
 import type { SafeError } from "@wosm/contracts";
-import type { TuiToast } from "./types.js";
+import type { TuiToast } from "../types.js";
 
 export function toSafeError(error: unknown): SafeError {
   if (isSafeError(error)) {

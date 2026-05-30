@@ -3,7 +3,7 @@ import {
   createCommandSnapshot,
   createDashboardSnapshot,
   createPromptCapableSnapshot,
-} from "../test/fixtures/snapshots.js";
+} from "../../test/fixtures/snapshots.js";
 import {
   buildCleanupCommand,
   buildCreateSessionCommand,

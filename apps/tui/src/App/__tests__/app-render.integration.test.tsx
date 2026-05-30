@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 import {
   createDashboardSnapshot,
   createZeroWorktreeSnapshot,
-} from "../../test/fixtures/snapshots.js";
-import { FakeTuiObserverService } from "../../test/support/fakeObserverService.js";
+} from "../../../test/fixtures/snapshots.js";
+import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
+import { Dashboard } from "../../components/Dashboard/Dashboard.js";
+import { TuiModeProvider } from "../../tuiMode.js";
 import { App } from "../App.js";
-import { Dashboard } from "../components/Dashboard.js";
-import { TuiModeProvider } from "../tuiMode.js";
 
 describe("TUI app rendering", () => {
   it("renders the project-first dashboard and required row states", () => {

@@ -1,6 +1,6 @@
 import type { ProjectView, WorktreeRow } from "@wosm/contracts";
 import { Box, Text } from "ink";
-import { WorktreeRow as WorktreeRowView } from "./WorktreeRow.js";
+import { WorktreeRow as WorktreeRowView } from "../WorktreeRow/WorktreeRow.js";
 
 export type ProjectGroupProps = {
   project: ProjectView;

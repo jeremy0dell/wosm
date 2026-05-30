@@ -1,5 +1,5 @@
 import type { WorktreeId } from "@wosm/contracts";
-import type { CleanupActionKind } from "./actions.js";
+import type { CleanupActionKind } from "../actions/actions.js";
 
 export type PromptMode = "search" | "remove-slot" | "project-collapse" | "confirm-cleanup";
 

@@ -1,10 +1,10 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
-import { selectKeySlots, selectProjectGroups } from "../selectors.js";
-import { useTuiMode } from "../tuiMode.js";
-import type { TuiUiState } from "../uiState.js";
-import { ProjectGroup } from "./ProjectGroup.js";
+import { selectKeySlots, selectProjectGroups } from "../../selectors/selectors.js";
+import { useTuiMode } from "../../tuiMode.js";
+import type { TuiUiState } from "../../uiState/uiState.js";
+import { ProjectGroup } from "../ProjectGroup/ProjectGroup.js";
 
 export type DashboardProps = {
   snapshot: WosmSnapshot;

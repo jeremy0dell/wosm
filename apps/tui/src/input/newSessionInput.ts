@@ -1,4 +1,4 @@
-import { buildCreateSessionCommand } from "../actions.js";
+import { buildCreateSessionCommand } from "../actions/actions.js";
 import {
   createNewSessionFlow,
   createNewSessionNameToken,
@@ -6,7 +6,7 @@ import {
   transitionNewSessionFlow,
   validateNewSessionCreate,
 } from "../flows/newSession.js";
-import { safeErrorToToast } from "../services/errors.js";
+import { safeErrorToToast } from "../services/errors/errors.js";
 import type { DashboardInputContext } from "./types.js";
 
 export function openNewSessionFlow(context: DashboardInputContext): void {

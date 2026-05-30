@@ -4,7 +4,7 @@ TUI tests should live near the behavior they protect. Prefer the narrowest usefu
 
 ## Layout
 
-- Component and hook tests should usually be colocated with the component or hook they primarily exercise.
+- Component, hook, and focused module tests should usually live in the same small directory as the source they primarily exercise.
 - Feature or domain integration tests should live in a `__tests__` directory at the nearest meaningful parent boundary.
 - Root-level e2e coverage is appropriate for full product flows that cross the TUI, observer, protocol, providers, or real terminal behavior.
 - Use `*.test.ts` or `*.test.tsx` for colocated local tests.

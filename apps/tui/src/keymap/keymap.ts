@@ -3,9 +3,9 @@ import {
   type BuildFocusCommandOptions,
   buildPrimaryCommandForRow,
   type CleanupActionKind,
-} from "./actions.js";
-import { selectKeySlots } from "./selectors.js";
-import type { TuiUiState } from "./uiState.js";
+} from "../actions/actions.js";
+import { selectKeySlots } from "../selectors/selectors.js";
+import type { TuiUiState } from "../uiState/uiState.js";
 
 export type TuiKeyIntent =
   | { type: "command"; command: WosmCommand }

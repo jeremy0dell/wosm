@@ -1,6 +1,6 @@
 import type { WosmEvent } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { createCommandSnapshot, fixtureNow, row } from "../test/fixtures/snapshots.js";
+import { createCommandSnapshot, fixtureNow, row } from "../../test/fixtures/snapshots.js";
 import { applyWosmEvent } from "./eventReducer.js";
 
 describe("TUI event reducer", () => {

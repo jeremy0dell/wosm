@@ -1,7 +1,7 @@
 import { Box, renderToString } from "ink";
 import { describe, expect, it } from "vitest";
 import { createZeroWorktreeSnapshot } from "../../../../test/fixtures/snapshots.js";
-import { Dashboard } from "../../Dashboard.js";
+import { Dashboard } from "../../Dashboard/Dashboard.js";
 import { helpPanelLayout } from "../../HelpOverlay/HelpOverlay.js";
 import { OverlayHost } from "../../OverlayHost/OverlayHost.js";
 import { TuiShell } from "../TuiShell.js";

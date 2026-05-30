@@ -5,7 +5,7 @@ import {
   createDashboardSnapshot,
 } from "../../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
-import { App } from "../../App.js";
+import { App } from "../../App/App.js";
 
 describe("TUI command UX", () => {
   it("dispatches terminal.focus from numeric slot mappings", async () => {

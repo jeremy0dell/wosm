@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import type { TuiToast } from "../services/types.js";
+import type { TuiToast } from "../../services/types.js";
 
 export type ToastStackProps = {
   toasts: readonly TuiToast[];

@@ -1,7 +1,7 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
 import type { NewSessionFlowState } from "../flows/newSession.js";
 import type { ObserverDashboardState } from "../hooks/useObserverDashboard.js";
-import type { PromptMode } from "../uiState.js";
+import type { PromptMode } from "../uiState/uiState.js";
 
 export type DashboardInputKey = {
   ctrl?: boolean;

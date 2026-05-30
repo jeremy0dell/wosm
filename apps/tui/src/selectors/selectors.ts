@@ -1,5 +1,5 @@
 import type { ProjectView, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
-import type { TuiUiState } from "./uiState.js";
+import type { TuiUiState } from "../uiState/uiState.js";
 
 export type ProjectGroup = {
   project: ProjectView;
