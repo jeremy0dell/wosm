@@ -5,7 +5,7 @@ import { dirname } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const repoRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const home = homedir();
 
 if (isMain()) {
@@ -23,6 +23,9 @@ export function parseCleanupArgs(args) {
   };
 
   for (const arg of args) {
+    if (arg === "--") {
+      continue;
+    }
     if (arg === "--run" || arg === "--yes") {
       options.dryRun = false;
     } else if (arg === "--dry-run") {

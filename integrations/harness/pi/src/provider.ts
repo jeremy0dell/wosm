@@ -22,7 +22,7 @@ import {
 import { classifyPiRunStatus } from "./classify.js";
 import { discoverPiRuns } from "./discovery.js";
 import { piProviderErrorFromUnknown } from "./errors.js";
-import { normalizePiRawEvent } from "./events.js";
+import { normalizePiRawEvent } from "./event/mapping.js";
 import { buildPiLaunchPlan } from "./launch.js";
 
 export type PiHarnessProviderOptions = {

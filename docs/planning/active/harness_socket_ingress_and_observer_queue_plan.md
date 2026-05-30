@@ -3,7 +3,7 @@
 **Status:** Phase 1 committed; Phase 2 implemented locally
 **Date:** 2026-05-29
 **Applies to:** harness integrations, provider hook delivery, observer ingress, protocol, persistence, diagnostics
-**Supersedes:** `docs/planning/harness_hook_ingress_refactor_master_plan.md` for future transport and observer backpressure work
+**Supersedes:** `docs/planning/historical/harness_hook_ingress_refactor_master_plan.md` for future transport and observer backpressure work
 
 This plan records the current runtime discoveries and the target architecture for replacing the `wosm-hook` hot path with a shared local ingress API and an observer-owned semantic agent state pipeline.
 

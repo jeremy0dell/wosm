@@ -7,9 +7,10 @@ import type { HarnessEventReport, HarnessEventReportReceipt, SafeError } from "@
 import { HarnessEventReportSpoolRecordSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
 import { safeErrorFromUnknown, systemClock, toIsoTimestamp } from "@wosm/runtime";
-import { compactPiHookPayload } from "./compaction.js";
-import { type PiSupportedEventName, piSupportedEventNames } from "./eventNames.js";
-import { piHookPayloadToHarnessEventReport } from "./mapping.js";
+import { parsePiCompactEvent } from "./event/compactEvent.js";
+import { compactPiHookPayload } from "./event/compaction.js";
+import { piHookPayloadToHarnessEventReport } from "./event/mapping.js";
+import { type PiSupportedEventName, piSupportedEventNames } from "./event/names.js";
 
 type PiExtensionApi = {
   on: (
@@ -37,8 +38,8 @@ const defaultReportId = () => `hook_${Date.now()}_${randomUUID()}`;
 export function registerWosmPiExtension(pi: PiExtensionApi, deps: PiExtensionDeps = {}): void {
   for (const eventType of piSupportedEventNames) {
     pi.on(eventType, async (event, context) => {
-      const payload = compactPiExtensionEvent(eventType, event, context, deps);
       try {
+        const payload = compactPiExtensionEvent(eventType, event, context, deps);
         const report = reportFromPiExtensionPayload(eventType, payload, deps);
         await (deps.sendReport ?? defaultSendReport(deps))({ eventType, payload, report });
       } catch {
@@ -130,6 +131,7 @@ export function compactPiExtensionEvent(
     assignOptionalField(payload, "compaction_entry_id", stringField(compactionEntry, "id"));
   }
 
+  parsePiCompactEvent(payload);
   return payload;
 }
 

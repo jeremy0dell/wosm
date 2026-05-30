@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseCleanupArgs } from "../../scripts/agent-cleanup.mjs";
-import { isUnder, normalizeConfig, parseResetArgs } from "../../scripts/agent-reset.mjs";
+import { parseCleanupArgs } from "../../scripts/maintenance/agent-cleanup.mjs";
+import {
+  isUnder,
+  normalizeConfig,
+  parseResetArgs,
+} from "../../scripts/maintenance/agent-reset.mjs";
 import {
   commandFromArgs,
   defaultDevSessionNameForRoot,
@@ -44,6 +48,15 @@ describe("agent cleanup/reset scripts", () => {
       forceWorktrees: true,
       projectId: "protocol",
       state: true,
+    });
+  });
+
+  it("ignores pnpm argument separators", () => {
+    expect(parseCleanupArgs(["--", "--yes"])).toMatchObject({
+      dryRun: false,
+    });
+    expect(parseResetArgs(["--", "--yes"])).toMatchObject({
+      dryRun: false,
     });
   });
 

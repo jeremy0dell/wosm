@@ -509,7 +509,7 @@ Prefer plain TypeScript when the code is pure, synchronous, presentation-only, s
 
 Choosing plain Promise code is acceptable when it is intentionally simpler. It is not acceptable when it recreates one-off retry, timeout, cancellation, cleanup, queueing, or typed-error plumbing that should belong in the shared runtime boundary layer.
 
-The current implementation hardening sequence for these boundaries lives in `docs/planning/effect_boundary_hardening_sequence.md`. Use that addendum when planning follow-up work that touches runtime primitives, protocol IO, observer queues, reconciliation, provider calls, CLI diagnostics, hooks, or TUI observer services.
+The current implementation hardening sequence for these boundaries lives in `docs/planning/active/effect_boundary_hardening_sequence.md`. Use that addendum when planning follow-up work that touches runtime primitives, protocol IO, observer queues, reconciliation, provider calls, CLI diagnostics, hooks, or TUI observer services.
 
 The TUI is allowed to use Effect in service hooks and boundary modules when it needs orchestration. The TUI should not become provider-aware or backend-like, and React components should not need to understand provider mechanics to render the dashboard.
 
