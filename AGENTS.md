@@ -10,6 +10,8 @@ The old rebuild TDD and phased plan in `docs/planning/historical/` are historica
 
 When finishing a change and summarizing it, include a minimal line or section naming the specific UX implication and how to manually verify it when possible.
 
+PR titles should be semantic and reviewer-oriented, using a type/domain shape like `refactor(protocol): centralize observer command completion waits`; do not add agent tags.
+
 ## Optional Object Construction
 
 `exactOptionalPropertyTypes` is intentional. Preserve the difference between absent optional fields and fields set to `undefined`.
