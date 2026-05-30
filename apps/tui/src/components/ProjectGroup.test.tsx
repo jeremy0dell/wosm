@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   createDashboardSnapshot,
   createZeroWorktreeSnapshot,
-} from "../../../test/fixtures/snapshots.js";
-import { ProjectGroup } from "../ProjectGroup.js";
+} from "../../test/fixtures/snapshots.js";
+import { ProjectGroup } from "./ProjectGroup.js";
 
 describe("ProjectGroup", () => {
   it("renders the expanded arrow and dash header format", () => {

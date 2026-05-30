@@ -17,9 +17,9 @@ import type {
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { listenUnixSocket, type ObserverApi, startProtocolServer } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
-import { createTempSocketPath } from "../../../../tests/support/sockets";
-import { createTuiObserverService } from "../../src/services/observerService.js";
-import { createCommandSnapshot, fixtureNow } from "../fixtures/snapshots.js";
+import { createTempSocketPath } from "../../../../../tests/support/sockets";
+import { createCommandSnapshot, fixtureNow } from "../../../test/fixtures/snapshots.js";
+import { createTuiObserverService } from "../observerService.js";
 
 describe("TUI observer service", () => {
   it("loads snapshots and dispatches commands through the observer protocol", async () => {

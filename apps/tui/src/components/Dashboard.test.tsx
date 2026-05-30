@@ -1,7 +1,7 @@
 import { Box, renderToString } from "ink";
 import { describe, expect, it } from "vitest";
-import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
-import { Dashboard } from "../Dashboard.js";
+import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
+import { Dashboard } from "./Dashboard.js";
 
 describe("Dashboard", () => {
   it("respects collapsed project ids when rendering groups and slots", () => {

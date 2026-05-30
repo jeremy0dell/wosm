@@ -1,8 +1,11 @@
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
-import { App } from "../../src/App.js";
-import { createCommandSnapshot, createDashboardSnapshot } from "../fixtures/snapshots.js";
-import { FakeTuiObserverService } from "../support/fakeObserverService.js";
+import {
+  createCommandSnapshot,
+  createDashboardSnapshot,
+} from "../../../test/fixtures/snapshots.js";
+import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
+import { App } from "../../App.js";
 
 describe("TUI command UX", () => {
   it("dispatches terminal.focus from numeric slot mappings", async () => {

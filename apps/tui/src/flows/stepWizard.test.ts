@@ -4,7 +4,7 @@ import {
   createStepWizardState,
   enterWizardStep,
   resetWizardStep,
-} from "../../src/flows/stepWizard.js";
+} from "./stepWizard.js";
 
 describe("step wizard helpers", () => {
   it("tracks step history without owning domain state", () => {
