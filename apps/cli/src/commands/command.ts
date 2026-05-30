@@ -1,8 +1,7 @@
-import { setTimeout as sleep } from "node:timers/promises";
 import type { WosmConfig } from "@wosm/config";
 import type { CommandId, CommandReceipt, CommandRecord, WosmCommand } from "@wosm/contracts";
 import { CommandIdSchema, WosmCommandSchema } from "@wosm/contracts";
-import { createObserverClient, type ObserverApi } from "@wosm/protocol";
+import { createObserverClient, type ObserverApi, type ObserverClient } from "@wosm/protocol";
 import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import { parsePositiveIntegerOption } from "../args.js";
 import {
@@ -143,7 +142,7 @@ async function dispatchCommand(
 }
 
 async function waitForCommand(
-  client: ObserverApi,
+  client: ObserverClient,
   commandId: CommandId,
   timeoutMs: number,
 ): Promise<CommandRecord> {
@@ -162,23 +161,23 @@ async function waitForCommand(
         message: "Command did not finish before the timeout.",
       },
     },
-    async ({ signal }) => {
-      for (;;) {
-        if (signal.aborted) {
-          throw signal.reason;
-        }
-        const command = await client.getCommand(commandId);
-        if (command?.status === "succeeded" || command?.status === "failed") {
-          return command;
-        }
-        await delay(Math.min(25, timeoutMs));
-      }
-    },
+    async () => client.waitForCommand(commandId, { timeoutMs }).catch(mapCommandWaitError),
   );
   if (!result.ok) {
     throw result.error;
   }
   return result.value;
+}
+
+function mapCommandWaitError(error: unknown): never {
+  if (error && typeof error === "object" && "tag" in error && error.tag === "TimeoutError") {
+    throw {
+      tag: "TimeoutError",
+      code: "COMMAND_WAIT_TIMEOUT",
+      message: "Command did not finish before the timeout.",
+    };
+  }
+  throw error;
 }
 
 function parseCommandFromStdin(stdin: string | undefined, requiresStdin: boolean): WosmCommand {
@@ -288,8 +287,4 @@ function assertRunning(
   if (status.status !== "running") {
     throw new Error(status.error?.message ?? "Observer is not running.");
   }
-}
-
-async function delay(ms: number): Promise<void> {
-  await sleep(ms);
 }
