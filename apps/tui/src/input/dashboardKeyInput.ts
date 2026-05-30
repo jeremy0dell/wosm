@@ -1,7 +1,12 @@
 import type { TerminalFocusOrigin } from "@wosm/contracts";
-import { intentForDashboardKey } from "../keymap.js";
-import { selectProjectSlots } from "../selectors.js";
-import { openCleanupPrompt, openHelpOverlay, openPrompt, type PromptMode } from "../uiState.js";
+import { intentForDashboardKey } from "../keymap/keymap.js";
+import { selectProjectSlots } from "../selectors/selectors.js";
+import {
+  openCleanupPrompt,
+  openHelpOverlay,
+  openPrompt,
+  type PromptMode,
+} from "../uiState/uiState.js";
 import {
   buildFocusLifecycleOptions,
   dismissPersistentPopup,

@@ -1,34 +1,98 @@
-import type { BuildHarnessLaunchRequest, HarnessRunObservation } from "@wosm/contracts";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type {
+  BuildHarnessLaunchRequest,
+  HarnessRunObservation,
+  RawHarnessEvent,
+} from "@wosm/contracts";
+import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
+import { installOpenCodePlugin } from "../../src/pluginInstall";
 import { OpenCodeHarnessProvider } from "../../src/provider";
 
 const now = "2026-05-20T12:00:00.000Z";
 
-describe("OpenCodeHarnessProvider skeleton", () => {
-  it("satisfies harness provider contracts without executing OpenCode", async () => {
-    const provider = new OpenCodeHarnessProvider({
-      command: "opencode",
-      permissionMode: "yolo",
-      approvalPolicy: "on-request",
-      sandboxMode: "workspace-write",
-      now: () => new Date(now),
-    });
+describe("OpenCodeHarnessProvider", () => {
+  it("declares real OpenCode capabilities", () => {
+    const provider = new OpenCodeHarnessProvider();
 
-    expect(provider.capabilities()).toMatchObject({
+    expect(provider.capabilities()).toEqual({
       canLaunch: true,
       canDiscoverRuns: true,
+      canEmitEvents: true,
       canClassifyStatus: true,
       canReceivePrompt: false,
+      canResume: false,
+      canStop: false,
+      canRunNonInteractive: true,
+      canExposeApprovalState: true,
     });
+  });
+
+  it("checks opencode --version for provider health", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const provider = new OpenCodeHarnessProvider({
+      command: "opencode-test",
+      now: () => new Date(now),
+      runner: async (input) => {
+        calls.push(input);
+        return result(input, "1.15.12\n");
+      },
+    });
+
     await expect(provider.health()).resolves.toMatchObject({
       providerId: "opencode",
       providerType: "harness",
-      status: "unknown",
+      status: "healthy",
+      lastCheckedAt: now,
+      diagnostics: {
+        command: "opencode --version succeeded",
+      },
     });
+    expect(calls.map((call) => call.args)).toEqual([["--version"]]);
+  });
+
+  it("maps health failures to typed OpenCode provider health", async () => {
+    const provider = new OpenCodeHarnessProvider({
+      command: "missing-opencode",
+      now: () => new Date(now),
+      runner: async () => {
+        throw Object.assign(new Error("not found"), {
+          code: "ENOENT",
+          stderr: "missing-opencode: command not found",
+        });
+      },
+    });
+
+    await expect(provider.health()).resolves.toMatchObject({
+      providerId: "opencode",
+      providerType: "harness",
+      status: "unavailable",
+      lastError: {
+        tag: "HarnessProviderError",
+        code: "HARNESS_OPENCODE_UNAVAILABLE",
+        provider: "opencode",
+      },
+    });
+  });
+
+  it("applies provider launch defaults and discovers terminal-bound runs", async () => {
+    const provider = new OpenCodeHarnessProvider({
+      command: "opencode-test",
+      profile: "build",
+      approvalPolicy: "on-request",
+      sandboxMode: "workspace-write",
+      observerSocketPath: "/tmp/wosm/run/observer.sock",
+      stateDir: "/tmp/wosm/state",
+      hookSpoolDir: "/tmp/wosm/state/spool/hooks",
+      now: () => new Date(now),
+    });
+
     await expect(provider.buildLaunch(request())).resolves.toMatchObject({
       provider: "opencode",
-      command: "opencode",
-      args: [],
+      command: "opencode-test",
+      args: ["--agent", "build", "--prompt", "Do not send this automatically."],
       cwd: "/tmp/wosm/web/task",
       mode: "interactive",
       env: {
@@ -37,19 +101,110 @@ describe("OpenCodeHarnessProvider skeleton", () => {
         WOSM_WORKTREE_ID: "wt_web_task",
         WOSM_WORKTREE_PATH: "/tmp/wosm/web/task",
         WOSM_HARNESS_PROVIDER: "opencode",
+        WOSM_OBSERVER_SOCKET_PATH: "/tmp/wosm/run/observer.sock",
+        WOSM_OBSERVER_STATE_DIR: "/tmp/wosm/state",
+        WOSM_HOOK_SPOOL_DIR: "/tmp/wosm/state/spool/hooks",
       },
       providerData: {
-        skeleton: true,
+        interactive: true,
         initialPromptProvided: true,
-        profile: "default",
+        profile: "build",
+        approvalPolicy: "on-request",
+        sandboxMode: "workspace-write",
+      },
+    });
+
+    await expect(provider.buildLaunch({ ...request(), mode: "exec" })).resolves.toMatchObject({
+      args: ["run", "--format", "json", "--agent", "build", "Do not send this automatically."],
+    });
+
+    await expect(
+      provider.discoverRuns({
+        projects: [],
+        worktrees: eventContext().worktrees,
+        terminalTargets: eventContext().terminalTargets,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        provider: "opencode",
+        worktreeId: "wt_web_task",
+        state: "unknown",
+        confidence: "low",
+      }),
+    ]);
+  });
+
+  it("applies yolo permission mode to non-interactive OpenCode launch plans", async () => {
+    const provider = new OpenCodeHarnessProvider({
+      permissionMode: "yolo",
+      approvalPolicy: "on-request",
+      sandboxMode: "workspace-write",
+    });
+
+    await expect(provider.buildLaunch({ ...request(), mode: "exec" })).resolves.toMatchObject({
+      args: [
+        "run",
+        "--format",
+        "json",
+        "--dangerously-skip-permissions",
+        "Do not send this automatically.",
+      ],
+      providerData: {
         permissionMode: "yolo",
       },
     });
+  });
+
+  it("uses observer plugin paths when checking installed OpenCode plugin diagnostics", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-opencode-provider-"));
+    const opencodeConfigDir = join(root, "opencode");
+    const pluginPath = join(opencodeConfigDir, "plugins", "wosm-agent-state.js");
+    const observerSocketPath = join(root, "run", "observer.sock");
+    const stateDir = join(root, "state");
+    const hookSpoolDir = join(stateDir, "spool", "hooks");
+
+    await installOpenCodePlugin({
+      opencodeConfigDir,
+      observerSocketPath,
+      stateDir,
+      hookSpoolDir,
+    });
+
+    const provider = new OpenCodeHarnessProvider({
+      command: "opencode-test",
+      installHooks: true,
+      observerSocketPath,
+      stateDir,
+      hookSpoolDir,
+      env: {
+        OPENCODE_CONFIG_DIR: opencodeConfigDir,
+      },
+      runner: async (input) => result(input, "1.15.12\n"),
+    });
+
+    await expect(provider.doctorChecks()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "opencode.command",
+          status: "ok",
+        }),
+        expect.objectContaining({
+          name: "opencode-plugin",
+          status: "ok",
+          message: expect.stringContaining(pluginPath),
+        }),
+      ]),
+    );
+    await expect(readFile(pluginPath, "utf8")).resolves.toContain(
+      "wosm-opencode-observer-plugin:v1",
+    );
+  });
+
+  it("classifies and ingests OpenCode observations through provider-local parsing", async () => {
+    const provider = new OpenCodeHarnessProvider({ now: () => new Date(now) });
+
     await expect(
-      provider.discoverRuns({ projects: [], worktrees: [], terminalTargets: [] }),
-    ).resolves.toEqual([]);
-    await expect(
-      provider.classifyRun(run("opencode"), {
+      provider.classifyRun(run(), {
         projects: [],
         worktrees: [],
         terminalTargets: [],
@@ -60,10 +215,36 @@ describe("OpenCodeHarnessProvider skeleton", () => {
         confidence: "low",
       },
     });
+
+    await expect(provider.ingestEvent?.(event(), eventContext())).resolves.toEqual([
+      expect.objectContaining({
+        provider: "opencode",
+        worktreeId: "wt_web_task",
+        rawEventType: "session.status",
+        nativeSessionId: "opencode_session_123",
+        status: expect.objectContaining({
+          value: "working",
+        }),
+      }),
+    ]);
   });
 });
 
+function result(input: ExternalCommandInput, stdout: string): ExternalCommandResult {
+  return {
+    command: input.command,
+    args: input.args ?? [],
+    stdout,
+    stderr: "",
+    exitCode: 0,
+  };
+}
+
 function request(): BuildHarnessLaunchRequest {
+  const target = eventContext().terminalTargets[0];
+  if (target === undefined) {
+    throw new Error("OpenCode provider fixture is missing a terminal target.");
+  }
   return {
     project: {
       id: "web",
@@ -88,22 +269,78 @@ function request(): BuildHarnessLaunchRequest {
       source: "worktrunk",
       observedAt: now,
     },
+    terminalTarget: target,
     mode: "interactive",
     sessionId: "ses_web_task",
     initialPrompt: "Do not send this automatically.",
-    profile: "default",
   };
 }
 
-function run(provider: string): HarnessRunObservation {
+function run(): HarnessRunObservation {
   return {
-    id: "run_web_task",
-    provider,
+    id: "opencode:tmux:wosm:@1:%2",
+    provider: "opencode",
     projectId: "web",
     worktreeId: "wt_web_task",
+    sessionId: "ses_web_task",
     state: "unknown",
     confidence: "low",
-    reason: "Provider skeleton has no reliable status signal.",
+    reason: "terminal target is bound to OpenCode; no reliable lifecycle signal yet.",
     observedAt: now,
+  };
+}
+
+function event(): RawHarnessEvent {
+  return {
+    provider: "opencode",
+    observedAt: now,
+    event: {
+      id: "evt_1",
+      type: "session.status",
+      properties: {
+        sessionID: "opencode_session_123",
+        status: {
+          type: "busy",
+        },
+      },
+      cwd: "/tmp/wosm/web/task",
+    },
+  };
+}
+
+function eventContext() {
+  return {
+    projects: [],
+    worktrees: [
+      {
+        id: "wt_web_task",
+        provider: "worktrunk",
+        projectId: "web",
+        branch: "task",
+        path: "/tmp/wosm/web/task",
+        state: "exists" as const,
+        source: "worktrunk" as const,
+        observedAt: now,
+      },
+    ],
+    terminalTargets: [
+      {
+        id: "tmux:wosm:@1:%2",
+        provider: "tmux",
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        state: "open" as const,
+        cwd: "/tmp/wosm/web/task",
+        confidence: "high" as const,
+        reason: "tmux pane has wosm identity binding.",
+        observedAt: now,
+        providerData: {
+          role: "main-agent",
+          harness: "opencode",
+          currentCommand: "opencode",
+        },
+      },
+    ],
   };
 }

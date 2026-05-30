@@ -1,7 +1,7 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import type { OverlayHostState } from "../components/OverlayHost/OverlayHost.js";
 import type { NewSessionFlowState } from "../flows/newSession.js";
-import type { TuiUiState } from "../uiState.js";
+import type { TuiUiState } from "../uiState/uiState.js";
 import { dashboardInputModes } from "./dashboardModeRegistry.js";
 import type { DashboardInputContext } from "./types.js";
 

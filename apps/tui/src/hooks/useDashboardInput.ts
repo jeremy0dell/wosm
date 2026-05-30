@@ -5,7 +5,7 @@ import type { OverlayHostState } from "../components/OverlayHost/OverlayHost.js"
 import type { NewSessionFlowState } from "../flows/newSession.js";
 import { handleDashboardInput, overlayRenderState } from "../input/dashboardInput.js";
 import type { DashboardInputKey } from "../input/types.js";
-import type { PromptMode } from "../uiState.js";
+import type { PromptMode } from "../uiState/uiState.js";
 import type { ObserverDashboardState } from "./useObserverDashboard.js";
 
 export type UseDashboardInputOptions = {

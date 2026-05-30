@@ -7,10 +7,10 @@ import {
   useMemo,
   useState,
 } from "react";
-import { applyWosmEvent } from "../eventReducer.js";
-import { safeErrorToToast, toSafeError } from "../services/errors.js";
+import { applyWosmEvent } from "../eventReducer/eventReducer.js";
+import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
-import { createInitialUiState, type TuiUiState } from "../uiState.js";
+import { createInitialUiState, type TuiUiState } from "../uiState/uiState.js";
 
 const EVENT_STREAM_RECONNECT_DELAY_MS = 100;
 

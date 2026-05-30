@@ -1,6 +1,6 @@
 import type { TerminalFocusOrigin, WosmCommand } from "@wosm/contracts";
 import type { ObserverDashboardState } from "../hooks/useObserverDashboard.js";
-import { safeErrorToToast, toSafeError } from "../services/errors.js";
+import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
 
 export type FocusLifecyclePresence = {
   exitOnFocusSuccess: boolean;

@@ -302,6 +302,9 @@ function harnessEventObservationFromReport(report: HarnessEventReport): HarnessE
   if (report.correlation?.harnessRunId !== undefined) {
     observation.harnessRunId = report.correlation.harnessRunId;
   }
+  if (report.correlation?.nativeSessionId !== undefined) {
+    observation.nativeSessionId = report.correlation.nativeSessionId;
+  }
   if (report.correlation?.cwd !== undefined) {
     observation.cwd = report.correlation.cwd;
   }
