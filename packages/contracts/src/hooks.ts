@@ -118,6 +118,26 @@ export const HookPayloadSummarySchema = z
 
 export type HookPayloadSummary = z.infer<typeof HookPayloadSummarySchema>;
 
+export const WosmHookIdentityPayloadSchema = z
+  .object({
+    wosm_project_id: nonEmptyStringSchema.optional(),
+    wosm_worktree_id: nonEmptyStringSchema.optional(),
+    wosm_worktree_path: nonEmptyStringSchema.optional(),
+    wosm_session_id: nonEmptyStringSchema.optional(),
+    wosm_terminal_provider: nonEmptyStringSchema.optional(),
+    wosm_terminal_target_id: nonEmptyStringSchema.optional(),
+  })
+  .passthrough();
+
+export type WosmHookIdentityPayload = z.infer<typeof WosmHookIdentityPayloadSchema>;
+
+export function parseWosmHookIdentityPayload(
+  payload: unknown,
+): WosmHookIdentityPayload | undefined {
+  const result = WosmHookIdentityPayloadSchema.safeParse(payload);
+  return result.success ? result.data : undefined;
+}
+
 export type HookScopeDecision =
   | {
       action: "accept";
