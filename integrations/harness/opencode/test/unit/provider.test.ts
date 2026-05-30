@@ -176,6 +176,9 @@ describe("OpenCodeHarnessProvider", () => {
       observerSocketPath,
       stateDir,
       hookSpoolDir,
+      env: {
+        OPENCODE_CONFIG_DIR: opencodeConfigDir,
+      },
       runner: async (input) => result(input, "1.15.12\n"),
     });
 
@@ -184,6 +187,11 @@ describe("OpenCodeHarnessProvider", () => {
         expect.objectContaining({
           name: "opencode.command",
           status: "ok",
+        }),
+        expect.objectContaining({
+          name: "opencode-plugin",
+          status: "ok",
+          message: expect.stringContaining(pluginPath),
         }),
       ]),
     );

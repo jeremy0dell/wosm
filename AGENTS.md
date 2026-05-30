@@ -6,7 +6,7 @@ For development, test, and documentation workflow, read `docs/development.md`.
 
 For runtime trace IDs, command IDs, diagnostic IDs, or live debugging, read `docs/debugging.md`.
 
-The old rebuild TDD and phased plan in `docs/planning/` are historical V1 baselines. Use them only for explicit rebuild-phase archaeology or original rationale. For ordinary work, current code, current tests, runtime evidence, and the living docs above supersede them.
+The old rebuild TDD and phased plan in `docs/planning/historical/` are historical V1 baselines. Use them only for explicit rebuild-phase archaeology or original rationale. For ordinary work, current code, current tests, runtime evidence, and the living docs above supersede them.
 
 When finishing a change and summarizing it, include a minimal line or section naming the specific UX implication and how to manually verify it when possible.
 
@@ -30,7 +30,7 @@ Inside already-typed code, prefer discriminated unions, exhaustive `switch` hand
 
 Observer/core code should not scrape provider-specific keys out of generic `providerData`. Normalize those fields at the provider boundary into contract fields, correlation fields, or a provider-owned schema.
 
-This convention comes from `docs/planning/code_smell_remediation_p1_p2.md`.
+This convention comes from `docs/planning/active/code_smell_remediation_p1_p2.md`.
 
 ## Runtime Trace Debugging
 

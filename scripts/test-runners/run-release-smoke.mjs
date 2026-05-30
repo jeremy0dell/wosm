@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const repoRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const options = parseArgs(process.argv.slice(2));
 const timeoutMs = Number(process.env.WOSM_RELEASE_SMOKE_TIMEOUT_MS ?? 120_000);
 const tempRoot = mkdtempSync(join(tmpdir(), "wosm-release-smoke-"));
@@ -73,7 +73,7 @@ function parseArgs(args) {
       parsed.skipScripted = true;
     } else if (arg === "-h" || arg === "--help") {
       process.stdout.write(
-        `Usage: pnpm smoke:release [-- --skip-build --skip-scripted --keep-temp]\n`,
+        "Usage: pnpm smoke:release [-- --skip-build --skip-scripted --keep-temp]\n",
       );
       process.exit(0);
     } else {

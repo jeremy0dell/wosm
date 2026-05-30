@@ -59,6 +59,6 @@ When these disagree, reconcile from config, providers, and current observer stat
 
 For ordinary work, current code, current tests, package scripts, runtime evidence, and these living docs supersede old planning baselines.
 
-Use `docs/planning/wosm_rebuild_tdd_final_v1.md` and `docs/planning/wosm_phased_development_cycle_final_v1.md` only for explicit historical rationale, rebuild-phase archaeology, or when comparing an old plan with current behavior.
+Use `docs/planning/historical/wosm_rebuild_tdd_final_v1.md` and `docs/planning/historical/wosm_phased_development_cycle_final_v1.md` only for explicit historical rationale, rebuild-phase archaeology, or when comparing an old plan with current behavior.
 
 When a living doc conflicts with current code or tests, verify the runtime/code path and update the doc in the same change if the doc is stale.

@@ -1,7 +1,7 @@
-export * from "./classify.js";
-export * from "./discovery.js";
-export * from "./errors.js";
-export * from "./events.js";
-export * from "./hookAdapter.js";
-export * from "./launch.js";
-export * from "./provider.js";
+export { compactPiHookPayload, type PiPayloadCompactionResult } from "./event/compaction.js";
+export {
+  type PiHarnessEventReportInput,
+  piHookPayloadToHarnessEventReport,
+} from "./event/mapping.js";
+export { piHookAdapter } from "./hookAdapter.js";
+export { PiHarnessProvider, type PiHarnessProviderOptions } from "./provider.js";

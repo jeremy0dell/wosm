@@ -41,6 +41,7 @@ export type OpenCodeHarnessProviderOptions = {
   observerSocketPath?: string;
   stateDir?: string;
   hookSpoolDir?: string;
+  env?: Record<string, string | undefined>;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
@@ -133,6 +134,7 @@ export class OpenCodeHarnessProvider implements HarnessProvider {
     try {
       const pluginOptions: Parameters<typeof doctorOpenCodePlugin>[0] = {
         enabled: this.#options.installHooks === true,
+        env: this.#options.env ?? process.env,
       };
       if (this.#options.observerSocketPath !== undefined) {
         pluginOptions.observerSocketPath = this.#options.observerSocketPath;

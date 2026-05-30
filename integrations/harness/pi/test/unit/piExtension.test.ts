@@ -12,7 +12,7 @@ describe("wosm Pi extension", () => {
   it("keeps the extension runtime dependency-light", async () => {
     const source = await readFile(new URL("../../src/piExtension.ts", import.meta.url), "utf8");
 
-    expect(source).toContain('from "./eventNames.js"');
+    expect(source).toContain('from "./event/names.js"');
     expect(source).not.toContain('from "./events.js"');
     expect(source).not.toContain("node:child_process");
     expect(source).not.toContain("wosm-hook");
