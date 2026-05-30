@@ -164,6 +164,8 @@ async function routeSubscriptionRequest(
     await streamEvents(connection, api.subscribe(params));
   } catch (error) {
     connection.send(errorResponse(request.id, "Observer protocol method failed.", error));
+  } finally {
+    connection.close();
   }
 }
 

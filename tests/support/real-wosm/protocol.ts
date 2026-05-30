@@ -1,35 +1,25 @@
 import type { CommandId, CommandRecord, WosmSnapshot } from "@wosm/contracts";
-import { createObserverClient, type ObserverApi } from "@wosm/protocol";
+import { createObserverClient, type ObserverApi, type ObserverClient } from "@wosm/protocol";
 import type { RealWosmConfigFixture } from "./config";
 
 export function createRealObserverClient(
   config: RealWosmConfigFixture,
   timeoutMs = 30_000,
-): ObserverApi {
+): ObserverClient {
   return createObserverClient({ socketPath: config.socketPath, timeoutMs });
 }
 
 export async function waitForCommandRecord(
-  client: ObserverApi,
+  client: ObserverClient,
   commandId: CommandId,
   options: { timeoutMs?: number; allowFailed?: boolean } = {},
 ): Promise<CommandRecord> {
   const timeoutMs = options.timeoutMs ?? 60_000;
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() <= deadline) {
-    const command = await client.getCommand(commandId);
-    if (command?.status === "succeeded") {
-      return command;
-    }
-    if (command?.status === "failed") {
-      if (options.allowFailed === true) {
-        return command;
-      }
-      throw new Error(`Command ${commandId} failed: ${command.error?.code ?? "unknown"}`);
-    }
-    await delay(250);
+  const command = await client.waitForCommand(commandId, { timeoutMs });
+  if (command.status === "failed" && options.allowFailed !== true) {
+    throw new Error(`Command ${commandId} failed: ${command.error?.code ?? "unknown"}`);
   }
-  throw new Error(`Command ${commandId} did not finish within ${timeoutMs}ms.`);
+  return command;
 }
 
 export async function waitForSnapshot(
