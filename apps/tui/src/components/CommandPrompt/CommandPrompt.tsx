@@ -1,37 +1,42 @@
 import { Box, Text } from "ink";
-import type { TuiPromptState } from "../../uiState/uiState.js";
+import type { TuiScreen } from "../../state/screen.js";
 
 export type CommandPromptProps = {
-  prompt: TuiPromptState | undefined;
+  screen: TuiScreen;
 };
 
-export function CommandPrompt({ prompt }: CommandPromptProps) {
-  if (prompt === undefined) {
-    return null;
-  }
-  if (prompt.mode === "confirm-cleanup") {
+export function CommandPrompt({ screen }: CommandPromptProps) {
+  if (screen.name === "removeWorktree" && screen.step === "confirm") {
     return (
       <Box marginTop={1}>
-        <Text color="red">confirm {prompt.label}</Text>
+        <Text color="red">confirm {screen.label}</Text>
       </Box>
     );
   }
-  const label = textPromptLabel(prompt.mode);
+
+  const prompt = textPromptForScreen(screen);
+  if (prompt === undefined) {
+    return null;
+  }
+
   return (
     <Box marginTop={1}>
       <Text color="yellow">
-        {label}: {prompt.value}
+        {prompt.label}: {prompt.value}
       </Text>
     </Box>
   );
 }
 
-function textPromptLabel(mode: Exclude<TuiPromptState["mode"], "confirm-cleanup">): string {
-  if (mode === "remove-slot") {
-    return "remove slot";
+function textPromptForScreen(screen: TuiScreen): { label: string; value: string } | undefined {
+  if (screen.name === "removeWorktree" && screen.step === "chooseSlot") {
+    return { label: "remove slot", value: "" };
   }
-  if (mode === "project-collapse") {
-    return "collapse project";
+  if (screen.name === "search") {
+    return { label: "search", value: screen.value };
   }
-  return "search";
+  if (screen.name === "projectCollapse") {
+    return { label: "collapse project", value: screen.value };
+  }
+  return undefined;
 }

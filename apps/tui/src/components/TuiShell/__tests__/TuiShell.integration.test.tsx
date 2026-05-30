@@ -60,7 +60,8 @@ describe("TuiShell", () => {
 
 function renderShell(columns: number, rows: number, activeOverlay: "help" | undefined): string {
   const snapshot = createZeroWorktreeSnapshot();
-  const overlay = activeOverlay === undefined ? undefined : { type: activeOverlay };
+  const screen =
+    activeOverlay === undefined ? ({ name: "dashboard" } as const) : ({ name: "help" } as const);
   return stripAnsi(
     renderToString(
       <Box flexDirection="column" height={rows} width={columns}>
@@ -68,9 +69,9 @@ function renderShell(columns: number, rows: number, activeOverlay: "help" | unde
           <Dashboard
             columns={columns}
             snapshot={snapshot}
-            uiState={{ searchQuery: "", collapsedProjectIds: new Set() }}
+            viewState={{ searchQuery: "", collapsedProjectIds: new Set() }}
           />
-          <OverlayHost columns={columns} overlay={overlay} rows={rows} />
+          <OverlayHost columns={columns} rows={rows} screen={screen} snapshot={snapshot} />
         </TuiShell>
       </Box>,
       { columns },
