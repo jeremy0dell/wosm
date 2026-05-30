@@ -9,7 +9,12 @@ import type {
   ProviderHookEvent,
   SafeError,
 } from "@wosm/contracts";
-import { HookReceiptSchema, ProviderHookEventSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import {
+  HookReceiptSchema,
+  ProviderHookEventSchema,
+  parseWosmHookIdentityPayload,
+  WOSM_SCHEMA_VERSION,
+} from "@wosm/contracts";
 import { componentLogPath, createJsonlLogger, type JsonlLogger } from "@wosm/observability";
 import { compactPiHookPayload, piHookPayloadToHarnessEventReport } from "@wosm/pi";
 import { createObserverClient } from "@wosm/protocol";
@@ -599,10 +604,8 @@ function enrichWosmEnv(payload: unknown, env: Record<string, string | undefined>
 }
 
 function hasWosmOwnership(payload: unknown): boolean {
-  return (
-    typeof stringField(payload, "wosm_session_id") === "string" &&
-    typeof stringField(payload, "wosm_worktree_id") === "string"
-  );
+  const identity = parseWosmHookIdentityPayload(payload);
+  return identity?.wosm_session_id !== undefined && identity.wosm_worktree_id !== undefined;
 }
 
 function assignEnvField(

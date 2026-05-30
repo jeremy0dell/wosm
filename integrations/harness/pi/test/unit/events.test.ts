@@ -1,4 +1,4 @@
-import type { RawHarnessEvent } from "@wosm/contracts";
+import type { ProviderHookEvent, RawHarnessEvent } from "@wosm/contracts";
 import { HarnessEventObservationSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { PiHarnessProviderError } from "../../src/errors";
@@ -8,7 +8,10 @@ import {
   parsePiCompactEvent,
   piHookPayloadToHarnessEventReport,
   statusFromPiEvent,
-} from "../../src/events";
+} from "../../src/event";
+import { compactFieldNamesForPiEvent } from "../../src/event/catalog";
+import { piSupportedEventNames } from "../../src/event/names";
+import { piHookAdapter } from "../../src/hookAdapter";
 
 const now = "2026-05-27T12:00:00.000Z";
 
@@ -151,6 +154,19 @@ describe("Pi compact event parsing", () => {
     expect(statuses).toEqual(expected);
   });
 
+  it("keeps the event descriptor catalog aligned with strict compact payloads", () => {
+    const payloads = piPayloads();
+
+    expect(payloads.map((payload) => payload.event_type)).toEqual(piSupportedEventNames);
+    for (const payload of payloads) {
+      const event = parsePiCompactEvent(payload);
+
+      expect(compactFieldNamesForPiEvent(event.event_type)).toEqual(
+        expect.arrayContaining(["event_type", "cwd"]),
+      );
+    }
+  });
+
   it("keeps non-quit Pi shutdowns as working session transitions", () => {
     const event = parsePiCompactEvent({
       event_type: "session_shutdown",
@@ -216,6 +232,50 @@ describe("Pi compact event parsing", () => {
         },
       }),
     ).toThrowError(PiHarnessProviderError);
+  });
+
+  it("uses a schema-backed WOSM identity envelope for Pi hook scope", () => {
+    const baseEvent: ProviderHookEvent = {
+      schemaVersion: 1,
+      provider: "pi",
+      kind: "harness",
+      event: "agent_start",
+      receivedAt: now,
+    };
+
+    expect(
+      piHookAdapter.enrichPayload?.({
+        payload: {
+          event_type: "agent_start",
+          cwd: "/tmp/wosm/web/task",
+        },
+        env: {
+          WOSM_SESSION_ID: "ses_web_task",
+          WOSM_WORKTREE_ID: "wt_web_task",
+        },
+      }),
+    ).toMatchObject({
+      wosm_session_id: "ses_web_task",
+      wosm_worktree_id: "wt_web_task",
+    });
+    expect(
+      piHookAdapter.decideScope?.({
+        ...baseEvent,
+        payload: {
+          wosm_session_id: "ses_web_task",
+          wosm_worktree_id: "wt_web_task",
+        },
+      }),
+    ).toEqual({ action: "accept", reason: "wosm-env" });
+    expect(
+      piHookAdapter.decideScope?.({
+        ...baseEvent,
+        payload: {
+          wosm_session_id: "",
+          wosm_worktree_id: "wt_web_task",
+        },
+      }),
+    ).toEqual({ action: "ignore", reason: "missing-wosm-env" });
   });
 });
 
