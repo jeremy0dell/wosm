@@ -1,5 +1,5 @@
-import type { PiSupportedEventName } from "./eventNames.js";
-import { commonPiCompactFieldNames, normalizePiEventType } from "./eventSchema.js";
+import { compactFieldNamesForPiEvent } from "./catalog.js";
+import { normalizePiEventType } from "./compactEvent.js";
 
 export type PiPayloadCompactionResult = {
   payload: unknown;
@@ -33,7 +33,7 @@ export function compactPiHookPayload(
   output.event_type = normalizedEventType;
   copiedFields.add("event_type");
 
-  for (const fieldName of fieldNamesForEvent(normalizedEventType)) {
+  for (const fieldName of compactFieldNamesForPiEvent(normalizedEventType)) {
     if (fieldName === "event_type" || !hasOwn(payload, fieldName)) {
       continue;
     }
@@ -55,43 +55,6 @@ export function compactPiHookPayload(
     compactedByteCount: jsonByteCount(output),
     omittedFieldNames: [...omittedFieldNames].sort(),
   };
-}
-
-function fieldNamesForEvent(eventType: PiSupportedEventName): string[] {
-  const fields: string[] = [...commonPiCompactFieldNames];
-  if (eventType === "session_start") {
-    fields.push("reason", "previous_session_file");
-    return fields;
-  }
-  if (eventType === "session_shutdown") {
-    fields.push("reason", "target_session_file");
-    return fields;
-  }
-  if (eventType === "agent_end") {
-    fields.push("message_count");
-    return fields;
-  }
-  if (eventType === "turn_start") {
-    fields.push("turn_index");
-    return fields;
-  }
-  if (eventType === "tool_execution_start") {
-    fields.push("tool_call_id", "tool_name");
-    return fields;
-  }
-  if (eventType === "tool_execution_end") {
-    fields.push("tool_call_id", "tool_name", "is_error");
-    return fields;
-  }
-  if (eventType === "message_end") {
-    fields.push("message_role");
-    return fields;
-  }
-  if (eventType === "session_compact") {
-    fields.push("from_extension", "compaction_entry_id");
-    return fields;
-  }
-  return fields;
 }
 
 function jsonByteCount(value: unknown): number | null {

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { piHarnessError } from "./errors.js";
-import { type PiSupportedEventName, piSupportedEventNames } from "./eventNames.js";
+import { piHarnessError } from "../errors.js";
+import { type PiSupportedEventName, piSupportedEventNames } from "./names.js";
 
 const nonEmptyStringSchema = z.string().min(1);
 const optionalModelSummarySchema = z
@@ -105,34 +105,34 @@ const SessionCompactEventSchema = z
 
 export const PiSupportedEventNameSchema = z.enum(piSupportedEventNames);
 
-export const PiCompactEventSchema = z.discriminatedUnion("event_type", [
-  SessionStartEventSchema,
-  SessionShutdownEventSchema,
-  AgentStartEventSchema,
-  AgentEndEventSchema,
-  TurnStartEventSchema,
-  ToolExecutionStartEventSchema,
-  ToolExecutionEndEventSchema,
-  MessageEndEventSchema,
-  SessionCompactEventSchema,
-]);
+const piCompactEventSchemaByName = {
+  session_start: SessionStartEventSchema,
+  session_shutdown: SessionShutdownEventSchema,
+  agent_start: AgentStartEventSchema,
+  agent_end: AgentEndEventSchema,
+  turn_start: TurnStartEventSchema,
+  tool_execution_start: ToolExecutionStartEventSchema,
+  tool_execution_end: ToolExecutionEndEventSchema,
+  message_end: MessageEndEventSchema,
+  session_compact: SessionCompactEventSchema,
+} satisfies Record<PiSupportedEventName, z.ZodType>;
+
+export const PiCompactEventSchema = z.discriminatedUnion(
+  "event_type",
+  piSupportedEventNames.map((eventType) => piCompactEventSchemaByName[eventType]) as [
+    typeof SessionStartEventSchema,
+    typeof SessionShutdownEventSchema,
+    typeof AgentStartEventSchema,
+    typeof AgentEndEventSchema,
+    typeof TurnStartEventSchema,
+    typeof ToolExecutionStartEventSchema,
+    typeof ToolExecutionEndEventSchema,
+    typeof MessageEndEventSchema,
+    typeof SessionCompactEventSchema,
+  ],
+);
 
 export type PiCompactEvent = z.infer<typeof PiCompactEventSchema>;
-
-export const commonPiCompactFieldNames = [
-  "event_type",
-  "cwd",
-  "pid",
-  "pi_session_id",
-  "pi_session_file",
-  "model",
-  "wosm_project_id",
-  "wosm_worktree_id",
-  "wosm_worktree_path",
-  "wosm_session_id",
-  "wosm_terminal_provider",
-  "wosm_terminal_target_id",
-] as const;
 
 export function parsePiCompactEvent(input: unknown): PiCompactEvent {
   const result = PiCompactEventSchema.safeParse(input);

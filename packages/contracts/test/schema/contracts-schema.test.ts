@@ -22,6 +22,7 @@ import {
   ProviderHookEventSchema,
   ProviderProjectConfigSchema,
   ProviderTypeSchema,
+  parseWosmHookIdentityPayload,
   ReconcileReceiptSchema,
   RepositoryCapabilitiesSchema,
   RepositoryChecksRequestSchema,
@@ -39,6 +40,7 @@ import {
   WorktreeObservationSchema,
   WosmCommandSchema,
   WosmEventSchema,
+  WosmHookIdentityPayloadSchema,
   WosmSnapshotSchema,
 } from "@wosm/contracts";
 import { describe, expect, expectTypeOf, it } from "vitest";
@@ -524,6 +526,17 @@ describe("Phase 1 contract schemas", () => {
       await loadJson("hooks/invalid-provider-hook-event.json"),
       "invalid hook event",
     );
+
+    expectParses(
+      WosmHookIdentityPayloadSchema,
+      {
+        wosm_session_id: "ses_web_task",
+        wosm_worktree_id: "wt_web_task",
+        extra_provider_field: "kept",
+      },
+      "wosm hook identity payload",
+    );
+    expect(parseWosmHookIdentityPayload(null)).toBeUndefined();
 
     expectParses(
       HookReceiptSchema,

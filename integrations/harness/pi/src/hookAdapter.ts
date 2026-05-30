@@ -7,12 +7,12 @@ import type {
   ProviderHookPayloadEnrichmentInput,
   ProviderHookReportInput,
 } from "@wosm/contracts";
-import { ProviderHookEventSchema } from "@wosm/contracts";
+import { ProviderHookEventSchema, parseWosmHookIdentityPayload } from "@wosm/contracts";
 import {
   compactPiHookPayload,
   normalizePiEventType,
   piHookPayloadToHarnessEventReport,
-} from "./events.js";
+} from "./event/index.js";
 
 export const piHookAdapter: ProviderHookAdapter = {
   provider: "pi",
@@ -29,14 +29,12 @@ function normalizePiEventName(event: string): string {
 }
 
 function enrichPiHookPayload(input: ProviderHookPayloadEnrichmentInput): unknown {
-  if (!isRecord(input.payload)) {
+  const payload = parseWosmHookIdentityPayload(input.payload);
+  if (payload === undefined) {
     return input.payload;
   }
 
-  const next: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(input.payload)) {
-    next[key] = value;
-  }
+  const next: Record<string, unknown> = { ...payload };
   assignEnvField(next, "wosm_project_id", input.env.WOSM_PROJECT_ID);
   assignEnvField(next, "wosm_worktree_id", input.env.WOSM_WORKTREE_ID);
   assignEnvField(next, "wosm_worktree_path", input.env.WOSM_WORKTREE_PATH);
@@ -50,13 +48,12 @@ function decidePiHookScope(event: ProviderHookEvent): HookScopeDecision {
   if (event.kind !== "harness") {
     return { action: "accept", reason: "not-required" };
   }
-  if (!isRecord(event.payload)) {
+  const payload = parseWosmHookIdentityPayload(event.payload);
+  if (payload === undefined) {
     return { action: "ignore", reason: "missing-wosm-env" };
   }
 
-  const sessionId = stringField(event.payload, "wosm_session_id");
-  const worktreeId = stringField(event.payload, "wosm_worktree_id");
-  if (sessionId !== undefined && worktreeId !== undefined) {
+  if (payload.wosm_session_id !== undefined && payload.wosm_worktree_id !== undefined) {
     return { action: "accept", reason: "wosm-env" };
   }
   return { action: "ignore", reason: "missing-wosm-env" };
@@ -112,13 +109,4 @@ function assignEnvField(
     return;
   }
   target[key] = value;
-}
-
-function stringField(value: Record<string, unknown>, key: string): string | undefined {
-  const candidate = value[key];
-  return typeof candidate === "string" && candidate.length > 0 ? candidate : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
