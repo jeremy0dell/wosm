@@ -3,7 +3,7 @@
 **Status:** Executed remediation record  
 **Date:** 2026-05-21  
 **Applies to:** current implementation after diagnostics, persistence, observer graph, Worktrunk, tmux, protocol, and harness integration slices  
-**Source baseline:** `docs/planning/wosm_rebuild_tdd_final_v1.md`, `docs/planning/wosm_phased_development_cycle_final_v1.md`, and the broad TypeScript audit performed on 2026-05-21
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`, `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`, and the broad TypeScript audit performed on 2026-05-21
 
 This document records the P0 and P1 TypeScript/codebase improvements found during the broad TypeScript audit and the execution status of the remediation pass.
 
@@ -492,37 +492,37 @@ Include TUI work in this remediation plan.
 ### Public Export Inventory
 
 ```text
-Read docs/planning/typescript_braid_audit_plan.md and perform only P0.3. Do not refactor. Inspect apps/observer/src/index.ts, apps/cli/src/index.ts, packages/testing/src/index.ts, packages/contracts/src/index.ts, packages/protocol/src/index.ts, and integrations/*/*/src/index.ts. Output a table of exported symbols grouped as public, test-support, package-internal, or accidental, then recommend a minimal public/internal split.
+Read docs/planning/completed/typescript_braid_audit_plan.md and perform only P0.3. Do not refactor. Inspect apps/observer/src/index.ts, apps/cli/src/index.ts, packages/testing/src/index.ts, packages/contracts/src/index.ts, packages/protocol/src/index.ts, and integrations/*/*/src/index.ts. Output a table of exported symbols grouped as public, test-support, package-internal, or accidental, then recommend a minimal public/internal split.
 ```
 
 ### ProviderProjectConfig Schema
 
 ```text
-Read docs/planning/typescript_braid_audit_plan.md and implement P0.2 only. Add ProviderProjectConfigSchema in @wosm/contracts, derive ProviderProjectConfig from it, validate config-to-provider project construction, and keep provider-specific fields out of the shared shape. Run contract, observer unit, and integration tests.
+Read docs/planning/completed/typescript_braid_audit_plan.md and implement P0.2 only. Add ProviderProjectConfigSchema in @wosm/contracts, derive ProviderProjectConfig from it, validate config-to-provider project construction, and keep provider-specific fields out of the shared shape. Run contract, observer unit, and integration tests.
 ```
 
 ### Branded Id Design
 
 ```text
-Read docs/planning/typescript_braid_audit_plan.md and design P0.1 only. Do not implement until the migration plan names the exact files and test strategy. Preserve JSON wire compatibility and avoid mass unsafe casts.
+Read docs/planning/completed/typescript_braid_audit_plan.md and design P0.1 only. Do not implement until the migration plan names the exact files and test strategy. Preserve JSON wire compatibility and avoid mass unsafe casts.
 ```
 
 ### Persistence Cleanup
 
 ```text
-Read docs/planning/typescript_braid_audit_plan.md and implement P1.1 only. Rename SQLite row types to Sqlite*Row, keep behavior unchanged, and add or update focused persistence tests if state narrowing is introduced.
+Read docs/planning/completed/typescript_braid_audit_plan.md and implement P1.1 only. Rename SQLite row types to Sqlite*Row, keep behavior unchanged, and add or update focused persistence tests if state narrowing is introduced.
 ```
 
 ### Command/Event Schema Decomposition
 
 ```text
-Read docs/planning/typescript_braid_audit_plan.md and implement P1.2 only. Refactor WosmCommandSchema and WosmEventSchema into named per-variant schema constants without changing wire shape. Keep all contract fixtures passing.
+Read docs/planning/completed/typescript_braid_audit_plan.md and implement P1.2 only. Refactor WosmCommandSchema and WosmEventSchema into named per-variant schema constants without changing wire shape. Keep all contract fixtures passing.
 ```
 
 ### ProviderData Schema Audit
 
 ```text
-Read docs/planning/typescript_braid_audit_plan.md and implement P1.3 only. Audit providerData reads in integration packages. Add provider-local schemas or typed parsers where providerData is read, keep providerData unknown in @wosm/contracts, and do not import provider-specific schemas into observer core.
+Read docs/planning/completed/typescript_braid_audit_plan.md and implement P1.3 only. Audit providerData reads in integration packages. Add provider-local schemas or typed parsers where providerData is read, keep providerData unknown in @wosm/contracts, and do not import provider-specific schemas into observer core.
 ```
 
 ## 8. Open Audit Gaps

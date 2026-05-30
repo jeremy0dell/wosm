@@ -3,7 +3,7 @@
 **Status:** Planning addendum  
 **Date:** 2026-05-21  
 **Applies to:** current implementation after diagnostics, persistence, observer graph, Worktrunk, tmux, and harness integration slices  
-**Source baseline:** `docs/planning/wosm_rebuild_tdd_final_v1.md` and `docs/planning/wosm_phased_development_cycle_final_v1.md`
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md` and `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`
 
 This document records the P1 and P2 remediation work found during the code smell audit.
 

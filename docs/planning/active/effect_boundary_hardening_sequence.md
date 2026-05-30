@@ -3,7 +3,7 @@
 **Status:** Planning addendum  
 **Date:** 2026-05-21  
 **Applies to:** current implementation after the initial runtime, observer, protocol, CLI, diagnostics, and Worktrunk slices  
-**Source baseline:** `docs/planning/wosm_rebuild_tdd_final_v1.md` section 3.7 and section 19.10
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md` section 3.7 and section 19.10
 
 This document sequences the follow-up hardening work found by auditing the current code against the Effect boundary decision rubric.
 

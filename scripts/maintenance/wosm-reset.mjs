@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const tmux = process.env.WOSM_TMUX_BIN ?? "tmux";
 
 const globalOptions = [

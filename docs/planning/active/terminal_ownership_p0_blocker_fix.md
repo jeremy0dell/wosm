@@ -4,7 +4,7 @@
 **Date:** 2026-05-24
 **Severity:** P0 blocker
 **Applies to:** terminal ownership, session lifecycle, observer command routing
-**Source baseline:** `docs/planning/wosm_rebuild_tdd_final_v1.md` and `docs/planning/wosm_phased_development_cycle_final_v1.md`
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md` and `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`
 
 This document plans the P0 fix for the confirmed blocker in the current terminal boundary.
 

@@ -294,8 +294,8 @@ Technical unknowns:
 
 Local files:
 
-- `docs/planning/wosm_rebuild_tdd_final_v1.md`
-- `docs/planning/wosm_phased_development_cycle_final_v1.md`
+- `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`
+- `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`
 - `packages/contracts/src/observations.ts`
 - `packages/contracts/src/providers.ts`
 - `packages/contracts/src/snapshot.ts`

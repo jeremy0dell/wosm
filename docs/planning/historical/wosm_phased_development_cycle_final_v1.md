@@ -781,7 +781,7 @@ Make the system diagnosable before integrating real tools, establish the minimum
 
 This phase also standardizes the small `@wosm/runtime` Effect subset used by observer, CLI, providers, hook receivers, and TUI IO orchestration.
 
-For the audited follow-up sequence that hardens the current runtime boundaries, use `docs/planning/effect_boundary_hardening_sequence.md`. That addendum refines Phase 6 work and orders the dependent protocol, observer, provider, CLI, and TUI boundary fixes.
+For the audited follow-up sequence that hardens the current runtime boundaries, use `docs/planning/active/effect_boundary_hardening_sequence.md`. That addendum refines Phase 6 work and orders the dependent protocol, observer, provider, CLI, and TUI boundary fixes.
 
 ### Non-goals
 

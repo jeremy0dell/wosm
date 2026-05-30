@@ -2,9 +2,9 @@
 
 Status: completed planning record; current code and tests are authoritative.
 
-Related research: `docs/planning/branch/branch_pr_ci_metadata_research.md`
+Related research: `docs/planning/completed/branch/branch_pr_ci_metadata_research.md`
 
-Effect/runtime policy: `docs/planning/wosm_rebuild_tdd_final_v1.md#37-runtime-orchestration-effect-selectively`
+Effect/runtime policy: `docs/planning/historical/wosm_rebuild_tdd_final_v1.md#37-runtime-orchestration-effect-selectively`
 
 ## Goal
 
