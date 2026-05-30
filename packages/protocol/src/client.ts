@@ -10,7 +10,7 @@ import type {
   WosmEvent,
 } from "@wosm/contracts";
 import { WosmEventSchema } from "@wosm/contracts";
-import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
+import { Effect, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import type { z } from "zod";
 import type { ObserverApi } from "./api.js";
 import {
@@ -30,46 +30,72 @@ type ProtocolResult<TMethod extends ProtocolMethod> = z.infer<
   (typeof ProtocolResultSchemas)[TMethod]
 >;
 
+export type TerminalCommandRecord = CommandRecord & {
+  status: "succeeded" | "failed";
+};
+
+export type CommandWaitOptions = {
+  timeoutMs?: number;
+};
+
+export type ObserverClient = ObserverApi & {
+  waitForCommand(
+    commandId: CommandId,
+    options?: CommandWaitOptions,
+  ): Promise<TerminalCommandRecord>;
+};
+
 export type CreateObserverClientOptions = {
   socketPath: string;
   timeoutMs?: number;
   requestId?: () => string;
 };
 
+type OpenSubscription = {
+  connection: NdjsonConnection;
+  iterator: AsyncIterator<unknown>;
+};
+
 const defaultRequestId = () => `req_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-export function createObserverClient(options: CreateObserverClientOptions): ObserverApi {
+export function createObserverClient(options: CreateObserverClientOptions): ObserverClient {
   const requestId = options.requestId ?? defaultRequestId;
 
   return {
-    health: async () => call(options, requestId(), "observer.health"),
-    stop: async () => call(options, requestId(), "observer.stop"),
-    getSnapshot: async (params) => call(options, requestId(), "snapshot.get", params),
+    health: async () => requestProtocolMethod(options, requestId(), "observer.health"),
+    stop: async () => requestProtocolMethod(options, requestId(), "observer.stop"),
+    getSnapshot: async (params) =>
+      requestProtocolMethod(options, requestId(), "snapshot.get", params),
     dispatch: async (command: WosmCommand) =>
-      call(options, requestId(), "command.dispatch", { command }),
+      requestProtocolMethod(options, requestId(), "command.dispatch", { command }),
     getCommand: async (commandId: CommandId) => {
-      const result = await call(options, requestId(), "command.get", { commandId });
+      const result = await requestProtocolMethod(options, requestId(), "command.get", {
+        commandId,
+      });
       return result === null ? undefined : (result satisfies CommandRecord);
     },
     reconcile: async (reason?: string) =>
-      call(
+      requestProtocolMethod(
         options,
         requestId(),
         "observer.reconcile",
         reason === undefined ? undefined : { reason },
       ),
     ingestHookEvent: async (event: ProviderHookEvent) =>
-      call(options, requestId(), "observer.ingestHookEvent", { event }),
+      requestProtocolMethod(options, requestId(), "observer.ingestHookEvent", { event }),
     reportHarnessEvent: async (report: HarnessEventReport) =>
-      call(options, requestId(), "observer.harnessEvent.report", { report }),
-    runDoctor: async (params?: DoctorOptions) => call(options, requestId(), "doctor.run", params),
+      requestProtocolMethod(options, requestId(), "observer.harnessEvent.report", { report }),
+    runDoctor: async (params?: DoctorOptions) =>
+      requestProtocolMethod(options, requestId(), "doctor.run", params),
     collectDiagnostics: async (params?: DiagnosticCollectionOptions) =>
-      call(options, requestId(), "diagnostics.collect", params),
-    subscribe: (filter?: EventFilter) => subscribe(options, requestId(), filter),
+      requestProtocolMethod(options, requestId(), "diagnostics.collect", params),
+    subscribe: (filter?: EventFilter) => subscriptionIterator(options, requestId(), filter),
+    waitForCommand: (commandId: CommandId, waitOptions?: CommandWaitOptions) =>
+      waitForCommand(options, requestId, commandId, waitOptions),
   };
 }
 
-async function call<TMethod extends ProtocolMethod>(
+async function requestProtocolMethod<TMethod extends ProtocolMethod>(
   options: CreateObserverClientOptions,
   id: string,
   method: TMethod,
@@ -78,8 +104,8 @@ async function call<TMethod extends ProtocolMethod>(
   const result = await runRuntimeBoundaryWithTimeout(
     protocolClientBoundary(method, requestTimeoutMs(options)),
     ({ signal }) =>
-      withProtocolConnection(options, signal, (connection) =>
-        sendRequestAndReadResult(connection, id, method, params),
+      openRequestConnection(options, signal, (connection) =>
+        readResponseForRequest(connection, id, method, params),
       ),
   );
 
@@ -102,7 +128,7 @@ function protocolClientBoundary(method: ProtocolMethod, timeoutMs: number) {
   };
 }
 
-async function withProtocolConnection<T>(
+async function openRequestConnection<T>(
   options: CreateObserverClientOptions,
   signal: AbortSignal,
   task: (connection: NdjsonConnection) => Promise<T>,
@@ -119,7 +145,7 @@ async function withProtocolConnection<T>(
   }
 }
 
-async function sendRequestAndReadResult<TMethod extends ProtocolMethod>(
+async function readResponseForRequest<TMethod extends ProtocolMethod>(
   connection: NdjsonConnection,
   id: string,
   method: TMethod,
@@ -148,76 +174,341 @@ function parseProtocolResponseResult<TMethod extends ProtocolMethod>(
   return ProtocolResultSchemas[method].parse(response.result) as ProtocolResult<TMethod>;
 }
 
-async function* subscribe(
+function subscriptionIterator(
   options: CreateObserverClientOptions,
   id: string,
   filter?: EventFilter,
 ): AsyncIterable<WosmEvent> {
-  const connection = await connectUnixSocket(
-    options.socketPath,
-    options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs },
-  );
-  try {
-    connection.send(protocolRequest(id, "events.subscribe", filter));
+  return {
+    [Symbol.asyncIterator]: () => {
+      let subscriptionPromise: Promise<OpenSubscription> | undefined;
+      let subscription: OpenSubscription | undefined;
+      let closed = false;
 
-    const iterator = connection.messages()[Symbol.asyncIterator]();
-    const ack = await nextProtocolMessage(connection, iterator, {
-      timeoutMs: requestTimeoutMs(options),
-      code: "PROTOCOL_SUBSCRIBE_TIMEOUT",
-      message: "Observer protocol subscription acknowledgement timed out.",
-    });
-    const response = ProtocolResponseSchema.parse(ack);
-    if ("error" in response) {
-      throw response.error;
-    }
+      const getSubscription = async (): Promise<OpenSubscription | undefined> => {
+        if (closed) {
+          return undefined;
+        }
+        if (subscriptionPromise === undefined) {
+          subscriptionPromise = openSubscription(options, id, filter).then((opened) => {
+            subscription = opened;
+            if (closed) {
+              void closeSubscription(opened);
+            }
+            return opened;
+          });
+        }
+        const opened = await subscriptionPromise;
+        return closed ? undefined : opened;
+      };
 
-    for (;;) {
-      const next = await iterator.next();
-      if (next.done) {
-        return;
-      }
-      const message = next.value;
-      const envelope = ProtocolEventEnvelopeSchema.parse(message);
-      yield WosmEventSchema.parse(envelope.event);
-    }
-  } finally {
-    connection.close();
-  }
+      const close = async (): Promise<void> => {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        if (subscription !== undefined) {
+          await closeSubscription(subscription);
+          return;
+        }
+        if (subscriptionPromise !== undefined) {
+          void subscriptionPromise.then(closeSubscription).catch(() => undefined);
+        }
+      };
+
+      return {
+        next: async () => {
+          const opened = await getSubscription();
+          if (opened === undefined) {
+            return { done: true, value: undefined };
+          }
+          try {
+            // Event streams are long-lived after the bounded subscription acknowledgement.
+            const event = await readSubscriptionEvent(opened);
+            if (event === undefined) {
+              await close();
+              return { done: true, value: undefined };
+            }
+            return { done: false, value: event };
+          } catch (error) {
+            await close();
+            throw error;
+          }
+        },
+        return: async () => {
+          await close();
+          return { done: true, value: undefined };
+        },
+      };
+    },
+  };
 }
 
 function requestTimeoutMs(options: CreateObserverClientOptions): number {
   return options.timeoutMs ?? 5000;
 }
 
-async function nextProtocolMessage(
+async function openSubscription(
+  options: CreateObserverClientOptions,
+  id: string,
+  filter?: EventFilter,
+  signal?: AbortSignal,
+): Promise<OpenSubscription> {
+  const connection = await connectUnixSocket(
+    options.socketPath,
+    options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs },
+  );
+  const iterator = connection.messages()[Symbol.asyncIterator]();
+  try {
+    connection.send(protocolRequest(id, "events.subscribe", filter));
+    // The acknowledgement is bounded; the event stream itself remains long-lived.
+    await readSubscriptionAck(connection, iterator, id, requestTimeoutMs(options), signal);
+    return { connection, iterator };
+  } catch (error) {
+    connection.close();
+    throw error;
+  }
+}
+
+async function readSubscriptionAck(
+  connection: NdjsonConnection,
+  iterator: AsyncIterator<unknown>,
+  id: string,
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  const ack = await readNextProtocolMessage(
+    connection,
+    iterator,
+    {
+      timeoutMs,
+      code: "PROTOCOL_SUBSCRIBE_TIMEOUT",
+      message: "Observer protocol subscription acknowledgement timed out.",
+    },
+    signal,
+  );
+  const response = ProtocolResponseSchema.parse(ack);
+  if (response.id !== id) {
+    throw protocolSafeError({
+      code: "PROTOCOL_SUBSCRIBE_ACK_MISMATCH",
+      message: "Observer protocol subscription acknowledgement did not match the request.",
+    });
+  }
+  if ("error" in response) {
+    throw response.error;
+  }
+}
+
+async function readSubscriptionEvent(
+  subscription: OpenSubscription,
+  signal?: AbortSignal,
+): Promise<WosmEvent | undefined> {
+  const next = await readIteratorResult(subscription.connection, subscription.iterator, signal);
+  if (next.done) {
+    return undefined;
+  }
+  const envelope = ProtocolEventEnvelopeSchema.parse(next.value);
+  return WosmEventSchema.parse(envelope.event);
+}
+
+async function closeSubscription(subscription: OpenSubscription): Promise<void> {
+  // Returning the iterator closes the socket and releases the observer-side subscription.
+  try {
+    await subscription.iterator.return?.();
+  } finally {
+    subscription.connection.close();
+  }
+}
+
+async function waitForCommand(
+  options: CreateObserverClientOptions,
+  requestId: () => string,
+  commandId: CommandId,
+  waitOptions: CommandWaitOptions = {},
+): Promise<TerminalCommandRecord> {
+  const program = commandWaitEffect(options, requestId, commandId);
+  if (waitOptions.timeoutMs === undefined) {
+    return runEffectAsPromise(program);
+  }
+  return runEffectAsPromise(
+    Effect.timeoutFail(program, {
+      duration: `${waitOptions.timeoutMs} millis`,
+      onTimeout: () =>
+        protocolSafeError({
+          tag: "TimeoutError",
+          code: "PROTOCOL_COMMAND_WAIT_TIMEOUT",
+          message: "Observer command did not finish before the timeout.",
+        }),
+    }),
+  );
+}
+
+function commandWaitEffect(
+  options: CreateObserverClientOptions,
+  requestId: () => string,
+  commandId: CommandId,
+): Effect.Effect<TerminalCommandRecord, unknown> {
+  let subscription: OpenSubscription | undefined;
+
+  return Effect.gen(function* () {
+    subscription = yield* openSubscriptionEffect(options, requestId(), {
+      type: ["command.succeeded", "command.failed"],
+      commandId,
+    });
+    // Subscribe before getCommand so fast command completions cannot be missed.
+    const existing = yield* commandTerminalRecordEffect(options, requestId, commandId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    return yield* awaitCommandTerminalRecord(options, requestId, commandId, subscription);
+  }).pipe(
+    Effect.ensuring(
+      Effect.tryPromise({
+        try: async () => {
+          if (subscription !== undefined) {
+            await closeSubscription(subscription);
+          }
+        },
+        catch: () => undefined,
+      }).pipe(Effect.catchAll(() => Effect.succeed(undefined))),
+    ),
+  );
+}
+
+function openSubscriptionEffect(
+  options: CreateObserverClientOptions,
+  id: string,
+  filter: EventFilter,
+): Effect.Effect<OpenSubscription, unknown> {
+  return Effect.tryPromise({
+    try: (signal) => openSubscription(options, id, filter, signal),
+    catch: (error) => error,
+  });
+}
+
+function commandTerminalRecordEffect(
+  options: CreateObserverClientOptions,
+  requestId: () => string,
+  commandId: CommandId,
+): Effect.Effect<TerminalCommandRecord | undefined, unknown> {
+  return Effect.tryPromise({
+    try: () => requestProtocolMethod(options, requestId(), "command.get", { commandId }),
+    catch: (error) => error,
+  }).pipe(Effect.map((record) => terminalCommandRecord(record ?? undefined)));
+}
+
+function awaitCommandTerminalRecord(
+  options: CreateObserverClientOptions,
+  requestId: () => string,
+  commandId: CommandId,
+  subscription: OpenSubscription,
+): Effect.Effect<TerminalCommandRecord, unknown> {
+  return Effect.gen(function* () {
+    const event = yield* readSubscriptionEventEffect(subscription);
+    if (event === undefined) {
+      const refreshed = yield* commandTerminalRecordEffect(options, requestId, commandId);
+      if (refreshed !== undefined) {
+        return refreshed;
+      }
+      return yield* Effect.fail(
+        protocolSafeError({
+          code: "PROTOCOL_COMMAND_EVENT_STREAM_CLOSED",
+          message: "Observer event stream closed before command completion.",
+        }),
+      );
+    }
+    if (
+      (event.type === "command.succeeded" || event.type === "command.failed") &&
+      event.commandId === commandId
+    ) {
+      const terminal = yield* commandTerminalRecordEffect(options, requestId, commandId);
+      if (terminal !== undefined) {
+        return terminal;
+      }
+    }
+    return yield* awaitCommandTerminalRecord(options, requestId, commandId, subscription);
+  });
+}
+
+function readSubscriptionEventEffect(
+  subscription: OpenSubscription,
+): Effect.Effect<WosmEvent | undefined, unknown> {
+  return Effect.tryPromise({
+    try: (signal) => readSubscriptionEvent(subscription, signal),
+    catch: (error) => error,
+  });
+}
+
+function terminalCommandRecord(
+  record: CommandRecord | undefined,
+): TerminalCommandRecord | undefined {
+  if (record?.status === "succeeded" || record?.status === "failed") {
+    return record as TerminalCommandRecord;
+  }
+  return undefined;
+}
+
+async function readNextProtocolMessage(
   connection: NdjsonConnection,
   iterator: AsyncIterator<unknown>,
   timeout: { timeoutMs: number; code: string; message: string },
+  signal?: AbortSignal,
 ): Promise<unknown> {
-  const result = await runRuntimeBoundaryWithTimeout(
-    {
-      operation: "protocol.client.nextMessage",
-      timeoutMs: timeout.timeoutMs,
-      error: protocolSafeError({
-        code: "PROTOCOL_READ_FAILED",
-        message: "Observer protocol read failed.",
-      }),
-      timeoutError: protocolSafeError({
-        tag: "TimeoutError",
-        code: timeout.code,
-        message: timeout.message,
-      }),
-    },
-    async ({ signal }: { signal: AbortSignal }) =>
-      withConnectionAbort(connection, signal, async () => {
-        const next = await iterator.next();
+  return runEffectAsPromise(
+    Effect.timeoutFail(readNextProtocolMessageEffect(connection, iterator, signal), {
+      duration: `${timeout.timeoutMs} millis`,
+      onTimeout: () =>
+        protocolSafeError({
+          tag: "TimeoutError",
+          code: timeout.code,
+          message: timeout.message,
+        }),
+    }),
+  );
+}
+
+function readNextProtocolMessageEffect(
+  connection: NdjsonConnection,
+  iterator: AsyncIterator<unknown>,
+  externalSignal?: AbortSignal,
+): Effect.Effect<unknown, unknown> {
+  return Effect.tryPromise({
+    try: (signal) =>
+      readIteratorResult(connection, iterator, externalSignal ?? signal).then((next) => {
         if (next.done) {
           throw protocolSocketClosedError();
         }
         return next.value;
       }),
+    catch: (error) => error,
+  });
+}
+
+async function readIteratorResult(
+  connection: NdjsonConnection,
+  iterator: AsyncIterator<unknown>,
+  signal?: AbortSignal,
+): Promise<IteratorResult<unknown>> {
+  const read = async () => iterator.next();
+  if (signal === undefined) {
+    return read();
+  }
+  return withConnectionAbort(connection, signal, read);
+}
+
+async function runEffectAsPromise<T>(effect: Effect.Effect<T, unknown>): Promise<T> {
+  const result = await Effect.runPromise(
+    effect.pipe(
+      Effect.match({
+        onFailure: (error) => ({ ok: false as const, error }),
+        onSuccess: (value) => ({ ok: true as const, value }),
+      }),
+    ),
   );
-  return unwrapBoundaryResult(result);
+  if (!result.ok) {
+    throw result.error;
+  }
+  return result.value;
 }
 
 async function withConnectionAbort<T>(

@@ -10,7 +10,7 @@ The TUI is a terminal UI client. It renders observer snapshots and events, owns 
 - Render normalized contracts from `@wosm/contracts` and use `@wosm/protocol` through the TUI service layer.
 - React/Ink components should stay plain and readable. Runtime orchestration belongs in services or hooks, not presentation components.
 - Selectors, keymaps, actions, UI reducers, and fixtures should stay pure TypeScript.
-- TUI service code may use `@wosm/runtime` for observer IO, subscriptions, command dispatch, timeout, retry, cancellation, and cleanup boundaries.
+- TUI service code may use `@wosm/runtime` for observer IO, subscriptions, command dispatch, timeout, retry, cancellation, and cleanup boundaries. Prefer Effect in TUI boundary code when a single path must coordinate async iterators, cancellation/interruption, cleanup, retry/reconnect, timeouts, and typed error conversion. Keep that Effect usage behind Promise/AsyncIterable facades for React callers.
 - The TUI may filter, group, sort, label, and decorate snapshot rows. It must not infer agent truth from provider-specific details.
 
 ## Surface Rules

@@ -137,4 +137,75 @@ describe("protocol event subscriptions", () => {
       await server.close();
     }
   });
+
+  it("closes the socket when the subscription iterator is returned", async () => {
+    const { socketPath } = await createTempSocketPath();
+    let releaseRequestReceived: () => void = () => undefined;
+    const requestReceived = new Promise<void>((resolve) => {
+      releaseRequestReceived = resolve;
+    });
+    let closed = false;
+    const server = await listenUnixSocket({
+      socketPath,
+      onConnection: async (connection) => {
+        const messages = connection.messages()[Symbol.asyncIterator]();
+        await messages.next();
+        connection.send({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          jsonrpc: "2.0",
+          id: "cleanup_1",
+          result: { subscribed: true },
+        });
+        releaseRequestReceived();
+        await connection.closed;
+        closed = true;
+      },
+    });
+    const client = createObserverClient({ socketPath, requestId: ids("cleanup") });
+    const iterator = client.subscribe()[Symbol.asyncIterator]();
+    const next = iterator.next();
+
+    try {
+      await requestReceived;
+      await iterator.return?.();
+      await waitFor(() => closed);
+      await expect(next).resolves.toMatchObject({ done: true });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects malformed event envelopes and closes the socket", async () => {
+    const { socketPath } = await createTempSocketPath();
+    let closed = false;
+    const server = await listenUnixSocket({
+      socketPath,
+      onConnection: async (connection) => {
+        const messages = connection.messages()[Symbol.asyncIterator]();
+        await messages.next();
+        connection.send({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          jsonrpc: "2.0",
+          id: "bad_1",
+          result: { subscribed: true },
+        });
+        connection.send({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          event: { type: "not.an.event" },
+        });
+        await connection.closed;
+        closed = true;
+      },
+    });
+    const client = createObserverClient({ socketPath, requestId: ids("bad") });
+    const iterator = client.subscribe()[Symbol.asyncIterator]();
+
+    try {
+      await expect(iterator.next()).rejects.toThrow();
+      await waitFor(() => closed);
+    } finally {
+      await iterator.return?.();
+      await server.close();
+    }
+  });
 });

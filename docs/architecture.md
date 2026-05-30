@@ -51,7 +51,7 @@ When these disagree, reconcile from config, providers, and current observer stat
 - The CLI is the command/debug entrypoint, but long-lived runtime correlation belongs in the observer.
 - `packages/contracts` defines shared language with strict schemas for untrusted input and shared payloads.
 - The protocol validates transport messages and keeps consumer APIs simple. It should not become a provider boundary.
-- Effect/runtime usage belongs at IO, orchestration, timeout, retry, cancellation, queue, and external-command boundaries. Pure schemas, mappers, selectors, fixtures, and React/Ink presentation components should stay plain TypeScript.
+- Effect/runtime usage belongs at IO, orchestration, timeout, retry, cancellation, queue, and external-command boundaries. Prefer Effect when one block combines async streams or subscriptions with cancellation, cleanup, retry/reconnect, timeout, queueing, or typed error mapping. Pure schemas, mappers, selectors, fixtures, and React/Ink presentation components should stay plain TypeScript.
 - Hooks are notifications and fast status reports. They can trigger persistence, projection, spool fallback, or scheduled reconcile, but they are not authoritative graph truth by themselves.
 - Terminal topology is provider-owned. Shared contracts and TUI behavior should express product intent where possible, not provider target mechanics.
 

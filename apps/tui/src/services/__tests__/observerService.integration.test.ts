@@ -15,7 +15,13 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
-import { listenUnixSocket, type ObserverApi, startProtocolServer } from "@wosm/protocol";
+import {
+  listenUnixSocket,
+  type ObserverApi,
+  type ObserverClient,
+  startProtocolServer,
+  type TerminalCommandRecord,
+} from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
 import { createTempSocketPath } from "../../../../../tests/support/sockets";
 import { createCommandSnapshot, fixtureNow } from "../../../test/fixtures/snapshots.js";
@@ -107,6 +113,7 @@ describe("TUI observer service", () => {
         getSnapshot: async () => createCommandSnapshot("idle"),
         dispatch: async () => ({ commandId: "cmd_1", accepted: true, status: "accepted" }),
         getCommand: async () => undefined,
+        waitForCommand: async () => commandRecord("cmd_1", "succeeded") as TerminalCommandRecord,
         reconcile: async () => ({
           schemaVersion: WOSM_SCHEMA_VERSION,
           reason: "test",
@@ -142,15 +149,11 @@ describe("TUI observer service", () => {
     expect(returned).toBe(true);
   });
 
-  it("waits for an already-completed command without leaking the subscription", async () => {
-    let returned = false;
+  it("maps succeeded terminal command records", async () => {
     const service = createTuiObserverService({
       client: fakeClient({
-        getCommand: async (commandId) => commandRecord(commandId, "succeeded"),
-        subscribe: () =>
-          cleanupStream(() => {
-            returned = true;
-          }),
+        waitForCommand: async (commandId) =>
+          commandRecord(commandId, "succeeded") as TerminalCommandRecord,
       }),
     });
 
@@ -158,27 +161,13 @@ describe("TUI observer service", () => {
       status: "succeeded",
       commandId: "cmd_done",
     });
-    expect(returned).toBe(true);
   });
 
-  it("waits for command.failed events and preserves SafeError diagnostic context", async () => {
+  it("maps failed terminal command records and preserves SafeError diagnostic context", async () => {
     const service = createTuiObserverService({
       client: fakeClient({
-        getCommand: async (commandId) => commandRecord(commandId, "started"),
-        subscribe: () =>
-          stream([
-            {
-              type: "command.failed",
-              commandId: "cmd_failed",
-              error: {
-                tag: "TerminalProviderError",
-                code: "TERMINAL_TARGET_STALE",
-                message: "The terminal target is stale.",
-                diagnosticId: "diag_terminal_stale",
-              },
-              traceId: "trc_failed",
-            },
-          ]),
+        waitForCommand: async (commandId) =>
+          commandRecord(commandId, "failed") as TerminalCommandRecord,
       }),
     });
 
@@ -194,23 +183,64 @@ describe("TUI observer service", () => {
     });
   });
 
-  it("times out while waiting for command completion and cleans up the iterator", async () => {
-    let returned = false;
+  it("maps failed terminal command records without error payloads to a TUI-safe error", async () => {
+    const service = createTuiObserverService({
+      client: fakeClient({
+        waitForCommand: async (commandId) => {
+          const record = commandRecord(commandId, "failed");
+          delete record.error;
+          return record as TerminalCommandRecord;
+        },
+      }),
+    });
+
+    await expect(service.waitForCommandCompletion("cmd_missing_error")).resolves.toEqual({
+      status: "failed",
+      commandId: "cmd_missing_error",
+      error: {
+        tag: "TuiObserverError",
+        code: "TUI_COMMAND_FAILED_WITHOUT_ERROR",
+        message: "The observer command failed without an error payload.",
+        commandId: "cmd_missing_error",
+      },
+    });
+  });
+
+  it("wraps protocol wait failures in TUI command wait errors", async () => {
+    const service = createTuiObserverService({
+      client: fakeClient({
+        waitForCommand: async () => {
+          throw {
+            tag: "ProtocolError",
+            code: "PROTOCOL_COMMAND_EVENT_STREAM_CLOSED",
+            message: "Observer event stream closed before command completion.",
+          };
+        },
+      }),
+    });
+
+    await expect(service.waitForCommandCompletion("cmd_closed")).rejects.toMatchObject({
+      code: "TUI_COMMAND_WAIT_FAILED",
+    });
+  });
+
+  it("times out while waiting for command completion", async () => {
     const service = createTuiObserverService({
       timeoutMs: 10,
       client: fakeClient({
-        getCommand: async (commandId) => commandRecord(commandId, "started"),
-        subscribe: () =>
-          cleanupStream(() => {
-            returned = true;
-          }),
+        waitForCommand: async () => {
+          throw {
+            tag: "TimeoutError",
+            code: "PROTOCOL_COMMAND_WAIT_TIMEOUT",
+            message: "Observer command did not finish before the timeout.",
+          };
+        },
       }),
     });
 
     await expect(service.waitForCommandCompletion("cmd_hung")).rejects.toMatchObject({
       code: "TUI_COMMAND_WAIT_TIMEOUT",
     });
-    expect(returned).toBe(true);
   });
 });
 
@@ -311,25 +341,15 @@ async function* stream(events: WosmEvent[]): AsyncIterable<WosmEvent> {
   }
 }
 
-function cleanupStream(onReturn: () => void): AsyncIterable<WosmEvent> {
-  return {
-    [Symbol.asyncIterator]: () => ({
-      next: async () => new Promise<IteratorResult<WosmEvent>>(() => undefined),
-      return: async () => {
-        onReturn();
-        return { done: true, value: undefined };
-      },
-    }),
-  };
-}
-
-function fakeClient(overrides: Partial<ObserverApi>): ObserverApi {
+function fakeClient(overrides: Partial<ObserverClient>): ObserverClient {
   return {
     health: async () => fakeHealth(),
     stop: async () => ({ schemaVersion: WOSM_SCHEMA_VERSION, stopped: true, at: fixtureNow }),
     getSnapshot: async () => createCommandSnapshot("idle"),
     dispatch: async () => ({ commandId: "cmd_1", accepted: true, status: "accepted" }),
     getCommand: async () => undefined,
+    waitForCommand: async (commandId) =>
+      commandRecord(commandId, "succeeded") as TerminalCommandRecord,
     reconcile: async () => ({
       schemaVersion: WOSM_SCHEMA_VERSION,
       reason: "test",
