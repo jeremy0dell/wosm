@@ -4,17 +4,15 @@ import { CommandPrompt } from "./CommandPrompt.js";
 
 describe("CommandPrompt", () => {
   it("renders nothing without an active prompt", () => {
-    expect(renderToString(<CommandPrompt prompt={undefined} />)).toBe("");
+    expect(renderToString(<CommandPrompt screen={{ name: "dashboard" }} />)).toBe("");
   });
 
   it.each([
-    ["search", "search: mobile"],
-    ["remove-slot", "remove slot: 3"],
-    ["project-collapse", "collapse project: web"],
-  ] as const)("labels %s prompts", (mode, expected) => {
-    const frame = renderToString(
-      <CommandPrompt prompt={{ mode, value: expected.split(": ")[1] }} />,
-    );
+    [{ name: "search", value: "mobile" } as const, "search: mobile"],
+    [{ name: "removeWorktree", step: "chooseSlot" } as const, "remove slot:"],
+    [{ name: "projectCollapse", value: "1:web" } as const, "collapse project: 1:web"],
+  ])("labels screen prompts", (screen, expected) => {
+    const frame = renderToString(<CommandPrompt screen={screen} />);
 
     expect(frame).toContain(expected);
   });
@@ -22,10 +20,9 @@ describe("CommandPrompt", () => {
   it("renders cleanup confirmation labels", () => {
     const frame = renderToString(
       <CommandPrompt
-        prompt={{
-          mode: "confirm-cleanup",
-          value: "",
-          action: "remove-worktree",
+        screen={{
+          name: "removeWorktree",
+          step: "confirm",
           rowId: "wt_web_idle",
           forceRequired: false,
           label: "remove fix-nav-mobile? y/N",

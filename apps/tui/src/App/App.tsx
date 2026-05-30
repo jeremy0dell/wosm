@@ -1,20 +1,20 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
-import { Box, Text, useWindowSize } from "ink";
+import { Box, Text, useInput, useWindowSize } from "ink";
+import { useEffect, useMemo } from "react";
+import { useStore } from "zustand/react";
 import { CommandPrompt } from "../components/CommandPrompt/CommandPrompt.js";
 import { Dashboard } from "../components/Dashboard/Dashboard.js";
 import { OverlayHost } from "../components/OverlayHost/OverlayHost.js";
 import { ToastStack } from "../components/ToastStack/ToastStack.js";
 import { TuiFrame } from "../components/TuiFrame/TuiFrame.js";
 import { TuiShell } from "../components/TuiShell/TuiShell.js";
-import { useDashboardInput } from "../hooks/useDashboardInput.js";
-import { useObserverDashboard } from "../hooks/useObserverDashboard.js";
 import type { TuiObserverService } from "../services/types.js";
-import { createInitialUiState, type TuiUiState } from "../uiState/uiState.js";
+import { normalizeTuiKey } from "../state/keys.js";
+import { createTuiStore } from "../state/store.js";
 
 export type AppProps = {
   service: TuiObserverService;
   initialSnapshot?: WosmSnapshot;
-  initialUiState?: TuiUiState;
   exitOnFocusSuccess?: boolean;
   focusOrigin?: TerminalFocusOrigin;
   resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
@@ -27,7 +27,6 @@ export type AppProps = {
 export function App({
   service,
   initialSnapshot,
-  initialUiState,
   exitOnFocusSuccess = false,
   focusOrigin,
   resolveFocusOrigin,
@@ -37,30 +36,51 @@ export function App({
   onExit,
 }: AppProps) {
   const { columns, rows } = useWindowSize();
-  const dashboard = useObserverDashboard({
-    service,
-    ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
-    initialUiState: initialUiState ?? createInitialUiState(),
-  });
-  const inputState = useDashboardInput({
-    dashboard,
-    snapshot: dashboard.snapshot,
-    exitOnFocusSuccess,
-    focusOrigin,
-    resolveFocusOrigin,
-    onFocusSuccess,
-    onDismiss,
-    persistentPopup,
-    onExit,
+  const store = useMemo(
+    () =>
+      createTuiStore({
+        service,
+        ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
+        exitOnFocusSuccess,
+        ...(focusOrigin === undefined ? {} : { focusOrigin }),
+        ...(resolveFocusOrigin === undefined ? {} : { resolveFocusOrigin }),
+        ...(onFocusSuccess === undefined ? {} : { onFocusSuccess }),
+        ...(onDismiss === undefined ? {} : { onDismiss }),
+        persistentPopup,
+        ...(onExit === undefined ? {} : { onExit }),
+      }),
+    [
+      exitOnFocusSuccess,
+      focusOrigin,
+      initialSnapshot,
+      onDismiss,
+      onExit,
+      onFocusSuccess,
+      persistentPopup,
+      resolveFocusOrigin,
+      service,
+    ],
+  );
+  const snapshot = useStore(store, (state) => state.snapshot);
+  const loading = useStore(store, (state) => state.loading);
+  const screen = useStore(store, (state) => state.screen);
+  const searchQuery = useStore(store, (state) => state.searchQuery);
+  const collapsedProjectIds = useStore(store, (state) => state.collapsedProjectIds);
+  const toasts = useStore(store, (state) => state.toasts);
+
+  useEffect(() => store.getState().start(), [store]);
+
+  useInput((input, key) => {
+    store.getState().handleKey(normalizeTuiKey(input, key));
   });
 
-  if (dashboard.loading || dashboard.snapshot === undefined) {
+  if (loading || snapshot === undefined) {
     return (
       <TuiFrame columns={columns} rows={rows}>
         <Box flexDirection="column" flexGrow={1} overflow="hidden">
           <Text>wosm</Text>
           <Text color="gray">Loading observer snapshot...</Text>
-          <ToastStack toasts={dashboard.toasts} />
+          <ToastStack toasts={toasts} />
         </Box>
       </TuiFrame>
     );
@@ -71,14 +91,15 @@ export function App({
       <TuiShell>
         <Dashboard
           columns={columns}
-          snapshot={dashboard.snapshot}
-          uiState={dashboard.uiState}
+          snapshot={snapshot}
+          screen={screen}
+          viewState={{ searchQuery, collapsedProjectIds }}
           quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
         >
-          <CommandPrompt prompt={dashboard.uiState.prompt} />
-          <ToastStack toasts={dashboard.toasts} />
+          <CommandPrompt screen={screen} />
+          <ToastStack toasts={toasts} />
         </Dashboard>
-        <OverlayHost columns={columns} overlay={inputState.overlay} rows={rows} />
+        <OverlayHost columns={columns} rows={rows} screen={screen} snapshot={snapshot} />
       </TuiShell>
     </TuiFrame>
   );

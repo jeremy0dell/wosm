@@ -2,13 +2,14 @@ import type { WosmSnapshot } from "@wosm/contracts";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
 import { selectKeySlots, selectProjectGroups } from "../../selectors/selectors.js";
+import type { TuiScreen, TuiViewState } from "../../state/screen.js";
 import { useTuiMode } from "../../tuiMode.js";
-import type { TuiUiState } from "../../uiState/uiState.js";
 import { ProjectGroup } from "../ProjectGroup/ProjectGroup.js";
 
 export type DashboardProps = {
   snapshot: WosmSnapshot;
-  uiState: TuiUiState;
+  screen?: TuiScreen;
+  viewState: TuiViewState;
   quitActionLabel?: "close" | "quit";
   columns?: number;
   children?: ReactNode;
@@ -16,13 +17,13 @@ export type DashboardProps = {
 
 export function Dashboard({
   snapshot,
-  uiState,
+  viewState,
   quitActionLabel = "quit",
   columns = 80,
   children,
 }: DashboardProps) {
-  const groups = selectProjectGroups(snapshot, uiState);
-  const slots = selectKeySlots(snapshot, uiState);
+  const groups = selectProjectGroups(snapshot, viewState);
+  const slots = selectKeySlots(snapshot, viewState);
   const quitHint = quitActionLabel === "close" ? "q/esc:close" : "q:quit";
   const mode = useTuiMode();
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";

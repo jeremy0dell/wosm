@@ -13,9 +13,9 @@ import {
   buildStartAgentCommand,
   canSendPromptToRow,
   cleanupForceRequired,
-} from "./actions.js";
+} from "./commandBuilders.js";
 
-describe("TUI command actions", () => {
+describe("TUI command builders", () => {
   it("maps focusable rows to terminal.focus using the primary agent target", () => {
     const snapshot = createCommandSnapshot("idle");
     const row = snapshot.rows[0];

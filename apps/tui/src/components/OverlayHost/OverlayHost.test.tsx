@@ -18,7 +18,12 @@ describe("OverlayHost", () => {
           {dashboardRows.map((row) => (
             <Text key={row.key}>{row.text}</Text>
           ))}
-          <OverlayHost columns={columns} overlay={{ type: "help" }} rows={rows} />
+          <OverlayHost
+            columns={columns}
+            rows={rows}
+            screen={{ name: "help" }}
+            snapshot={createDashboardSnapshot()}
+          />
         </Box>,
         { columns },
       ),
@@ -40,7 +45,12 @@ describe("OverlayHost", () => {
         <Box position="relative" flexDirection="column" width={columns} height={rows}>
           <Text>top</Text>
           <Text>bottom</Text>
-          <OverlayHost columns={columns} overlay={undefined} rows={rows} />
+          <OverlayHost
+            columns={columns}
+            rows={rows}
+            screen={{ name: "dashboard" }}
+            snapshot={createDashboardSnapshot()}
+          />
         </Box>,
         { columns },
       ),
@@ -65,8 +75,9 @@ describe("OverlayHost", () => {
           <Text>dashboard footer</Text>
           <OverlayHost
             columns={columns}
-            overlay={{ type: "new-session", snapshot, state }}
             rows={rows}
+            screen={{ name: "newSession", flow: state }}
+            snapshot={snapshot}
           />
         </Box>,
         { columns },
