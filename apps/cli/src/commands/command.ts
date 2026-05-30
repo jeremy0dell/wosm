@@ -2,7 +2,7 @@ import type { WosmConfig } from "@wosm/config";
 import type { CommandId, CommandReceipt, CommandRecord, WosmCommand } from "@wosm/contracts";
 import { CommandIdSchema, WosmCommandSchema } from "@wosm/contracts";
 import { createObserverClient, type ObserverApi, type ObserverClient } from "@wosm/protocol";
-import { runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
+import { isSafeError, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import { parsePositiveIntegerOption } from "../args.js";
 import {
   type ObserverProcessDeps,
@@ -170,7 +170,7 @@ async function waitForCommand(
 }
 
 function mapCommandWaitError(error: unknown): never {
-  if (error && typeof error === "object" && "tag" in error && error.tag === "TimeoutError") {
+  if (isSafeError(error) && error.tag === "TimeoutError") {
     throw {
       tag: "TimeoutError",
       code: "COMMAND_WAIT_TIMEOUT",
