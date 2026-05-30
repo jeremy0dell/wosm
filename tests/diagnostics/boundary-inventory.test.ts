@@ -38,6 +38,10 @@ const setTimeoutAllowlist = new Map([
     "apps/observer/src/metadata/gitRefInvalidation.ts",
     "Short debounce coalesces noisy Git ref watch events before requesting an observer-owned metadata reconcile.",
   ],
+  [
+    "integrations/harness/opencode/src/pluginInstall.ts",
+    "Generated OpenCode plugin uses a short socket send timeout because it runs inside OpenCode, outside WOSM runtime helpers.",
+  ],
 ]);
 
 describe("boundary inventory guard", () => {

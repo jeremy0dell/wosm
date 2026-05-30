@@ -145,6 +145,9 @@ function createHarnessProvider(
     if (providerConfig?.command !== undefined) {
       options.command = providerConfig.command;
     }
+    if (providerConfig?.profile !== undefined) {
+      options.profile = providerConfig.profile;
+    }
     const permissionMode = resolveHarnessPermissionMode(config, id);
     if (permissionMode !== undefined) {
       options.permissionMode = permissionMode;
@@ -155,6 +158,16 @@ function createHarnessProvider(
     if (providerConfig?.sandboxMode !== undefined) {
       options.sandboxMode = providerConfig.sandboxMode;
     }
+    if (providerConfig?.installHooks !== undefined) {
+      options.installHooks = providerConfig.installHooks;
+    }
+    if (registryOptions.configPath !== undefined) {
+      options.configPath = registryOptions.configPath;
+    }
+    const observerPaths = resolveObserverPaths(config);
+    options.observerSocketPath = observerPaths.socketPath;
+    options.stateDir = observerPaths.stateDir;
+    options.hookSpoolDir = observerPaths.hookSpoolDir;
     return new OpenCodeHarnessProvider(options);
   }
 

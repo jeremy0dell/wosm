@@ -56,6 +56,9 @@ importers:
       '@wosm/observer':
         specifier: workspace:*
         version: link:../observer
+      '@wosm/opencode':
+        specifier: workspace:*
+        version: link:../../integrations/harness/opencode
       '@wosm/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
