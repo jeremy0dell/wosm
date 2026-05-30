@@ -11,7 +11,7 @@ describe("Dashboard", () => {
         <Dashboard
           columns={100}
           snapshot={snapshot}
-          uiState={{ searchQuery: "", collapsedProjectIds: new Set(["web"]) }}
+          viewState={{ searchQuery: "", collapsedProjectIds: new Set(["web"]) }}
         />
       </Box>,
       { columns: 100 },

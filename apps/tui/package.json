@@ -18,6 +18,7 @@
     "@wosm/protocol": "workspace:*",
     "@wosm/runtime": "workspace:*",
     "ink": "^7.0.3",
-    "react": "^19.2.6"
+    "react": "^19.2.6",
+    "zustand": "^5.0.14"
   }
 }

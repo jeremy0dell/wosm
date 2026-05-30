@@ -1,27 +1,18 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import { Box } from "ink";
-import type { NewSessionFlowState } from "../../flows/newSession.js";
+import type { TuiScreen } from "../../state/screen.js";
 import { HelpOverlay } from "../HelpOverlay/HelpOverlay.js";
 import { NewSessionBottomSheet } from "../NewSessionBottomSheet/NewSessionBottomSheet.js";
 
 export type OverlayHostProps = {
-  overlay: OverlayHostState | undefined;
+  snapshot: WosmSnapshot;
+  screen: TuiScreen;
   columns: number;
   rows: number;
 };
 
-export type OverlayHostState =
-  | {
-      type: "help";
-    }
-  | {
-      type: "new-session";
-      snapshot: WosmSnapshot;
-      state: NewSessionFlowState;
-    };
-
-export function OverlayHost({ overlay, columns, rows }: OverlayHostProps) {
-  if (overlay === undefined) {
+export function OverlayHost({ snapshot, screen, columns, rows }: OverlayHostProps) {
+  if (screen.name !== "help" && screen.name !== "newSession") {
     return null;
   }
 
@@ -34,21 +25,19 @@ export function OverlayHost({ overlay, columns, rows }: OverlayHostProps) {
       height={Math.max(1, rows)}
       overflow="hidden"
     >
-      {renderOverlay(overlay, columns, rows)}
+      {renderOverlay(snapshot, screen, columns, rows)}
     </Box>
   );
 }
 
-function renderOverlay(overlay: OverlayHostState, columns: number, rows: number) {
-  if (overlay.type === "help") {
+function renderOverlay(snapshot: WosmSnapshot, screen: TuiScreen, columns: number, rows: number) {
+  if (screen.name === "help") {
     return <HelpOverlay columns={columns} rows={rows} />;
   }
+  if (screen.name !== "newSession") {
+    return null;
+  }
   return (
-    <NewSessionBottomSheet
-      columns={columns}
-      rows={rows}
-      snapshot={overlay.snapshot}
-      state={overlay.state}
-    />
+    <NewSessionBottomSheet columns={columns} rows={rows} snapshot={snapshot} state={screen.flow} />
   );
 }

@@ -89,7 +89,21 @@ export function buildCleanupCommand(
   if (action === "close-all") {
     return buildSessionCloseCommand(row, "all", force);
   }
-  return buildWorktreeRemoveCommand(row, force);
+  return buildRemoveWorktreeCommand(row, force);
+}
+
+export function buildRemoveWorktreeCommand(row: WorktreeRow, force: boolean): WosmCommand {
+  const payload: Extract<WosmCommand, { type: "worktree.remove" }>["payload"] = {
+    projectId: row.projectId,
+    worktreeId: row.id,
+  };
+  if (force) {
+    payload.force = true;
+  }
+  return {
+    type: "worktree.remove",
+    payload,
+  };
 }
 
 export function buildCreateSessionCommand(input: CreateSessionCommandInput): WosmCommand {
@@ -113,13 +127,6 @@ export function buildCreateSessionCommand(input: CreateSessionCommandInput): Wos
     type: "session.create",
     payload,
   };
-}
-
-function commandLayout(layout: string): TerminalLayout {
-  if (layout === "default" || layout === "agent-only" || layout === "agent-build-shell") {
-    return layout;
-  }
-  return "default";
 }
 
 export function buildReconcileCommand(reason?: string): WosmCommand {
@@ -175,6 +182,13 @@ export function buildSendPromptCommand(
   };
 }
 
+function commandLayout(layout: string): TerminalLayout {
+  if (layout === "default" || layout === "agent-only" || layout === "agent-build-shell") {
+    return layout;
+  }
+  return "default";
+}
+
 function buildSessionCloseCommand(
   row: WorktreeRow,
   mode: Extract<WosmCommand, { type: "session.close" }>["payload"]["mode"],
@@ -212,20 +226,6 @@ function buildTerminalCloseCommand(row: WorktreeRow, force: boolean): WosmComman
   }
   return {
     type: "terminal.close",
-    payload,
-  };
-}
-
-function buildWorktreeRemoveCommand(row: WorktreeRow, force: boolean): WosmCommand {
-  const payload: Extract<WosmCommand, { type: "worktree.remove" }>["payload"] = {
-    projectId: row.projectId,
-    worktreeId: row.id,
-  };
-  if (force) {
-    payload.force = true;
-  }
-  return {
-    type: "worktree.remove",
     payload,
   };
 }

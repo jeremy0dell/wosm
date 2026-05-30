@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
-import {
-  createInitialUiState,
-  setSearchQuery,
-  toggleProjectCollapsed,
-} from "../uiState/uiState.js";
+import { createInitialTuiState, type TuiViewState } from "../state/screen.js";
 import {
   selectKeySlots,
   selectProjectGroups,
@@ -15,7 +11,7 @@ import {
 describe("TUI selectors", () => {
   it("groups rows project-first and keeps zero-worktree projects visible", () => {
     const snapshot = createDashboardSnapshot();
-    const groups = selectProjectGroups(snapshot, createInitialUiState());
+    const groups = selectProjectGroups(snapshot, createInitialTuiState());
 
     expect(groups.map((group) => [group.project.id, group.rows.length])).toEqual([
       ["web", 7],
@@ -25,7 +21,7 @@ describe("TUI selectors", () => {
 
   it("sorts rows inside project groups by stable branch identity, not live status", () => {
     const snapshot = createDashboardSnapshot();
-    const web = selectProjectGroups(snapshot, createInitialUiState()).find(
+    const web = selectProjectGroups(snapshot, createInitialTuiState()).find(
       (group) => group.project.id === "web",
     );
 
@@ -67,10 +63,10 @@ describe("TUI selectors", () => {
       ),
     };
 
-    const before = selectProjectGroups(snapshot, createInitialUiState()).find(
+    const before = selectProjectGroups(snapshot, createInitialTuiState()).find(
       (group) => group.project.id === "web",
     );
-    const after = selectProjectGroups(changed, createInitialUiState()).find(
+    const after = selectProjectGroups(changed, createInitialTuiState()).find(
       (group) => group.project.id === "web",
     );
 
@@ -81,12 +77,18 @@ describe("TUI selectors", () => {
 
   it("filters by search and collapses project groups without changing snapshot truth", () => {
     const snapshot = createDashboardSnapshot();
-    const searched = setSearchQuery(createInitialUiState(), "nav");
+    const searched: TuiViewState = {
+      searchQuery: "nav",
+      collapsedProjectIds: new Set(),
+    };
     expect(selectVisibleRows(snapshot, searched).map((candidate) => candidate.id)).toEqual([
       "wt_web_idle",
     ]);
 
-    const collapsed = toggleProjectCollapsed(createInitialUiState(), "web");
+    const collapsed: TuiViewState = {
+      searchQuery: "",
+      collapsedProjectIds: new Set(["web"]),
+    };
     const groups = selectProjectGroups(snapshot, collapsed);
     expect(groups.find((group) => group.project.id === "web")?.collapsed).toBe(true);
     expect(selectVisibleRows(snapshot, collapsed).map((candidate) => candidate.projectId)).toEqual([
@@ -96,7 +98,7 @@ describe("TUI selectors", () => {
 
   it("assigns stable numeric slots without resolving any selected row", () => {
     const snapshot = createDashboardSnapshot();
-    const state = createInitialUiState();
+    const state = createInitialTuiState();
     const slots = selectKeySlots(snapshot, state);
 
     expect(slots.get("5")?.id).toBe("wt_web_idle");
@@ -104,7 +106,7 @@ describe("TUI selectors", () => {
 
   it("skips collapsed project rows when assigning worktree slots", () => {
     const snapshot = createDashboardSnapshot();
-    const state = toggleProjectCollapsed(createInitialUiState(), "web");
+    const state = createInitialTuiState({ collapsedProjectIds: ["web"] });
     const slots = selectKeySlots(snapshot, state);
 
     expect([...slots.entries()].map(([slot, row]) => [slot, row.id])).toEqual([
@@ -114,7 +116,7 @@ describe("TUI selectors", () => {
 
   it("assigns project slots from rendered project headers", () => {
     const snapshot = createDashboardSnapshot();
-    const state = toggleProjectCollapsed(createInitialUiState(), "web");
+    const state = createInitialTuiState({ collapsedProjectIds: ["web"] });
     const slots = selectProjectSlots(snapshot, state);
 
     expect([...slots.entries()].map(([slot, project]) => [slot, project.id])).toEqual([
