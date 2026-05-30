@@ -1,6 +1,6 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useInput, useWindowSize } from "ink";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useStore } from "zustand/react";
 import { CommandPrompt } from "../components/CommandPrompt/CommandPrompt.js";
 import { Dashboard } from "../components/Dashboard/Dashboard.js";
@@ -10,7 +10,7 @@ import { TuiFrame } from "../components/TuiFrame/TuiFrame.js";
 import { TuiShell } from "../components/TuiShell/TuiShell.js";
 import type { TuiObserverService } from "../services/types.js";
 import { normalizeTuiKey } from "../state/keys.js";
-import { createTuiStore } from "../state/store.js";
+import { useTuiAppStore } from "./useTuiAppStore.js";
 
 export type AppProps = {
   service: TuiObserverService;
@@ -36,31 +36,17 @@ export function App({
   onExit,
 }: AppProps) {
   const { columns, rows } = useWindowSize();
-  const store = useMemo(
-    () =>
-      createTuiStore({
-        service,
-        ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
-        exitOnFocusSuccess,
-        ...(focusOrigin === undefined ? {} : { focusOrigin }),
-        ...(resolveFocusOrigin === undefined ? {} : { resolveFocusOrigin }),
-        ...(onFocusSuccess === undefined ? {} : { onFocusSuccess }),
-        ...(onDismiss === undefined ? {} : { onDismiss }),
-        persistentPopup,
-        ...(onExit === undefined ? {} : { onExit }),
-      }),
-    [
-      exitOnFocusSuccess,
-      focusOrigin,
-      initialSnapshot,
-      onDismiss,
-      onExit,
-      onFocusSuccess,
-      persistentPopup,
-      resolveFocusOrigin,
-      service,
-    ],
-  );
+  const store = useTuiAppStore({
+    service,
+    initialSnapshot,
+    exitOnFocusSuccess,
+    focusOrigin,
+    resolveFocusOrigin,
+    onFocusSuccess,
+    onDismiss,
+    persistentPopup,
+    onExit,
+  });
   const snapshot = useStore(store, (state) => state.snapshot);
   const loading = useStore(store, (state) => state.loading);
   const screen = useStore(store, (state) => state.screen);
