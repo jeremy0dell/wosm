@@ -106,7 +106,7 @@ describe("full session cleanup e2e", () => {
           terminal: { provider: "fake-terminal", focus: true },
         },
       });
-      await waitForCommandFinished(client, startReceipt.commandId);
+      await client.waitForCommand(startReceipt.commandId, { timeoutMs: 1000 });
 
       await expect(client.getSnapshot()).resolves.toMatchObject({
         rows: [
@@ -128,7 +128,7 @@ describe("full session cleanup e2e", () => {
           force: true,
         },
       });
-      await waitForCommandFinished(client, removeReceipt.commandId);
+      await client.waitForCommand(removeReceipt.commandId, { timeoutMs: 1000 });
 
       await expect(client.getSnapshot()).resolves.toMatchObject({
         rows: [],
@@ -143,24 +143,6 @@ describe("full session cleanup e2e", () => {
     }
   });
 });
-
-async function waitForCommandFinished(
-  client: ReturnType<typeof createObserverClient>,
-  commandId: string,
-): Promise<void> {
-  const deadline = Date.now() + 1000;
-  while (Date.now() <= deadline) {
-    const command = await client.getCommand(commandId);
-    if (command?.status === "succeeded") {
-      return;
-    }
-    if (command?.status === "failed") {
-      throw new Error(`Command ${commandId} failed: ${command.error?.code ?? "unknown"}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error(`Command ${commandId} did not finish.`);
-}
 
 function configFor(root: string, stateDir: string, socketPath: string): WosmConfig {
   return {

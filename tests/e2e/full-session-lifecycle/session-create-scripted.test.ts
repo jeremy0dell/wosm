@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
-import type { WosmEvent } from "@wosm/contracts";
 import {
   createCommandQueue,
   createObserverApi,
@@ -91,7 +90,6 @@ describe("full session lifecycle e2e", () => {
     const client = createObserverClient({ socketPath, requestId: requestIds() });
 
     try {
-      const stream = client.subscribe({ type: ["command.succeeded", "command.failed"] });
       const receipt = await client.dispatch({
         type: "session.create",
         payload: {
@@ -102,9 +100,9 @@ describe("full session lifecycle e2e", () => {
           initialPrompt: "Complete the file task.",
         },
       });
-      const terminalEvent = await nextCommandTerminalEvent(stream, receipt.commandId);
+      const command = await client.waitForCommand(receipt.commandId, { timeoutMs: 1000 });
 
-      expect(terminalEvent.type).toBe("command.succeeded");
+      expect(command.status).toBe("succeeded");
       await expect(readFile(join(worktreePath, "task.txt"), "utf8")).resolves.toBe(
         "scripted agent completed the file task\n",
       );
@@ -133,18 +131,6 @@ describe("full session lifecycle e2e", () => {
     }
   });
 });
-
-async function nextCommandTerminalEvent(
-  events: AsyncIterable<WosmEvent>,
-  commandId: string,
-): Promise<WosmEvent> {
-  for await (const event of events) {
-    if ("commandId" in event && event.commandId === commandId) {
-      return event;
-    }
-  }
-  throw new Error(`No terminal command event for ${commandId}.`);
-}
 
 function configFor(root: string, stateDir: string, socketPath: string): WosmConfig {
   return {

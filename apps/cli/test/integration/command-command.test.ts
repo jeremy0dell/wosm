@@ -1,6 +1,7 @@
 import { runCli } from "@wosm/cli";
 import { runCommandCommand } from "@wosm/cli/internal";
 import type { CommandReceipt, CommandRecord, WosmCommand } from "@wosm/contracts";
+import type { TerminalCommandRecord } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
 
@@ -37,18 +38,14 @@ describe("CLI command dispatch/get", () => {
   it("waits for the final command record when --wait is provided", async () => {
     const fixture = await createTempState();
     const command = reconcileCommand("cli-command-wait");
-    const records = [
-      commandRecord("cmd_wait", command, "accepted"),
-      commandRecord("cmd_wait", command, "succeeded"),
-    ];
-
     const result = await runCommandCommand(
       ["dispatch", "--stdin", "--wait", "--timeout-ms", "1000"],
       { config: fixture.config, stdin: JSON.stringify(command) },
       runningObserverDeps({
         socketPath: fixture.socketPath,
         dispatch: async () => receipt("cmd_wait"),
-        getCommand: async () => records.shift() ?? commandRecord("cmd_wait", command, "succeeded"),
+        waitForCommand: async () =>
+          commandRecord("cmd_wait", command, "succeeded") as TerminalCommandRecord,
       }),
     );
 
@@ -114,7 +111,13 @@ describe("CLI command dispatch/get", () => {
         runningObserverDeps({
           socketPath: fixture.socketPath,
           dispatch: async () => receipt("cmd_timeout"),
-          getCommand: async () => commandRecord("cmd_timeout", command, "started"),
+          waitForCommand: async () => {
+            throw {
+              tag: "TimeoutError",
+              code: "PROTOCOL_COMMAND_WAIT_TIMEOUT",
+              message: "Observer command did not finish before the timeout.",
+            };
+          },
         }),
       ),
     ).rejects.toMatchObject({
@@ -149,6 +152,7 @@ function runningObserverDeps(options: {
   socketPath: string;
   dispatch?: (command: WosmCommand) => Promise<CommandReceipt>;
   getCommand?: (commandId: string) => Promise<CommandRecord | undefined>;
+  waitForCommand?: (commandId: string) => Promise<TerminalCommandRecord>;
 }) {
   return {
     clientFactory: (socketPath: string) =>
@@ -163,6 +167,14 @@ function runningObserverDeps(options: {
         }),
         dispatch: options.dispatch ?? (async () => receipt("cmd_default")),
         getCommand: options.getCommand ?? (async () => undefined),
+        waitForCommand:
+          options.waitForCommand ??
+          (async () =>
+            commandRecord(
+              "cmd_default",
+              reconcileCommand("default"),
+              "succeeded",
+            ) as TerminalCommandRecord),
       }) as never,
     sleep: async () => undefined,
   };

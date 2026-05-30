@@ -19,38 +19,71 @@ export type RunTuiOptions = {
 
 export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
   const service = options.service ?? createTuiObserverService({ socketPath: options.socketPath });
+  return runInkApp(options, service);
+}
 
+function runInkApp(options: RunTuiOptions, service: TuiObserverService): Promise<TuiRunResult> {
   return new Promise<TuiRunResult>((resolve) => {
-    let resolved = false;
-    let instance: ReturnType<typeof render> | undefined;
-    const appProps: ComponentProps<typeof App> = {
-      service,
-      exitOnFocusSuccess: options.exitOnFocusSuccess === true,
-      persistentPopup: options.persistentPopup === true,
-      onExit: (code) => {
-        if (resolved) return;
-        resolved = true;
-        instance?.unmount();
-        resolve({ status: "exited", code });
-      },
-    };
-    if (options.focusOrigin !== undefined) {
-      appProps.focusOrigin = options.focusOrigin;
-    }
-    if (options.resolveFocusOrigin !== undefined) {
-      appProps.resolveFocusOrigin = options.resolveFocusOrigin;
-    }
-    if (options.onFocusSuccess !== undefined) {
-      appProps.onFocusSuccess = options.onFocusSuccess;
-    }
-    if (options.onDismiss !== undefined) {
-      appProps.onDismiss = options.onDismiss;
-    }
-    instance = render(
-      <TuiModeProvider mode={resolveTuiModeFromEnv(process.env)}>
-        <App {...appProps} />
-      </TuiModeProvider>,
-      { alternateScreen: true },
-    );
+    const controller = createTuiRunController(resolve);
+    const appProps = buildAppProps(options, service, controller.exit);
+    controller.attach(renderTuiApp(appProps));
   });
+}
+
+type InkRenderInstance = ReturnType<typeof render>;
+
+function createTuiRunController(resolve: (result: TuiRunResult) => void): {
+  attach(instance: InkRenderInstance): void;
+  exit(code: number): void;
+} {
+  let resolved = false;
+  let instance: InkRenderInstance | undefined;
+
+  return {
+    attach: (nextInstance) => {
+      instance = nextInstance;
+    },
+    exit: (code) => {
+      // Ink can surface multiple exit paths; only the first one should unmount and resolve the CLI.
+      if (resolved) return;
+      resolved = true;
+      instance?.unmount();
+      resolve({ status: "exited", code });
+    },
+  };
+}
+
+function buildAppProps(
+  options: RunTuiOptions,
+  service: TuiObserverService,
+  onExit: (code: number) => void,
+): ComponentProps<typeof App> {
+  const appProps: ComponentProps<typeof App> = {
+    service,
+    exitOnFocusSuccess: options.exitOnFocusSuccess === true,
+    persistentPopup: options.persistentPopup === true,
+    onExit,
+  };
+  if (options.focusOrigin !== undefined) {
+    appProps.focusOrigin = options.focusOrigin;
+  }
+  if (options.resolveFocusOrigin !== undefined) {
+    appProps.resolveFocusOrigin = options.resolveFocusOrigin;
+  }
+  if (options.onFocusSuccess !== undefined) {
+    appProps.onFocusSuccess = options.onFocusSuccess;
+  }
+  if (options.onDismiss !== undefined) {
+    appProps.onDismiss = options.onDismiss;
+  }
+  return appProps;
+}
+
+function renderTuiApp(appProps: ComponentProps<typeof App>): InkRenderInstance {
+  return render(
+    <TuiModeProvider mode={resolveTuiModeFromEnv(process.env)}>
+      <App {...appProps} />
+    </TuiModeProvider>,
+    { alternateScreen: true },
+  );
 }
