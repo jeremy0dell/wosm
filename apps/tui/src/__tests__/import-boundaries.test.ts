@@ -46,5 +46,12 @@ async function sourceFiles(dir: string): Promise<string[]> {
       return entry.isDirectory() ? sourceFiles(path) : [path];
     }),
   );
-  return nested.flat().filter((file) => file.endsWith(".ts") || file.endsWith(".tsx"));
+  return nested
+    .flat()
+    .filter(
+      (file) =>
+        (file.endsWith(".ts") || file.endsWith(".tsx")) &&
+        !file.endsWith(".test.ts") &&
+        !file.endsWith(".test.tsx"),
+    );
 }

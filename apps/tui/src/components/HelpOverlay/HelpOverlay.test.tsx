@@ -1,6 +1,6 @@
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
-import { HelpOverlay, helpPanelLayout, helpPanelLines } from "../HelpOverlay.js";
+import { HelpOverlay, helpPanelLayout, helpPanelLines } from "./HelpOverlay.js";
 
 describe("HelpOverlay", () => {
   it("sizes and centers the panel inside the terminal", () => {

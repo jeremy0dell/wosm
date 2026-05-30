@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { intentForDashboardKey } from "../../src/keymap.js";
-import { createCommandSnapshot } from "../fixtures/snapshots.js";
+import { createCommandSnapshot } from "../test/fixtures/snapshots.js";
+import { intentForDashboardKey } from "./keymap.js";
 
 describe("TUI dashboard keymap", () => {
   it("does not target an invisible selected row for Enter", () => {
