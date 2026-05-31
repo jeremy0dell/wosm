@@ -15,7 +15,10 @@ import {
   shouldKeepAliveAfterLauncherExit,
   shouldRunDirectTui,
 } from "../../scripts/tui-dev.mjs";
-import { shouldRestartForPath } from "../../scripts/tui-watch-runner.mjs";
+import {
+  mouseReportingDisableSequence,
+  shouldRestartForPath,
+} from "../../scripts/tui-watch-runner.mjs";
 
 type TurboConfig = {
   tasks?: {
@@ -180,6 +183,15 @@ describe("tui dev script", () => {
     expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/package.json")).toBe(true);
     expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/App.d.ts")).toBe(false);
     expect(shouldRestartForPath("/tmp/wosm/apps/tui/dist/App.js.map")).toBe(false);
+  });
+
+  it("resets terminal mouse reporting after TUI child exits", () => {
+    expect(mouseReportingDisableSequence).toContain("\u001B[?1000l");
+    expect(mouseReportingDisableSequence).toContain("\u001B[?1002l");
+    expect(mouseReportingDisableSequence).toContain("\u001B[?1003l");
+    expect(mouseReportingDisableSequence).toContain("\u001B[?1005l");
+    expect(mouseReportingDisableSequence).toContain("\u001B[?1006l");
+    expect(mouseReportingDisableSequence).toContain("\u001B[?1015l");
   });
 
   it("keeps turbo build watch inputs from reacting to tests", () => {

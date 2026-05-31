@@ -1,8 +1,9 @@
 import { useInput, useStdout } from "ink";
 import { useEffect } from "react";
 
-const SGR_MOUSE_ENABLE = "\u001B[?1000h\u001B[?1006h";
-const SGR_MOUSE_DISABLE = "\u001B[?1006l\u001B[?1000l";
+export const SGR_MOUSE_ENABLE = "\u001B[?1000h\u001B[?1006h";
+export const SGR_MOUSE_DISABLE =
+  "\u001B[?1000l\u001B[?1002l\u001B[?1003l\u001B[?1005l\u001B[?1006l\u001B[?1015l";
 
 export type MouseScrollDirection = "up" | "down";
 
@@ -13,6 +14,7 @@ export function useMouseWheelInput(onScroll: (direction: MouseScrollDirection) =
     if (!stdout.isTTY) {
       return;
     }
+    write(SGR_MOUSE_DISABLE);
     write(SGR_MOUSE_ENABLE);
     return () => {
       write(SGR_MOUSE_DISABLE);
