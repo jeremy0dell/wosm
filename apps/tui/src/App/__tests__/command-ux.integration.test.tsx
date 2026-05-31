@@ -44,6 +44,22 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
+  it("does not leak mouse wheel sequences into text prompts", async () => {
+    const snapshot = createFakeDashboardSnapshot({ projectCount: 1, worktreesPerProject: 30 });
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("/");
+    await waitFor(() => instance.lastFrame()?.includes("search:") === true);
+    instance.stdin.write("nav");
+    instance.stdin.write("\u001B[<65;12;4M");
+    await settle();
+
+    expect(instance.lastFrame()).toContain("search: nav");
+    expect(instance.lastFrame()).not.toContain("[<65;12;4M");
+    instance.unmount();
+  });
+
   it("dispatches session.startAgent from numeric slot mappings for no-agent rows", async () => {
     const snapshot = createCommandSnapshot("none");
     const service = new FakeTuiObserverService(snapshot);
