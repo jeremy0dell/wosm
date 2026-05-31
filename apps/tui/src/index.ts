@@ -1,7 +1,5 @@
 export * from "./App/App.js";
 export * from "./components/Dashboard/layout.js";
-export * from "./dev/fakeDashboard.js";
-export * from "./dev/fakeTuiObserverService.js";
 export * from "./eventReducer/eventReducer.js";
 export * from "./runTui.js";
 export * from "./selectors/dashboardViewport.js";
