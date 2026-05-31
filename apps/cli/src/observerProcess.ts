@@ -144,7 +144,38 @@ export async function stopObserver(
 ): Promise<ObserverStopReceipt> {
   const paths = options.paths ?? resolveObserverPaths(options.config);
   const client = (deps.clientFactory ?? defaultClientFactory)(paths.socketPath);
-  return client.stop();
+  const receipt = await client.stop();
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  const stopped = await runRuntimeBoundaryWithRetryAndTimeout(
+    {
+      operation: "cli.observer.waitForStop",
+      timeoutMs,
+      error: {
+        tag: "ObserverConnectionError",
+        code: "OBSERVER_STOP_FAILED",
+        message: "Observer did not stop cleanly.",
+      },
+      timeoutError: {
+        tag: "ObserverConnectionError",
+        code: "OBSERVER_STOP_TIMEOUT",
+        message: "Observer did not stop before the timeout.",
+      },
+      retry: {
+        retries: Math.max(1, Math.ceil(timeoutMs / 25)),
+        delayMs: 25,
+      },
+    },
+    async () => {
+      const status = await getObserverStatus({ ...options, paths }, deps);
+      if (status.status === "running") {
+        throw new Error("observer still running");
+      }
+    },
+  );
+  if (!stopped.ok) {
+    throw stopped.error;
+  }
+  return receipt;
 }
 
 export async function restartObserver(

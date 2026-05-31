@@ -250,6 +250,7 @@ export class WorktrunkProvider implements WorktreeProvider {
         "remove",
         removeTarget(observation),
         ...(request.force === true ? ["--force"] : []),
+        ...(request.force === true ? ["--force-delete"] : []),
         "--foreground",
         "--format=json",
       ]),
