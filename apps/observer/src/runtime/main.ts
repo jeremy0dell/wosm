@@ -126,7 +126,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
 
   server = await startObserverServer({ socketPath, api, clock: systemClock });
   const stopFromSignal = () => {
-    void stopObserver();
+    void api.stop();
   };
   process.once("SIGINT", stopFromSignal);
   process.once("SIGTERM", stopFromSignal);
