@@ -405,6 +405,86 @@ describe("CLI tui command", () => {
     });
   });
 
+  it("runs a fake dashboard without observer startup or startup reconcile", async () => {
+    const fixture = await createTempState();
+    const runOptions: RunTuiOptions[] = [];
+
+    const result = await runTuiCommand(
+      ["--dev-fake-dashboard", "--fake-projects", "3", "--fake-worktrees-per-project", "5"],
+      { config: fixture.config },
+      {
+        observer: {
+          spawnObserver: async () => {
+            throw new Error("observer should not start for fake dashboard mode");
+          },
+          clientFactory: () =>
+            ({
+              reconcile: async () => {
+                throw new Error("startup reconcile should not run for fake dashboard mode");
+              },
+            }) as never,
+        },
+        runTui: async (options) => {
+          runOptions.push(options);
+          return { status: "exited", code: 0 };
+        },
+      },
+    );
+
+    expect(result).toEqual({ status: "exited", code: 0 });
+    expect(runOptions).toHaveLength(1);
+    expect(runOptions[0]?.socketPath).toBeUndefined();
+    expect(runOptions[0]?.service).toBeDefined();
+    expect(runOptions[0]?.initialSnapshot?.projects).toHaveLength(3);
+    expect(runOptions[0]?.initialSnapshot?.rows).toHaveLength(15);
+  });
+
+  it("rejects invalid fake dashboard count flags before observer startup", async () => {
+    const fixture = await createTempState();
+
+    await expect(
+      runTuiCommand(
+        ["--dev-fake-dashboard", "--fake-projects", "0"],
+        { config: fixture.config },
+        {
+          observer: {
+            spawnObserver: async () => {
+              throw new Error("observer should not start for invalid fake dashboard input");
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow("--fake-projects must be a positive integer.");
+
+    await expect(
+      runTuiCommand(
+        ["--dev-fake-dashboard", "--fake-worktrees-per-project"],
+        { config: fixture.config },
+        {
+          observer: {
+            spawnObserver: async () => {
+              throw new Error("observer should not start for invalid fake dashboard input");
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow("--fake-worktrees-per-project requires a value.");
+
+    await expect(
+      runTuiCommand(
+        ["--fake-projects", "3"],
+        { config: fixture.config },
+        {
+          observer: {
+            spawnObserver: async () => {
+              throw new Error("observer should not start for invalid fake dashboard input");
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow("--fake-projects requires --dev-fake-dashboard.");
+  });
+
   it("rejects invalid TUI timeout values before observer startup", async () => {
     const fixture = await createTempState();
 

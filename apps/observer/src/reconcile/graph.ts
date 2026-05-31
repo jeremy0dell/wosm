@@ -1,4 +1,5 @@
 import type {
+  ClientFeatureFlags,
   HarnessCapabilities,
   HarnessRunObservation,
   OrphanedRuntimeState,
@@ -37,6 +38,7 @@ export type ObserverGraphInput = {
   harnessRuns: ObserverHarnessRun[];
   sessionMetadata?: readonly ObserverSessionMetadata[];
   alerts?: WosmAlert[];
+  featureFlags?: ClientFeatureFlags;
 };
 
 export type ObserverSessionMetadata = {
@@ -149,6 +151,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
     sessions,
     counts,
     alerts,
+    ...(input.featureFlags === undefined ? {} : { featureFlags: input.featureFlags }),
     ...orphans(input, harnessRuns, worktreesById, projectsById, harnessRunsById),
   };
   if (input.harnesses !== undefined) {

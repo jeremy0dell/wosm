@@ -9,6 +9,7 @@ import type {
 import { ProviderProjectConfigSchema } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
+import type { FeatureFlagEvaluator } from "../features/evaluator.js";
 import type { ObserverPersistence } from "../persistence/index.js";
 import { providerObservationRetentionDays } from "../persistence/retention.js";
 import type { ProviderRegistry } from "../providers/registry.js";
@@ -63,6 +64,7 @@ export type CreateObserverCoreInput = {
   version?: string;
   providerTimeoutMs?: number;
   providerReadRetries?: number;
+  featureFlags?: FeatureFlagEvaluator;
 };
 
 export function createObserverCore(input: CreateObserverCoreInput): ObserverCore {
@@ -83,6 +85,9 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
     projects,
     worktreeProviderId: input.providers.worktree.id,
     harnesses: harnessesFromRegistry(input.providers),
+    ...(input.featureFlags === undefined
+      ? {}
+      : { featureFlags: input.featureFlags.clientSnapshot() }),
   });
 
   const read: ProviderReadOptions = {
@@ -104,6 +109,9 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
           read,
           ...(input.persistence === undefined ? {} : { persistence: input.persistence }),
           providerObservationRetentionDays: retentionDays,
+          ...(input.featureFlags === undefined
+            ? {}
+            : { featureFlags: input.featureFlags.clientSnapshot() }),
         });
         providerHealth = result.providerHealth;
         lastReconcile = result.lastReconcile;
