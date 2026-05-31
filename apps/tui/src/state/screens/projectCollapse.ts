@@ -1,4 +1,5 @@
 import { choiceValueByKey, selectProjectChoices } from "../../selectors/selectors.js";
+import { clampDashboardStateScroll } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
@@ -34,10 +35,10 @@ export function handleProjectCollapseKey(state: TuiState, key: TuiKey): TuiTrans
   }
 
   return {
-    state: {
+    state: clampDashboardStateScroll({
       ...state,
       collapsedProjectIds,
       screen: { name: "dashboard" },
-    },
+    }),
   };
 }
