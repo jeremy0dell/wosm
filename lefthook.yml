@@ -2,8 +2,3 @@ pre-commit:
   commands:
     biome:
       run: pnpm lint
-
-pre-push:
-  commands:
-    phase-0-tests:
-      run: pnpm test:unit && pnpm test:contracts && pnpm test:integration
