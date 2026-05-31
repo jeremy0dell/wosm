@@ -1,6 +1,6 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useInput, useWindowSize } from "ink";
-import { useEffect } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useStore } from "zustand/react";
 import { CommandPrompt } from "../components/CommandPrompt/CommandPrompt.js";
 import { Dashboard } from "../components/Dashboard/Dashboard.js";
@@ -10,6 +10,7 @@ import { TuiFrame } from "../components/TuiFrame/TuiFrame.js";
 import { TuiShell } from "../components/TuiShell/TuiShell.js";
 import type { TuiObserverService } from "../services/types.js";
 import { normalizeTuiKey } from "../state/keys.js";
+import { useMouseWheelInput } from "./useMouseWheelInput.js";
 import { useTuiAppStore } from "./useTuiAppStore.js";
 
 export type AppProps = {
@@ -52,12 +53,20 @@ export function App({
   const screen = useStore(store, (state) => state.screen);
   const searchQuery = useStore(store, (state) => state.searchQuery);
   const collapsedProjectIds = useStore(store, (state) => state.collapsedProjectIds);
+  const scrollOffset = useStore(store, (state) => state.scrollOffset);
+  const terminalRows = useStore(store, (state) => state.terminalRows);
   const toasts = useStore(store, (state) => state.toasts);
 
   useEffect(() => store.getState().start(), [store]);
+  useEffect(() => {
+    store.getState().setTerminalRows(rows);
+  }, [rows, store]);
 
   useInput((input, key) => {
     store.getState().handleKey(normalizeTuiKey(input, key));
+  });
+  useMouseWheelInput((direction) => {
+    store.getState().handleKey({ input: "", mouseScroll: direction });
   });
 
   if (loading || snapshot === undefined) {
@@ -79,14 +88,23 @@ export function App({
           columns={columns}
           snapshot={snapshot}
           screen={screen}
-          viewState={{ searchQuery, collapsedProjectIds }}
+          viewState={{ searchQuery, collapsedProjectIds, scrollOffset, terminalRows }}
           quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
-        >
+        />
+        <FixedStatusLayer>
           <CommandPrompt screen={screen} />
           <ToastStack toasts={toasts} />
-        </Dashboard>
+        </FixedStatusLayer>
         <OverlayHost columns={columns} rows={rows} screen={screen} snapshot={snapshot} />
       </TuiShell>
     </TuiFrame>
+  );
+}
+
+function FixedStatusLayer({ children }: { children: ReactNode }) {
+  return (
+    <Box position="absolute" left={0} right={0} bottom={3} flexDirection="column" overflow="hidden">
+      {children}
+    </Box>
   );
 }

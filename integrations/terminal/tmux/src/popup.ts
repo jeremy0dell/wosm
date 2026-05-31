@@ -254,6 +254,7 @@ export async function ensurePersistentPopupSession(
   if (await hasTmuxSession(input, sessionName)) {
     const currentSignature = await resolvePersistentPopupSessionSignature(input, sessionName);
     if (currentSignature === signature) {
+      await enablePersistentPopupSessionMouse(input, sessionName);
       return { sessionName, created: false };
     }
     await killPersistentPopupSession(input, sessionName);
@@ -277,6 +278,7 @@ export async function ensurePersistentPopupSession(
     sessionName,
     signature,
   });
+  await enablePersistentPopupSessionMouse(input, sessionName);
   return { sessionName, created: true };
 }
 
@@ -532,6 +534,18 @@ async function setPersistentPopupSessionSignature(
     operation: "provider.tmux.popup.setPersistentUiSignature",
     message: "tmux failed to record the persistent wosm popup UI signature.",
     timeoutMessage: "tmux persistent popup UI signature update timed out.",
+  });
+}
+
+async function enablePersistentPopupSessionMouse(
+  input: TmuxCommandInput,
+  sessionName: string,
+): Promise<void> {
+  await runTmuxPopupCommand(input, {
+    args: ["set-option", "-t", sessionName, "mouse", "on"],
+    operation: "provider.tmux.popup.enableMouse",
+    message: "tmux failed to enable mouse support for the persistent wosm popup UI.",
+    timeoutMessage: "tmux persistent popup UI mouse setup timed out.",
   });
 }
 

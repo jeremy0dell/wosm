@@ -2,7 +2,13 @@ import type { WosmConfig } from "@wosm/config";
 import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
 import { dismissTmuxPopup, resolveTmuxPopupFocusOrigin } from "@wosm/tmux";
-import { type RunTuiOptions, runTui, type TuiRunResult } from "@wosm/tui";
+import {
+  createFakeDashboardSnapshot,
+  createFakeTuiObserverService,
+  type RunTuiOptions,
+  runTui,
+  type TuiRunResult,
+} from "@wosm/tui";
 import { parsePositiveIntegerOption } from "../args.js";
 import {
   type ObserverProcessDeps,
@@ -43,6 +49,19 @@ export async function runTuiCommand(
   deps: TuiCommandDeps = {},
 ): Promise<TuiCommandResult> {
   const parsed = parseTuiArgs(args, options.timeoutMs);
+  if (parsed.devFakeDashboard) {
+    const snapshot = createFakeDashboardSnapshot({
+      projectCount: parsed.fakeProjects,
+      worktreesPerProject: parsed.fakeWorktreesPerProject,
+    });
+    const runOptions: RunTuiOptions = {
+      initialSnapshot: snapshot,
+      service: createFakeTuiObserverService(snapshot),
+    };
+    applyPopupOptions(parsed, runOptions, deps);
+    return (deps.runTui ?? runTui)(runOptions);
+  }
+
   const paths = resolveObserverPaths(options.config);
   const observer = await startObserver(
     {
@@ -72,25 +91,34 @@ export async function runTuiCommand(
     await reconcileBeforeTui(startupReconcile);
   }
   const runOptions: RunTuiOptions = { socketPath: observer.paths.socketPath };
-  if (parsed.popupMode) {
-    const env = deps.env ?? process.env;
-    if (parsed.persistentPopup) {
-      const dismissPopup =
-        deps.popupLifecycle?.onDismiss ?? (() => dismissTmuxPopup({ env }).then(() => undefined));
-      runOptions.persistentPopup = true;
-      runOptions.resolveFocusOrigin =
-        deps.popupLifecycle?.resolveFocusOrigin ?? (() => resolveTmuxPopupFocusOrigin({ env }));
-      runOptions.onFocusSuccess = deps.popupLifecycle?.onFocusSuccess ?? dismissPopup;
-      runOptions.onDismiss = dismissPopup;
-    } else {
-      runOptions.exitOnFocusSuccess = true;
-      const focusOrigin = focusOriginFromEnv(env);
-      if (focusOrigin !== undefined) {
-        runOptions.focusOrigin = focusOrigin;
-      }
-    }
-  }
+  applyPopupOptions(parsed, runOptions, deps);
   return (deps.runTui ?? runTui)(runOptions);
+}
+
+function applyPopupOptions(
+  parsed: ParsedTuiArgs,
+  runOptions: RunTuiOptions,
+  deps: TuiCommandDeps,
+): void {
+  if (!parsed.popupMode) {
+    return;
+  }
+  const env = deps.env ?? process.env;
+  if (parsed.persistentPopup) {
+    const dismissPopup =
+      deps.popupLifecycle?.onDismiss ?? (() => dismissTmuxPopup({ env }).then(() => undefined));
+    runOptions.persistentPopup = true;
+    runOptions.resolveFocusOrigin =
+      deps.popupLifecycle?.resolveFocusOrigin ?? (() => resolveTmuxPopupFocusOrigin({ env }));
+    runOptions.onFocusSuccess = deps.popupLifecycle?.onFocusSuccess ?? dismissPopup;
+    runOptions.onDismiss = dismissPopup;
+    return;
+  }
+  runOptions.exitOnFocusSuccess = true;
+  const focusOrigin = focusOriginFromEnv(env);
+  if (focusOrigin !== undefined) {
+    runOptions.focusOrigin = focusOrigin;
+  }
 }
 
 function scheduleReconcileBeforeTui(input: {
@@ -120,22 +148,45 @@ async function reconcileBeforeTui(input: {
   await client.reconcile("tui-startup");
 }
 
-function parseTuiArgs(
-  args: string[],
-  timeoutMs: number | undefined,
-): { timeoutMs?: number; popupMode: boolean; persistentPopup: boolean } {
+type ParsedTuiArgs = {
+  devFakeDashboard: boolean;
+  fakeProjects: number;
+  fakeWorktreesPerProject: number;
+  popupMode: boolean;
+  persistentPopup: boolean;
+  timeoutMs?: number;
+};
+
+function parseTuiArgs(args: string[], timeoutMs: number | undefined): ParsedTuiArgs {
   const parsed = takeTimeoutOption(args, timeoutMs);
-  const unknown = parsed.args.find((arg) => arg !== "--popup" && arg !== "--persistent");
+  const fakeProjects = takePositiveIntegerFlag(parsed.args, "--fake-projects");
+  const fakeWorktreesPerProject = takePositiveIntegerFlag(
+    fakeProjects.args,
+    "--fake-worktrees-per-project",
+  );
+  const remainingArgs = fakeWorktreesPerProject.args;
+  const knownFlags = new Set(["--popup", "--persistent", "--dev-fake-dashboard"]);
+  const unknown = remainingArgs.find((arg) => !knownFlags.has(arg));
   if (unknown !== undefined) {
     throw new Error(`Unknown tui option: ${unknown}`);
   }
-  const popupMode = parsed.args.includes("--popup");
-  const persistentPopup = parsed.args.includes("--persistent");
+  const devFakeDashboard = remainingArgs.includes("--dev-fake-dashboard");
+  if (!devFakeDashboard && fakeProjects.value !== undefined) {
+    throw new Error("--fake-projects requires --dev-fake-dashboard.");
+  }
+  if (!devFakeDashboard && fakeWorktreesPerProject.value !== undefined) {
+    throw new Error("--fake-worktrees-per-project requires --dev-fake-dashboard.");
+  }
+  const popupMode = remainingArgs.includes("--popup");
+  const persistentPopup = remainingArgs.includes("--persistent");
   if (persistentPopup && !popupMode) {
     throw new Error("--persistent requires --popup.");
   }
 
-  const result: { timeoutMs?: number; popupMode: boolean; persistentPopup: boolean } = {
+  const result: ParsedTuiArgs = {
+    devFakeDashboard,
+    fakeProjects: fakeProjects.value ?? 4,
+    fakeWorktreesPerProject: fakeWorktreesPerProject.value ?? 24,
     popupMode,
     persistentPopup,
   };
@@ -175,5 +226,20 @@ function takeTimeoutOption(
   return {
     args: [...args.slice(0, index), ...args.slice(index + 2)],
     timeoutMs: parsePositiveIntegerOption(value, "--timeout-ms"),
+  };
+}
+
+function takePositiveIntegerFlag(args: string[], flag: string): { args: string[]; value?: number } {
+  const index = args.indexOf(flag);
+  if (index === -1) {
+    return { args };
+  }
+  const value = args[index + 1];
+  if (value === undefined) {
+    throw new Error(`${flag} requires a value.`);
+  }
+  return {
+    args: [...args.slice(0, index), ...args.slice(index + 2)],
+    value: parsePositiveIntegerOption(value, flag),
   };
 }

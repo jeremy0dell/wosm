@@ -140,6 +140,7 @@ fi
 
 "$tmux_bin" set-option -gq @wosm_popup_client "$client_id" || exit 1
 "$tmux_bin" set-option -gq @wosm_popup_focus_client "$client_id" || exit 1
+"$tmux_bin" set-option -t "$session_name" mouse on >/dev/null 2>&1 || true
 
 width=${WOSM_POPUP_WIDTH:-50%}
 height=${WOSM_POPUP_HEIGHT:-50%}

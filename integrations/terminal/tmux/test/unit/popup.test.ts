@@ -77,6 +77,7 @@ describe("tmux popup", () => {
         "@wosm_popup_ui_signature",
         defaultPersistentSignature,
       ],
+      persistentPopupMouseCall("_wosm-ui"),
     ]);
 
     calls.length = 0;
@@ -94,6 +95,7 @@ describe("tmux popup", () => {
     expect(calls.map((call) => call.args)).toEqual([
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      persistentPopupMouseCall("_wosm-ui"),
     ]);
   });
 
@@ -137,6 +139,7 @@ describe("tmux popup", () => {
         "@wosm_popup_ui_signature",
         "v1:node wosm tui --popup --persistent --config /tmp/config-b.toml",
       ],
+      persistentPopupMouseCall("_wosm-ui"),
     ]);
   });
 
@@ -176,6 +179,7 @@ describe("tmux popup", () => {
       ["set-option", "-gq", "@wosm_popup_focus_client", "client_1"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      persistentPopupMouseCall("_wosm-ui"),
       ...fastPopupRegistrationCalls("_wosm-ui", "wosm tui --popup --persistent"),
       [
         "display-popup",
@@ -250,6 +254,7 @@ describe("tmux popup", () => {
       ["show-options", "-gqv", "@wosm_tui_dev_root"],
       ["has-session", "-t", devSession],
       ["show-options", "-t", devSession, "-qv", "@wosm_popup_ui_signature"],
+      persistentPopupMouseCall(devSession),
       expect.arrayContaining(["display-popup", "-c", "client_1"]),
     ]);
     const displayPopupArgs = calls.at(-1)?.args;
@@ -348,6 +353,7 @@ describe("tmux popup", () => {
       ["show-options", "-gqv", "@wosm_tui_dev_owner"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      persistentPopupMouseCall("_wosm-ui"),
       ...fastPopupRegistrationCalls("_wosm-ui", "node normal-wosm tui --popup --persistent"),
       expect.arrayContaining(["display-popup", "-c", "client_1"]),
     ]);
@@ -406,6 +412,7 @@ describe("tmux popup", () => {
       ["show-options", "-gqv", "@wosm_tui_dev_root"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      persistentPopupMouseCall("_wosm-ui"),
       ...fastPopupRegistrationCalls("_wosm-ui", "node current-wosm tui --popup --persistent"),
       expect.arrayContaining(["display-popup", "-c", "client_1"]),
     ]);
@@ -474,6 +481,7 @@ describe("tmux popup", () => {
       ["set-option", "-gq", "@wosm_popup_focus_client", "client_2"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      persistentPopupMouseCall("_wosm-ui"),
       ...fastPopupRegistrationCalls("_wosm-ui", "wosm tui --popup --persistent"),
       expect.arrayContaining(["display-popup", "-c", "client_2"]),
     ]);
@@ -591,6 +599,7 @@ describe("tmux popup", () => {
       ["switch-client", "-c", "client_from_binding", "-t", "wosm"],
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      persistentPopupMouseCall("_wosm-ui"),
       ...fastPopupRegistrationCalls("_wosm-ui", "wosm tui --popup --persistent"),
       expect.arrayContaining(["display-popup", "-c", "client_from_binding"]),
     ]);
@@ -602,4 +611,8 @@ function fastPopupRegistrationCalls(sessionName: string, command: string): strin
     ["set-option", "-gq", "@wosm_popup_ui_session_name", sessionName],
     ["set-option", "-gq", "@wosm_popup_ui_expected_signature", `v1:${command}`],
   ];
+}
+
+function persistentPopupMouseCall(sessionName: string): string[] {
+  return ["set-option", "-t", sessionName, "mouse", "on"];
 }

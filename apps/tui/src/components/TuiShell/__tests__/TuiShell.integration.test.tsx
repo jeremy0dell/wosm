@@ -69,7 +69,12 @@ function renderShell(columns: number, rows: number, activeOverlay: "help" | unde
           <Dashboard
             columns={columns}
             snapshot={snapshot}
-            viewState={{ searchQuery: "", collapsedProjectIds: new Set() }}
+            viewState={{
+              searchQuery: "",
+              collapsedProjectIds: new Set(),
+              scrollOffset: 0,
+              terminalRows: rows,
+            }}
           />
           <OverlayHost columns={columns} rows={rows} screen={screen} snapshot={snapshot} />
         </TuiShell>
