@@ -7,6 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const restartDebounceMs = 500;
 const restartExtensions = new Set([".js", ".json", ".mjs"]);
+export const mouseReportingDisableSequence =
+  "\u001B[?1000l\u001B[?1002l\u001B[?1003l\u001B[?1005l\u001B[?1006l\u001B[?1015l";
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   runWatchRunner(process.argv.slice(2));
@@ -57,6 +59,7 @@ export function runWatchRunner(argv, env = process.env) {
     if (restartTimer !== undefined) {
       clearTimeout(restartTimer);
     }
+    disableMouseReporting();
     closeWatchers();
     child?.kill(signal);
     process.exitCode = 1;
@@ -67,6 +70,7 @@ export function runWatchRunner(argv, env = process.env) {
 
   function handleChildExit(code, signal) {
     child = undefined;
+    disableMouseReporting();
     if (shuttingDown) {
       return;
     }
@@ -175,6 +179,12 @@ function formatError(error) {
 function clearTerminal() {
   if (process.stdout.isTTY) {
     process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
+  }
+}
+
+function disableMouseReporting() {
+  if (process.stdout.isTTY) {
+    process.stdout.write(mouseReportingDisableSequence);
   }
 }
 

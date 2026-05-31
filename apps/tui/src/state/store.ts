@@ -9,6 +9,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { applyWosmEvent } from "../eventReducer/eventReducer.js";
 import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
+import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import type { TuiKey } from "./keys.js";
 import {
   addTuiToast,
@@ -26,6 +27,7 @@ export type TuiStore = TuiState & {
   start(): () => void;
   handleKey(key: TuiKey): void;
   handleObserverEvent(event: WosmEvent): void;
+  setTerminalRows(rows: number): void;
   dismissToasts(): void;
 };
 
@@ -69,6 +71,9 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
     },
     handleObserverEvent: (event): void => {
       handleObserverEvent(store, options.service, event);
+    },
+    setTerminalRows: (rows): void => {
+      set(clampDashboardStateScroll({ ...get(), terminalRows: rows }));
     },
     dismissToasts: (): void => {
       set({ toasts: [] });
@@ -175,7 +180,11 @@ function handleObserverEvent(
   }
 
   const result = applyWosmEvent(current.snapshot, event);
-  store.setState(addTuiToasts(replaceSnapshot(current, result.snapshot), result.toasts));
+  store.setState(
+    clampDashboardStateScroll(
+      addTuiToasts(replaceSnapshot(current, result.snapshot), result.toasts),
+    ),
+  );
   if (result.needsSnapshotRefresh) {
     void refreshSnapshot(store, service, () => true);
   }
@@ -216,7 +225,7 @@ async function refreshSnapshot(
   try {
     const loaded = await service.loadSnapshot();
     if (!isActive()) return;
-    store.setState(replaceSnapshot(store.getState(), loaded));
+    store.setState(clampDashboardStateScroll(replaceSnapshot(store.getState(), loaded)));
   } catch (error: unknown) {
     if (!isActive()) return;
     addToast(store, safeErrorToToast(toSafeError(error)));
@@ -232,10 +241,12 @@ async function reconcileSnapshot(
   try {
     const loaded = await service.reconcile(reason);
     store.setState(
-      addTuiToast(replaceSnapshot(store.getState(), loaded), {
-        kind: "success",
-        message: "observer.reconcile refreshed",
-      }),
+      clampDashboardStateScroll(
+        addTuiToast(replaceSnapshot(store.getState(), loaded), {
+          kind: "success",
+          message: "observer.reconcile refreshed",
+        }),
+      ),
     );
   } catch (error: unknown) {
     addToast(store, safeErrorToToast(toSafeError(error)));

@@ -1,6 +1,6 @@
 import type { WosmEvent } from "@wosm/contracts";
-import { describe, it } from "vitest";
-import { createCommandSnapshot } from "../../test/fixtures/snapshots.js";
+import { describe, expect, it } from "vitest";
+import { createCommandSnapshot, createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../test/support/fakeObserverService.js";
 import { createTuiStore } from "./store.js";
 
@@ -67,6 +67,24 @@ describe("TUI store", () => {
         store.getState().toasts.some((toast) => toast.diagnosticId === "diag_terminal_missing"),
     );
     stop();
+  });
+
+  it("syncs terminal rows into view state and clamps dashboard scroll", () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const store = createTuiStore({
+      service,
+      initialSnapshot: snapshot,
+      initialState: {
+        scrollOffset: 8,
+        terminalRows: 10,
+      },
+    });
+
+    store.getState().setTerminalRows(24);
+
+    expect(store.getState().terminalRows).toBe(24);
+    expect(store.getState().scrollOffset).toBe(0);
   });
 });
 
