@@ -1,9 +1,12 @@
-import { choiceValueByKey, selectDashboardRowChoices } from "../../selectors/selectors.js";
+import { selectDashboardViewport } from "../../selectors/dashboardViewport.js";
+import { choiceValueByKey } from "../../selectors/selectors.js";
 import { buildRemoveWorktreeCommand, cleanupForceRequired } from "../commandBuilders.js";
+import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { isReturnKey } from "../keys.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
+import { scrollDeltaForKey } from "./dashboard.js";
 
 export function handleRemoveWorktreeKey(state: TuiState, key: TuiKey): TuiTransition {
   if (state.screen.name !== "removeWorktree") {
@@ -27,11 +30,21 @@ export function handleRemoveWorktreeKey(state: TuiState, key: TuiKey): TuiTransi
 }
 
 function handleChooseSlotKey(state: TuiState, key: TuiKey): TuiTransition {
+  const scrollDelta = scrollDeltaForKey(key);
+  if (scrollDelta !== 0) {
+    return {
+      state: scrollDashboard(state, scrollDelta),
+    };
+  }
+
   if (state.snapshot === undefined) {
     return { state };
   }
 
-  const row = choiceValueByKey(selectDashboardRowChoices(state.snapshot, state), key.input);
+  const row = choiceValueByKey(
+    selectDashboardViewport(state.snapshot, state).rowChoices,
+    key.input,
+  );
   if (row === undefined) {
     return { state };
   }
@@ -55,7 +68,9 @@ function handleConfirmKey(state: TuiState, key: TuiKey): TuiTransition {
     return { state };
   }
 
-  if (key.input === "N" || key.escape === true || isReturnKey(key)) {
+  const input = key.input.toLowerCase();
+
+  if (input === "n" || key.escape === true || isReturnKey(key)) {
     return {
       state: {
         ...state,
@@ -64,7 +79,7 @@ function handleConfirmKey(state: TuiState, key: TuiKey): TuiTransition {
     };
   }
 
-  if (key.input !== "Y") {
+  if (input !== "y") {
     return { state };
   }
 

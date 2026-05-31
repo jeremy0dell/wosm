@@ -33,6 +33,7 @@ describe("tmux popup launcher", () => {
       "show-options -gqv @wosm_popup_client",
       "set-option -gq @wosm_popup_client client_1",
       "set-option -gq @wosm_popup_focus_client client_1",
+      "set-option -t _wosm-ui-dev mouse on",
       expect.stringContaining(
         `display-popup -c client_1 -w 50% -h 50% -E env -u TMUX '${fixture.tmuxPath}' attach-session -t '_wosm-ui-dev'`,
       ),
@@ -87,6 +88,7 @@ describe("tmux popup launcher", () => {
       "show-options -gqv @wosm_popup_client",
       "set-option -gq @wosm_popup_client client_1",
       "set-option -gq @wosm_popup_focus_client client_1",
+      "set-option -t _wosm-ui mouse on",
       expect.stringContaining(
         `display-popup -c client_1 -w 50% -h 50% -E env -u TMUX '${fixture.tmuxPath}' attach-session -t '_wosm-ui'`,
       ),

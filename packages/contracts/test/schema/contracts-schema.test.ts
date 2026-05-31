@@ -1,8 +1,13 @@
 import { readFile } from "node:fs/promises";
 import {
   CommandRecordSchema,
+  createClientFeatureFlagsSchema,
+  createEvaluatedFeatureFlagsSchema,
+  createFeatureFlagConfigSchema,
   ErrorEnvelopeSchema,
   EventFilterSchema,
+  FeatureFlagConfigSchema,
+  type FeatureFlagDefinitionsMap,
   HarnessCapabilitiesSchema,
   HarnessEventObservationSchema,
   HarnessEventReportReceiptSchema,
@@ -147,6 +152,117 @@ describe("Phase 1 contract schemas", () => {
       },
       "orphan provider data boundary",
     );
+  });
+
+  it("keeps production feature flags empty until a real flag is registered", () => {
+    expect(FeatureFlagConfigSchema.parse({})).toEqual({});
+    expect(FeatureFlagConfigSchema.safeParse({ "test.fake": true }).success).toBe(false);
+
+    expect(
+      WosmSnapshotSchema.parse({
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        generatedAt: "2026-05-20T12:00:00.000Z",
+        observer: {
+          pid: 1234,
+          startedAt: "2026-05-20T11:59:00.000Z",
+          version: "0.0.0",
+          healthy: true,
+        },
+        providerHealth: {},
+        projects: [],
+        rows: [],
+        sessions: [],
+        counts: {
+          projects: 0,
+          worktrees: 0,
+          agents: 0,
+          working: 0,
+          idle: 0,
+          attention: 0,
+          unknown: 0,
+        },
+        alerts: [],
+        featureFlags: {
+          revision: "test",
+          flags: {},
+        },
+      }),
+    ).toMatchObject({
+      featureFlags: {
+        revision: "test",
+        flags: {},
+      },
+    });
+  });
+
+  it("supports test-local feature flag registries without adding fake production flags", () => {
+    const definitions = {
+      "test.clientFlag": {
+        defaultValue: false,
+        exposure: "client",
+        owner: "tui",
+        surfaces: ["tui"],
+        lifecycle: "temporary",
+        summary: "Test-only client flag.",
+      },
+      "test.serverFlag": {
+        defaultValue: true,
+        exposure: "server",
+        owner: "observer",
+        surfaces: ["observer"],
+        lifecycle: "temporary",
+        summary: "Test-only server flag.",
+      },
+    } as const satisfies FeatureFlagDefinitionsMap;
+
+    expect(
+      createFeatureFlagConfigSchema(definitions).parse({
+        "test.clientFlag": true,
+      }),
+    ).toEqual({
+      "test.clientFlag": true,
+    });
+    expect(
+      createFeatureFlagConfigSchema(definitions).safeParse({
+        "test.unknown": true,
+      }).success,
+    ).toBe(false);
+    expect(
+      createEvaluatedFeatureFlagsSchema(definitions).parse({
+        revision: "test",
+        flags: {
+          "test.clientFlag": true,
+          "test.serverFlag": false,
+        },
+      }),
+    ).toMatchObject({
+      flags: {
+        "test.clientFlag": true,
+        "test.serverFlag": false,
+      },
+    });
+    expect(
+      createEvaluatedFeatureFlagsSchema(definitions).safeParse({
+        revision: "test",
+        flags: {
+          "test.clientFlag": true,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      createClientFeatureFlagsSchema(definitions).safeParse({
+        revision: "test",
+        flags: {
+          "test.serverFlag": false,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      createClientFeatureFlagsSchema(definitions).safeParse({
+        revision: "test",
+        flags: {},
+      }).success,
+    ).toBe(false);
   });
 
   it("parses normalized branch metadata and rejects raw provider metadata shapes", () => {

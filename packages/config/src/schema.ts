@@ -1,4 +1,4 @@
-import { HarnessPermissionModeSchema } from "@wosm/contracts";
+import { FeatureFlagConfigSchema, HarnessPermissionModeSchema } from "@wosm/contracts";
 import { z } from "zod";
 
 const nonEmptyStringSchema = z.string().min(1);
@@ -275,6 +275,7 @@ export const ParsedWosmConfigSchema = z
     harness: z.record(providerIdSchema, HarnessProviderConfigSchema).optional(),
     repository: RepositoryProvidersConfigSchema.optional(),
     observability: ObservabilityConfigSchema.optional(),
+    featureFlags: FeatureFlagConfigSchema.optional(),
     projects: z.array(ProjectConfigSchema),
   })
   .strict();
