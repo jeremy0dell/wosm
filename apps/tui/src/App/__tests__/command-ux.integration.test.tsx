@@ -290,7 +290,8 @@ describe("TUI command UX", () => {
     await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees | codex") === true);
     expect(instance.lastFrame()).not.toContain("fix-nav-mobile");
     expect(instance.lastFrame()).not.toContain("collapse project:");
-    expect(instance.lastFrame()).toContain(" [1] ◜ queue-worker");
+    expect(instance.lastFrame()).toContain(" [1] ");
+    expect(instance.lastFrame()).toContain("queue-worker  opencode  working");
 
     instance.stdin.write("5");
     await settle();

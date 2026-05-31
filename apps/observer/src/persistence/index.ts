@@ -239,6 +239,9 @@ export function createObserverPersistence(
 
     listSessions: () => transaction(correlationStore.listSessions),
 
+    renameSession: (input) =>
+      transaction((database) => correlationStore.renameSession(database, input)),
+
     recordRecoveryBreadcrumb: (input) =>
       transaction((database) => {
         const id = idFactory.breadcrumbId();

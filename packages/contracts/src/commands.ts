@@ -161,6 +161,15 @@ export const SendPromptPayloadSchema = z
 
 export type SendPromptPayload = z.infer<typeof SendPromptPayloadSchema>;
 
+export const RenameSessionPayloadSchema = z
+  .object({
+    sessionId: SessionIdSchema,
+    title: nonEmptyStringSchema,
+  })
+  .strict();
+
+export type RenameSessionPayload = z.infer<typeof RenameSessionPayloadSchema>;
+
 export const ObserverReconcilePayloadSchema = z
   .object({
     reason: nonEmptyStringSchema.optional(),
@@ -187,6 +196,7 @@ export const WosmCommandTypeSchema = z.enum([
   "session.close",
   "session.remove",
   "session.sendPrompt",
+  "session.rename",
   "observer.reconcile",
   "hooks.install",
 ]);
@@ -227,6 +237,10 @@ export const SendPromptCommandSchema = z
   .object({ type: z.literal("session.sendPrompt"), payload: SendPromptPayloadSchema })
   .strict();
 
+export const RenameSessionCommandSchema = z
+  .object({ type: z.literal("session.rename"), payload: RenameSessionPayloadSchema })
+  .strict();
+
 export const ObserverReconcileCommandSchema = z
   .object({ type: z.literal("observer.reconcile"), payload: ObserverReconcilePayloadSchema })
   .strict();
@@ -245,6 +259,7 @@ export const WosmCommandSchema = z.discriminatedUnion("type", [
   CloseSessionCommandSchema,
   RemoveSessionCommandSchema,
   SendPromptCommandSchema,
+  RenameSessionCommandSchema,
   ObserverReconcileCommandSchema,
   InstallHooksCommandSchema,
 ]);
