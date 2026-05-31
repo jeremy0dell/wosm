@@ -14,6 +14,8 @@ export type TuiRuntimeState = {
 export type TuiViewState = {
   searchQuery: string;
   collapsedProjectIds: ReadonlySet<string>;
+  scrollOffset: number;
+  terminalRows: number;
 };
 
 export type TuiState = TuiViewState & {
@@ -43,6 +45,8 @@ export type CreateInitialTuiStateOptions = {
   initialSnapshot?: WosmSnapshot;
   searchQuery?: string;
   collapsedProjectIds?: Iterable<string>;
+  scrollOffset?: number;
+  terminalRows?: number;
   runtime?: Partial<TuiRuntimeState>;
 };
 
@@ -54,6 +58,8 @@ export function createInitialTuiState(options: CreateInitialTuiStateOptions = {}
     toasts: [],
     searchQuery: options.searchQuery ?? "",
     collapsedProjectIds: new Set(options.collapsedProjectIds ?? []),
+    scrollOffset: options.scrollOffset ?? 0,
+    terminalRows: options.terminalRows ?? 24,
     runtime,
   };
   if (options.initialSnapshot !== undefined) {

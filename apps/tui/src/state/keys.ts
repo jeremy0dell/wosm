@@ -9,6 +9,7 @@ export type TuiKey = {
   downArrow?: boolean;
   leftArrow?: boolean;
   rightArrow?: boolean;
+  mouseScroll?: "up" | "down";
 };
 
 export type InkKeyInput = {

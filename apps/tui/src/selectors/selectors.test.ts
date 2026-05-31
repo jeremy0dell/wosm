@@ -136,6 +136,8 @@ describe("TUI selectors", () => {
     const searched: TuiViewState = {
       searchQuery: "nav",
       collapsedProjectIds: new Set(),
+      scrollOffset: 0,
+      terminalRows: 24,
     };
     expect(selectVisibleRows(snapshot, searched).map((candidate) => candidate.id)).toEqual([
       "wt_web_idle",
@@ -144,6 +146,8 @@ describe("TUI selectors", () => {
     const collapsed: TuiViewState = {
       searchQuery: "",
       collapsedProjectIds: new Set(["web"]),
+      scrollOffset: 0,
+      terminalRows: 24,
     };
     const groups = selectProjectGroups(snapshot, collapsed);
     expect(groups.find((group) => group.project.id === "web")?.collapsed).toBe(true);

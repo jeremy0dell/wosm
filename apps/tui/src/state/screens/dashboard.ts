@@ -1,18 +1,26 @@
 import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { createNewSessionFlow, createNewSessionNameToken } from "../../flows/newSession.js";
+import { selectDashboardViewport } from "../../selectors/dashboardViewport.js";
 import {
   choiceValueByKey,
   type KeyedChoice,
-  selectDashboardRowChoices,
   selectProjectChoices,
 } from "../../selectors/selectors.js";
 import { safeErrorToToast } from "../../services/errors/errors.js";
 import { buildPrimaryCommandForRow } from "../commandBuilders.js";
+import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 
 export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition {
+  const scrollDelta = scrollDeltaForKey(key);
+  if (scrollDelta !== 0) {
+    return {
+      state: scrollDashboard(state, scrollDelta),
+    };
+  }
+
   if (key.input === "H" || key.input === "?") {
     return {
       state: {
@@ -77,7 +85,10 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
     return { state };
   }
 
-  const row = choiceValueByKey(selectDashboardRowChoices(state.snapshot, state), key.input);
+  const row = choiceValueByKey(
+    selectDashboardViewport(state.snapshot, state).rowChoices,
+    key.input,
+  );
   if (row === undefined) {
     return { state };
   }
@@ -92,6 +103,16 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
       ),
     ],
   };
+}
+
+export function scrollDeltaForKey(key: TuiKey): -1 | 0 | 1 {
+  if (key.upArrow === true || key.mouseScroll === "up") {
+    return -1;
+  }
+  if (key.downArrow === true || key.mouseScroll === "down") {
+    return 1;
+  }
+  return 0;
 }
 
 function openNewSession(state: TuiState): TuiTransition {
