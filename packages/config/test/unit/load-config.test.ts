@@ -217,6 +217,58 @@ ${projectToml("web", root)}
     });
   });
 
+  it("normalizes an empty feature flag table without adding production flags", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[feature_flags]
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.featureFlags).toEqual({});
+  });
+
+  it("rejects unknown feature flag keys", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    await expect(
+      loadConfigFromToml(
+        `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[feature_flags]
+"test.fake" = true
+
+${projectToml("web", root)}
+`,
+        { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+      ),
+    ).rejects.toMatchObject({
+      tag: "ConfigError",
+      code: "CONFIG_VALIDATION_FAILED",
+    });
+  });
+
   it("derives project Worktrunk roots from a global managed root", async () => {
     const tempDir = await makeTempDir();
     const webRoot = await makeProjectRoot(tempDir, "web");

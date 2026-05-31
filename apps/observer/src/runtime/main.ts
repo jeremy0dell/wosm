@@ -7,6 +7,7 @@ import { componentLogPath } from "@wosm/observability";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { createCommandQueue } from "../commands/queue.js";
 import { registerObserverCommandHandlers } from "../commands/router.js";
+import { createFeatureFlagEvaluator } from "../features/evaluator.js";
 import { hookSpoolDir } from "../hooks/spool.js";
 import { createObserverPersistence } from "../persistence/index.js";
 import {
@@ -62,6 +63,10 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     providerOptions.configPath = loadedConfig.configPath;
   }
   const providers = createProviderRegistry(config, providerOptions);
+  const featureFlags = createFeatureFlagEvaluator({
+    ...(config.featureFlags === undefined ? {} : { overrides: config.featureFlags }),
+    revisionSeed: loadedConfig.configPath,
+  });
   const core = createObserverCore({
     config,
     providers,
@@ -69,6 +74,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     sqlite,
     clock: systemClock,
     logger,
+    featureFlags,
   });
   registerObserverCommandHandlers({
     queue: commandQueue,
