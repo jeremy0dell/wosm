@@ -536,6 +536,52 @@ describe("tmux popup", () => {
     ).resolves.toEqual({ opened: true });
   });
 
+  it("treats a user-dismissed popup as opened and clears recorded popup state", async () => {
+    const calls: ExternalCommandInput[] = [];
+
+    await expect(
+      openTmuxPopup({
+        env: {
+          TMUX: "/tmp/tmux-501/default,123,0",
+        },
+        runner: async (input) => {
+          calls.push(input);
+          if (input.args?.[0] === "display-message") {
+            return tmuxCommandResult(input, "client_1\n");
+          }
+          if (
+            input.args?.[0] === "show-options" &&
+            input.args.includes("@wosm_popup_ui_signature")
+          ) {
+            return tmuxCommandResult(input, `${defaultPersistentSignature}\n`);
+          }
+          if (input.args?.[0] === "display-popup") {
+            throw Object.assign(new Error("popup dismissed"), {
+              exitCode: 129,
+              stderr: "",
+              stdout: "",
+            });
+          }
+          return tmuxCommandResult(input);
+        },
+      }),
+    ).resolves.toEqual({ opened: true });
+
+    expect(calls.map((call) => call.args)).toEqual([
+      ["display-message", "-p", "#{client_name}"],
+      ["show-options", "-gqv", "@wosm_popup_client"],
+      ["set-option", "-gq", "@wosm_popup_client", "client_1"],
+      ["set-option", "-gq", "@wosm_popup_focus_client", "client_1"],
+      ["has-session", "-t", "_wosm-ui"],
+      ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
+      persistentPopupMouseCall("_wosm-ui"),
+      ...fastPopupRegistrationCalls("_wosm-ui", "wosm tui --popup --persistent"),
+      expect.arrayContaining(["display-popup", "-c", "client_1"]),
+      ["set-option", "-gq", "-u", "@wosm_popup_client"],
+      ["set-option", "-gq", "-u", "@wosm_popup_focus_client"],
+    ]);
+  });
+
   it("reports popup failures with the provider-specific message", async () => {
     await expect(
       openTmuxPopup({
