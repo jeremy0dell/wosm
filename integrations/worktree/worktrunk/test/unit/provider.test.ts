@@ -281,12 +281,12 @@ describe("WorktrunkProvider", () => {
     });
 
     const created = await provider.createWorktree({ project, branch: "feature" });
-    const removed = await provider.removeWorktree({ worktreeId: created.id });
+    const removed = await provider.removeWorktree({ worktreeId: created.id, force: true });
 
     expect(removed).toEqual({ worktreeId: "wt_web_feature", removed: true });
     expect(calls.map((call) => call.args)).toEqual([
       ["switch", "--create", "feature", "--base", "main", "--no-cd", "--format=json"],
-      ["remove", "feature", "--foreground", "--format=json"],
+      ["remove", "feature", "--force", "--force-delete", "--foreground", "--format=json"],
     ]);
   });
 

@@ -92,6 +92,7 @@ export async function removeRealWorktrunkWorktree(input: {
       "remove",
       input.branch,
       "--force",
+      "--force-delete",
       "--foreground",
       "--format=json",
     ],
