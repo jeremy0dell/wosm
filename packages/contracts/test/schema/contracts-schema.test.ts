@@ -242,11 +242,25 @@ describe("Phase 1 contract schemas", () => {
       },
     });
     expect(
+      createEvaluatedFeatureFlagsSchema(definitions).safeParse({
+        revision: "test",
+        flags: {
+          "test.clientFlag": true,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
       createClientFeatureFlagsSchema(definitions).safeParse({
         revision: "test",
         flags: {
           "test.serverFlag": false,
         },
+      }).success,
+    ).toBe(false);
+    expect(
+      createClientFeatureFlagsSchema(definitions).safeParse({
+        revision: "test",
+        flags: {},
       }).success,
     ).toBe(false);
   });
