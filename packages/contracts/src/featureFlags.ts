@@ -126,7 +126,7 @@ export function createEvaluatedFeatureFlagsSchema(
   return z
     .object({
       revision: nonEmptyStringSchema,
-      flags: flagRecordSchema(definitions, "evaluated feature flag"),
+      flags: flagRecordSchema(definitions, "evaluated feature flag", { requireAll: true }),
     })
     .strict();
 }
@@ -134,10 +134,11 @@ export function createEvaluatedFeatureFlagsSchema(
 export function createClientFeatureFlagsSchema(
   definitions: FeatureFlagDefinitionsMap,
 ): z.ZodType<{ revision: string; flags: Record<string, boolean> }> {
+  const clientDefinitions = clientFeatureFlagDefinitions(definitions);
   return z
     .object({
       revision: nonEmptyStringSchema,
-      flags: flagRecordSchema(clientFeatureFlagDefinitions(definitions), "client feature flag"),
+      flags: flagRecordSchema(clientDefinitions, "client feature flag", { requireAll: true }),
     })
     .strict();
 }
@@ -189,6 +190,7 @@ function clientFeatureFlagDefinitions(
 function flagRecordSchema(
   definitions: FeatureFlagDefinitionsMap,
   label: string,
+  options: { requireAll?: boolean } = {},
 ): z.ZodType<Record<string, boolean>> {
   const allowedKeys = new Set(Object.keys(definitions));
   return z.record(nonEmptyStringSchema, z.boolean()).superRefine((value, context) => {
@@ -199,6 +201,17 @@ function flagRecordSchema(
           path: [key],
           message: `Unknown ${label} "${key}".`,
         });
+      }
+    }
+    if (options.requireAll === true) {
+      for (const key of allowedKeys) {
+        if (!(key in value)) {
+          context.addIssue({
+            code: "custom",
+            path: [key],
+            message: `Missing ${label} "${key}".`,
+          });
+        }
       }
     }
   });
