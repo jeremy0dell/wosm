@@ -9,6 +9,7 @@ export const wosmAliases = {
     new URL("../../apps/observer/src/internal.ts", import.meta.url),
   ),
   "@wosm/observer": fileURLToPath(new URL("../../apps/observer/src/index.ts", import.meta.url)),
+  "@wosm/tui/dev": fileURLToPath(new URL("../../apps/tui/src/dev/index.ts", import.meta.url)),
   "@wosm/tui": fileURLToPath(new URL("../../apps/tui/src/index.ts", import.meta.url)),
   "@wosm/config": fileURLToPath(new URL("../../packages/config/src/index.ts", import.meta.url)),
   "@wosm/contracts": fileURLToPath(

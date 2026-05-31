@@ -2,13 +2,8 @@ import type { WosmConfig } from "@wosm/config";
 import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { createObserverClient } from "@wosm/protocol";
 import { dismissTmuxPopup, resolveTmuxPopupFocusOrigin } from "@wosm/tmux";
-import {
-  createFakeDashboardSnapshot,
-  createFakeTuiObserverService,
-  type RunTuiOptions,
-  runTui,
-  type TuiRunResult,
-} from "@wosm/tui";
+import { type RunTuiOptions, runTui, type TuiRunResult } from "@wosm/tui";
+import { createFakeDashboardSnapshot, createFakeTuiObserverService } from "@wosm/tui/dev";
 import { parsePositiveIntegerOption } from "../args.js";
 import {
   type ObserverProcessDeps,
