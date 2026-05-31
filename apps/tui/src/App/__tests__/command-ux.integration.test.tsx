@@ -6,6 +6,7 @@ import {
 } from "../../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
 import { App } from "../../App/App.js";
+import { createFakeDashboardSnapshot } from "../../dev/fakeDashboard.js";
 
 describe("TUI command UX", () => {
   it("dispatches terminal.focus from numeric slot mappings", async () => {
@@ -21,6 +22,25 @@ describe("TUI command UX", () => {
       payload: { targetId: "term_wt_web_idle_agent" },
     });
     expect(instance.lastFrame()).toContain("1-9/a-z:start/focus");
+    instance.unmount();
+  });
+
+  it("retargets visible slots after dashboard scrolling", async () => {
+    const snapshot = createFakeDashboardSnapshot({ projectCount: 1, worktreesPerProject: 30 });
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("\u001B[B");
+    instance.stdin.write("\u001B[B");
+    instance.stdin.write("\u001B[B");
+    await settle();
+    instance.stdin.write("1");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toEqual({
+      type: "terminal.focus",
+      payload: { targetId: "term_wt_fake_1_10_agent" },
+    });
     instance.unmount();
   });
 

@@ -34,6 +34,7 @@ export function handleSearchKey(state: TuiState, key: TuiKey): TuiTransition {
       state: {
         ...state,
         searchQuery: state.screen.value,
+        scrollOffset: 0,
         screen: { name: "dashboard" },
       },
     };
