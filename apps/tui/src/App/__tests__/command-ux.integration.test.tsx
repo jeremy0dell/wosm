@@ -262,7 +262,7 @@ describe("TUI command UX", () => {
       () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? Y/N") === true,
     );
 
-    instance.stdin.write("Y");
+    instance.stdin.write("y");
 
     await waitFor(() => service.dispatched.length === 1);
     expect(service.dispatched[0]).toEqual({

@@ -58,7 +58,7 @@ describe("TUI screen transitions", () => {
     });
   });
 
-  it("confirms remove worktree with Y and returns a worktree.remove command", () => {
+  it("confirms remove worktree with y and returns a worktree.remove command", () => {
     const state = handleTuiKey(
       handleTuiKey(createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }), {
         input: "X",
@@ -66,7 +66,7 @@ describe("TUI screen transitions", () => {
       { input: "5" },
     ).state;
 
-    const transition = handleTuiKey(state, { input: "Y" });
+    const transition = handleTuiKey(state, { input: "y" });
 
     expect(transition.state.screen).toEqual({ name: "dashboard" });
     expect(transition.commands).toEqual([
@@ -106,6 +106,7 @@ describe("TUI screen transitions", () => {
   });
 
   it.each([
+    { input: "n" },
     { input: "N" },
     { input: "", escape: true },
     { input: "\r", return: true },

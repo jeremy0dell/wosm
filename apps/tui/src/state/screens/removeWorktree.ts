@@ -68,7 +68,9 @@ function handleConfirmKey(state: TuiState, key: TuiKey): TuiTransition {
     return { state };
   }
 
-  if (key.input === "N" || key.escape === true || isReturnKey(key)) {
+  const input = key.input.toLowerCase();
+
+  if (input === "n" || key.escape === true || isReturnKey(key)) {
     return {
       state: {
         ...state,
@@ -77,7 +79,7 @@ function handleConfirmKey(state: TuiState, key: TuiKey): TuiTransition {
     };
   }
 
-  if (key.input !== "Y") {
+  if (input !== "y") {
     return { state };
   }
 
