@@ -346,6 +346,7 @@ function commandScope(command: WosmCommand): string {
     case "session.close":
     case "session.remove":
     case "session.sendPrompt":
+    case "session.rename":
       return `session:${command.payload.sessionId}`;
     case "worktree.remove":
     case "session.startAgent":

@@ -153,6 +153,8 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     metadataInput.persistence = input.persistence;
   }
   const worktreesForSnapshot = await worktreesWithCachedMetadata(metadataInput);
+  const sessionMetadata =
+    input.persistence === undefined ? [] : await input.persistence.listSessions();
   const lastReconcile: ReconcileTiming = {
     reason: input.reason,
     startedAt: started,
@@ -176,6 +178,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     worktrees: worktreesForSnapshot,
     terminalTargets: terminalResult.terminalTargets,
     harnessRuns,
+    sessionMetadata,
   });
 
   lastReconcile.eventsEmitted = await persistReconcileResult({

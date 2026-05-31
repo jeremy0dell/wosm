@@ -200,6 +200,7 @@ export type PersistedSession = {
   id: string;
   projectId: string;
   worktreeId: string;
+  title?: string;
   harness?: string;
   terminalProvider?: string;
   state?: string;
@@ -308,6 +309,7 @@ export type ObserverPersistence = {
   listTerminalTargets(): Promise<PersistedTerminalTarget[]>;
   listHarnessRuns(): Promise<PersistedHarnessRun[]>;
   listSessions(): Promise<PersistedSession[]>;
+  renameSession(input: { sessionId: string; title: string }): Promise<PersistedSession | undefined>;
   recordRecoveryBreadcrumb(input: {
     projectId: string;
     location: string;

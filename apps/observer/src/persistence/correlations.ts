@@ -109,7 +109,7 @@ export function persistReconcileResult(
       });
     }
   }
-  upsertSessions(database, input.terminalTargets, input.harnessRuns);
+  upsertSessions(database, input.terminalTargets, input.harnessRuns, input.worktrees);
 }
 
 function expiresAtFor(input: PersistReconcileResultInput, observedAt: string): string | undefined {
@@ -149,6 +149,17 @@ export function listSessions(database: DatabaseSync): PersistedSession[] {
   return (database.prepare("SELECT * FROM sessions ORDER BY id").all() as SqliteSessionRow[]).map(
     sessionFromRow,
   );
+}
+
+export function renameSession(
+  database: DatabaseSync,
+  input: { sessionId: string; title: string },
+): PersistedSession | undefined {
+  database.prepare("UPDATE sessions SET title = ? WHERE id = ?").run(input.title, input.sessionId);
+  const row = database.prepare("SELECT * FROM sessions WHERE id = ?").get(input.sessionId) as
+    | SqliteSessionRow
+    | undefined;
+  return row === undefined ? undefined : sessionFromRow(row);
 }
 
 function upsertProject(
@@ -286,9 +297,11 @@ function upsertSessions(
   database: DatabaseSync,
   terminalTargets: TerminalTargetObservation[],
   harnessRuns: HarnessRunObservation[],
+  worktrees: WorktreeObservation[],
 ): void {
   // Sessions are reconstructed from two partial truths: terminal bindings identify
   // the workspace, while harness runs supply agent state.
+  const worktreesById = new Map(worktrees.map((worktree) => [worktree.id, worktree]));
   const sessions = new Map<string, PersistedSession>();
 
   for (const target of terminalTargets) {
@@ -299,7 +312,7 @@ function upsertSessions(
     ) {
       continue;
     }
-    sessions.set(target.sessionId, {
+    const session: PersistedSession = {
       id: target.sessionId,
       projectId: target.projectId,
       worktreeId: target.worktreeId,
@@ -307,7 +320,12 @@ function upsertSessions(
       state: target.state,
       createdAt: target.observedAt,
       lastSeenAt: target.observedAt,
-    });
+    };
+    const title = sessionTitleForWorktree(worktreesById, target.worktreeId);
+    if (title !== undefined) {
+      session.title = title;
+    }
+    sessions.set(target.sessionId, session);
   }
 
   for (const run of harnessRuns) {
@@ -319,18 +337,25 @@ function upsertSessions(
       continue;
     }
     const existing = sessions.get(run.sessionId);
-    sessions.set(run.sessionId, {
+    const session: PersistedSession = {
       id: run.sessionId,
       projectId: run.projectId,
       worktreeId: run.worktreeId,
-      ...(existing?.terminalProvider === undefined
-        ? {}
-        : { terminalProvider: existing.terminalProvider }),
       harness: run.provider,
       state: run.state,
       createdAt: existing?.createdAt ?? run.observedAt,
       lastSeenAt: maxIso(existing?.lastSeenAt, run.observedAt),
-    });
+    };
+    const title = sessionTitleForWorktree(worktreesById, run.worktreeId);
+    if (title !== undefined) {
+      session.title = title;
+    } else if (existing?.title !== undefined) {
+      session.title = existing.title;
+    }
+    if (existing?.terminalProvider !== undefined) {
+      session.terminalProvider = existing.terminalProvider;
+    }
+    sessions.set(run.sessionId, session);
   }
 
   for (const session of sessions.values()) {
@@ -338,11 +363,12 @@ function upsertSessions(
       .prepare(
         `
           INSERT INTO sessions
-            (id, project_id, worktree_id, harness, terminal_provider, state, created_at, ended_at, last_seen_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)
+            (id, project_id, worktree_id, title, harness, terminal_provider, state, created_at, ended_at, last_seen_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
           ON CONFLICT(id) DO UPDATE SET
             project_id = excluded.project_id,
             worktree_id = excluded.worktree_id,
+            title = COALESCE(sessions.title, excluded.title),
             harness = COALESCE(excluded.harness, sessions.harness),
             terminal_provider = COALESCE(excluded.terminal_provider, sessions.terminal_provider),
             state = excluded.state,
@@ -353,6 +379,7 @@ function upsertSessions(
         session.id,
         session.projectId,
         session.worktreeId,
+        session.title ?? null,
         session.harness ?? null,
         session.terminalProvider ?? null,
         session.state ?? null,
@@ -360,4 +387,11 @@ function upsertSessions(
         session.lastSeenAt,
       );
   }
+}
+
+function sessionTitleForWorktree(
+  worktreesById: ReadonlyMap<string, WorktreeObservation>,
+  worktreeId: string,
+): string | undefined {
+  return worktreesById.get(worktreeId)?.branch;
 }

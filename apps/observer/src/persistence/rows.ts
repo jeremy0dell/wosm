@@ -122,6 +122,7 @@ export type SqliteSessionRow = {
   id: string;
   project_id: string;
   worktree_id: string;
+  title: string | null;
   harness: string | null;
   terminal_provider: string | null;
   state: string | null;
@@ -275,6 +276,7 @@ export function sessionFromRow(row: SqliteSessionRow): PersistedSession {
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
   };
+  if (row.title !== null) session.title = row.title;
   if (row.harness !== null) session.harness = row.harness;
   if (row.terminal_provider !== null) session.terminalProvider = row.terminal_provider;
   if (row.state !== null) session.state = row.state;

@@ -413,6 +413,7 @@ describe("Phase 1 contract schemas", () => {
       "session.close",
       "session.create",
       "session.remove",
+      "session.rename",
       "session.sendPrompt",
       "session.startAgent",
       "terminal.close",
