@@ -269,6 +269,76 @@ describe("observer persistence", () => {
     sqlite.close();
   });
 
+  it("seeds session titles from branches and preserves custom titles across reconcile persistence", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const initialWorktree = createFakeWorktree({
+      id: "wt_web_feature",
+      projectId: "web",
+      branch: "feature/auth",
+      now,
+    });
+    const terminalTarget = createFakeTerminalTarget({
+      id: "term_web_feature",
+      projectId: "web",
+      worktreeId: "wt_web_feature",
+      sessionId: "ses_web_feature",
+      now,
+    });
+    const harnessRun = createFakeHarnessRun({
+      id: "run_web_feature",
+      projectId: "web",
+      worktreeId: "wt_web_feature",
+      sessionId: "ses_web_feature",
+      now,
+    });
+
+    await persistence.persistReconcileResult({
+      projects: [project],
+      worktrees: [initialWorktree],
+      terminalTargets: [terminalTarget],
+      harnessRuns: [harnessRun],
+      observedAt: now,
+    });
+
+    expect(await persistence.listSessions()).toEqual([
+      expect.objectContaining({
+        id: "ses_web_feature",
+        title: "feature/auth",
+      }),
+    ]);
+
+    await persistence.renameSession({
+      sessionId: "ses_web_feature",
+      title: "Readable feature task",
+    });
+    await persistence.persistReconcileResult({
+      projects: [project],
+      worktrees: [
+        {
+          ...initialWorktree,
+          branch: "feature/provider-renamed",
+          observedAt: later,
+        },
+      ],
+      terminalTargets: [{ ...terminalTarget, observedAt: later }],
+      harnessRuns: [{ ...harnessRun, observedAt: later }],
+      observedAt: later,
+    });
+
+    expect(await persistence.listSessions()).toEqual([
+      expect.objectContaining({
+        id: "ses_web_feature",
+        title: "Readable feature task",
+      }),
+    ]);
+    sqlite.close();
+  });
+
   it("persists correlation records across observer restart", async () => {
     const dbPath = await tempDbPath();
     const sqlite = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(now) } });

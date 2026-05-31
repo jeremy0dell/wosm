@@ -7,6 +7,7 @@ import type {
 import { PiHarnessProvider } from "@wosm/pi";
 import {
   createFakeHarnessRun,
+  createFakeTerminalTarget,
   createFakeWorktree,
   FakeHarnessProvider,
   FakeTerminalProvider,
@@ -483,6 +484,93 @@ describe("session command vertical slice", () => {
       sessionId: "ses_focus",
       state: "idle",
     });
+    fixture.sqlite.close();
+  });
+
+  it("renames a session title without changing worktree identity", async () => {
+    const fixture = createFixture({
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: "wt_web_feature",
+            projectId: "web",
+            branch: "feature",
+            now,
+          }),
+        ],
+      }),
+      terminal: new FakeTerminalProvider({
+        now,
+        targets: [
+          createFakeTerminalTarget({
+            id: "term_web_feature",
+            projectId: "web",
+            worktreeId: "wt_web_feature",
+            sessionId: "ses_web_feature",
+            now,
+          }),
+        ],
+      }),
+      harness: new FakeHarnessProvider({
+        now,
+        runs: [
+          createFakeHarnessRun({
+            id: "run_web_feature",
+            projectId: "web",
+            worktreeId: "wt_web_feature",
+            sessionId: "ses_web_feature",
+            state: "idle",
+            now,
+          }),
+        ],
+      }),
+    });
+    await fixture.core.reconcile("pre-rename");
+    expect(fixture.core.getSnapshot().sessions[0]).toMatchObject({
+      id: "ses_web_feature",
+      title: "feature",
+    });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.rename",
+      payload: {
+        sessionId: "ses_web_feature",
+        title: "Readable feature task",
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(fixture.core.getSnapshot().sessions[0]).toMatchObject({
+      id: "ses_web_feature",
+      title: "Readable feature task",
+    });
+    expect(fixture.core.getSnapshot().rows[0]).toMatchObject({
+      id: "wt_web_feature",
+      branch: "feature",
+    });
+    expect(
+      (await fixture.persistence.listEvents({ commandId: receipt.commandId })).map(
+        (event) => event.type,
+      ),
+    ).toEqual(["command.accepted", "command.started", "session.updated", "command.succeeded"]);
+    expect(await fixture.persistence.listEvents({ type: "session.updated" })).toEqual([
+      expect.objectContaining({
+        event: {
+          type: "session.updated",
+          sessionId: "ses_web_feature",
+          patch: {
+            title: "Readable feature task",
+          },
+        },
+      }),
+    ]);
+
+    await fixture.core.reconcile("post-rename");
+    expect(fixture.core.getSnapshot().sessions[0]?.title).toBe("Readable feature task");
     fixture.sqlite.close();
   });
 
