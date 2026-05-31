@@ -1,6 +1,5 @@
-import { selectProjectSlots } from "../../selectors/selectors.js";
+import { choiceValueByKey, selectProjectChoices } from "../../selectors/selectors.js";
 import type { TuiKey } from "../keys.js";
-import { isDigitSlotKey } from "../keys.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 
@@ -18,11 +17,11 @@ export function handleProjectCollapseKey(state: TuiState, key: TuiKey): TuiTrans
     };
   }
 
-  if (state.snapshot === undefined || !isDigitSlotKey(key)) {
+  if (state.snapshot === undefined) {
     return { state };
   }
 
-  const project = selectProjectSlots(state.snapshot, state).get(key.input);
+  const project = choiceValueByKey(selectProjectChoices(state.snapshot, state), key.input);
   if (project === undefined) {
     return { state };
   }

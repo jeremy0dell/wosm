@@ -20,7 +20,7 @@ describe("TUI command UX", () => {
       type: "terminal.focus",
       payload: { targetId: "term_wt_web_idle_agent" },
     });
-    expect(instance.lastFrame()).toContain("1-9:start/focus");
+    expect(instance.lastFrame()).toContain("1-9/a-z:start/focus");
     instance.unmount();
   });
 
@@ -76,7 +76,7 @@ describe("TUI command UX", () => {
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
-    instance.stdin.write("n");
+    instance.stdin.write("N");
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
@@ -104,7 +104,7 @@ describe("TUI command UX", () => {
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
-    instance.stdin.write("n");
+    instance.stdin.write("N");
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
@@ -136,7 +136,7 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("refreshes the snapshot directly when r is pressed", async () => {
+  it("refreshes the snapshot directly when R is pressed", async () => {
     const staleSnapshot = createCommandSnapshot("none");
     const refreshedSnapshot = createCommandSnapshot("idle");
     const service = new FakeTuiObserverService(staleSnapshot);
@@ -144,7 +144,7 @@ describe("TUI command UX", () => {
 
     expect(instance.lastFrame()).toContain("feature-start");
     service.setSnapshot(refreshedSnapshot);
-    instance.stdin.write("r");
+    instance.stdin.write("R");
 
     await waitFor(
       () =>
@@ -203,7 +203,7 @@ describe("TUI command UX", () => {
     const service = new FakeTuiObserverService(blockedSnapshot);
     const instance = render(<App initialSnapshot={blockedSnapshot} service={service} />);
 
-    instance.stdin.write("n");
+    instance.stdin.write("N");
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
@@ -218,15 +218,15 @@ describe("TUI command UX", () => {
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
-    instance.stdin.write("x");
+    instance.stdin.write("X");
     await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
 
     instance.stdin.write("5");
     await waitFor(
-      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? y/N") === true,
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? Y/N") === true,
     );
 
-    instance.stdin.write("y");
+    instance.stdin.write("Y");
 
     await waitFor(() => service.dispatched.length === 1);
     expect(service.dispatched[0]).toEqual({
@@ -245,17 +245,17 @@ describe("TUI command UX", () => {
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
-    instance.stdin.write("x");
+    instance.stdin.write("X");
     await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
     instance.stdin.write("5");
     await waitFor(
-      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? y/N") === true,
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? Y/N") === true,
     );
 
     instance.stdin.write("\r");
 
     await waitFor(
-      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? y/N") !== true,
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? Y/N") !== true,
     );
     expect(service.dispatched).toHaveLength(0);
     instance.unmount();
@@ -313,13 +313,30 @@ describe("TUI command UX", () => {
     await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
     instance.stdin.write("1");
     await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees | codex") === true);
-    instance.stdin.write("x");
+    instance.stdin.write("X");
     await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
     instance.stdin.write("5");
     await settle();
-    expect(instance.lastFrame()).not.toContain("confirm remove fix-nav-mobile? y/N");
+    expect(instance.lastFrame()).not.toContain("confirm remove fix-nav-mobile? Y/N");
     expect(service.dispatched).toHaveLength(0);
 
+    instance.unmount();
+  });
+
+  it("does not trigger dashboard commands from lowercase aliases", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("n");
+    instance.stdin.write("r");
+    instance.stdin.write("x");
+
+    await settle();
+    expect(instance.lastFrame()).not.toContain("New Session");
+    expect(instance.lastFrame()).not.toContain("remove slot:");
+    expect(service.reconcileReasons).not.toContain("tui-refresh");
+    expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
 });

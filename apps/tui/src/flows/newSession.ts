@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type {
-  ProjectId,
-  ProjectView,
-  ProviderHealth,
-  ProviderId,
-  SafeError,
-  WosmSnapshot,
-} from "@wosm/contracts";
+import type { ProjectId, ProviderId, SafeError, WosmSnapshot } from "@wosm/contracts";
 import { stableName, stableNameHash } from "@wosm/runtime";
 import {
   createEditableTextInputState,
@@ -15,6 +8,15 @@ import {
   editableTextInputIntentForInput,
   transitionEditableTextInput,
 } from "../components/EditableTextInput/editing.js";
+import {
+  choiceValueByKey,
+  isSelectionKey,
+  type SelectionKey,
+  selectNewSessionHarnessChoices,
+  selectNewSessionHarnessOptions,
+  selectNewSessionProject,
+  selectNewSessionProjectChoices,
+} from "../selectors/selectors.js";
 import {
   backWizardStep,
   createStepWizardState,
@@ -44,12 +46,10 @@ export type NewSessionEditNameState = NewSessionBaseState & {
 
 export type NewSessionPickProjectState = NewSessionBaseState & {
   mode: "pickProject";
-  cursor: number;
 };
 
 export type NewSessionPickAgentState = NewSessionBaseState & {
   mode: "pickAgent";
-  cursor: number;
 };
 
 export type NewSessionFlowState =
@@ -64,11 +64,8 @@ export type NewSessionFlowAction =
   | { type: "commitName" }
   | { type: "pickProject" }
   | { type: "pickAgent" }
-  | { type: "moveCursor"; delta: number }
-  | { type: "commitProject"; token: string }
-  | { type: "chooseProject"; index: number; token: string }
-  | { type: "commitAgent" }
-  | { type: "chooseAgent"; index: number }
+  | { type: "chooseProject"; key: SelectionKey; token: string }
+  | { type: "chooseAgent"; key: SelectionKey }
   | { type: "cancel" };
 
 export type NewSessionInputKey = {
@@ -100,19 +97,10 @@ export type NewSessionInputIntent =
       type: "none";
     };
 
-export type NewSessionHarnessOption = {
-  id: ProviderId;
-  label: string;
-  status: ProviderHealth["status"];
-  isDefault: boolean;
-  createBlocked: boolean;
-  health?: ProviderHealth;
-};
-
 export type NewSessionCreateValidation =
   | {
       ok: true;
-      project: ProjectView;
+      project: NonNullable<ReturnType<typeof selectNewSessionProject>>;
       branch: string;
       harnessProvider: ProviderId;
     }
@@ -163,24 +151,17 @@ export function transitionNewSessionFlow(
     case "pickProject":
       return {
         ...enterWizardStep(baseState(state), "pickProject"),
-        cursor: selectedProjectIndex(snapshot, state.selectedProjectId),
       } satisfies NewSessionPickProjectState;
-    case "moveCursor":
-      return moveCurrentCursor(state, snapshot, action.delta);
-    case "commitProject":
-      return state.mode === "pickProject"
-        ? selectProjectAtIndex(state, snapshot, state.cursor, action.token)
-        : state;
     case "chooseProject":
       return state.mode === "pickProject"
-        ? selectProjectAtIndex(state, snapshot, action.index, action.token)
+        ? selectProjectByKey(state, snapshot, action.key, action.token)
         : state;
     case "pickAgent":
-      return openAgentPicker(state, snapshot);
-    case "commitAgent":
-      return state.mode === "pickAgent" ? selectAgentAtIndex(state, snapshot, state.cursor) : state;
+      return {
+        ...enterWizardStep(baseState(state), "pickAgent"),
+      } satisfies NewSessionPickAgentState;
     case "chooseAgent":
-      return state.mode === "pickAgent" ? selectAgentAtIndex(state, snapshot, action.index) : state;
+      return state.mode === "pickAgent" ? selectAgentByKey(state, snapshot, action.key) : state;
   }
 }
 
@@ -197,58 +178,22 @@ export function newSessionIntentForInput(
     case "editName":
       return editNameInputIntent(input);
     case "pickProject":
-      return pickerInputIntent(input, {
-        commit: { type: "commitProject", token: input.token },
-        choose: (index) => ({ type: "chooseProject", index, token: input.token }),
-      });
+      return pickerInputIntent(input, (key) => ({
+        type: "chooseProject",
+        key,
+        token: input.token,
+      }));
     case "pickAgent":
-      return pickerInputIntent(input, {
-        commit: { type: "commitAgent" },
-        choose: (index) => ({ type: "chooseAgent", index }),
-      });
+      return pickerInputIntent(input, (key) => ({ type: "chooseAgent", key }));
   }
 }
 
-export function selectedProject(
-  snapshot: WosmSnapshot,
-  state: NewSessionFlowState,
-): ProjectView | undefined {
-  return (
-    snapshot.projects.find((project) => project.id === state.selectedProjectId) ??
-    snapshot.projects[0]
-  );
+export function selectedProject(snapshot: WosmSnapshot, state: NewSessionFlowState) {
+  return selectNewSessionProject(snapshot, state.selectedProjectId);
 }
 
-export function harnessOptions(
-  snapshot: WosmSnapshot,
-  project: ProjectView,
-): NewSessionHarnessOption[] {
-  const configured = configuredHarnesses(snapshot, project);
-  const labels = new Map(configured.map((harness) => [harness.id, harness.label]));
-  const orderedIds = [project.defaults.harness, ...configured.map((harness) => harness.id)];
-  const seen = new Set<string>();
-  const options: NewSessionHarnessOption[] = [];
-
-  for (const id of orderedIds) {
-    if (seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    const health = snapshot.providerHealth[id];
-    const option: NewSessionHarnessOption = {
-      id,
-      label: labels.get(id) ?? id,
-      status: health?.status ?? "unknown",
-      isDefault: id === project.defaults.harness,
-      createBlocked: health?.status === "unavailable",
-    };
-    if (health !== undefined) {
-      option.health = health;
-    }
-    options.push(option);
-  }
-
-  return options;
+export function harnessOptions(...args: Parameters<typeof selectNewSessionHarnessOptions>) {
+  return selectNewSessionHarnessOptions(...args);
 }
 
 export function validateNewSessionCreate(
@@ -283,7 +228,7 @@ export function validateNewSessionCreate(
     };
   }
 
-  const harness = harnessOptions(snapshot, project).find(
+  const harness = selectNewSessionHarnessOptions(snapshot, project).find(
     (option) => option.id === state.selectedHarness,
   );
   if (harness?.status === "unavailable") {
@@ -321,21 +266,6 @@ export function createNewSessionNameToken(unique = randomUUID()): string {
   return stableNameHash(["new-session", unique], 6);
 }
 
-function configuredHarnesses(snapshot: WosmSnapshot, project: ProjectView) {
-  if (snapshot.harnesses !== undefined) {
-    return snapshot.harnesses;
-  }
-
-  const healthHarnesses = Object.values(snapshot.providerHealth)
-    .filter((health) => health.providerType === "harness")
-    .map((health) => ({
-      id: health.providerId,
-      label: health.providerId,
-    }));
-
-  return [{ id: project.defaults.harness, label: project.defaults.harness }, ...healthHarnesses];
-}
-
 function reviewInputIntent(input: NewSessionInput): NewSessionInputIntent {
   if (isReturn(input)) {
     return { type: "submit" };
@@ -344,11 +274,8 @@ function reviewInputIntent(input: NewSessionInput): NewSessionInputIntent {
 }
 
 const reviewKeyIntents: Record<string, NewSessionInputIntent> = {
-  e: transitionIntent({ type: "editName" }),
   E: transitionIntent({ type: "editName" }),
-  p: transitionIntent({ type: "pickProject" }),
   P: transitionIntent({ type: "pickProject" }),
-  a: transitionIntent({ type: "pickAgent" }),
   A: transitionIntent({ type: "pickAgent" }),
 };
 
@@ -364,24 +291,9 @@ function editNameInputIntent(input: NewSessionInput): NewSessionInputIntent {
 
 function pickerInputIntent(
   input: NewSessionInput,
-  actions: {
-    commit: NewSessionFlowAction;
-    choose(index: number): NewSessionFlowAction;
-  },
+  choose: (key: SelectionKey) => NewSessionFlowAction,
 ): NewSessionInputIntent {
-  if (input.key.downArrow === true || input.input === "j") {
-    return transitionIntent({ type: "moveCursor", delta: 1 });
-  }
-  if (input.key.upArrow === true || input.input === "k") {
-    return transitionIntent({ type: "moveCursor", delta: -1 });
-  }
-  if (isReturn(input)) {
-    return transitionIntent(actions.commit);
-  }
-  const directIndex = /^[1-9]$/.test(input.input) ? Number(input.input) - 1 : undefined;
-  return directIndex === undefined
-    ? { type: "none" }
-    : transitionIntent(actions.choose(directIndex));
+  return isSelectionKey(input.input) ? transitionIntent(choose(input.input)) : { type: "none" };
 }
 
 function transitionIntent(action: NewSessionFlowAction): NewSessionInputIntent {
@@ -393,18 +305,6 @@ function transitionIntent(action: NewSessionFlowAction): NewSessionInputIntent {
 
 function isReturn(input: NewSessionInput): boolean {
   return input.key.return === true || input.input === "\r" || input.input === "\n";
-}
-
-function openAgentPicker(
-  state: NewSessionFlowState,
-  snapshot: WosmSnapshot,
-): NewSessionPickAgentState {
-  const project = selectedProject(snapshot, state);
-  const options = project === undefined ? [] : harnessOptions(snapshot, project);
-  return {
-    ...enterWizardStep(baseState(state), "pickAgent"),
-    cursor: selectedHarnessIndex(options, state.selectedHarness),
-  } satisfies NewSessionPickAgentState;
 }
 
 function commitEditedName(state: NewSessionEditNameState): NewSessionReviewState {
@@ -421,13 +321,13 @@ function commitEditedName(state: NewSessionEditNameState): NewSessionReviewState
   };
 }
 
-function selectProjectAtIndex(
+function selectProjectByKey(
   state: NewSessionPickProjectState,
   snapshot: WosmSnapshot,
-  index: number,
+  key: SelectionKey,
   token: string,
 ): NewSessionPickProjectState | NewSessionReviewState {
-  const project = snapshot.projects[index];
+  const project = choiceValueByKey(selectNewSessionProjectChoices(snapshot), key);
   if (project === undefined) {
     return state;
   }
@@ -441,36 +341,16 @@ function selectProjectAtIndex(
   };
 }
 
-function moveCurrentCursor(
-  state: NewSessionFlowState,
-  snapshot: WosmSnapshot,
-  delta: number,
-): NewSessionFlowState {
-  if (state.mode === "pickProject") {
-    return {
-      ...state,
-      cursor: moveCursor(state.cursor, snapshot.projects.length, delta),
-    };
-  }
-  if (state.mode !== "pickAgent") {
-    return state;
-  }
-  const project = selectedProject(snapshot, state);
-  const options = project === undefined ? [] : harnessOptions(snapshot, project);
-  return {
-    ...state,
-    cursor: moveCursor(state.cursor, options.length, delta),
-  };
-}
-
-function selectAgentAtIndex(
+function selectAgentByKey(
   state: NewSessionPickAgentState,
   snapshot: WosmSnapshot,
-  index: number,
+  key: SelectionKey,
 ): NewSessionPickAgentState | NewSessionReviewState {
   const project = selectedProject(snapshot, state);
-  const options = project === undefined ? [] : harnessOptions(snapshot, project);
-  const option = options[index];
+  const option =
+    project === undefined
+      ? undefined
+      : choiceValueByKey(selectNewSessionHarnessChoices(snapshot, project), key);
   if (option === undefined) {
     return state;
   }
@@ -481,26 +361,6 @@ function selectAgentAtIndex(
     branch: state.branch,
     nameSource: state.nameSource,
   };
-}
-
-function selectedProjectIndex(snapshot: WosmSnapshot, selectedProjectId: ProjectId): number {
-  const index = snapshot.projects.findIndex((project) => project.id === selectedProjectId);
-  return index === -1 ? 0 : index;
-}
-
-function selectedHarnessIndex(
-  options: readonly NewSessionHarnessOption[],
-  selectedHarness: ProviderId,
-): number {
-  const index = options.findIndex((option) => option.id === selectedHarness);
-  return index === -1 ? 0 : index;
-}
-
-function moveCursor(cursor: number, count: number, delta: number): number {
-  if (count <= 0) {
-    return 0;
-  }
-  return (cursor + delta + count) % count;
 }
 
 function cancelNewSessionStep(state: NewSessionFlowState): NewSessionReviewState | undefined {

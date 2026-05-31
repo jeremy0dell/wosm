@@ -9,7 +9,7 @@ import { handleTuiKey } from "./transition.js";
 describe("TUI screen transitions", () => {
   it("opens remove worktree slot selection from the dashboard", () => {
     const state = createInitialTuiState({ initialSnapshot: createDashboardSnapshot() });
-    const transition = handleTuiKey(state, { input: "x" });
+    const transition = handleTuiKey(state, { input: "X" });
 
     expect(transition.state.screen).toEqual({ name: "removeWorktree", step: "chooseSlot" });
   });
@@ -17,7 +17,7 @@ describe("TUI screen transitions", () => {
   it("opens remove confirmation for the selected visible row slot", () => {
     const opened = handleTuiKey(
       createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }),
-      { input: "x" },
+      { input: "X" },
     );
     const transition = handleTuiKey(opened.state, { input: "5" });
 
@@ -26,19 +26,19 @@ describe("TUI screen transitions", () => {
       step: "confirm",
       rowId: "wt_web_idle",
       forceRequired: true,
-      label: "remove fix-nav-mobile? y/N",
+      label: "remove fix-nav-mobile? Y/N",
     });
   });
 
-  it("confirms remove worktree with y and returns a worktree.remove command", () => {
+  it("confirms remove worktree with Y and returns a worktree.remove command", () => {
     const state = handleTuiKey(
       handleTuiKey(createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }), {
-        input: "x",
+        input: "X",
       }).state,
       { input: "5" },
     ).state;
 
-    const transition = handleTuiKey(state, { input: "y" });
+    const transition = handleTuiKey(state, { input: "Y" });
 
     expect(transition.state.screen).toEqual({ name: "dashboard" });
     expect(transition.commands).toEqual([
@@ -54,13 +54,13 @@ describe("TUI screen transitions", () => {
   });
 
   it.each([
-    { input: "n" },
+    { input: "N" },
     { input: "", escape: true },
     { input: "\r", return: true },
   ])("cancels remove confirmation without a command", (key) => {
     const state = handleTuiKey(
       handleTuiKey(createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }), {
-        input: "x",
+        input: "X",
       }).state,
       { input: "5" },
     ).state;
@@ -74,7 +74,7 @@ describe("TUI screen transitions", () => {
   it("opens new session from the dashboard and submits a session.create command", () => {
     const opened = handleTuiKey(
       createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }),
-      { input: "n" },
+      { input: "N" },
     );
     expect(opened.state.screen.name).toBe("newSession");
 
@@ -105,7 +105,7 @@ describe("TUI screen transitions", () => {
     };
 
     const transition = handleTuiKey(createInitialTuiState({ initialSnapshot: snapshot }), {
-      input: "n",
+      input: "N",
     });
 
     expect(transition.state.screen).toEqual({ name: "dashboard" });

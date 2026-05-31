@@ -1,7 +1,7 @@
-import { selectKeySlots } from "../../selectors/selectors.js";
+import { choiceValueByKey, selectDashboardRowChoices } from "../../selectors/selectors.js";
 import { buildRemoveWorktreeCommand, cleanupForceRequired } from "../commandBuilders.js";
 import type { TuiKey } from "../keys.js";
-import { isDigitSlotKey, isReturnKey } from "../keys.js";
+import { isReturnKey } from "../keys.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 
@@ -27,11 +27,11 @@ export function handleRemoveWorktreeKey(state: TuiState, key: TuiKey): TuiTransi
 }
 
 function handleChooseSlotKey(state: TuiState, key: TuiKey): TuiTransition {
-  if (state.snapshot === undefined || !isDigitSlotKey(key)) {
+  if (state.snapshot === undefined) {
     return { state };
   }
 
-  const row = selectKeySlots(state.snapshot, state).get(key.input);
+  const row = choiceValueByKey(selectDashboardRowChoices(state.snapshot, state), key.input);
   if (row === undefined) {
     return { state };
   }
@@ -44,7 +44,7 @@ function handleChooseSlotKey(state: TuiState, key: TuiKey): TuiTransition {
         step: "confirm",
         rowId: row.id,
         forceRequired: cleanupForceRequired(row, "remove-worktree"),
-        label: `remove ${row.branch}? y/N`,
+        label: `remove ${row.branch}? Y/N`,
       },
     },
   };
@@ -55,7 +55,7 @@ function handleConfirmKey(state: TuiState, key: TuiKey): TuiTransition {
     return { state };
   }
 
-  if (key.input === "n" || key.input === "N" || isReturnKey(key)) {
+  if (key.input === "N" || key.escape === true || isReturnKey(key)) {
     return {
       state: {
         ...state,
@@ -64,7 +64,7 @@ function handleConfirmKey(state: TuiState, key: TuiKey): TuiTransition {
     };
   }
 
-  if (key.input !== "y" && key.input !== "Y") {
+  if (key.input !== "Y") {
     return { state };
   }
 

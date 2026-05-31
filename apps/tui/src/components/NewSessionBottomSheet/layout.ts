@@ -1,6 +1,7 @@
 import type { NewSessionFlowState } from "../../flows/newSession.js";
+import { SELECTION_KEYS } from "../../selectors/selectors.js";
 
-export const MAX_PICKER_OPTIONS = 8;
+export const MAX_PICKER_OPTIONS = SELECTION_KEYS.length;
 
 export type NewSessionBottomSheetLayoutInput = {
   columns: number;

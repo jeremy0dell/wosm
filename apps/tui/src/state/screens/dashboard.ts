@@ -1,10 +1,14 @@
 import type { TerminalFocusOrigin } from "@wosm/contracts";
 import { createNewSessionFlow, createNewSessionNameToken } from "../../flows/newSession.js";
-import { selectKeySlots, selectProjectSlots } from "../../selectors/selectors.js";
+import {
+  choiceValueByKey,
+  type KeyedChoice,
+  selectDashboardRowChoices,
+  selectProjectChoices,
+} from "../../selectors/selectors.js";
 import { safeErrorToToast } from "../../services/errors/errors.js";
 import { buildPrimaryCommandForRow } from "../commandBuilders.js";
 import type { TuiKey } from "../keys.js";
-import { isDigitSlotKey } from "../keys.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 
@@ -21,7 +25,7 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
   if (
     state.runtime.persistentPopup &&
     state.runtime.canDismissPopup &&
-    (key.input === "q" || key.input === "Q" || key.escape === true)
+    (key.input === "Q" || key.escape === true)
   ) {
     return {
       state,
@@ -29,7 +33,7 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
     };
   }
 
-  if (key.input === "q" || key.input === "Q") {
+  if (key.input === "Q") {
     return {
       state,
       exitCode: 0,
@@ -45,14 +49,14 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
     };
   }
 
-  if (key.input === "r" || key.input === "R") {
+  if (key.input === "R") {
     return {
       state,
       reconcileReason: "tui-refresh",
     };
   }
 
-  if (key.input === "x" || key.input === "X") {
+  if (key.input === "X") {
     return {
       state: {
         ...state,
@@ -61,7 +65,7 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
     };
   }
 
-  if (key.input === "n" || key.input === "N") {
+  if (key.input === "N") {
     return openNewSession(state);
   }
 
@@ -69,11 +73,11 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
     return openProjectCollapse(state);
   }
 
-  if (state.snapshot === undefined || !isDigitSlotKey(key)) {
+  if (state.snapshot === undefined) {
     return { state };
   }
 
-  const row = selectKeySlots(state.snapshot, state).get(key.input);
+  const row = choiceValueByKey(selectDashboardRowChoices(state.snapshot, state), key.input);
   if (row === undefined) {
     return { state };
   }
@@ -130,14 +134,14 @@ function openProjectCollapse(state: TuiState): TuiTransition {
       ...state,
       screen: {
         name: "projectCollapse",
-        value: formatProjectSlotPrompt(selectProjectSlots(state.snapshot, state)),
+        value: formatProjectChoicePrompt(selectProjectChoices(state.snapshot, state)),
       },
     },
   };
 }
 
-function formatProjectSlotPrompt(slots: ReadonlyMap<string, { label: string }>): string {
-  return [...slots.entries()].map(([slot, project]) => `${slot}:${project.label}`).join(" ");
+function formatProjectChoicePrompt(choices: ReadonlyArray<KeyedChoice<{ label: string }>>): string {
+  return choices.map((choice) => `${choice.key}:${choice.value.label}`).join(" ");
 }
 
 function focusCommandOptions(focusOrigin: TerminalFocusOrigin | undefined): {

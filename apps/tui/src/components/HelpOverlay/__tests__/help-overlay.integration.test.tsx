@@ -71,9 +71,10 @@ describe("TUI help overlay", () => {
     await waitFor(() => instance.lastFrame()?.includes("wosm help") === true);
 
     instance.stdin.write("5");
-    instance.stdin.write("n");
+    instance.stdin.write("N");
+    instance.stdin.write("X");
     instance.stdin.write("/");
-    instance.stdin.write("r");
+    instance.stdin.write("R");
 
     await settle();
     expect(instance.lastFrame()).toContain("wosm help");

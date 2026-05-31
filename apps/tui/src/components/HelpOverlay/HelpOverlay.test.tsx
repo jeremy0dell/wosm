@@ -28,7 +28,9 @@ describe("HelpOverlay", () => {
     expect(lines.every((line) => line.length === 36)).toBe(true);
     expect(lines).toContain("│                                  │");
     expect(lines.join("\n")).toContain("wosm help");
-    expect(lines.join("\n")).toContain("H / ?    open or close help");
+    expect(lines.join("\n")).toContain("1-9/a-z    choose visible item");
+    expect(lines.join("\n")).toContain("N          new session");
+    expect(helpPanelLines(64, 13).join("\n")).toContain("Q          quit or close popup");
     expect(lines.join("\n")).not.toContain("Dashboard");
   });
 

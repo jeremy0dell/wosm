@@ -1,11 +1,93 @@
-import type { ProjectView, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
+import type {
+  ProjectId,
+  ProjectView,
+  ProviderHealth,
+  ProviderId,
+  WorktreeRow,
+  WosmSnapshot,
+} from "@wosm/contracts";
 import type { TuiViewState } from "../state/screen.js";
+
+export const SELECTION_KEYS = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "a",
+  "b",
+  "c",
+  "d",
+  "e",
+  "f",
+  "g",
+  "h",
+  "i",
+  "j",
+  "k",
+  "l",
+  "m",
+  "n",
+  "o",
+  "p",
+  "q",
+  "r",
+  "s",
+  "t",
+  "u",
+  "v",
+  "w",
+  "x",
+  "y",
+  "z",
+] as const;
+
+export type SelectionKey = (typeof SELECTION_KEYS)[number];
+
+export type KeyedChoice<T> = {
+  key: SelectionKey;
+  value: T;
+};
 
 export type ProjectGroup = {
   project: ProjectView;
   rows: WorktreeRow[];
   collapsed: boolean;
 };
+
+export type NewSessionHarnessOption = {
+  id: ProviderId;
+  label: string;
+  status: ProviderHealth["status"];
+  isDefault: boolean;
+  createBlocked: boolean;
+  health?: ProviderHealth;
+};
+
+export function keyChoices<T>(values: readonly T[]): Array<KeyedChoice<T>> {
+  return values.slice(0, SELECTION_KEYS.length).map((value, index) => {
+    const key = SELECTION_KEYS[index];
+    if (key === undefined) {
+      throw new Error("Selection key index exceeded configured key range.");
+    }
+    return { key, value };
+  });
+}
+
+export function choiceValueByKey<T>(
+  choices: readonly KeyedChoice<T>[],
+  input: string,
+): T | undefined {
+  return choices.find((choice) => choice.key === input)?.value;
+}
+
+export function isSelectionKey(input: string): input is SelectionKey {
+  return SELECTION_KEYS.includes(input as SelectionKey);
+}
 
 export function selectProjectGroups(snapshot: WosmSnapshot, state: TuiViewState): ProjectGroup[] {
   const query = normalizeSearch(state.searchQuery);
@@ -27,28 +109,72 @@ export function selectVisibleRows(snapshot: WosmSnapshot, state: TuiViewState): 
   return selectProjectGroups(snapshot, state).flatMap((group) => group.rows);
 }
 
-export function selectKeySlots(
+export function selectDashboardRowChoices(
   snapshot: WosmSnapshot,
   state: TuiViewState,
-): Map<string, WorktreeRow> {
-  const slots = new Map<string, WorktreeRow>();
-  const rows = selectVisibleRows(snapshot, state).slice(0, 9);
-  for (const [index, row] of rows.entries()) {
-    slots.set(String(index + 1), row);
-  }
-  return slots;
+): Array<KeyedChoice<WorktreeRow>> {
+  return keyChoices(selectVisibleRows(snapshot, state));
 }
 
-export function selectProjectSlots(
+export function selectProjectChoices(
   snapshot: WosmSnapshot,
   state: TuiViewState,
-): Map<string, ProjectView> {
-  const slots = new Map<string, ProjectView>();
-  const groups = selectProjectGroups(snapshot, state).slice(0, 9);
-  for (const [index, group] of groups.entries()) {
-    slots.set(String(index + 1), group.project);
+): Array<KeyedChoice<ProjectView>> {
+  return keyChoices(selectProjectGroups(snapshot, state).map((group) => group.project));
+}
+
+export function selectNewSessionProject(
+  snapshot: WosmSnapshot,
+  selectedProjectId: ProjectId,
+): ProjectView | undefined {
+  return (
+    snapshot.projects.find((project) => project.id === selectedProjectId) ?? snapshot.projects[0]
+  );
+}
+
+export function selectNewSessionProjectChoices(
+  snapshot: WosmSnapshot,
+): Array<KeyedChoice<ProjectView>> {
+  return keyChoices(snapshot.projects);
+}
+
+export function selectNewSessionHarnessOptions(
+  snapshot: WosmSnapshot,
+  project: ProjectView,
+): NewSessionHarnessOption[] {
+  const configured = configuredHarnesses(snapshot, project);
+  const labels = new Map(configured.map((harness) => [harness.id, harness.label]));
+  const orderedIds = [project.defaults.harness, ...configured.map((harness) => harness.id)];
+  const seen = new Set<string>();
+  const options: NewSessionHarnessOption[] = [];
+
+  for (const id of orderedIds) {
+    if (seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    const health = snapshot.providerHealth[id];
+    const option: NewSessionHarnessOption = {
+      id,
+      label: labels.get(id) ?? id,
+      status: health?.status ?? "unknown",
+      isDefault: id === project.defaults.harness,
+      createBlocked: health?.status === "unavailable",
+    };
+    if (health !== undefined) {
+      option.health = health;
+    }
+    options.push(option);
   }
-  return slots;
+
+  return options;
+}
+
+export function selectNewSessionHarnessChoices(
+  snapshot: WosmSnapshot,
+  project: ProjectView,
+): Array<KeyedChoice<NewSessionHarnessOption>> {
+  return keyChoices(selectNewSessionHarnessOptions(snapshot, project));
 }
 
 function compareRows(left: WorktreeRow, right: WorktreeRow): number {
@@ -75,4 +201,19 @@ function rowMatchesSearch(row: WorktreeRow, project: ProjectView, query: string)
 
 function normalizeSearch(value: string): string {
   return value.trim().toLocaleLowerCase();
+}
+
+function configuredHarnesses(snapshot: WosmSnapshot, project: ProjectView) {
+  if (snapshot.harnesses !== undefined) {
+    return snapshot.harnesses;
+  }
+
+  const healthHarnesses = Object.values(snapshot.providerHealth)
+    .filter((health) => health.providerType === "harness")
+    .map((health) => ({
+      id: health.providerId,
+      label: health.providerId,
+    }));
+
+  return [{ id: project.defaults.harness, label: project.defaults.harness }, ...healthHarnesses];
 }

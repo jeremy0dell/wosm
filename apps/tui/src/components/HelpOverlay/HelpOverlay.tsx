@@ -19,15 +19,15 @@ const PANEL_HORIZONTAL_PADDING = 2;
 const helpContent = [
   { text: "wosm help", align: "center" },
   { text: "" },
-  { key: "H / ?", description: "open or close help" },
-  { key: "1-9", description: "start/focus visible row" },
-  { key: "n", description: "new session" },
-  { key: "x", description: "remove worktree" },
+  { key: "1-9/a-z", description: "choose visible item" },
+  { key: "N", description: "new session" },
+  { key: "X", description: "remove worktree" },
+  { key: "C", description: "collapse project" },
   { key: "/", description: "search" },
-  { key: "r", description: "refresh" },
-  { key: "q", description: "quit or close popup" },
-  { text: "" },
-  { key: "Esc / Q", description: "close help" },
+  { key: "R", description: "refresh" },
+  { key: "H / ?", description: "help" },
+  { key: "Q", description: "quit or close popup" },
+  { key: "Esc", description: "back/cancel" },
 ] as const;
 
 export function HelpOverlay({ columns, rows }: HelpOverlayProps) {
@@ -134,7 +134,7 @@ function formatHelpRow(key: string, description: string, width: number): string 
   if (width < 18) {
     return fitText(`${key} ${description}`, width);
   }
-  const keyWidth = 7;
+  const keyWidth = 9;
   const row = `${key.padEnd(keyWidth)}  ${description}`;
   return fitText(row, width);
 }

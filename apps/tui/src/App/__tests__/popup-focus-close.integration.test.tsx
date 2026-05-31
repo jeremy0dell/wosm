@@ -80,7 +80,7 @@ describe("TUI transient focus-and-close navigation", () => {
     instance.unmount();
   });
 
-  it("dismisses a persistent popup on q without exiting the TUI process", async () => {
+  it("dismisses a persistent popup on Q without exiting the TUI process", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
     const exits: number[] = [];
@@ -97,7 +97,7 @@ describe("TUI transient focus-and-close navigation", () => {
       />,
     );
 
-    instance.stdin.write("q");
+    instance.stdin.write("Q");
 
     await waitFor(() => dismissCount === 1);
     expect(exits).toEqual([]);
@@ -130,7 +130,7 @@ describe("TUI transient focus-and-close navigation", () => {
     instance.unmount();
   });
 
-  it("falls back to normal q exit when a persistent popup has no dismiss hook", async () => {
+  it("falls back to normal Q exit when a persistent popup has no dismiss hook", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
     const exits: number[] = [];
@@ -143,7 +143,7 @@ describe("TUI transient focus-and-close navigation", () => {
       />,
     );
 
-    instance.stdin.write("q");
+    instance.stdin.write("Q");
 
     await waitFor(() => exits.length === 1);
     expect(exits).toEqual([0]);

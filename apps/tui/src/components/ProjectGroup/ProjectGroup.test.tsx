@@ -13,7 +13,7 @@ describe("ProjectGroup", () => {
     const rows = snapshot.rows.filter((candidate) => candidate.projectId === "web");
 
     const frame = renderToString(
-      <ProjectGroup project={project} rows={rows} collapsed={false} slots={new Map()} />,
+      <ProjectGroup project={project} rows={rows} collapsed={false} choices={[]} />,
     );
 
     expect(frame).toContain("▼ web - 7 worktrees | codex");
@@ -24,7 +24,7 @@ describe("ProjectGroup", () => {
     const project = required(snapshot.projects.find((candidate) => candidate.id === "web"));
 
     const frame = renderToString(
-      <ProjectGroup project={project} rows={[]} collapsed={false} slots={new Map()} />,
+      <ProjectGroup project={project} rows={[]} collapsed={false} choices={[]} />,
     );
 
     expect(frame).toContain("▼ web - 0 worktrees | codex");
@@ -42,7 +42,7 @@ describe("ProjectGroup", () => {
         project={project}
         rows={rows}
         collapsed={false}
-        slots={new Map([["3", workingRow]])}
+        choices={[{ key: "3", value: workingRow }]}
       />,
     );
 
@@ -55,7 +55,7 @@ describe("ProjectGroup", () => {
     const rows = snapshot.rows.filter((candidate) => candidate.projectId === "web");
 
     const frame = renderToString(
-      <ProjectGroup project={project} rows={rows} collapsed={true} slots={new Map()} />,
+      <ProjectGroup project={project} rows={rows} collapsed={true} choices={[]} />,
     );
 
     expect(frame).toContain("▶ web - 7 worktrees | codex");
@@ -68,7 +68,7 @@ describe("ProjectGroup", () => {
     const project = required(snapshot.projects.find((candidate) => candidate.id === "web"));
 
     const frame = renderToString(
-      <ProjectGroup project={project} rows={[]} collapsed={true} slots={new Map()} />,
+      <ProjectGroup project={project} rows={[]} collapsed={true} choices={[]} />,
     );
 
     expect(frame).toContain("▶ web - 0 worktrees | codex");

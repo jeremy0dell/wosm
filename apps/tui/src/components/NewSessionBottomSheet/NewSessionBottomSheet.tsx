@@ -1,13 +1,14 @@
 import type { ProjectView, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
+import { type NewSessionFlowState, selectedProject } from "../../flows/newSession.js";
 import {
-  harnessOptions,
-  type NewSessionFlowState,
-  selectedProject,
-} from "../../flows/newSession.js";
+  selectNewSessionHarnessChoices,
+  selectNewSessionHarnessOptions,
+  selectNewSessionProjectChoices,
+} from "../../selectors/selectors.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
-import { MAX_PICKER_OPTIONS, newSessionBottomSheetLayout } from "./layout.js";
+import { newSessionBottomSheetLayout } from "./layout.js";
 
 export type NewSessionBottomSheetProps = {
   snapshot: WosmSnapshot;
@@ -52,10 +53,10 @@ function renderMode(
   contentWidth: number,
 ) {
   if (state.mode === "pickProject") {
-    return <ProjectPicker snapshot={snapshot} state={state} width={contentWidth} />;
+    return <ProjectPicker snapshot={snapshot} width={contentWidth} />;
   }
   if (state.mode === "pickAgent" && project !== undefined) {
-    return <AgentPicker snapshot={snapshot} project={project} state={state} width={contentWidth} />;
+    return <AgentPicker snapshot={snapshot} project={project} width={contentWidth} />;
   }
   if (state.mode === "editName") {
     return <EditName state={state} project={project} width={contentWidth} />;
@@ -132,30 +133,22 @@ function EditNameValue({ state }: { state: Extract<NewSessionFlowState, { mode: 
   return <EditableTextInput {...state.draftName} placeholder={state.branch} />;
 }
 
-function ProjectPicker({
-  snapshot,
-  state,
-  width,
-}: {
-  snapshot: WosmSnapshot;
-  state: Extract<NewSessionFlowState, { mode: "pickProject" }>;
-  width: number;
-}) {
-  const projects = visiblePickerOptions(snapshot.projects, state.cursor);
+function ProjectPicker({ snapshot, width }: { snapshot: WosmSnapshot; width: number }) {
+  const projects = selectNewSessionProjectChoices(snapshot);
   return (
     <>
       <BlankLine />
-      {projects.map(({ index, option: project }) => (
+      {projects.map((choice) => (
         <PickerLine
-          key={project.id}
-          active={state.cursor === index}
-          label={project.label}
-          detail={project.health.status}
-          color={statusColor(project.health.status)}
+          key={choice.value.id}
+          choiceKey={choice.key}
+          label={choice.value.label}
+          detail={choice.value.health.status}
+          color={statusColor(choice.value.health.status)}
         />
       ))}
       <BlankLine />
-      <FooterLine width={width}>Enter:select Esc:cancel</FooterLine>
+      <FooterLine width={width}>1-9/a-z:select Esc:back</FooterLine>
     </>
   );
 }
@@ -163,29 +156,27 @@ function ProjectPicker({
 function AgentPicker({
   snapshot,
   project,
-  state,
   width,
 }: {
   snapshot: WosmSnapshot;
   project: ProjectView;
-  state: Extract<NewSessionFlowState, { mode: "pickAgent" }>;
   width: number;
 }) {
-  const options = visiblePickerOptions(harnessOptions(snapshot, project), state.cursor);
+  const options = selectNewSessionHarnessChoices(snapshot, project);
   return (
     <>
       <BlankLine />
-      {options.map(({ index, option }) => (
+      {options.map((choice) => (
         <PickerLine
-          key={option.id}
-          active={state.cursor === index}
-          label={option.label}
-          detail={`${option.isDefault ? "default " : ""}${option.status}`}
-          color={statusColor(option.status)}
+          key={choice.value.id}
+          choiceKey={choice.key}
+          label={choice.value.label}
+          detail={`${choice.value.isDefault ? "default " : ""}${choice.value.status}`}
+          color={statusColor(choice.value.status)}
         />
       ))}
       <BlankLine />
-      <FooterLine width={width}>Enter:select Esc:cancel</FooterLine>
+      <FooterLine width={width}>1-9/a-z:select Esc:back</FooterLine>
     </>
   );
 }
@@ -216,19 +207,19 @@ function LabelValue({
 }
 
 function PickerLine({
-  active,
+  choiceKey,
   label,
   detail,
   color,
 }: {
-  active: boolean;
+  choiceKey: string;
   label: string;
   detail: string;
   color?: "red" | "yellow" | "gray" | undefined;
 }) {
   return (
     <Box>
-      <Text>{active ? " › " : "   "}</Text>
+      <Text>{` ${choiceKey} `}</Text>
       <Text>{label}</Text>
       <Text> </Text>
       {color === undefined ? <Text>{detail}</Text> : <Text color={color}>{detail}</Text>}
@@ -250,35 +241,9 @@ function selectedHarnessOption(
   project: ProjectView,
   state: NewSessionFlowState,
 ) {
-  return harnessOptions(snapshot, project).find((option) => option.id === state.selectedHarness);
-}
-
-type VisiblePickerOption<T> = {
-  index: number;
-  option: T;
-};
-
-function visiblePickerOptions<T>(
-  options: readonly T[],
-  cursor: number,
-): Array<VisiblePickerOption<T>> {
-  if (options.length <= MAX_PICKER_OPTIONS) {
-    return options.map((option, index) => ({ index, option }));
-  }
-
-  const clampedCursor = clampNumber(cursor, 0, options.length - 1);
-  const cursorPadding = Math.floor(MAX_PICKER_OPTIONS / 2);
-  const start = Math.min(
-    Math.max(0, clampedCursor - cursorPadding),
-    options.length - MAX_PICKER_OPTIONS,
+  return selectNewSessionHarnessOptions(snapshot, project).find(
+    (option) => option.id === state.selectedHarness,
   );
-  return options
-    .slice(start, start + MAX_PICKER_OPTIONS)
-    .map((option, offset) => ({ index: start + offset, option }));
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
 
 function optionCountForState(
@@ -287,10 +252,10 @@ function optionCountForState(
   project: ProjectView | undefined,
 ): number {
   if (state.mode === "pickProject") {
-    return snapshot.projects.length;
+    return selectNewSessionProjectChoices(snapshot).length;
   }
   if (state.mode === "pickAgent" && project !== undefined) {
-    return harnessOptions(snapshot, project).length;
+    return selectNewSessionHarnessChoices(snapshot, project).length;
   }
   return 0;
 }
