@@ -72,31 +72,34 @@ describe("NewSessionBottomSheet", () => {
       ),
     );
 
-    expect(projectFrame).toContain("› web");
-    expect(projectFrame).toContain("  api");
-    expect(projectFrame).toContain("Enter:select Esc:cancel");
-    expect(agentFrame).toContain("› codex");
+    expect(projectFrame).toContain("1 web");
+    expect(projectFrame).toContain("2 api");
+    expect(projectFrame).not.toContain("›");
+    expect(projectFrame).not.toContain("Enter:select");
+    expect(projectFrame).toContain("1-9/a-z:select Esc:back");
+    expect(agentFrame).toContain("1 codex");
     expect(agentFrame).toContain("default unknown");
-    expect(agentFrame).toContain("  opencode");
-    expect(agentFrame).toContain("Enter:select Esc:cancel");
+    expect(agentFrame).toContain("2 opencode");
+    expect(agentFrame).not.toContain("›");
+    expect(agentFrame).toContain("1-9/a-z:select Esc:back");
   });
 
   it("renders only configured harnesses in the agent picker, including Codex, Pi, and OpenCode", () => {
     const configured = createConfiguredHarnessSnapshot(["codex", "pi", "opencode"]);
     const configuredFrame = renderAgentPickerFrame(configured);
 
-    expect(configuredFrame).toContain("› codex");
-    expect(configuredFrame).toContain("  pi");
-    expect(configuredFrame).toContain("  opencode");
+    expect(configuredFrame).toContain("1 codex");
+    expect(configuredFrame).toContain("2 pi");
+    expect(configuredFrame).toContain("3 opencode");
 
     const codexOnly = createConfiguredHarnessSnapshot(["codex"], {
       healthOnly: ["pi", "opencode"],
     });
     const codexOnlyFrame = renderAgentPickerFrame(codexOnly);
 
-    expect(codexOnlyFrame).toContain("› codex");
-    expect(codexOnlyFrame).not.toContain("  pi");
-    expect(codexOnlyFrame).not.toContain("  opencode");
+    expect(codexOnlyFrame).toContain("1 codex");
+    expect(codexOnlyFrame).not.toContain("pi");
+    expect(codexOnlyFrame).not.toContain("opencode");
   });
 
   it("keeps the picker footer visible with eight project options", () => {
@@ -114,12 +117,12 @@ describe("NewSessionBottomSheet", () => {
 
     expect(frame).toContain("Project 01");
     expect(frame).toContain("Project 08");
-    expect(frame).toContain("Enter:select Esc:cancel");
+    expect(frame).toContain("1-9/a-z:select Esc:back");
   });
 
-  it("windows long project pickers around the active cursor", () => {
+  it("renders letter keys for long project pickers", () => {
     const snapshot = createProjectOptionSnapshot(10);
-    const state = createProjectPickerState(snapshot, 9);
+    const state = createProjectPickerState(snapshot);
 
     const frame = stripAnsi(
       renderToString(
@@ -130,16 +133,16 @@ describe("NewSessionBottomSheet", () => {
       ),
     );
 
-    expect(frame).not.toContain("Project 01");
-    expect(frame).not.toContain("Project 02");
-    expect(frame).toContain("Project 03");
-    expect(frame).toContain("› Project 10");
-    expect(frame).toContain("Enter:select Esc:cancel");
+    expect(frame).toContain("1 Project 01");
+    expect(frame).toContain("9 Project 09");
+    expect(frame).toContain("a Project 10");
+    expect(frame).not.toContain("›");
+    expect(frame).toContain("1-9/a-z:select Esc:back");
   });
 
-  it("windows long agent pickers around the active cursor", () => {
+  it("renders letter keys for long agent pickers", () => {
     const snapshot = createHarnessOptionSnapshot(10);
-    const state = createAgentPickerState(snapshot, 9);
+    const state = createAgentPickerState(snapshot);
 
     const frame = stripAnsi(
       renderToString(
@@ -150,11 +153,11 @@ describe("NewSessionBottomSheet", () => {
       ),
     );
 
-    expect(frame).not.toContain("Agent 01");
-    expect(frame).not.toContain("Agent 02");
-    expect(frame).toContain("Agent 03");
-    expect(frame).toContain("› Agent 10");
-    expect(frame).toContain("Enter:select Esc:cancel");
+    expect(frame).toContain("1 Agent 01");
+    expect(frame).toContain("9 Agent 09");
+    expect(frame).toContain("a Agent 10");
+    expect(frame).not.toContain("›");
+    expect(frame).toContain("1-9/a-z:select Esc:back");
   });
 
   it("renders edit-name mode with the cursor before the generated fallback", () => {
@@ -238,26 +241,20 @@ function stripAnsi(value: string): string {
   return value.replace(ansiEscapePattern(), "");
 }
 
-function createProjectPickerState(snapshot: WosmSnapshot, cursor = 0) {
+function createProjectPickerState(snapshot: WosmSnapshot) {
   const review = createNewSessionFlow(snapshot, "aaaaaa");
   if (review === undefined) throw new Error("expected a flow");
   const state = transitionNewSessionFlow(review, snapshot, { type: "pickProject" });
   if (state?.mode !== "pickProject") throw new Error("expected project picker");
-  return {
-    ...state,
-    cursor,
-  };
+  return state;
 }
 
-function createAgentPickerState(snapshot: WosmSnapshot, cursor = 0) {
+function createAgentPickerState(snapshot: WosmSnapshot) {
   const review = createNewSessionFlow(snapshot, "aaaaaa");
   if (review === undefined) throw new Error("expected a flow");
   const state = transitionNewSessionFlow(review, snapshot, { type: "pickAgent" });
   if (state?.mode !== "pickAgent") throw new Error("expected agent picker");
-  return {
-    ...state,
-    cursor,
-  };
+  return state;
 }
 
 function renderAgentPickerFrame(snapshot: WosmSnapshot): string {

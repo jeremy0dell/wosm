@@ -14,9 +14,9 @@ describe("new session bottom-sheet flow", () => {
     instance.stdin.write("N");
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     expect(instance.lastFrame()).toContain("Project   web");
-    expect(instance.lastFrame()).not.toContain("N:new 1-9:start/focus");
+    expect(instance.lastFrame()).not.toContain("N:new 1-9/a-z:start/focus");
 
-    instance.stdin.write("e");
+    instance.stdin.write("E");
     await waitFor(() => instance.lastFrame()?.includes("Edit Session Name") === true);
     expect(instance.lastFrame()).toContain("Enter:use generated name");
     instance.stdin.write("feature/custom");
@@ -24,10 +24,9 @@ describe("new session bottom-sheet flow", () => {
     instance.stdin.write("\r");
     await waitFor(() => instance.lastFrame()?.includes("Name      feature/custom") === true);
 
-    instance.stdin.write("p");
-    await waitFor(() => instance.lastFrame()?.includes("› web") === true);
-    instance.stdin.write("j");
-    instance.stdin.write("\r");
+    instance.stdin.write("P");
+    await waitFor(() => instance.lastFrame()?.includes("1 web") === true);
+    instance.stdin.write("2");
     await waitFor(
       () =>
         instance.lastFrame()?.includes("Project   api") === true &&
@@ -35,10 +34,9 @@ describe("new session bottom-sheet flow", () => {
     );
     expect(instance.lastFrame()).toContain("Name      feature/custom");
 
-    instance.stdin.write("a");
-    await waitFor(() => instance.lastFrame()?.includes("› opencode") === true);
-    instance.stdin.write("j");
-    instance.stdin.write("\r");
+    instance.stdin.write("A");
+    await waitFor(() => instance.lastFrame()?.includes("1 opencode") === true);
+    instance.stdin.write("2");
     await waitFor(() => instance.lastFrame()?.includes("Agent     codex healthy") === true);
 
     instance.stdin.write("\r");
@@ -93,7 +91,7 @@ describe("new session bottom-sheet flow", () => {
 
     instance.stdin.write("N");
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
-    instance.stdin.write("e");
+    instance.stdin.write("E");
     await waitFor(() => instance.lastFrame()?.includes("Edit Session Name") === true);
 
     instance.stdin.write("featurefoo");

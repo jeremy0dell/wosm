@@ -52,10 +52,12 @@ describe("new session flow", () => {
     const opened = createNewSessionFlow(snapshot, "aaaaaa");
     if (opened === undefined) throw new Error("expected a flow");
 
-    expect(newSessionIntentForInput(opened, input("p"))).toEqual({
+    expect(newSessionIntentForInput(opened, input("P"))).toEqual({
       type: "transition",
       action: { type: "pickProject" },
     });
+    expect(newSessionIntentForInput(opened, input("p"))).toEqual({ type: "none" });
+    expect(newSessionIntentForInput(opened, input("a"))).toEqual({ type: "none" });
     expect(newSessionIntentForInput(opened, input("\r", { return: true }))).toEqual({
       type: "submit",
     });
@@ -64,7 +66,7 @@ describe("new session flow", () => {
     if (picker?.mode !== "pickAgent") throw new Error("expected agent picker");
     expect(newSessionIntentForInput(picker, input("2"))).toEqual({
       type: "transition",
-      action: { type: "chooseAgent", index: 1 },
+      action: { type: "chooseAgent", key: "2" },
     });
   });
 
@@ -94,9 +96,9 @@ describe("new session flow", () => {
 
     const picker = transitionNewSessionFlow(opened, snapshot, { type: "pickProject" });
     if (picker?.mode !== "pickProject") throw new Error("expected project picker");
-    const moved = transitionNewSessionFlow(picker, snapshot, { type: "moveCursor", delta: 1 });
-    const selected = transitionNewSessionFlow(moved ?? picker, snapshot, {
-      type: "commitProject",
+    const selected = transitionNewSessionFlow(picker, snapshot, {
+      type: "chooseProject",
+      key: "2",
       token: "bbbbbb",
     });
 
@@ -121,9 +123,9 @@ describe("new session flow", () => {
     };
     const picker = transitionNewSessionFlow(custom, snapshot, { type: "pickProject" });
     if (picker?.mode !== "pickProject") throw new Error("expected project picker");
-    const moved = transitionNewSessionFlow(picker, snapshot, { type: "moveCursor", delta: 1 });
-    const selected = transitionNewSessionFlow(moved ?? picker, snapshot, {
-      type: "commitProject",
+    const selected = transitionNewSessionFlow(picker, snapshot, {
+      type: "chooseProject",
+      key: "2",
       token: "bbbbbb",
     });
 
@@ -147,6 +149,51 @@ describe("new session flow", () => {
     const selected = transitionNewSessionFlow(picker, snapshot, intent.action);
 
     expect(selected).toBe(picker);
+  });
+
+  it("selects a project by a letter key", () => {
+    const snapshot = createProjectSnapshot(10);
+    const opened = createNewSessionFlow(snapshot, "aaaaaa");
+    if (opened === undefined) throw new Error("expected a flow");
+    const picker = transitionNewSessionFlow(opened, snapshot, { type: "pickProject" });
+    if (picker?.mode !== "pickProject") throw new Error("expected project picker");
+
+    const intent = newSessionIntentForInput(picker, input("a"));
+    if (intent.type !== "transition") throw new Error("expected transition intent");
+    const selected = transitionNewSessionFlow(picker, snapshot, intent.action);
+
+    expect(selected).toMatchObject({
+      mode: "review",
+      selectedProjectId: "project-10",
+      selectedHarness: "codex",
+      branch: "project-10-bbbbbb",
+    });
+  });
+
+  it("does not select picker items from 0, arrows, out-of-range j/k, or Enter", () => {
+    const snapshot = createHarnessSnapshot();
+    const opened = createNewSessionFlow(snapshot, "aaaaaa");
+    if (opened === undefined) throw new Error("expected a flow");
+    const picker = transitionNewSessionFlow(opened, snapshot, { type: "pickProject" });
+    if (picker?.mode !== "pickProject") throw new Error("expected project picker");
+
+    expect(newSessionIntentForInput(picker, input("0"))).toEqual({ type: "none" });
+    expect(newSessionIntentForInput(picker, input("", { downArrow: true }))).toEqual({
+      type: "none",
+    });
+    expect(newSessionIntentForInput(picker, input("", { upArrow: true }))).toEqual({
+      type: "none",
+    });
+    const jIntent = newSessionIntentForInput(picker, input("j"));
+    const kIntent = newSessionIntentForInput(picker, input("k"));
+    if (jIntent.type !== "transition" || kIntent.type !== "transition") {
+      throw new Error("expected letter selection intents");
+    }
+    expect(transitionNewSessionFlow(picker, snapshot, jIntent.action)).toBe(picker);
+    expect(transitionNewSessionFlow(picker, snapshot, kIntent.action)).toBe(picker);
+    expect(newSessionIntentForInput(picker, input("\r", { return: true }))).toEqual({
+      type: "none",
+    });
   });
 
   it("ignores out-of-range direct agent picks", () => {
@@ -281,6 +328,30 @@ function createHarnessSnapshot(
       codex: harnessHealth("codex", statuses.codex ?? "healthy", snapshot.generatedAt),
       opencode: harnessHealth("opencode", statuses.opencode ?? "healthy", snapshot.generatedAt),
     },
+  };
+}
+
+function createProjectSnapshot(count: number) {
+  const snapshot = createHarnessSnapshot();
+  const baseProject = snapshot.projects[0];
+  if (baseProject === undefined) throw new Error("expected project");
+  return {
+    ...snapshot,
+    projects: Array.from({ length: count }, (_, index) => {
+      const id = `project-${index + 1}`;
+      return {
+        ...baseProject,
+        id,
+        label: id,
+        root: `/tmp/wosm/${id}`,
+        defaults: {
+          ...baseProject.defaults,
+          harness: "codex",
+        },
+      };
+    }),
+    rows: [],
+    sessions: [],
   };
 }
 

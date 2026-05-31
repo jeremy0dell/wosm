@@ -40,7 +40,3 @@ export function normalizeTuiKey(input: string, key: InkKeyInput): TuiKey {
 export function isReturnKey(key: TuiKey): boolean {
   return key.return === true || key.input === "\r" || key.input === "\n";
 }
-
-export function isDigitSlotKey(key: TuiKey): boolean {
-  return /^[1-9]$/.test(key.input);
-}

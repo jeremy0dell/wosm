@@ -25,11 +25,11 @@ describe("CommandPrompt", () => {
           step: "confirm",
           rowId: "wt_web_idle",
           forceRequired: false,
-          label: "remove fix-nav-mobile? y/N",
+          label: "remove fix-nav-mobile? Y/N",
         }}
       />,
     );
 
-    expect(frame).toContain("confirm remove fix-nav-mobile? y/N");
+    expect(frame).toContain("confirm remove fix-nav-mobile? Y/N");
   });
 });

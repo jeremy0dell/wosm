@@ -1,7 +1,7 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
-import { selectKeySlots, selectProjectGroups } from "../../selectors/selectors.js";
+import { selectDashboardRowChoices, selectProjectGroups } from "../../selectors/selectors.js";
 import type { TuiScreen, TuiViewState } from "../../state/screen.js";
 import { useTuiMode } from "../../tuiMode.js";
 import { ProjectGroup } from "../ProjectGroup/ProjectGroup.js";
@@ -23,8 +23,8 @@ export function Dashboard({
   children,
 }: DashboardProps) {
   const groups = selectProjectGroups(snapshot, viewState);
-  const slots = selectKeySlots(snapshot, viewState);
-  const quitHint = quitActionLabel === "close" ? "q/esc:close" : "q:quit";
+  const choices = selectDashboardRowChoices(snapshot, viewState);
+  const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
   const mode = useTuiMode();
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";
   return (
@@ -32,7 +32,7 @@ export function Dashboard({
       <DashboardHeader productLabel={productLabel} />
       <DashboardDivider columns={columns} />
       <ReservedIndicatorRow />
-      <DashboardBody groups={groups} slots={slots}>
+      <DashboardBody groups={groups} choices={choices}>
         {children}
       </DashboardBody>
       <ReservedIndicatorRow />
@@ -72,11 +72,11 @@ function ReservedIndicatorRow() {
 
 function DashboardBody({
   groups,
-  slots,
+  choices,
   children,
 }: {
   groups: ReturnType<typeof selectProjectGroups>;
-  slots: ReturnType<typeof selectKeySlots>;
+  choices: ReturnType<typeof selectDashboardRowChoices>;
   children: ReactNode;
 }) {
   return (
@@ -87,7 +87,7 @@ function DashboardBody({
           project={group.project}
           rows={group.rows}
           collapsed={group.collapsed}
-          slots={slots}
+          choices={choices}
         />
       ))}
       {children}
@@ -98,7 +98,9 @@ function DashboardBody({
 function DashboardFooter({ quitHint }: { quitHint: string }) {
   return (
     <Box flexShrink={0}>
-      <Text color="gray">N:new 1-9:start/focus X:remove /:search R:refresh H:help {quitHint}</Text>
+      <Text color="gray">
+        N:new 1-9/a-z:start/focus X:remove /:search R:refresh H:help {quitHint}
+      </Text>
     </Box>
   );
 }

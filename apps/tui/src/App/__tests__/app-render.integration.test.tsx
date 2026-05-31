@@ -69,9 +69,9 @@ describe("TUI app rendering", () => {
     expect(lines.at(-3)?.trim()).toBe("");
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain(
-      "N:new 1-9:start/focus X:remove /:search R:refresh H:help q:quit",
+      "N:new 1-9/a-z:start/focus X:remove /:search R:refresh H:help Q:quit",
     );
-    expect(lines.slice(0, -1).join("\n")).not.toContain("N:new 1-9");
+    expect(lines.slice(0, -1).join("\n")).not.toContain("N:new 1-9/a-z");
   });
 
   it("renders the dashboard layout scaffold with dev label, dividers, and close hint", () => {
@@ -96,7 +96,7 @@ describe("TUI app rendering", () => {
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain("N:new");
     expect(lines.at(-1)).toContain("H:help");
-    expect(lines.at(-1)).toContain("q/esc:close");
+    expect(lines.at(-1)).toContain("Q/esc:close");
   });
 
   it("renders configured projects even when they have zero worktrees", () => {
@@ -112,7 +112,7 @@ describe("TUI app rendering", () => {
     instance.unmount();
   });
 
-  it("labels q and escape as close in persistent popup mode", () => {
+  it("labels Q and escape as close in persistent popup mode", () => {
     const snapshot = createDashboardSnapshot();
     const instance = render(
       <App
@@ -124,8 +124,8 @@ describe("TUI app rendering", () => {
     );
     const frame = instance.lastFrame() ?? "";
 
-    expect(frame).toContain("q/esc:close");
-    expect(frame).not.toContain("q:quit");
+    expect(frame).toContain("Q/esc:close");
+    expect(frame).not.toContain("Q:quit");
     instance.unmount();
   });
 
