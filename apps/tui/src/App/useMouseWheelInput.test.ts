@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSgrMouseScroll } from "./useMouseWheelInput.js";
+import { parseSgrMouseScroll, SGR_MOUSE_DISABLE } from "./useMouseWheelInput.js";
 
 describe("mouse wheel input", () => {
   it("parses SGR mouse wheel button sequences", () => {
@@ -11,5 +11,14 @@ describe("mouse wheel input", () => {
     expect(parseSgrMouseScroll("[<0;12;4M")).toBeUndefined();
     expect(parseSgrMouseScroll("[<64;12;4m")).toBeUndefined();
     expect(parseSgrMouseScroll("\u001B[B")).toBeUndefined();
+  });
+
+  it("disables all common terminal mouse tracking modes", () => {
+    expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1000l");
+    expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1002l");
+    expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1003l");
+    expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1005l");
+    expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1006l");
+    expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1015l");
   });
 });
