@@ -1,0 +1,11 @@
+export const activePopupClientOption = "@wosm_popup_client";
+export const focusPopupClientOption = "@wosm_popup_focus_client";
+export const persistentUiSignatureOption = "@wosm_popup_ui_signature";
+export const registeredPopupExpectedSignatureOption = "@wosm_popup_ui_expected_signature";
+export const registeredPopupSessionNameOption = "@wosm_popup_ui_session_name";
+export const registeredDevPopupCommandOption = "@wosm_tui_dev_command";
+export const registeredDevPopupOwnerOption = "@wosm_tui_dev_owner";
+export const registeredDevPopupRootOption = "@wosm_tui_dev_root";
+export const registeredDevPopupSessionNameOption = "@wosm_tui_dev_session_name";
+export const defaultPersistentPopupSessionName = "_wosm-ui";
+export const defaultPersistentPopupTuiCommand = "wosm tui --popup --persistent";
