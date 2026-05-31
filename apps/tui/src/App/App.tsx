@@ -10,7 +10,7 @@ import { TuiFrame } from "../components/TuiFrame/TuiFrame.js";
 import { TuiShell } from "../components/TuiShell/TuiShell.js";
 import type { TuiObserverService } from "../services/types.js";
 import { normalizeTuiKey } from "../state/keys.js";
-import { useMouseWheelInput } from "./useMouseWheelInput.js";
+import { parseSgrMouseScroll, useMouseWheelInput } from "./useMouseWheelInput.js";
 import { useTuiAppStore } from "./useTuiAppStore.js";
 
 export type AppProps = {
@@ -63,6 +63,9 @@ export function App({
   }, [rows, store]);
 
   useInput((input, key) => {
+    if (parseSgrMouseScroll(input) !== undefined) {
+      return;
+    }
     store.getState().handleKey(normalizeTuiKey(input, key));
   });
   useMouseWheelInput((direction) => {
