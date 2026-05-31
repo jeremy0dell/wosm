@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientFeatureFlagsSchema } from "./featureFlags.js";
 import {
   HarnessRunIdSchema,
   ProjectIdSchema,
@@ -242,6 +243,7 @@ export const WosmSnapshotSchema = z
       })
       .strict(),
     alerts: z.array(WosmAlertSchema),
+    featureFlags: ClientFeatureFlagsSchema.optional(),
     orphans: z.array(OrphanedRuntimeStateSchema).optional(),
   })
   .strict();

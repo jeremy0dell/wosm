@@ -86,6 +86,23 @@ describe("Phase 1 config schemas", () => {
     ).toBe(false);
   });
 
+  it("accepts an empty production feature flag section and rejects unknown flags", async () => {
+    const config = ParsedWosmConfigSchema.parse({
+      ...(await loadJson("valid-config.json")),
+      featureFlags: {},
+    });
+
+    expect(config.featureFlags).toEqual({});
+    expect(
+      ParsedWosmConfigSchema.safeParse({
+        ...config,
+        featureFlags: {
+          "test.fake": true,
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("validates explicit project recovery breadcrumb opt-in", () => {
     const project = ProjectConfigSchema.parse({
       id: "web",
