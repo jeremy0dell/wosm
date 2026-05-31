@@ -14,6 +14,34 @@ describe("TUI screen transitions", () => {
     expect(transition.state.screen).toEqual({ name: "removeWorktree", step: "chooseSlot" });
   });
 
+  it("scrolls dashboard rows with arrow keys and mouse wheel events", () => {
+    const state = createInitialTuiState({
+      initialSnapshot: createDashboardSnapshot(),
+      terminalRows: 10,
+    });
+
+    const down = handleTuiKey(state, { input: "", downArrow: true });
+    const wheelDown = handleTuiKey(down.state, { input: "", mouseScroll: "down" });
+    const wheelUp = handleTuiKey(wheelDown.state, { input: "", mouseScroll: "up" });
+
+    expect(down.state.scrollOffset).toBe(1);
+    expect(wheelDown.state.scrollOffset).toBe(2);
+    expect(wheelUp.state.scrollOffset).toBe(1);
+  });
+
+  it("clamps dashboard scrolling at the top and bottom", () => {
+    const state = createInitialTuiState({
+      initialSnapshot: createDashboardSnapshot(),
+      scrollOffset: 8,
+      terminalRows: 10,
+    });
+
+    expect(handleTuiKey(state, { input: "", downArrow: true }).state.scrollOffset).toBe(8);
+    expect(
+      handleTuiKey({ ...state, scrollOffset: 0 }, { input: "", upArrow: true }).state.scrollOffset,
+    ).toBe(0);
+  });
+
   it("opens remove confirmation for the selected visible row slot", () => {
     const opened = handleTuiKey(
       createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }),
@@ -51,6 +79,30 @@ describe("TUI screen transitions", () => {
         },
       },
     ]);
+  });
+
+  it("remaps remove slot choices to the visible viewport after scrolling", () => {
+    const scrolled = handleTuiKey(
+      handleTuiKey(
+        handleTuiKey(
+          createInitialTuiState({
+            initialSnapshot: createDashboardSnapshot(),
+            terminalRows: 10,
+          }),
+          { input: "", downArrow: true },
+        ).state,
+        { input: "", downArrow: true },
+      ).state,
+      { input: "X" },
+    );
+
+    const transition = handleTuiKey(scrolled.state, { input: "1" });
+
+    expect(transition.state.screen).toMatchObject({
+      name: "removeWorktree",
+      step: "confirm",
+      rowId: "wt_web_working",
+    });
   });
 
   it.each([
@@ -115,5 +167,36 @@ describe("TUI screen transitions", () => {
         message: "No project is configured for a new session.",
       }),
     ]);
+  });
+
+  it("resets dashboard scroll when a search query is applied", () => {
+    const opened = handleTuiKey(
+      createInitialTuiState({
+        initialSnapshot: createDashboardSnapshot(),
+        scrollOffset: 4,
+        terminalRows: 10,
+      }),
+      { input: "/" },
+    );
+    const typed = handleTuiKey(opened.state, { input: "nav" });
+    const transition = handleTuiKey(typed.state, { input: "\r", return: true });
+
+    expect(transition.state.searchQuery).toBe("nav");
+    expect(transition.state.scrollOffset).toBe(0);
+  });
+
+  it("clamps dashboard scroll after collapsing a project", () => {
+    const opened = handleTuiKey(
+      createInitialTuiState({
+        initialSnapshot: createDashboardSnapshot(),
+        scrollOffset: 8,
+        terminalRows: 10,
+      }),
+      { input: "C" },
+    );
+    const transition = handleTuiKey(opened.state, { input: "1" });
+
+    expect(transition.state.collapsedProjectIds.has("web")).toBe(true);
+    expect(transition.state.scrollOffset).toBe(1);
   });
 });

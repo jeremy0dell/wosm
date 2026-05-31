@@ -1,4 +1,4 @@
-import type { TerminalFocusOrigin } from "@wosm/contracts";
+import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
 import { render } from "ink";
 import type { ComponentProps } from "react";
 import { App } from "./App/App.js";
@@ -7,8 +7,9 @@ import type { TuiObserverService, TuiRunResult } from "./services/types.js";
 import { resolveTuiModeFromEnv, TuiModeProvider } from "./tuiMode.js";
 
 export type RunTuiOptions = {
-  socketPath: string;
+  socketPath?: string;
   service?: TuiObserverService;
+  initialSnapshot?: WosmSnapshot;
   exitOnFocusSuccess?: boolean;
   focusOrigin?: TerminalFocusOrigin;
   resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
@@ -18,8 +19,15 @@ export type RunTuiOptions = {
 };
 
 export async function runTui(options: RunTuiOptions): Promise<TuiRunResult> {
-  const service = options.service ?? createTuiObserverService({ socketPath: options.socketPath });
+  const service = options.service ?? createObserverServiceFromOptions(options);
   return runInkApp(options, service);
+}
+
+function createObserverServiceFromOptions(options: RunTuiOptions): TuiObserverService {
+  if (options.socketPath === undefined) {
+    throw new Error("runTui requires socketPath unless a service is provided.");
+  }
+  return createTuiObserverService({ socketPath: options.socketPath });
 }
 
 function runInkApp(options: RunTuiOptions, service: TuiObserverService): Promise<TuiRunResult> {
@@ -60,6 +68,7 @@ function buildAppProps(
 ): ComponentProps<typeof App> {
   const appProps: ComponentProps<typeof App> = {
     service,
+    ...(options.initialSnapshot === undefined ? {} : { initialSnapshot: options.initialSnapshot }),
     exitOnFocusSuccess: options.exitOnFocusSuccess === true,
     persistentPopup: options.persistentPopup === true,
     onExit,
