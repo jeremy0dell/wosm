@@ -1,4 +1,5 @@
 import type {
+  ClientFeatureFlags,
   HarnessCapabilities,
   HarnessRunObservation,
   OrphanedRuntimeState,
@@ -36,6 +37,7 @@ export type ObserverGraphInput = {
   terminalTargets: TerminalTargetObservation[];
   harnessRuns: ObserverHarnessRun[];
   alerts?: WosmAlert[];
+  featureFlags?: ClientFeatureFlags;
 };
 
 const emptyHarnessCapabilities: HarnessCapabilities = {
@@ -139,6 +141,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
     sessions,
     counts,
     alerts,
+    ...(input.featureFlags === undefined ? {} : { featureFlags: input.featureFlags }),
     ...orphans(input, harnessRuns, worktreesById, projectsById, harnessRunsById),
   };
   if (input.harnesses !== undefined) {

@@ -1,4 +1,5 @@
 import type {
+  ClientFeatureFlags,
   HarnessCapabilities,
   HarnessProvider,
   HarnessRunObservation,
@@ -50,6 +51,7 @@ export type ReconcileOnceInput = {
   read: ProviderReadOptions;
   persistence?: ObserverPersistence;
   providerObservationRetentionDays?: number;
+  featureFlags?: ClientFeatureFlags;
 };
 
 export type ReconcileOnceResult = {
@@ -68,6 +70,7 @@ export function buildInitialSnapshot(input: {
   projects: ProviderProjectConfig[];
   worktreeProviderId: ProviderId;
   harnesses?: SnapshotHarness[];
+  featureFlags?: ClientFeatureFlags;
 }): WosmSnapshot {
   return buildWosmSnapshot({
     generatedAt: input.generatedAt,
@@ -82,6 +85,7 @@ export function buildInitialSnapshot(input: {
     worktrees: [],
     terminalTargets: [],
     harnessRuns: [],
+    ...(input.featureFlags === undefined ? {} : { featureFlags: input.featureFlags }),
   });
 }
 
@@ -176,6 +180,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     worktrees: worktreesForSnapshot,
     terminalTargets: terminalResult.terminalTargets,
     harnessRuns,
+    ...(input.featureFlags === undefined ? {} : { featureFlags: input.featureFlags }),
   });
 
   lastReconcile.eventsEmitted = await persistReconcileResult({
