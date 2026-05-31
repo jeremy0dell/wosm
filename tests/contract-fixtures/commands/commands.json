@@ -99,6 +99,13 @@
       "delivery": "harness-native"
     }
   },
+  "sessionRename": {
+    "type": "session.rename",
+    "payload": {
+      "sessionId": "ses_api_cache",
+      "title": "Cache Investigation"
+    }
+  },
   "observerReconcile": {
     "type": "observer.reconcile",
     "payload": {

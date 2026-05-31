@@ -36,8 +36,14 @@ export type ObserverGraphInput = {
   worktrees: WorktreeObservation[];
   terminalTargets: TerminalTargetObservation[];
   harnessRuns: ObserverHarnessRun[];
+  sessionMetadata?: readonly ObserverSessionMetadata[];
   alerts?: WosmAlert[];
   featureFlags?: ClientFeatureFlags;
+};
+
+export type ObserverSessionMetadata = {
+  id: string;
+  title?: string;
 };
 
 const emptyHarnessCapabilities: HarnessCapabilities = {
@@ -66,6 +72,9 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
   const worktreesById = new Map(configuredWorktrees.map((worktree) => [worktree.id, worktree]));
   const harnessRuns = input.harnessRuns;
   const harnessRunsById = new Map(harnessRuns.map((run) => [run.run.id, run.run]));
+  const sessionMetadataById = new Map(
+    input.sessionMetadata?.map((session) => [session.id, session]),
+  );
   const providerAlerts = alertsFromProviderHealth(input.providerHealth, input.generatedAt);
   const alerts = [...providerAlerts, ...(input.alerts ?? [])];
   const allRows: WorktreeRow[] = [];
@@ -89,6 +98,7 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
           project,
           worktree,
           harnessCapabilities: input.harnessCapabilities ?? {},
+          sessionMetadataById,
         };
         if (terminal !== undefined) sessionInput.terminal = terminal;
         if (harnessRun !== undefined) sessionInput.harnessRun = harnessRun;
@@ -228,6 +238,7 @@ type BuildSessionInput = {
   terminal?: TerminalTargetObservation;
   harnessRun?: ObserverHarnessRun;
   harnessCapabilities: Record<string, HarnessCapabilities>;
+  sessionMetadataById: ReadonlyMap<string, ObserverSessionMetadata>;
 };
 
 function buildSession(input: BuildSessionInput): SessionView | undefined {
@@ -241,6 +252,7 @@ function buildSession(input: BuildSessionInput): SessionView | undefined {
   if (sessionId === undefined) {
     return undefined;
   }
+  const metadata = input.sessionMetadataById.get(sessionId);
 
   const harness: SessionView["harness"] = {
     provider: run.provider,
@@ -273,7 +285,7 @@ function buildSession(input: BuildSessionInput): SessionView | undefined {
       source: status.source,
       updatedAt: status.updatedAt,
     },
-    title: `${input.project.label} ${input.worktree.branch}`,
+    title: metadata?.title ?? input.worktree.branch,
     tags: [],
   };
 }
