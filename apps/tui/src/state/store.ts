@@ -12,11 +12,19 @@ import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import type { TuiKey } from "./keys.js";
-import { failPendingCreateSessionRow, removeCreateSessionLocalRow } from "./localRows.js";
+import {
+  failPendingCreateSessionRow,
+  removeCreateSessionLocalRow,
+  removePendingRemoveWorktreeRow,
+} from "./localRows.js";
 import {
   addCreateSessionErrorToast,
   runCreateSessionOperation,
 } from "./operations/createSession.js";
+import {
+  addRemoveWorktreeErrorToast,
+  runRemoveWorktreeOperation,
+} from "./operations/removeWorktree.js";
 import { prepareCommandForRuntime, withResolvedFocusOrigin } from "./operations/runtimeCommands.js";
 import {
   addTuiToast,
@@ -194,11 +202,18 @@ function handleObserverEvent(
     ),
   );
   if (event.type === "command.failed") {
-    const row = store
-      .getState()
-      .localRows.pendingCreate.find((candidate) => candidate.commandId === event.commandId);
-    if (row !== undefined) {
-      markCreateSessionRowFailed(store, row.localId, event.error);
+    const state = store.getState();
+    const createRow = state.localRows.pendingCreate.find(
+      (candidate) => candidate.commandId === event.commandId,
+    );
+    if (createRow !== undefined) {
+      markCreateSessionRowFailed(store, createRow.localId, event.error);
+    }
+    const removeRow = state.localRows.pendingRemove.find(
+      (candidate) => candidate.commandId === event.commandId,
+    );
+    if (removeRow !== undefined) {
+      markRemoveWorktreeRowFailed(store, removeRow.localId);
     }
   }
   if (result.needsSnapshotRefresh) {
@@ -247,6 +262,17 @@ async function applyTransitionEffects(
         (localId, error) => markCreateSessionRowFailed(store, localId, error),
         (error) => {
           addCreateSessionErrorToast(store, error);
+        },
+      );
+    }
+    if (operation.type === "removeWorktree") {
+      void runRemoveWorktreeOperation(
+        store,
+        service,
+        operation,
+        (localId) => markRemoveWorktreeRowFailed(store, localId),
+        (error) => {
+          addRemoveWorktreeErrorToast(store, error);
         },
       );
     }
@@ -349,6 +375,10 @@ function markCreateSessionRowFailed(
   setTimeout(() => {
     store.setState(removeCreateSessionLocalRow(store.getState(), localId));
   }, FAILED_CREATE_ROW_TTL_MS);
+}
+
+function markRemoveWorktreeRowFailed(store: StoreApi<TuiStore>, localId: string): void {
+  store.setState(removePendingRemoveWorktreeRow(store.getState(), localId));
 }
 
 function shouldUseFocusLifecycle(

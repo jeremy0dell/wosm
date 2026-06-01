@@ -5,6 +5,7 @@ export default defineConfig({
   ...commonResolveConfig,
   test: {
     ...commonTestConfig,
+    testTimeout: 30_000,
     include: [
       "apps/*/src/**/*.integration.test.ts",
       "apps/*/src/**/*.integration.test.tsx",

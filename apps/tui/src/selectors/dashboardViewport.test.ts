@@ -116,6 +116,7 @@ describe("dashboard viewport selector", () => {
             },
           ],
           failedCreate: [],
+          pendingRemove: [],
         },
       }),
     );
@@ -147,10 +148,45 @@ describe("dashboard viewport selector", () => {
             },
           ],
           failedCreate: [],
+          pendingRemove: [],
         },
       }),
     );
 
     expect(viewport.items.filter((item) => item.type === "createLocalRow")).toEqual([]);
+  });
+
+  it("renders pending remove rows in place without key choices", () => {
+    const snapshot = createDashboardSnapshot();
+    const viewport = selectDashboardViewport(
+      snapshot,
+      createInitialTuiState({
+        initialSnapshot: snapshot,
+        localRows: {
+          pendingCreate: [],
+          failedCreate: [],
+          pendingRemove: [
+            {
+              localId: "remove:wt_web_idle",
+              projectId: "web",
+              worktreeId: "wt_web_idle",
+              branch: "fix-nav-mobile",
+              createdAt: "2026-05-31T12:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    );
+
+    const item = viewport.items.find(
+      (candidate) => candidate.type === "worktree" && candidate.row.id === "wt_web_idle",
+    );
+    expect(item).toMatchObject({
+      type: "worktree",
+      pendingRemove: {
+        localId: "remove:wt_web_idle",
+      },
+    });
+    expect(viewport.rowChoices.map((choice) => choice.value.id)).not.toContain("wt_web_idle");
   });
 });

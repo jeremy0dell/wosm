@@ -3,7 +3,7 @@ import type { NewSessionFlowState } from "../flows/newSession.js";
 import type { TuiToast } from "../services/types.js";
 import {
   createEmptyTuiLocalRows,
-  pruneCreateSessionLocalRowsForSnapshot,
+  pruneLocalRowsForSnapshot,
   type TuiLocalRows,
 } from "./localRows.js";
 
@@ -81,7 +81,7 @@ export function replaceSnapshot(state: TuiState, snapshot: WosmSnapshot): TuiSta
     ...state,
     snapshot,
     loading: false,
-    localRows: pruneCreateSessionLocalRowsForSnapshot(state.localRows, snapshot),
+    localRows: pruneLocalRowsForSnapshot(state.localRows, snapshot),
   };
 }
 

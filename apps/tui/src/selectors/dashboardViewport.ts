@@ -1,6 +1,10 @@
 import type { ProjectId, ProjectView, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
 import { clampDashboardScrollOffset, dashboardBodyRows } from "../components/Dashboard/layout.js";
-import type { FailedCreateSessionRow, PendingCreateSessionRow } from "../state/localRows.js";
+import type {
+  FailedCreateSessionRow,
+  PendingCreateSessionRow,
+  PendingRemoveWorktreeRow,
+} from "../state/localRows.js";
 import type { TuiViewState } from "../state/screen.js";
 import { type KeyedChoice, keyChoices, selectProjectGroups } from "./selectors.js";
 
@@ -29,6 +33,7 @@ export type DashboardViewportItem =
       type: "worktree";
       id: string;
       row: WorktreeRow;
+      pendingRemove?: PendingRemoveWorktreeRow;
     }
   | {
       type: "createLocalRow";
@@ -107,11 +112,18 @@ export function selectDashboardItems(
     }
     for (const row of rows) {
       if (row.type === "worktree") {
-        items.push({
+        const item: Extract<DashboardViewportItem, { type: "worktree" }> = {
           type: "worktree",
           id: `worktree:${row.row.id}`,
           row: row.row,
-        });
+        };
+        const pendingRemove = state.localRows.pendingRemove.find(
+          (localRow) => localRow.worktreeId === row.row.id,
+        );
+        if (pendingRemove !== undefined) {
+          item.pendingRemove = pendingRemove;
+        }
+        items.push(item);
       } else {
         items.push({
           type: "createLocalRow",
@@ -125,7 +137,9 @@ export function selectDashboardItems(
 }
 
 function worktreeRowsFromItems(items: readonly DashboardViewportItem[]): WorktreeRow[] {
-  return items.flatMap((item) => (item.type === "worktree" ? [item.row] : []));
+  return items.flatMap((item) =>
+    item.type === "worktree" && item.pendingRemove === undefined ? [item.row] : [],
+  );
 }
 
 type GroupDashboardRow =

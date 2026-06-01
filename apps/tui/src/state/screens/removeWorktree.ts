@@ -4,6 +4,7 @@ import { buildRemoveWorktreeCommand, cleanupForceRequired } from "../commandBuil
 import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { isReturnKey } from "../keys.js";
+import { addPendingRemoveWorktreeRow } from "../localRows.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 import { scrollDeltaForKey } from "./dashboard.js";
@@ -94,11 +95,35 @@ function handleConfirmKey(state: TuiState, key: TuiKey): TuiTransition {
     };
   }
 
+  const command = buildRemoveWorktreeCommand(row, screen.forceRequired);
+  if (command.type !== "worktree.remove") {
+    return { state };
+  }
+  const localId = `remove:${row.id}`;
+
   return {
-    state: {
-      ...state,
-      screen: { name: "dashboard" },
-    },
-    commands: [buildRemoveWorktreeCommand(row, screen.forceRequired)],
+    state: addPendingRemoveWorktreeRow(
+      {
+        ...state,
+        screen: { name: "dashboard" },
+      },
+      {
+        localId,
+        projectId: row.projectId,
+        worktreeId: row.id,
+        branch: row.branch,
+        createdAt: new Date().toISOString(),
+      },
+    ),
+    operations: [
+      {
+        type: "removeWorktree",
+        localId,
+        projectId: row.projectId,
+        worktreeId: row.id,
+        branch: row.branch,
+        command,
+      },
+    ],
   };
 }
