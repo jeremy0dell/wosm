@@ -89,8 +89,9 @@ export async function readLocalGitChangeSummary(
   if (base === undefined) {
     return undefined;
   }
+  const mergeBaseSha = await resolveMergeBaseSha(command, base);
 
-  const diff = await runGit(command, ["diff", "--numstat", `${base.ref}...HEAD`]);
+  const diff = await runGit(command, ["diff", "--numstat", `${mergeBaseSha}..HEAD`]);
   const parsed = parseGitNumstat(diff.stdout);
   const summaryInput: WorktreeChangeSummary = {
     kind: "branch_diff",
@@ -100,6 +101,7 @@ export async function readLocalGitChangeSummary(
     binaryFiles: parsed.binaryFiles,
     baseRef: base.ref,
     baseSha: base.sha,
+    mergeBaseSha,
     headRef: input.worktree.branch,
     headSha,
     source: "local_git",
@@ -117,6 +119,7 @@ export async function readLocalGitChangeSummary(
       headSha,
       baseRef: base.ref,
       baseSha: base.sha,
+      mergeBaseSha,
     }),
   };
 }
@@ -184,6 +187,7 @@ export function changeSummaryCacheKey(input: {
   headSha: string;
   baseRef: string;
   baseSha: string;
+  mergeBaseSha: string;
 }): string {
   return JSON.stringify({
     projectId: input.projectId,
@@ -193,6 +197,7 @@ export function changeSummaryCacheKey(input: {
     headSha: input.headSha,
     baseRef: input.baseRef,
     baseSha: input.baseSha,
+    mergeBaseSha: input.mergeBaseSha,
   });
 }
 
@@ -253,12 +258,7 @@ function configuredBaseCandidates(
   base: string,
   remotes: string[],
 ): Array<{ revParseRef: string; diffRef: string }> {
-  const candidates: Array<{ revParseRef: string; diffRef: string }> = [
-    {
-      revParseRef: `refs/heads/${base}`,
-      diffRef: base,
-    },
-  ];
+  const candidates: Array<{ revParseRef: string; diffRef: string }> = [];
   if (remotes.includes("origin")) {
     candidates.push({
       revParseRef: `refs/remotes/origin/${base}`,
@@ -272,6 +272,10 @@ function configuredBaseCandidates(
       diffRef: `${firstNonOrigin}/${base}`,
     });
   }
+  candidates.push({
+    revParseRef: `refs/heads/${base}`,
+    diffRef: base,
+  });
   return candidates;
 }
 
@@ -336,6 +340,21 @@ async function resolveRef(
   };
 }
 
+async function resolveMergeBaseSha(
+  command: GitCommandContext,
+  base: ResolvedBase,
+): Promise<string> {
+  const result = await runGit(command, ["merge-base", base.ref, "HEAD"]);
+  const sha = result.stdout.trim();
+  if (sha.length === 0) {
+    throw localGitMetadataError(
+      "LOCAL_GIT_MERGE_BASE_UNRESOLVED",
+      "Git merge-base could not be resolved.",
+    );
+  }
+  return sha;
+}
+
 async function listRemotes(command: GitCommandContext): Promise<string[]> {
   const stdout = await runOptionalGit(command, ["remote"]);
   if (stdout === undefined) {
@@ -370,6 +389,9 @@ async function runGit(command: GitCommandContext, args: string[]) {
 
 function isUnqualifiedBase(base: string, remotes: string[]): boolean {
   if (base.startsWith("refs/")) {
+    return false;
+  }
+  if (base.startsWith("origin/")) {
     return false;
   }
   return !remotes.some((remote) => base.startsWith(`${remote}/`));
