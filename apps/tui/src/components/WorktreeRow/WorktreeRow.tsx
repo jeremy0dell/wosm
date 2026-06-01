@@ -183,5 +183,13 @@ function failedChecksGlyph(count: number | undefined): string {
 }
 
 function osc8(url: string, text: string): string {
-  return `\u001B]8;;${url}\u0007${text}\u001B]8;;\u0007`;
+  return `\u001B]8;id=${osc8Id(url)};${url}\u0007${text}\u001B]8;;\u0007`;
+}
+
+function osc8Id(value: string): string {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(31, hash) + value.charCodeAt(index);
+  }
+  return `wosm-${(hash >>> 0).toString(36)}`;
 }
