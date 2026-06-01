@@ -1,4 +1,8 @@
-import { FeatureFlagConfigSchema, HarnessPermissionModeSchema } from "@wosm/contracts";
+import {
+  EventHookConfigSchema,
+  FeatureFlagConfigSchema,
+  HarnessPermissionModeSchema,
+} from "@wosm/contracts";
 import { z } from "zod";
 
 const nonEmptyStringSchema = z.string().min(1);
@@ -167,6 +171,14 @@ export const HarnessProviderConfigSchema = z
 
 export type HarnessProviderConfig = z.infer<typeof HarnessProviderConfigSchema>;
 
+export const HooksConfigSchema = z
+  .object({
+    event: z.array(EventHookConfigSchema).optional(),
+  })
+  .strict();
+
+export type HooksConfig = z.infer<typeof HooksConfigSchema>;
+
 export const GithubRepositoryConfigSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -273,6 +285,7 @@ export const ParsedWosmConfigSchema = z
     worktree: WorktreeProvidersConfigSchema.optional(),
     terminal: TerminalProvidersConfigSchema.optional(),
     harness: z.record(providerIdSchema, HarnessProviderConfigSchema).optional(),
+    hooks: HooksConfigSchema.optional(),
     repository: RepositoryProvidersConfigSchema.optional(),
     observability: ObservabilityConfigSchema.optional(),
     featureFlags: FeatureFlagConfigSchema.optional(),

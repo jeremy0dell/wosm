@@ -13,6 +13,8 @@ import {
 import { runDebugBundleCommand } from "./commands/debugBundle.js";
 import { runDebugTraceCommand } from "./commands/debugTrace.js";
 import { runDoctorCommand } from "./commands/doctor.js";
+import { runEventHooksCommand } from "./commands/eventHooks.js";
+import { type NotifyCommandDeps, runNotifyCommand } from "./commands/notify.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
 import { runOpenCodeHooksCommand } from "./commands/opencodeHooks.js";
 import { type PopupCommandDeps, runPopupCommand } from "./commands/popup.js";
@@ -34,6 +36,7 @@ export type CliRunOptions = {
   observerDeps?: ObserverProcessDeps | undefined;
   popupDeps?: PopupCommandDeps | undefined;
   tuiDeps?: TuiCommandDeps | undefined;
+  notifyDeps?: NotifyCommandDeps | undefined;
 };
 
 const configBackedCommands = [
@@ -48,7 +51,7 @@ const configBackedCommands = [
   "worktrunk",
 ] as const;
 
-const topLevelCommands = ["debug", ...configBackedCommands] as const;
+const topLevelCommands = ["debug", "notify", ...configBackedCommands] as const;
 
 export async function runCli(
   argv = process.argv.slice(2),
@@ -116,6 +119,12 @@ export async function runCli(
       config,
     });
     return { code: result.matched ? 0 : 1, output: result };
+  }
+
+  if (command === "notify") {
+    const stdin = options.stdin ?? (await readStdinIfAvailable());
+    const result = await runNotifyCommand(commandArgs, { stdin }, options.notifyDeps);
+    return { code: 0, output: result };
   }
 
   if (command === "command") {
@@ -235,7 +244,12 @@ export async function runCli(
                 config,
                 env: options.env,
               })
-            : undefined;
+            : provider === "event"
+              ? await runEventHooksCommand([hookAction, ...commandArgs.slice(2)], {
+                  config,
+                  configPath: resolvedConfigPath,
+                })
+              : undefined;
     if (result === undefined) {
       throw new Error(`Unknown hook provider: ${provider ?? ""}`);
     }
