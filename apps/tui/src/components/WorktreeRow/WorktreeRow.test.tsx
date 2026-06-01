@@ -87,7 +87,7 @@ describe("WorktreeRow", () => {
     const segments = metadataSegments(candidate);
 
     expect(frame).toContain(
-      "\u001B]8;id=wosm-nb97v6;https://github.com/example/web/pull/123\u0007#123",
+      "\u001B]8;id=wosm-fNrWuVdbZiLi;https://github.com/example/web/pull/123\u0007#123",
     );
     expect(segments).toEqual([
       {
