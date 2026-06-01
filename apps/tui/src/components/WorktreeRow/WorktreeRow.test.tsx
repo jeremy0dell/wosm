@@ -1,5 +1,5 @@
 import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
-import { renderToString } from "ink";
+import { Box, renderToString } from "ink";
 import { describe, expect, it } from "vitest";
 import { fixtureNow, row } from "../../../test/fixtures/snapshots.js";
 import { metadataSegments, WorktreeRow } from "./WorktreeRow.js";
@@ -42,12 +42,13 @@ describe("WorktreeRow", () => {
     expect(frame).not.toContain(" [1] * cache-refactor");
   });
 
-  it("keeps harness and agent status visible while hiding the terminal provider", () => {
+  it("keeps harness visible while hiding textual status and terminal provider", () => {
     const candidate = makeRow("working", "cache-refactor");
 
     const frame = renderToString(<WorktreeRow row={candidate} slot="4" />);
 
-    expect(frame).toContain("codex  working");
+    expect(frame).toContain("codex");
+    expect(frame).not.toContain("working");
     expect(frame).not.toContain("tmux");
   });
 
@@ -67,9 +68,9 @@ describe("WorktreeRow", () => {
     expect(renderToString(<WorktreeRow row={ordinary} slot="1" />)).not.toContain(
       "Harness reported active generation.",
     );
-    expect(renderToString(<WorktreeRow row={warning} slot="2" />)).toContain(
-      "unknown Terminal target is stale.",
-    );
+    const warningFrame = renderToString(<WorktreeRow row={warning} slot="2" />);
+    expect(warningFrame).toContain("Terminal target is stale.");
+    expect(warningFrame).not.toContain("unknown Terminal target is stale.");
   });
 
   it("renders PR links and preserves stale metadata flags", () => {
@@ -85,13 +86,18 @@ describe("WorktreeRow", () => {
     const frame = renderToString(<WorktreeRow row={candidate} slot="9" />);
     const segments = metadataSegments(candidate);
 
-    expect(frame).toContain("\u001B]8;;https://github.com/example/web/pull/123\u0007#123");
+    expect(frame).toContain(
+      "\u001B]8;id=wosm-fNrWuVdbZiLi;https://github.com/example/web/pull/123\u0007#123",
+    );
     expect(segments).toEqual([
       {
-        text: "\u001B]8;;https://github.com/example/web/pull/123\u0007#123\u001B]8;;\u0007",
+        text: "#123",
         stale: true,
+        color: "blue",
+        underline: true,
+        url: "https://github.com/example/web/pull/123",
       },
-      { text: "✓", stale: true },
+      { text: "✓", stale: true, color: "green" },
     ]);
   });
 
@@ -102,9 +108,42 @@ describe("WorktreeRow", () => {
 
     const frame = renderToString(<WorktreeRow row={candidate} slot="5" />);
 
-    expect(frame).toContain("+24/-6");
+    expect(frame).toContain("+24");
+    expect(frame).toContain("-6");
+    expect(frame).not.toContain("+24/-6");
     expect(frame).not.toContain("#");
     expect(frame).not.toContain("✓");
+  });
+
+  it("hides zero-change diff metadata", () => {
+    const candidate = withWorktree(makeRow("working", "no-diff"), {
+      changeSummary: changeSummary({ additions: 0, deletions: 0 }),
+    });
+
+    const frame = renderToString(<WorktreeRow row={candidate} slot="5" />);
+
+    expect(metadataSegments(candidate)).toEqual([]);
+    expect(frame).not.toContain("+0/-0");
+  });
+
+  it("right-aligns diff, PR, and CI metadata apart from the row identity", () => {
+    const candidate = withWorktree(makeRow("working", "right-align"), {
+      changeSummary: changeSummary({ additions: 24, deletions: 6 }),
+      pr: {
+        number: 42,
+      },
+      checks: checksSummary("pass"),
+    });
+
+    const frame = renderToString(
+      <Box width={80}>
+        <WorktreeRow row={candidate} slot="5" />
+      </Box>,
+      { columns: 80 },
+    );
+
+    expect(frame).toContain(" [5] ◜ right-align  codex");
+    expect(frame).toMatch(/\s{2,}\+24 -6 #42 ✓$/);
   });
 
   it("renders PR metadata without checks", () => {
@@ -134,16 +173,16 @@ describe("WorktreeRow", () => {
   });
 
   it("maps normalized check states to aggregate glyphs only when a PR exists", () => {
-    const cases: Array<{ checks: ChecksSummary; glyph: string }> = [
-      { checks: checksSummary("pass"), glyph: "✓" },
-      { checks: checksSummary("fail", { failed: 2 }), glyph: "x2" },
-      { checks: checksSummary("fail"), glyph: "x" },
-      { checks: checksSummary("cancelled", { cancelled: 3 }), glyph: "x3" },
-      { checks: checksSummary("cancelled"), glyph: "x" },
-      { checks: checksSummary("running"), glyph: "…" },
-      { checks: checksSummary("none"), glyph: "-" },
-      { checks: checksSummary("unknown"), glyph: "-" },
-      { checks: checksSummary("skipped"), glyph: "-" },
+    const cases: Array<{ checks: ChecksSummary; glyph: string; color: string }> = [
+      { checks: checksSummary("pass"), glyph: "✓", color: "green" },
+      { checks: checksSummary("fail", { failed: 2 }), glyph: "x2", color: "red" },
+      { checks: checksSummary("fail"), glyph: "x", color: "red" },
+      { checks: checksSummary("cancelled", { cancelled: 3 }), glyph: "x3", color: "red" },
+      { checks: checksSummary("cancelled"), glyph: "x", color: "red" },
+      { checks: checksSummary("running"), glyph: "…", color: "yellow" },
+      { checks: checksSummary("none"), glyph: "-", color: "gray" },
+      { checks: checksSummary("unknown"), glyph: "-", color: "gray" },
+      { checks: checksSummary("skipped"), glyph: "-", color: "gray" },
     ];
 
     for (const testCase of cases) {
@@ -157,6 +196,7 @@ describe("WorktreeRow", () => {
       expect(metadataSegments(candidate).at(-1)).toEqual({
         text: testCase.glyph,
         stale: false,
+        color: testCase.color,
       });
     }
   });

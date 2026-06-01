@@ -15,8 +15,7 @@ export function ProjectGroup({ project, rows, collapsed, choices }: ProjectGroup
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text bold>
-        {collapsed ? "▶" : "▼"} {project.label} - {project.counts.worktrees} worktrees |{" "}
-        {project.defaults.harness}
+        {collapsed ? "▶" : "▼"} {project.label} - {project.counts.worktrees} worktrees
       </Text>
       {!collapsed && rows.length === 0 ? <Text color="gray"> 0 worktrees</Text> : null}
       {collapsed

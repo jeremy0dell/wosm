@@ -22,7 +22,7 @@ describe("tmux popup", () => {
       "-h",
       "50%",
       "-E",
-      "env -u TMUX tmux attach-session -t _wosm-ui",
+      "env -u TMUX tmux -T hyperlinks attach-session -t _wosm-ui",
     ]);
   });
 
@@ -190,11 +190,12 @@ describe("tmux popup", () => {
         "-h",
         "80%",
         "-E",
-        expect.stringContaining("env -u TMUX tmux attach-session -t _wosm-ui"),
+        expect.stringContaining("env -u TMUX tmux -T hyperlinks attach-session -t _wosm-ui"),
       ],
     ]);
     const displayPopupArgs = calls.at(-1)?.args;
     const popupShellCommand = displayPopupArgs?.[displayPopupArgs.length - 1];
+    expect(popupShellCommand).toContain("tmux -T hyperlinks attach-session -t _wosm-ui");
     expect(popupShellCommand).toContain("fi; if");
     expect(popupShellCommand).not.toContain("fi if");
   });

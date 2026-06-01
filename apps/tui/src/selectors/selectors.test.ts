@@ -206,8 +206,8 @@ describe("TUI selectors", () => {
     expect(
       selectNewSessionHarnessChoices(snapshot, api).map((choice) => [choice.key, choice.value.id]),
     ).toEqual([
-      ["1", "opencode"],
-      ["2", "codex"],
+      ["1", "codex"],
+      ["2", "opencode"],
       ["3", "scripted"],
     ]);
   });

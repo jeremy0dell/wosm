@@ -119,7 +119,6 @@ function EditName({
     <>
       <BlankLine />
       <LabelValue label="Project" value={project?.label ?? "-"} />
-      <BlankLine />
       <LabelValue label="Name" value={<EditNameValue state={state} />} />
       <BlankLine />
       <FooterLine width={width}>
@@ -171,7 +170,7 @@ function AgentPicker({
           key={choice.value.id}
           choiceKey={choice.key}
           label={choice.value.label}
-          detail={`${choice.value.isDefault ? "default " : ""}${choice.value.status}`}
+          detail={choice.value.status}
           color={statusColor(choice.value.status)}
         />
       ))}

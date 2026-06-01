@@ -22,7 +22,7 @@ export type CleanupActionKind =
 export type CreateSessionCommandInput = {
   project: ProjectView;
   branch: string;
-  harnessProvider?: ProviderId;
+  harnessProvider: ProviderId;
   initialPrompt?: string;
 };
 
@@ -111,7 +111,7 @@ export function buildCreateSessionCommand(input: CreateSessionCommandInput): Wos
     projectId: input.project.id,
     branch: input.branch,
     harness: {
-      provider: input.harnessProvider ?? input.project.defaults.harness,
+      provider: input.harnessProvider,
       mode: "interactive",
     },
     terminal: {
