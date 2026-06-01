@@ -1,8 +1,10 @@
+import type { SessionView, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import {
   createCommandSnapshot,
   createDashboardSnapshot,
+  fixtureNow,
 } from "../../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
 import { App } from "../../App/App.js";
@@ -60,7 +62,7 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("dispatches session.startAgent from numeric slot mappings for no-agent rows", async () => {
+  it("shows an optimistic start row and dispatches session.startAgent without a queued toast", async () => {
     const snapshot = createCommandSnapshot("none");
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
@@ -80,6 +82,72 @@ describe("TUI command UX", () => {
         },
       },
     });
+    await waitFor(() => instance.lastFrame()?.includes("starting...") === true);
+    expect(instance.lastFrame()).toContain(" [1]");
+    expect(instance.lastFrame()).toContain("feature-start");
+    expect(instance.lastFrame()).not.toContain("session.startAgent queued");
+    instance.unmount();
+  });
+
+  it("does not dispatch duplicate start-agent commands while the slot is pending", async () => {
+    const snapshot = createCommandSnapshot("none");
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("1");
+    await waitFor(() => instance.lastFrame()?.includes("starting...") === true);
+    instance.stdin.write("1");
+    await settle();
+
+    expect(service.dispatched).toHaveLength(1);
+    expect(instance.lastFrame()).toContain(" [1]");
+    expect(instance.lastFrame()).toContain("starting...");
+    instance.unmount();
+  });
+
+  it("clears pending start state and focuses the started session after observer truth catches up", async () => {
+    const snapshot = createCommandSnapshot("none");
+    const service = new DelayedCompletionService(snapshot, 50);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("1");
+    await waitFor(() => instance.lastFrame()?.includes("starting...") === true);
+    service.setSnapshot(startedAgentSnapshot(snapshot));
+
+    await waitFor(() => service.dispatched.length === 2);
+    expect(service.dispatched[0]).toMatchObject({ type: "session.startAgent" });
+    expect(service.dispatched[1]).toEqual({
+      type: "terminal.focus",
+      payload: { targetId: "term_wt_web_no_agent_agent" },
+    });
+    await waitFor(() => instance.lastFrame()?.includes(" [1] ○ feature-start") === true);
+    expect(instance.lastFrame()).not.toContain("starting...");
+    instance.unmount();
+  });
+
+  it("deduplicates start-agent failure toasts from command completion and events", async () => {
+    const snapshot = createCommandSnapshot("none");
+    const error = {
+      tag: "CommandExecutionError" as const,
+      code: "SESSION_START_AGENT_FAILED",
+      message: "Session start failed.",
+    };
+    const service = new DelayedCompletionService(snapshot, 50);
+    service.nextCompletion = {
+      status: "failed",
+      commandId: "cmd_tui_1",
+      error,
+    };
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("1");
+    await waitFor(() => service.waitedForCommandIds.includes("cmd_tui_1"));
+    service.emit({ type: "command.failed", commandId: "cmd_tui_1", error });
+
+    await waitFor(() => instance.lastFrame()?.includes(error.message) === true);
+    await settle(80);
+    expect(instance.lastFrame()).not.toContain("starting...");
+    expect(countOccurrences(instance.lastFrame() ?? "", error.message)).toBe(1);
     instance.unmount();
   });
 
@@ -668,6 +736,89 @@ describe("TUI command UX", () => {
 
 function countOccurrences(value: string, search: string): number {
   return value.split(search).length - 1;
+}
+
+function startedAgentSnapshot(snapshot: WosmSnapshot): WosmSnapshot {
+  const sourceRow = snapshot.rows.find((row) => row.id === "wt_web_no_agent");
+  if (sourceRow === undefined) {
+    throw new Error("Expected no-agent row in fixture snapshot.");
+  }
+  const startedRow: WorktreeRow = {
+    ...sourceRow,
+    terminal: {
+      provider: "tmux",
+      state: "open",
+      workspaceTargetId: "term_wt_web_no_agent_window",
+      primaryAgentTargetId: "term_wt_web_no_agent_agent",
+      attached: true,
+      lastOutputAt: fixtureNow,
+    },
+    agent: {
+      harness: "codex",
+      state: "idle",
+      runId: "run_wt_web_no_agent",
+      sessionId: "ses_wt_web_no_agent",
+      confidence: "high",
+      reason: "Harness reported the turn completed.",
+      updatedAt: fixtureNow,
+    },
+    display: {
+      statusLabel: "idle",
+      sortPriority: 40,
+      alert: false,
+    },
+  };
+  const session: SessionView = {
+    id: "ses_wt_web_no_agent",
+    projectId: "web",
+    worktreeId: "wt_web_no_agent",
+    createdAt: fixtureNow,
+    updatedAt: fixtureNow,
+    harness: {
+      provider: "codex",
+      mode: "interactive",
+      runId: "run_wt_web_no_agent",
+      capabilities: {
+        canLaunch: true,
+        canDiscoverRuns: true,
+        canEmitEvents: true,
+        canClassifyStatus: true,
+        canReceivePrompt: false,
+        canResume: true,
+        canStop: true,
+        canRunNonInteractive: true,
+        canExposeApprovalState: true,
+      },
+    },
+    terminal: {
+      provider: "tmux",
+      exists: true,
+      workspaceTargetId: "term_wt_web_no_agent_window",
+      primaryAgentTargetId: "term_wt_web_no_agent_agent",
+      attached: true,
+      lastOutputAt: fixtureNow,
+    },
+    status: {
+      value: "idle",
+      confidence: "high",
+      reason: "Harness reported the turn completed.",
+      source: "harness_hook",
+      updatedAt: fixtureNow,
+    },
+    title: sourceRow.branch,
+    tags: ["codex", "tmux"],
+  };
+
+  return {
+    ...snapshot,
+    rows: snapshot.rows.map((row) => (row.id === sourceRow.id ? startedRow : row)),
+    sessions: [...snapshot.sessions.filter((candidate) => candidate.id !== session.id), session],
+    counts: {
+      ...snapshot.counts,
+      agents: snapshot.counts.agents + 1,
+      idle: snapshot.counts.idle + 1,
+    },
+  };
 }
 
 async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {

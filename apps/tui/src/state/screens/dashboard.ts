@@ -7,9 +7,10 @@ import {
   selectProjectChoices,
 } from "../../selectors/selectors.js";
 import { safeErrorToToast } from "../../services/errors/errors.js";
-import { buildPrimaryCommandForRow } from "../commandBuilders.js";
+import { buildFocusCommand, buildStartAgentCommand } from "../commandBuilders.js";
 import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
+import { addPendingStartAgentRow } from "../localRows.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 
@@ -102,15 +103,13 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
     return { state };
   }
 
+  if (row.agent === undefined) {
+    return startAgentForRow(state, row);
+  }
+
   return {
     state,
-    commands: [
-      buildPrimaryCommandForRow(
-        row,
-        state.snapshot,
-        focusCommandOptions(state.runtime.focusOrigin),
-      ),
-    ],
+    commands: [buildFocusCommand(row, focusCommandOptions(state.runtime.focusOrigin))],
   };
 }
 
@@ -167,6 +166,51 @@ function openProjectCollapse(state: TuiState): TuiTransition {
         value: formatProjectChoicePrompt(selectProjectChoices(state.snapshot, state)),
       },
     },
+  };
+}
+
+function startAgentForRow(
+  state: TuiState,
+  row: NonNullable<TuiState["snapshot"]>["rows"][number],
+): TuiTransition {
+  const project = state.snapshot?.projects.find((candidate) => candidate.id === row.projectId);
+  if (project === undefined) {
+    return {
+      state: {
+        ...state,
+        toasts: [
+          ...state.toasts,
+          safeErrorToToast({
+            tag: "CommandValidationError",
+            code: "PROJECT_NOT_FOUND",
+            message: `Project not found for worktree ${row.id}.`,
+          }),
+        ],
+      },
+    };
+  }
+
+  const command = buildStartAgentCommand(row, project);
+  const localId = `start:${row.id}`;
+
+  return {
+    state: addPendingStartAgentRow(state, {
+      localId,
+      projectId: row.projectId,
+      worktreeId: row.id,
+      branch: row.branch,
+      createdAt: new Date().toISOString(),
+    }),
+    operations: [
+      {
+        type: "startAgent",
+        localId,
+        projectId: row.projectId,
+        worktreeId: row.id,
+        branch: row.branch,
+        command,
+      },
+    ],
   };
 }
 

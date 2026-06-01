@@ -35,7 +35,7 @@ export function Dashboard({
       <DashboardHeader productLabel={productLabel} />
       <DashboardDivider columns={contentColumns} />
       <ScrollIndicatorRow direction="above" hiddenCount={viewport.hiddenAbove} />
-      <DashboardBody items={viewport.visibleItems} choices={viewport.rowChoices} />
+      <DashboardBody items={viewport.visibleItems} choices={viewport.displayRowChoices} />
       <ScrollIndicatorRow direction="below" hiddenCount={viewport.hiddenBelow} />
       <DashboardDivider columns={contentColumns} />
       <DashboardFooter columns={contentColumns} quitHint={quitHint} />
@@ -119,6 +119,11 @@ function DashboardViewportRow({
       if (item.pendingRemove !== undefined) {
         return <RemoveWorktreeLocalRow displayTitle={item.displayTitle} />;
       }
+      if (item.pendingStart !== undefined) {
+        return (
+          <StartAgentLocalRow displayTitle={item.displayTitle} slot={keyByRow.get(item.row.id)} />
+        );
+      }
       return (
         <WorktreeRow row={item.row} slot={keyByRow.get(item.row.id)} title={item.displayTitle} />
       );
@@ -133,6 +138,22 @@ function RemoveWorktreeLocalRow({ displayTitle }: { displayTitle: string }) {
       <Text>{" [ ] "}</Text>
       <Throbber variant="braille" />
       <Text>{` ${displayTitle}  removing worktree...`}</Text>
+    </Box>
+  );
+}
+
+function StartAgentLocalRow({
+  displayTitle,
+  slot,
+}: {
+  displayTitle: string;
+  slot: string | undefined;
+}) {
+  return (
+    <Box>
+      <Text>{` [${slot ?? " "}] `}</Text>
+      <Throbber variant="braille" />
+      <Text>{` ${displayTitle}  starting...`}</Text>
     </Box>
   );
 }

@@ -18,7 +18,7 @@ describe("Dashboard", () => {
             collapsedProjectIds: new Set(["web"]),
             scrollOffset: 0,
             terminalRows: 24,
-            localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [] },
+            localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [], pendingStart: [] },
           }}
         />
       </Box>,
@@ -46,7 +46,7 @@ describe("Dashboard", () => {
             collapsedProjectIds: new Set(),
             scrollOffset: 1,
             terminalRows: 10,
-            localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [] },
+            localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [], pendingStart: [] },
           }}
         />
       </Box>,
@@ -78,7 +78,7 @@ describe("Dashboard", () => {
           collapsedProjectIds: new Set(),
           scrollOffset: 0,
           terminalRows: 24,
-          localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [] },
+          localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [], pendingStart: [] },
         }}
       />,
     );
@@ -88,6 +88,59 @@ describe("Dashboard", () => {
     expect(props.children).not.toContain("refresh");
     expect(props.color).toBeUndefined();
     expect(props.dimColor).toBe(false);
+  });
+
+  it("renders local operation rows with the intended slot labels", () => {
+    const snapshot = createDashboardSnapshot();
+    const frame = renderToString(
+      <Box flexDirection="column" height={24} width={100}>
+        <Dashboard
+          columns={100}
+          snapshot={snapshot}
+          viewState={{
+            searchQuery: "",
+            collapsedProjectIds: new Set(),
+            scrollOffset: 0,
+            terminalRows: 24,
+            localRows: {
+              pendingCreate: [
+                {
+                  localId: "local_create_1",
+                  projectId: "web",
+                  branch: "feature/pending",
+                  harnessProvider: "codex",
+                  createdAt: "2026-05-31T12:00:00.000Z",
+                },
+              ],
+              failedCreate: [],
+              pendingRemove: [
+                {
+                  localId: "remove:wt_web_idle",
+                  projectId: "web",
+                  worktreeId: "wt_web_idle",
+                  branch: "fix-nav-mobile",
+                  createdAt: "2026-05-31T12:00:00.000Z",
+                },
+              ],
+              pendingStart: [
+                {
+                  localId: "start:wt_web_no_agent",
+                  projectId: "web",
+                  worktreeId: "wt_web_no_agent",
+                  branch: "feature-auth",
+                  createdAt: "2026-05-31T12:00:00.000Z",
+                },
+              ],
+            },
+          }}
+        />
+      </Box>,
+      { columns: 100 },
+    );
+
+    expect(frame).toContain(" [4] ⠋ feature-auth  starting...");
+    expect(frame).toContain(" [ ] ⠋ feature/pending  starting session...");
+    expect(frame).toContain(" [ ] ⠋ fix-nav-mobile  removing worktree...");
   });
 });
 
