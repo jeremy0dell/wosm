@@ -32,6 +32,8 @@ import {
 const now = "2026-05-20T12:00:00.000Z";
 const headSha = "2222222222222222222222222222222222222222";
 const baseSha = "1111111111111111111111111111111111111111";
+const mergeBaseSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const oldLocalMainSha = "3333333333333333333333333333333333333333";
 
 const config: WosmConfig = {
   schemaVersion: 1,
@@ -110,7 +112,8 @@ describe("observer worktree metadata refresh", () => {
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "",
       "rev-parse --verify refs/heads/main^{commit}": baseSha,
-      "diff --numstat main...HEAD": "4\t2\tsrc/a.ts\n-\t-\tassets/logo.png\n",
+      "merge-base main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "4\t2\tsrc/a.ts\n-\t-\tassets/logo.png\n",
     });
     const service = createWorktreeMetadataRefreshService({
       projects: providerProjectsFromConfig(config),
@@ -135,11 +138,73 @@ describe("observer worktree metadata refresh", () => {
           binaryFiles: 1,
           baseRef: "main",
           baseSha,
+          mergeBaseSha,
           headSha,
           source: "local_git",
         }),
       }),
     ]);
+    expect(reasons).toEqual(["metadata:change_summary"]);
+    fixture.sqlite.close();
+  });
+
+  it("uses config defaultBranch remote refs through refresh, SQLite cache, and hot reconcile", async () => {
+    const fixture = createFixture();
+    const reasons: string[] = [];
+    const calls: string[] = [];
+    const runner = gitRunner(
+      {
+        "rev-parse --verify HEAD^{commit}": headSha,
+        remote: "origin\n",
+        "rev-parse --verify refs/remotes/origin/main^{commit}": headSha,
+        "rev-parse --verify refs/heads/main^{commit}": oldLocalMainSha,
+        "merge-base origin/main HEAD": headSha,
+        "merge-base main HEAD": oldLocalMainSha,
+        [`diff --numstat ${headSha}..HEAD`]: "",
+        [`diff --numstat ${oldLocalMainSha}..HEAD`]: "51\t15\tsrc/stale.ts\n",
+      },
+      calls,
+    );
+    const service = createWorktreeMetadataRefreshService({
+      projects: providerProjectsFromConfig(config),
+      persistence: fixture.persistence,
+      requestReconcile: (reason) => reasons.push(reason),
+      clock: fixture.clock,
+      runner,
+    });
+
+    const snapshotBefore = await fixture.core.reconcile("metadata-default-branch-before");
+    await service.refresh(snapshotBefore);
+
+    const currentRows = await fixture.persistence.listWorktreeMetadataCurrent({
+      kind: "change_summary",
+      now,
+    });
+    expect(currentRows).toEqual([
+      expect.objectContaining({
+        worktreeId: "wt_web_feature",
+        payload: expect.objectContaining({
+          additions: 0,
+          deletions: 0,
+          filesChanged: 0,
+          baseRef: "origin/main",
+          baseSha: headSha,
+          mergeBaseSha: headSha,
+          headSha,
+        }),
+      }),
+    ]);
+
+    const snapshotAfter = await fixture.core.reconcile("metadata-default-branch-after");
+    expect(snapshotAfter.rows[0]?.worktree.changeSummary).toMatchObject({
+      additions: 0,
+      deletions: 0,
+      baseRef: "origin/main",
+      baseSha: headSha,
+      mergeBaseSha: headSha,
+    });
+    expect(calls).not.toContain("rev-parse --verify refs/heads/main^{commit}");
+    expect(calls).not.toContain(`diff --numstat ${oldLocalMainSha}..HEAD`);
     expect(reasons).toEqual(["metadata:change_summary"]);
     fixture.sqlite.close();
   });
@@ -164,7 +229,8 @@ describe("observer worktree metadata refresh", () => {
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "",
       "rev-parse --verify refs/heads/main^{commit}": baseSha,
-      "diff --numstat main...HEAD": "bad\t1\tsrc/a.ts\n",
+      "merge-base main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "bad\t1\tsrc/a.ts\n",
     });
     const service = createWorktreeMetadataRefreshService({
       projects: providerProjectsFromConfig(config),
@@ -216,7 +282,8 @@ describe("observer worktree metadata refresh", () => {
         "rev-parse --verify HEAD^{commit}": headSha,
         remote: "",
         "rev-parse --verify refs/heads/main^{commit}": baseSha,
-        "diff --numstat main...HEAD": "bad\t1\tsrc/a.ts\n",
+        "merge-base main HEAD": mergeBaseSha,
+        [`diff --numstat ${mergeBaseSha}..HEAD`]: "bad\t1\tsrc/a.ts\n",
       },
       calls,
     );
@@ -312,8 +379,9 @@ describe("observer worktree metadata refresh", () => {
     const runner = gitRunner({
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "origin\n",
-      "rev-parse --verify refs/heads/main^{commit}": baseSha,
-      "diff --numstat main...HEAD": "1\t0\tsrc/a.ts\n",
+      "rev-parse --verify refs/remotes/origin/main^{commit}": baseSha,
+      "merge-base origin/main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "1\t0\tsrc/a.ts\n",
       "remote get-url origin": "git@github.com:example/web.git\n",
     });
     const service = createWorktreeMetadataRefreshService({
@@ -378,8 +446,9 @@ describe("observer worktree metadata refresh", () => {
     const runner = gitRunner({
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "origin\n",
-      "rev-parse --verify refs/heads/main^{commit}": baseSha,
-      "diff --numstat main...HEAD": "1\t0\tsrc/a.ts\n",
+      "rev-parse --verify refs/remotes/origin/main^{commit}": baseSha,
+      "merge-base origin/main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "1\t0\tsrc/a.ts\n",
       "remote get-url origin": "git@github.com:example/web.git\n",
     });
     const service = createWorktreeMetadataRefreshService({
@@ -430,8 +499,9 @@ describe("observer worktree metadata refresh", () => {
     const runner = gitRunner({
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "origin\n",
-      "rev-parse --verify refs/heads/main^{commit}": baseSha,
-      "diff --numstat main...HEAD": "1\t0\tsrc/a.ts\n",
+      "rev-parse --verify refs/remotes/origin/main^{commit}": baseSha,
+      "merge-base origin/main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "1\t0\tsrc/a.ts\n",
       "remote get-url origin": "git@github.com:example/web.git\n",
     });
     const service = createWorktreeMetadataRefreshService({

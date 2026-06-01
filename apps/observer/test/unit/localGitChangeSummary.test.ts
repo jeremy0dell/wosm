@@ -10,6 +10,8 @@ import {
 const now = "2026-05-20T12:00:00.000Z";
 const headSha = "2222222222222222222222222222222222222222";
 const baseSha = "1111111111111111111111111111111111111111";
+const mergeBaseSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const oldLocalMainSha = "3333333333333333333333333333333333333333";
 
 const baseInput: Omit<LocalGitChangeSummaryInput, "runner"> = {
   project: {
@@ -66,13 +68,14 @@ describe("local git change summary", () => {
     }
   });
 
-  it("resolves base from configured default branch", async () => {
+  it("resolves an unqualified configured default branch through origin first", async () => {
     const calls: string[] = [];
     const runner = gitRunner(calls, {
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "origin\n",
-      "rev-parse --verify refs/heads/main^{commit}": baseSha,
-      "diff --numstat main...HEAD": "5\t1\tsrc/a.ts\n",
+      "rev-parse --verify refs/remotes/origin/main^{commit}": baseSha,
+      "merge-base origin/main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "5\t1\tsrc/a.ts\n",
     });
 
     const result = await readLocalGitChangeSummary({
@@ -89,21 +92,121 @@ describe("local git change summary", () => {
       deletions: 1,
       filesChanged: 1,
       binaryFiles: 0,
-      baseRef: "main",
+      baseRef: "origin/main",
       baseSha,
+      mergeBaseSha,
       headSha,
       source: "local_git",
     });
-    expect(calls).toContain("diff --numstat main...HEAD");
+    expect(calls).toContain("diff --numstat aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa..HEAD");
+    expect(calls).not.toContain("rev-parse --verify refs/heads/main^{commit}");
   });
 
-  it("resolves unqualified Worktrunk base through origin when no local branch exists", async () => {
+  it("hides stale local main changes when origin/main already contains HEAD", async () => {
+    const calls: string[] = [];
+    const runner = gitRunner(calls, {
+      "rev-parse --verify HEAD^{commit}": headSha,
+      remote: "origin\n",
+      "rev-parse --verify refs/remotes/origin/main^{commit}": headSha,
+      "rev-parse --verify refs/heads/main^{commit}": oldLocalMainSha,
+      "merge-base origin/main HEAD": headSha,
+      "merge-base main HEAD": oldLocalMainSha,
+      [`diff --numstat ${headSha}..HEAD`]: "",
+      [`diff --numstat ${oldLocalMainSha}..HEAD`]: "51\t15\tsrc/stale.ts\n",
+    });
+
+    const result = await readLocalGitChangeSummary({
+      ...baseInput,
+      project: {
+        ...baseInput.project,
+        defaultBranch: "main",
+      },
+      runner,
+    });
+
+    expect(result?.summary).toMatchObject({
+      additions: 0,
+      deletions: 0,
+      filesChanged: 0,
+      baseRef: "origin/main",
+      baseSha: headSha,
+      mergeBaseSha: headSha,
+    });
+    expect(calls).not.toContain("rev-parse --verify refs/heads/main^{commit}");
+    expect(calls).not.toContain(`diff --numstat ${oldLocalMainSha}..HEAD`);
+  });
+
+  it("keeps baseSha as the base ref tip and mergeBaseSha as the diff anchor", async () => {
+    const calls: string[] = [];
+    const runner = gitRunner(calls, {
+      "rev-parse --verify HEAD^{commit}": headSha,
+      remote: "origin\n",
+      "rev-parse --verify origin/main^{commit}": baseSha,
+      "merge-base origin/main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "6\t4\tsrc/a.ts\n",
+    });
+
+    const result = await readLocalGitChangeSummary({
+      ...baseInput,
+      project: {
+        ...baseInput.project,
+        defaultBranch: "origin/main",
+      },
+      runner,
+    });
+
+    expect(result?.summary).toMatchObject({
+      additions: 6,
+      deletions: 4,
+      baseRef: "origin/main",
+      baseSha,
+      mergeBaseSha,
+    });
+    expect(calls).toContain(`diff --numstat ${mergeBaseSha}..HEAD`);
+    expect(JSON.parse(result?.cacheKey ?? "{}")).toMatchObject({
+      baseSha,
+      mergeBaseSha,
+    });
+  });
+
+  it("honors an explicit origin base ref when the remote list is unavailable", async () => {
+    const calls: string[] = [];
+    const runner = gitRunner(calls, {
+      "rev-parse --verify HEAD^{commit}": headSha,
+      remote: "",
+      "rev-parse --verify origin/main^{commit}": baseSha,
+      "merge-base origin/main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "1\t2\tsrc/a.ts\n",
+    });
+
+    const result = await readLocalGitChangeSummary({
+      ...baseInput,
+      project: {
+        ...baseInput.project,
+        defaultBranch: "origin/main",
+      },
+      runner,
+    });
+
+    expect(result?.summary).toMatchObject({
+      additions: 1,
+      deletions: 2,
+      baseRef: "origin/main",
+      baseSha,
+      mergeBaseSha,
+    });
+    expect(calls).not.toContain("rev-parse --verify refs/heads/origin/main^{commit}");
+  });
+
+  it("resolves unqualified Worktrunk base through origin before local branch", async () => {
     const calls: string[] = [];
     const runner = gitRunner(calls, {
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "origin\nupstream\n",
       "rev-parse --verify refs/remotes/origin/develop^{commit}": baseSha,
-      "diff --numstat origin/develop...HEAD": "2\t3\tsrc/a.ts\n",
+      "rev-parse --verify refs/heads/develop^{commit}": oldLocalMainSha,
+      "merge-base origin/develop HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "2\t3\tsrc/a.ts\n",
     });
 
     const result = await readLocalGitChangeSummary({
@@ -122,9 +225,10 @@ describe("local git change summary", () => {
       additions: 2,
       deletions: 3,
       baseRef: "origin/develop",
+      mergeBaseSha,
     });
-    expect(calls).toContain("rev-parse --verify refs/heads/develop^{commit}");
-    expect(calls).toContain("diff --numstat origin/develop...HEAD");
+    expect(calls).not.toContain("rev-parse --verify refs/heads/develop^{commit}");
+    expect(calls).toContain(`diff --numstat ${mergeBaseSha}..HEAD`);
   });
 
   it("resolves base from remote HEAD before local fallback", async () => {
@@ -134,7 +238,8 @@ describe("local git change summary", () => {
       remote: "upstream\norigin\n",
       "symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/trunk\n",
       "rev-parse --verify origin/trunk^{commit}": baseSha,
-      "diff --numstat origin/trunk...HEAD": "1\t1\tsrc/a.ts\n",
+      "merge-base origin/trunk HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "1\t1\tsrc/a.ts\n",
     });
 
     const result = await readLocalGitChangeSummary({
@@ -143,7 +248,7 @@ describe("local git change summary", () => {
     });
 
     expect(result?.summary.baseRef).toBe("origin/trunk");
-    expect(calls).toContain("diff --numstat origin/trunk...HEAD");
+    expect(calls).toContain(`diff --numstat ${mergeBaseSha}..HEAD`);
   });
 
   it("falls back to local main when configured and remote bases are unavailable", async () => {
@@ -152,7 +257,8 @@ describe("local git change summary", () => {
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "",
       "rev-parse --verify refs/heads/main^{commit}": baseSha,
-      "diff --numstat main...HEAD": "",
+      "merge-base main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "",
     });
 
     const result = await readLocalGitChangeSummary({
@@ -165,6 +271,7 @@ describe("local git change summary", () => {
       deletions: 0,
       filesChanged: 0,
       baseRef: "main",
+      mergeBaseSha,
     });
   });
 
@@ -173,8 +280,9 @@ describe("local git change summary", () => {
     const runner = gitRunner(calls, {
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "origin\n",
-      "rev-parse --verify refs/heads/release^{commit}": baseSha,
-      "diff --numstat release...HEAD": "1\t0\tsrc/a.ts\n",
+      "rev-parse --verify refs/remotes/origin/release^{commit}": baseSha,
+      "merge-base origin/release HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "1\t0\tsrc/a.ts\n",
     });
 
     const result = await readLocalGitChangeSummary({
@@ -191,8 +299,8 @@ describe("local git change summary", () => {
       runner,
     });
 
-    expect(result?.summary.baseRef).toBe("release");
-    expect(calls).not.toContain("rev-parse --verify refs/heads/main^{commit}");
+    expect(result?.summary.baseRef).toBe("origin/release");
+    expect(calls).not.toContain("rev-parse --verify refs/remotes/origin/main^{commit}");
   });
 
   it("omits metadata when no base can be resolved", async () => {
@@ -216,7 +324,8 @@ describe("local git change summary", () => {
       "rev-parse --verify HEAD^{commit}": headSha,
       remote: "",
       "rev-parse --verify refs/heads/main^{commit}": baseSha,
-      "diff --numstat main...HEAD": "bad\t1\tsrc/a.ts\n",
+      "merge-base main HEAD": mergeBaseSha,
+      [`diff --numstat ${mergeBaseSha}..HEAD`]: "bad\t1\tsrc/a.ts\n",
     });
 
     await expect(

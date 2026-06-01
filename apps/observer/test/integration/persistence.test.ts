@@ -433,6 +433,7 @@ describe("observer persistence", () => {
         binaryFiles: 0,
         baseRef: "main",
         baseSha: "1111111111111111111111111111111111111111",
+        mergeBaseSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         headRef: "feature",
         headSha: "2222222222222222222222222222222222222222",
         source: "local_git",
@@ -452,6 +453,7 @@ describe("observer persistence", () => {
         binaryFiles: 1,
         baseRef: "main",
         baseSha: "1111111111111111111111111111111111111111",
+        mergeBaseSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         headRef: "feature",
         headSha: "3333333333333333333333333333333333333333",
         source: "local_git",
@@ -497,9 +499,10 @@ describe("observer persistence", () => {
 
     expect(
       (await persistence.listWorktreeMetadataCurrent({ kind: "change_summary", now })).map(
-        (row) => `${row.worktreeId}:${row.cacheKey}:${row.payload.additions}`,
+        (row) =>
+          `${row.worktreeId}:${row.cacheKey}:${row.payload.additions}:${row.payload.mergeBaseSha}`,
       ),
-    ).toEqual(["wt_web_main:second:3"]);
+    ).toEqual(["wt_web_main:second:3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]);
     expect(
       await persistence.listWorktreeMetadataCurrent({
         kind: ["change_summary", "pull_request", "checks"],

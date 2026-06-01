@@ -17,6 +17,7 @@ export function staleChangeSummary(payload: WorktreeChangeSummary): WorktreeChan
   if (payload.binaryFiles !== undefined) stale.binaryFiles = payload.binaryFiles;
   if (payload.baseRef !== undefined) stale.baseRef = payload.baseRef;
   if (payload.baseSha !== undefined) stale.baseSha = payload.baseSha;
+  if (payload.mergeBaseSha !== undefined) stale.mergeBaseSha = payload.mergeBaseSha;
   if (payload.headRef !== undefined) stale.headRef = payload.headRef;
   if (payload.headSha !== undefined) stale.headSha = payload.headSha;
   return stale;
