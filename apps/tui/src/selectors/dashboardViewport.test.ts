@@ -13,7 +13,6 @@ describe("dashboard viewport selector", () => {
         item.type === "worktree" ? `${item.type}:${item.row.id}` : item.id,
       ),
     ).toEqual([
-      "gap:web",
       "project:web",
       "worktree:wt_web_working",
       "worktree:wt_web_attention",
@@ -31,14 +30,14 @@ describe("dashboard viewport selector", () => {
   it("slices visible items, clamps offset, and reports hidden counts", () => {
     const snapshot = createDashboardSnapshot();
     const state = createInitialTuiState({
-      scrollOffset: 2,
+      scrollOffset: 1,
       terminalRows: 10,
     });
     const viewport = selectDashboardViewport(snapshot, state);
 
     expect(viewport.bodyRows).toBe(4);
-    expect(viewport.clampedScrollOffset).toBe(2);
-    expect(viewport.hiddenAbove).toBe(2);
+    expect(viewport.clampedScrollOffset).toBe(1);
+    expect(viewport.hiddenAbove).toBe(1);
     expect(viewport.hiddenBelow).toBe(6);
     expect(
       viewport.visibleItems.map((item) =>
@@ -50,7 +49,7 @@ describe("dashboard viewport selector", () => {
   it("uses only viewport-visible worktrees for row choices", () => {
     const snapshot = createDashboardSnapshot();
     const state = createInitialTuiState({
-      scrollOffset: 5,
+      scrollOffset: 4,
       terminalRows: 10,
     });
     const viewport = selectDashboardViewport(snapshot, state);
@@ -73,8 +72,8 @@ describe("dashboard viewport selector", () => {
       }),
     );
 
-    expect(viewport.clampedScrollOffset).toBe(8);
-    expect(viewport.hiddenAbove).toBe(8);
+    expect(viewport.clampedScrollOffset).toBe(7);
+    expect(viewport.hiddenAbove).toBe(7);
     expect(viewport.hiddenBelow).toBe(0);
     expect(viewport.visibleItems.at(-1)?.id).toBe("worktree:wt_api_working");
   });
@@ -89,7 +88,6 @@ describe("dashboard viewport selector", () => {
     );
 
     expect(viewport.items.map((item) => item.id)).toEqual([
-      "gap:web",
       "project:web",
       "empty:web",
       "gap:api",

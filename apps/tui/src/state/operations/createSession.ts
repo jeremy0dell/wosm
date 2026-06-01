@@ -1,6 +1,6 @@
-import type { SafeError, WosmCommand } from "@wosm/contracts";
+import type { CommandId, SafeError, WosmCommand } from "@wosm/contracts";
 import type { StoreApi } from "zustand/vanilla";
-import { safeErrorToToast, toSafeError } from "../../services/errors/errors.js";
+import { toSafeError } from "../../services/errors/errors.js";
 import type { TuiObserverService } from "../../services/types.js";
 import { bindPendingCreateSessionRow } from "../localRows.js";
 import type { TuiStore } from "../store.js";
@@ -13,6 +13,8 @@ export async function runCreateSessionOperation(
   runtime: CommandRuntimeOptions,
   operation: CreateSessionOperation,
   markCreateSessionRowFailed: (localId: string, error: SafeError) => void,
+  markCommandFailureHandled: (commandId: CommandId) => void,
+  hasCommandFailureBeenHandled: (commandId: CommandId) => boolean,
   addSafeErrorToast: (error: SafeError) => void,
 ): Promise<void> {
   try {
@@ -37,18 +39,16 @@ export async function runCreateSessionOperation(
     );
     const completion = await service.waitForCommandCompletion(receipt.commandId);
     if (completion.status === "failed") {
+      const alreadyHandled = hasCommandFailureBeenHandled(completion.commandId);
+      markCommandFailureHandled(completion.commandId);
       markCreateSessionRowFailed(operation.localId, completion.error);
-      addSafeErrorToast(completion.error);
+      if (!alreadyHandled) {
+        addSafeErrorToast(completion.error);
+      }
     }
   } catch (error: unknown) {
     const safeError = toSafeError(error);
     markCreateSessionRowFailed(operation.localId, safeError);
     addSafeErrorToast(safeError);
   }
-}
-
-export function addCreateSessionErrorToast(store: StoreApi<TuiStore>, error: SafeError): void {
-  store.setState((state) => ({
-    toasts: [...state.toasts, safeErrorToToast(error)],
-  }));
 }

@@ -14,7 +14,7 @@ describe("new session bottom-sheet flow", () => {
     instance.stdin.write("N");
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     expect(instance.lastFrame()).toContain("Project   web");
-    expect(instance.lastFrame()).not.toContain("N:new 1-9/a-z:start/focus");
+    expect(instance.lastFrame()).not.toContain("N:new 1-9/a-z:open");
 
     instance.stdin.write("E");
     await waitFor(() => instance.lastFrame()?.includes("Edit Session Name") === true);
@@ -30,13 +30,13 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(
       () =>
         instance.lastFrame()?.includes("Project   api") === true &&
-        instance.lastFrame()?.includes("Agent     opencode healthy") === true,
+        instance.lastFrame()?.includes("Agent     codex healthy") === true,
     );
     expect(instance.lastFrame()).toContain("Name      feature/custom");
 
     instance.stdin.write("A");
-    await waitFor(() => instance.lastFrame()?.includes("1 opencode") === true);
-    instance.stdin.write("2");
+    await waitFor(() => instance.lastFrame()?.includes("1 codex") === true);
+    instance.stdin.write("1");
     await waitFor(() => instance.lastFrame()?.includes("Agent     codex healthy") === true);
 
     instance.stdin.write("\r");

@@ -63,7 +63,6 @@ export type NewSessionHarnessOption = {
   id: ProviderId;
   label: string;
   status: ProviderHealth["status"];
-  isDefault: boolean;
   createBlocked: boolean;
   health?: ProviderHealth;
 };
@@ -140,11 +139,11 @@ export function selectNewSessionProjectChoices(
 
 export function selectNewSessionHarnessOptions(
   snapshot: WosmSnapshot,
-  project: ProjectView,
+  _project: ProjectView,
 ): NewSessionHarnessOption[] {
-  const configured = configuredHarnesses(snapshot, project);
+  const configured = configuredHarnesses(snapshot);
   const labels = new Map(configured.map((harness) => [harness.id, harness.label]));
-  const orderedIds = [project.defaults.harness, ...configured.map((harness) => harness.id)];
+  const orderedIds = configured.map((harness) => harness.id);
   const seen = new Set<string>();
   const options: NewSessionHarnessOption[] = [];
 
@@ -158,7 +157,6 @@ export function selectNewSessionHarnessOptions(
       id,
       label: labels.get(id) ?? id,
       status: health?.status ?? "unknown",
-      isDefault: id === project.defaults.harness,
       createBlocked: health?.status === "unavailable",
     };
     if (health !== undefined) {
@@ -203,7 +201,7 @@ function normalizeSearch(value: string): string {
   return value.trim().toLocaleLowerCase();
 }
 
-function configuredHarnesses(snapshot: WosmSnapshot, project: ProjectView) {
+function configuredHarnesses(snapshot: WosmSnapshot) {
   if (snapshot.harnesses !== undefined) {
     return snapshot.harnesses;
   }
@@ -215,5 +213,5 @@ function configuredHarnesses(snapshot: WosmSnapshot, project: ProjectView) {
       label: health.providerId,
     }));
 
-  return [{ id: project.defaults.harness, label: project.defaults.harness }, ...healthHarnesses];
+  return healthHarnesses;
 }
