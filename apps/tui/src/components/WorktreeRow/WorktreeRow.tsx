@@ -11,29 +11,35 @@ export function WorktreeRow({ row, slot }: WorktreeRowProps) {
   const marker = statusMarker(row);
   const harness = row.agent?.harness ?? "-";
   const metadata = metadataSegments(row);
-  const reason =
+  const warningReason =
     row.display.warning === true && row.display.reason !== undefined
-      ? ` ${row.display.reason}`
-      : "";
+      ? row.display.reason
+      : undefined;
   const color = row.display.alert
     ? "red"
     : marker.kind === "text" && marker.glyph === "?"
       ? "yellow"
       : undefined;
-  const suffix = `  ${harness}  ${row.display.statusLabel}${reason}`;
+  const suffix = warningReason === undefined ? `  ${harness}` : `  ${harness}  ${warningReason}`;
   return (
-    <Box>
-      <ColoredText color={color}>{` [${slot ?? " "}] `}</ColoredText>
-      {marker.kind === "throbber" ? (
-        <Throbber variant={marker.variant} />
-      ) : (
-        <ColoredText color={color}>{marker.glyph}</ColoredText>
-      )}
-      <ColoredText color={color}>{` ${row.branch}`}</ColoredText>
-      {metadata.map((segment) => (
-        <MetadataText key={segment.text} segment={segment} color={color} />
-      ))}
-      <ColoredText color={color}>{suffix}</ColoredText>
+    <Box width="100%" justifyContent="space-between">
+      <Box flexShrink={1}>
+        <ColoredText color={color}>{` [${slot ?? " "}] `}</ColoredText>
+        {marker.kind === "throbber" ? (
+          <Throbber variant={marker.variant} />
+        ) : (
+          <ColoredText color={color}>{marker.glyph}</ColoredText>
+        )}
+        <ColoredText color={color}>{` ${row.branch}`}</ColoredText>
+        <ColoredText color={color}>{suffix}</ColoredText>
+      </Box>
+      {metadata.length > 0 ? (
+        <Box flexShrink={0}>
+          {metadata.map((segment, index) => (
+            <MetadataText key={segment.text} segment={segment} color={color} first={index === 0} />
+          ))}
+        </Box>
+      ) : null}
     </Box>
   );
 }
@@ -62,7 +68,11 @@ function statusMarker(row: WorktreeRowModel): StatusMarker {
 type MetadataSegment = {
   text: string;
   stale: boolean;
+  color?: MetadataColor;
+  underline?: true;
 };
+
+type MetadataColor = "green" | "red" | "blue" | "yellow" | "gray";
 
 function ColoredText({
   children,
@@ -77,23 +87,46 @@ function ColoredText({
 function MetadataText({
   segment,
   color,
+  first,
 }: {
   segment: MetadataSegment;
   color: "red" | "yellow" | undefined;
+  first: boolean;
 }) {
-  const text = `  ${segment.text}`;
-  if (segment.stale) return <Text dimColor>{text}</Text>;
-  return color === undefined ? <Text>{text}</Text> : <Text color={color}>{text}</Text>;
+  const text = `${first ? "" : "  "}${segment.text}`;
+  const textColor = segment.color ?? color;
+  const props: {
+    dimColor: boolean;
+    underline: boolean;
+    color?: MetadataColor | "red" | "yellow";
+  } = {
+    dimColor: segment.stale,
+    underline: segment.underline === true,
+  };
+  if (textColor !== undefined) {
+    props.color = textColor;
+  }
+  return <Text {...props}>{text}</Text>;
 }
 
 export function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
   const segments: MetadataSegment[] = [];
   const { changeSummary, pr, checks } = row.worktree;
-  if (changeSummary !== undefined) {
-    segments.push({
-      text: `+${changeSummary.additions}/-${changeSummary.deletions}`,
-      stale: changeSummary.stale === true,
-    });
+  if (changeSummary !== undefined && (changeSummary.additions > 0 || changeSummary.deletions > 0)) {
+    if (changeSummary.additions > 0) {
+      segments.push({
+        text: `+${changeSummary.additions}`,
+        stale: changeSummary.stale === true,
+        color: "green",
+      });
+    }
+    if (changeSummary.deletions > 0) {
+      segments.push({
+        text: `-${changeSummary.deletions}`,
+        stale: changeSummary.stale === true,
+        color: "red",
+      });
+    }
   }
   if (pr === undefined) {
     return segments;
@@ -101,11 +134,14 @@ export function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
   segments.push({
     text: pr.url === undefined ? `#${pr.number}` : osc8(pr.url, `#${pr.number}`),
     stale: pr.stale === true,
+    color: "blue",
+    underline: true,
   });
   if (checks !== undefined) {
     segments.push({
       text: checksStateGlyph(checks),
       stale: checks.stale === true,
+      color: checksStateColor(checks),
     });
   }
   return segments;
@@ -117,6 +153,15 @@ function checksStateGlyph(checks: NonNullable<WorktreeRowModel["worktree"]["chec
   if (checks.state === "cancelled") return failedChecksGlyph(checks.cancelled);
   if (checks.state === "running") return "…";
   return "-";
+}
+
+function checksStateColor(
+  checks: NonNullable<WorktreeRowModel["worktree"]["checks"]>,
+): MetadataColor {
+  if (checks.state === "pass") return "green";
+  if (checks.state === "fail" || checks.state === "cancelled") return "red";
+  if (checks.state === "running") return "yellow";
+  return "gray";
 }
 
 function failedChecksGlyph(count: number | undefined): string {

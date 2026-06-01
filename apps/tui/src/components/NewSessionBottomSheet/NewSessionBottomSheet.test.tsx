@@ -78,7 +78,8 @@ describe("NewSessionBottomSheet", () => {
     expect(projectFrame).not.toContain("Enter:select");
     expect(projectFrame).toContain("1-9/a-z:select Esc:back");
     expect(agentFrame).toContain("1 codex");
-    expect(agentFrame).toContain("default unknown");
+    expect(agentFrame).toContain("unknown");
+    expect(agentFrame).not.toContain("default");
     expect(agentFrame).toContain("2 opencode");
     expect(agentFrame).not.toContain("›");
     expect(agentFrame).toContain("1-9/a-z:select Esc:back");
@@ -179,6 +180,7 @@ describe("NewSessionBottomSheet", () => {
     expect(frame).toContain("Edit Session Name");
     expect(frame).toContain("Project   web");
     expect(frame).toContain("Name      |web-k7p3x9");
+    expect(frame).not.toMatch(/Project\s+web\n\s*\n\s*Name/);
     expect(frame).toContain("Enter:use generated name   Esc:back");
     expect(frame).not.toContain("Agent     codex");
     expect(frame).not.toContain("Enter:create");

@@ -36,5 +36,8 @@ function contentRowCount(state: NewSessionFlowState, optionCount: number): numbe
   if (state.mode === "pickProject" || state.mode === "pickAgent") {
     return Math.min(optionCount, MAX_PICKER_OPTIONS) + 4;
   }
+  if (state.mode === "editName") {
+    return 7;
+  }
   return 8;
 }
