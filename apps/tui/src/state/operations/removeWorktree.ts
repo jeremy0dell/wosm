@@ -1,6 +1,6 @@
-import type { SafeError } from "@wosm/contracts";
+import type { CommandId, SafeError } from "@wosm/contracts";
 import type { StoreApi } from "zustand/vanilla";
-import { safeErrorToToast, toSafeError } from "../../services/errors/errors.js";
+import { toSafeError } from "../../services/errors/errors.js";
 import type { TuiObserverService } from "../../services/types.js";
 import { bindPendingRemoveWorktreeRow } from "../localRows.js";
 import type { TuiStore } from "../store.js";
@@ -11,6 +11,8 @@ export async function runRemoveWorktreeOperation(
   service: TuiObserverService,
   operation: RemoveWorktreeOperation,
   markRemoveWorktreeRowFailed: (localId: string) => void,
+  markCommandFailureHandled: (commandId: CommandId) => void,
+  hasCommandFailureBeenHandled: (commandId: CommandId) => boolean,
   addSafeErrorToast: (error: SafeError) => void,
 ): Promise<void> {
   try {
@@ -31,17 +33,15 @@ export async function runRemoveWorktreeOperation(
     );
     const completion = await service.waitForCommandCompletion(receipt.commandId);
     if (completion.status === "failed") {
+      const alreadyHandled = hasCommandFailureBeenHandled(completion.commandId);
+      markCommandFailureHandled(completion.commandId);
       markRemoveWorktreeRowFailed(operation.localId);
-      addSafeErrorToast(completion.error);
+      if (!alreadyHandled) {
+        addSafeErrorToast(completion.error);
+      }
     }
   } catch (error: unknown) {
     markRemoveWorktreeRowFailed(operation.localId);
     addSafeErrorToast(toSafeError(error));
   }
-}
-
-export function addRemoveWorktreeErrorToast(store: StoreApi<TuiStore>, error: SafeError): void {
-  store.setState((state) => ({
-    toasts: [...state.toasts, safeErrorToToast(error)],
-  }));
 }

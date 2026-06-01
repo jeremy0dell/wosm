@@ -1,44 +1,14 @@
 import type { TerminalFocusOrigin, WosmCommand } from "@wosm/contracts";
 
-type CreateSessionCommand = Extract<WosmCommand, { type: "session.create" }>;
-type StartAgentCommand = Extract<WosmCommand, { type: "session.startAgent" }>;
-type RuntimeTerminalOptions = NonNullable<StartAgentCommand["payload"]["terminal"]>;
-
 export type CommandRuntimeOptions = {
   persistentPopup: boolean;
   focusOrigin?: TerminalFocusOrigin;
   resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
 };
 
-export async function prepareCommandForRuntime(
-  command: WosmCommand,
-  runtime: CommandRuntimeOptions,
-): Promise<WosmCommand> {
-  if (command.type === "session.create") {
-    return prepareCreateSessionCommandForRuntime(command, runtime);
-  }
-  if (command.type === "session.startAgent") {
-    return prepareStartAgentCommandForRuntime(command, runtime);
-  }
-  return command;
-}
-
-export async function withResolvedFocusOrigin(
-  command: Extract<WosmCommand, { type: "terminal.focus" }>,
-  runtime: Pick<CommandRuntimeOptions, "focusOrigin" | "resolveFocusOrigin">,
-): Promise<Extract<WosmCommand, { type: "terminal.focus" }>> {
-  const origin = await resolveFocusOrigin(runtime);
-  if (origin === undefined) {
-    return command;
-  }
-  return {
-    type: "terminal.focus",
-    payload: {
-      ...command.payload,
-      origin,
-    },
-  };
-}
+type CreateSessionCommand = Extract<WosmCommand, { type: "session.create" }>;
+type StartAgentCommand = Extract<WosmCommand, { type: "session.startAgent" }>;
+type RuntimeTerminalOptions = NonNullable<StartAgentCommand["payload"]["terminal"]>;
 
 async function prepareCreateSessionCommandForRuntime(
   command: CreateSessionCommand,
@@ -108,4 +78,34 @@ async function resolveFocusOrigin(
     return runtime.focusOrigin;
   }
   return (await runtime.resolveFocusOrigin()) ?? runtime.focusOrigin;
+}
+
+export async function prepareCommandForRuntime(
+  command: WosmCommand,
+  runtime: CommandRuntimeOptions,
+): Promise<WosmCommand> {
+  if (command.type === "session.create") {
+    return prepareCreateSessionCommandForRuntime(command, runtime);
+  }
+  if (command.type === "session.startAgent") {
+    return prepareStartAgentCommandForRuntime(command, runtime);
+  }
+  return command;
+}
+
+export async function withResolvedFocusOrigin(
+  command: Extract<WosmCommand, { type: "terminal.focus" }>,
+  runtime: Pick<CommandRuntimeOptions, "focusOrigin" | "resolveFocusOrigin">,
+): Promise<Extract<WosmCommand, { type: "terminal.focus" }>> {
+  const origin = await resolveFocusOrigin(runtime);
+  if (origin === undefined) {
+    return command;
+  }
+  return {
+    type: "terminal.focus",
+    payload: {
+      ...command.payload,
+      origin,
+    },
+  };
 }

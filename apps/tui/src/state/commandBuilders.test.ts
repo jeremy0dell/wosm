@@ -73,6 +73,7 @@ describe("TUI command builders", () => {
       buildCreateSessionCommand({
         project,
         branch: "feature/new-dashboard",
+        harnessProvider: "codex",
         initialPrompt: "wire the dashboard",
       }),
     ).toEqual({

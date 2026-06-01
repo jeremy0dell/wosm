@@ -143,6 +143,10 @@ function snapshotFromRows(rows: WorktreeRow[]): WosmSnapshot {
       healthy: true,
     },
     providerHealth: {},
+    harnesses: [
+      { id: "codex", label: "codex" },
+      { id: "opencode", label: "opencode" },
+    ],
     projects,
     rows,
     sessions,

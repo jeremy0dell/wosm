@@ -36,7 +36,7 @@ describe("TUI screen transitions", () => {
       terminalRows: 10,
     });
 
-    expect(handleTuiKey(state, { input: "", downArrow: true }).state.scrollOffset).toBe(8);
+    expect(handleTuiKey(state, { input: "", downArrow: true }).state.scrollOffset).toBe(7);
     expect(
       handleTuiKey({ ...state, scrollOffset: 0 }, { input: "", upArrow: true }).state.scrollOffset,
     ).toBe(0);
@@ -115,7 +115,7 @@ describe("TUI screen transitions", () => {
     expect(transition.state.screen).toMatchObject({
       name: "removeWorktree",
       step: "confirm",
-      rowId: "wt_web_working",
+      rowId: "wt_web_attention",
     });
   });
 
@@ -217,6 +217,6 @@ describe("TUI screen transitions", () => {
     const transition = handleTuiKey(opened.state, { input: "1" });
 
     expect(transition.state.collapsedProjectIds.has("web")).toBe(true);
-    expect(transition.state.scrollOffset).toBe(1);
+    expect(transition.state.scrollOffset).toBe(0);
   });
 });

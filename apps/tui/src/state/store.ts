@@ -1,6 +1,5 @@
 import type {
   CommandReceipt,
-  SafeError,
   TerminalFocusOrigin,
   WosmCommand,
   WosmEvent,
@@ -13,18 +12,9 @@ import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import type { TuiKey } from "./keys.js";
 import {
-  failPendingCreateSessionRow,
-  removeCreateSessionLocalRow,
-  removePendingRemoveWorktreeRow,
-} from "./localRows.js";
-import {
-  addCreateSessionErrorToast,
-  runCreateSessionOperation,
-} from "./operations/createSession.js";
-import {
-  addRemoveWorktreeErrorToast,
-  runRemoveWorktreeOperation,
-} from "./operations/removeWorktree.js";
+  createTuiLocalOperationRunner,
+  type TuiLocalOperationRunner,
+} from "./operations/localOperationRunner.js";
 import { prepareCommandForRuntime, withResolvedFocusOrigin } from "./operations/runtimeCommands.js";
 import {
   addTuiToast,
@@ -37,7 +27,6 @@ import {
 import { handleTuiKey, type TuiTransition } from "./transition.js";
 
 const EVENT_STREAM_RECONNECT_DELAY_MS = 100;
-const FAILED_CREATE_ROW_TTL_MS = 4_000;
 
 export type TuiStore = TuiState & {
   start(): () => void;
@@ -62,8 +51,13 @@ export type TuiStoreOptions = {
 
 export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
   const runtime = createRuntimeOptions(options);
-
   let store: StoreApi<TuiStore>;
+  const operations = createTuiLocalOperationRunner({
+    getStore: () => store,
+    service: options.service,
+    runtime,
+  });
+
   store = createStore<TuiStore>()((set, get) => ({
     ...createInitialTuiState({
       ...(options.initialState ?? {}),
@@ -83,10 +77,10 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
     handleKey: (key): void => {
       const transition = handleTuiKey(get(), key);
       set(transition.state);
-      void applyTransitionEffects(store, options.service, runtime, transition);
+      void applyTransitionEffects(store, options.service, runtime, operations, transition);
     },
     handleObserverEvent: (event): void => {
-      handleObserverEvent(store, options.service, event);
+      handleObserverEvent(store, options.service, operations, event);
     },
     setTerminalRows: (rows): void => {
       set(clampDashboardStateScroll({ ...get(), terminalRows: rows }));
@@ -188,6 +182,7 @@ function startStoreRuntime(store: StoreApi<TuiStore>, service: TuiObserverServic
 function handleObserverEvent(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
+  operations: TuiLocalOperationRunner,
   event: WosmEvent,
 ): void {
   const current = store.getState();
@@ -195,27 +190,18 @@ function handleObserverEvent(
     return;
   }
 
+  const commandFailureHandling =
+    event.type === "command.failed" ? operations.prepareCommandFailedEvent(event) : undefined;
   const result = applyWosmEvent(current.snapshot, event);
   store.setState(
     clampDashboardStateScroll(
-      addTuiToasts(replaceSnapshot(current, result.snapshot), result.toasts),
+      addTuiToasts(
+        replaceSnapshot(current, result.snapshot),
+        commandFailureHandling?.suppressReducerToast === true ? [] : result.toasts,
+      ),
     ),
   );
-  if (event.type === "command.failed") {
-    const state = store.getState();
-    const createRow = state.localRows.pendingCreate.find(
-      (candidate) => candidate.commandId === event.commandId,
-    );
-    if (createRow !== undefined) {
-      markCreateSessionRowFailed(store, createRow.localId, event.error);
-    }
-    const removeRow = state.localRows.pendingRemove.find(
-      (candidate) => candidate.commandId === event.commandId,
-    );
-    if (removeRow !== undefined) {
-      markRemoveWorktreeRowFailed(store, removeRow.localId);
-    }
-  }
+  commandFailureHandling?.applyLocalEffect();
   if (result.needsSnapshotRefresh) {
     void refreshSnapshot(store, service, () => true);
   }
@@ -225,6 +211,7 @@ async function applyTransitionEffects(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
   runtime: RuntimeOptions,
+  operations: TuiLocalOperationRunner,
   transition: TuiTransition,
 ): Promise<void> {
   if (transition.dismissPopup === true && runtime.onDismiss !== undefined) {
@@ -252,31 +239,7 @@ async function applyTransitionEffects(
     }
   }
 
-  for (const operation of transition.operations ?? []) {
-    if (operation.type === "createSession") {
-      void runCreateSessionOperation(
-        store,
-        service,
-        runtime,
-        operation,
-        (localId, error) => markCreateSessionRowFailed(store, localId, error),
-        (error) => {
-          addCreateSessionErrorToast(store, error);
-        },
-      );
-    }
-    if (operation.type === "removeWorktree") {
-      void runRemoveWorktreeOperation(
-        store,
-        service,
-        operation,
-        (localId) => markRemoveWorktreeRowFailed(store, localId),
-        (error) => {
-          addRemoveWorktreeErrorToast(store, error);
-        },
-      );
-    }
-  }
+  operations.run(transition.operations);
 }
 
 async function refreshSnapshot(
@@ -357,28 +320,6 @@ async function dispatchCommandAndWaitForCompletion(
     addToast(store, safeErrorToToast(toSafeError(error)));
     return false;
   }
-}
-
-function markCreateSessionRowFailed(
-  store: StoreApi<TuiStore>,
-  localId: string,
-  error: SafeError,
-): void {
-  store.setState(
-    failPendingCreateSessionRow(
-      store.getState(),
-      localId,
-      error,
-      Date.now() + FAILED_CREATE_ROW_TTL_MS,
-    ),
-  );
-  setTimeout(() => {
-    store.setState(removeCreateSessionLocalRow(store.getState(), localId));
-  }, FAILED_CREATE_ROW_TTL_MS);
-}
-
-function markRemoveWorktreeRowFailed(store: StoreApi<TuiStore>, localId: string): void {
-  store.setState(removePendingRemoveWorktreeRow(store.getState(), localId));
 }
 
 function shouldUseFocusLifecycle(

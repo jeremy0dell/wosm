@@ -42,9 +42,9 @@ describe("TuiShell", () => {
   });
 
   it.each([
-    ["narrow", 36, 12],
-    ["normal", 80, 24],
-  ])("keeps the help panel inside the %s terminal without moving the footer", (_label, columns, rows) => {
+    ["narrow", 36, 12, "N:new"],
+    ["normal", 80, 24, "H:help"],
+  ])("keeps the help panel inside the %s terminal without moving the footer", (_label, columns, rows, footerFragment) => {
     const frame = renderShell(columns, rows, "help");
     const lines = frame.split("\n");
     const layout = helpPanelLayout(columns, rows);
@@ -54,7 +54,7 @@ describe("TuiShell", () => {
     expect(layout.top).toBeGreaterThanOrEqual(0);
     expect(layout.left + layout.width).toBeLessThanOrEqual(columns);
     expect(layout.top + layout.height).toBeLessThanOrEqual(rows);
-    expect(lines.at(-1)).toContain("H:help");
+    expect(lines.at(-1)).toContain(footerFragment);
   });
 });
 

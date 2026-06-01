@@ -21,7 +21,7 @@ describe("TUI command UX", () => {
       type: "terminal.focus",
       payload: { targetId: "term_wt_web_idle_agent" },
     });
-    expect(instance.lastFrame()).toContain("1-9/a-z:start/focus");
+    expect(instance.lastFrame()).toContain("1-9/a-z:open");
     instance.unmount();
   });
 
@@ -39,7 +39,7 @@ describe("TUI command UX", () => {
     await waitFor(() => service.dispatched.length === 1);
     expect(service.dispatched[0]).toEqual({
       type: "terminal.focus",
-      payload: { targetId: "term_wt_fake_1_10_agent" },
+      payload: { targetId: "term_wt_fake_1_18_agent" },
     });
     instance.unmount();
   });
@@ -244,7 +244,7 @@ describe("TUI command UX", () => {
         service.reconcileReasons.includes("tui-refresh") &&
         instance.lastFrame()?.includes("fix-nav-mobile") === true,
     );
-    expect(instance.lastFrame()).toContain("idle");
+    expect(instance.lastFrame()).toContain(" [1] ○ fix-nav-mobile");
     instance.unmount();
   });
 
@@ -367,6 +367,39 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
+  it("deduplicates remove failure toasts from command completion and events", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const error = {
+      tag: "CommandExecutionError" as const,
+      code: "WORKTREE_REMOVE_FAILED",
+      message: "Worktree remove failed.",
+    };
+    service.nextCompletion = {
+      status: "failed",
+      commandId: "cmd_tui_1",
+      error,
+    };
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("X");
+    await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
+    instance.stdin.write("5");
+    await waitFor(
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? Y/N") === true,
+    );
+    instance.stdin.write("y");
+
+    await waitFor(() => instance.lastFrame()?.includes(error.message) === true);
+    const initialCount = countOccurrences(instance.lastFrame() ?? "", error.message);
+    service.emit({ type: "command.failed", commandId: "cmd_tui_1", error });
+    await settle();
+
+    expect(initialCount).toBe(1);
+    expect(countOccurrences(instance.lastFrame() ?? "", error.message)).toBe(1);
+    instance.unmount();
+  });
+
   it("cancels picked-slot removal by default", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
@@ -414,7 +447,7 @@ describe("TUI command UX", () => {
     await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
 
     instance.stdin.write("1");
-    await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees | codex") === true);
+    await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees") === true);
     expect(instance.lastFrame()).not.toContain("fix-nav-mobile");
     expect(instance.lastFrame()).not.toContain("collapse project:");
     expect(instance.lastFrame()).toMatch(/ \[1\] . queue-worker/);
@@ -426,20 +459,21 @@ describe("TUI command UX", () => {
     instance.stdin.write("C");
     await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
     instance.stdin.write("1");
-    await waitFor(() => instance.lastFrame()?.includes("▼ web - 7 worktrees | codex") === true);
+    await waitFor(() => instance.lastFrame()?.includes("▼ web - 7 worktrees") === true);
     expect(instance.lastFrame()).toContain(" [5] ○ fix-nav-mobile");
 
     instance.stdin.write("C");
     await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
     instance.stdin.write("\u001B");
     await waitFor(() => instance.lastFrame()?.includes("collapse project:") !== true);
-    expect(instance.lastFrame()).toContain("▼ web - 7 worktrees | codex");
+    expect(instance.lastFrame()).toContain("▼ web - 7 worktrees");
+    expect(instance.lastFrame()).not.toContain("| codex");
     expect(instance.lastFrame()).toContain(" [5] ○ fix-nav-mobile");
 
     instance.stdin.write("C");
     await waitFor(() => instance.lastFrame()?.includes("collapse project: 1:web 2:api") === true);
     instance.stdin.write("1");
-    await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees | codex") === true);
+    await waitFor(() => instance.lastFrame()?.includes("▶ web - 7 worktrees") === true);
     instance.stdin.write("X");
     await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
     instance.stdin.write("5");
@@ -467,6 +501,10 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 });
+
+function countOccurrences(value: string, search: string): number {
+  return value.split(search).length - 1;
+}
 
 async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;

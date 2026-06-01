@@ -16,7 +16,8 @@ describe("ProjectGroup", () => {
       <ProjectGroup project={project} rows={rows} collapsed={false} choices={[]} />,
     );
 
-    expect(frame).toContain("▼ web - 7 worktrees | codex");
+    expect(frame).toContain("▼ web - 7 worktrees");
+    expect(frame).not.toContain("| codex");
   });
 
   it("renders zero-worktree projects", () => {
@@ -27,7 +28,8 @@ describe("ProjectGroup", () => {
       <ProjectGroup project={project} rows={[]} collapsed={false} choices={[]} />,
     );
 
-    expect(frame).toContain("▼ web - 0 worktrees | codex");
+    expect(frame).toContain("▼ web - 0 worktrees");
+    expect(frame).not.toContain("| codex");
     expect(frame).toContain("0 worktrees");
   });
 
@@ -58,7 +60,8 @@ describe("ProjectGroup", () => {
       <ProjectGroup project={project} rows={rows} collapsed={true} choices={[]} />,
     );
 
-    expect(frame).toContain("▶ web - 7 worktrees | codex");
+    expect(frame).toContain("▶ web - 7 worktrees");
+    expect(frame).not.toContain("| codex");
     expect(frame).not.toContain("cache-refactor");
     expect(frame).not.toContain("0 worktrees");
   });
@@ -71,7 +74,8 @@ describe("ProjectGroup", () => {
       <ProjectGroup project={project} rows={[]} collapsed={true} choices={[]} />,
     );
 
-    expect(frame).toContain("▶ web - 0 worktrees | codex");
+    expect(frame).toContain("▶ web - 0 worktrees");
+    expect(frame).not.toContain("| codex");
     expect(frame).not.toContain("\n0 worktrees");
   });
 });
