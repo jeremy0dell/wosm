@@ -566,9 +566,37 @@ describe("Phase 1 contract schemas", () => {
         payload: {
           projectId: "web",
           worktreeId: "wt_web_feature",
+          terminal: {
+            focus: true,
+            origin: {
+              provider: "tmux",
+              clientId: "client_1",
+            },
+          },
         },
       },
-      "start agent command with remembered harness",
+      "start agent command with remembered harness and popup focus origin",
+    );
+
+    expectParses(
+      WosmCommandSchema,
+      {
+        type: "session.create",
+        payload: {
+          projectId: "web",
+          branch: "feature/popup",
+          harness: { provider: "codex" },
+          terminal: {
+            provider: "tmux",
+            focus: true,
+            origin: {
+              provider: "tmux",
+              clientId: "client_1",
+            },
+          },
+        },
+      },
+      "create session command with popup focus origin",
     );
 
     expectFails(
@@ -585,6 +613,27 @@ describe("Phase 1 contract schemas", () => {
         },
       },
       "terminal focus origin with provider-specific extra fields",
+    );
+
+    expectFails(
+      WosmCommandSchema,
+      {
+        type: "session.create",
+        payload: {
+          projectId: "web",
+          branch: "feature/popup",
+          harness: { provider: "codex" },
+          terminal: {
+            provider: "tmux",
+            focus: true,
+            origin: {
+              provider: "tmux",
+              tmuxSession: "wosm",
+            },
+          },
+        },
+      },
+      "session create terminal origin with provider-specific extra fields",
     );
   });
 

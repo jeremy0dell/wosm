@@ -58,7 +58,7 @@ describe("TUI screen transitions", () => {
     });
   });
 
-  it("confirms remove worktree with y and returns a worktree.remove command", () => {
+  it("confirms remove worktree with y and returns a remove operation", () => {
     const state = handleTuiKey(
       handleTuiKey(createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }), {
         input: "X",
@@ -69,15 +69,29 @@ describe("TUI screen transitions", () => {
     const transition = handleTuiKey(state, { input: "y" });
 
     expect(transition.state.screen).toEqual({ name: "dashboard" });
-    expect(transition.commands).toEqual([
+    expect(transition.commands).toBeUndefined();
+    expect(transition.state.localRows.pendingRemove).toMatchObject([
       {
-        type: "worktree.remove",
-        payload: {
-          projectId: "web",
-          worktreeId: "wt_web_idle",
-          force: true,
-        },
+        localId: "remove:wt_web_idle",
+        worktreeId: "wt_web_idle",
+        branch: "fix-nav-mobile",
       },
+    ]);
+    expect(transition.operations).toEqual([
+      expect.objectContaining({
+        type: "removeWorktree",
+        projectId: "web",
+        worktreeId: "wt_web_idle",
+        branch: "fix-nav-mobile",
+        command: {
+          type: "worktree.remove",
+          payload: {
+            projectId: "web",
+            worktreeId: "wt_web_idle",
+            force: true,
+          },
+        },
+      }),
     ]);
   });
 
@@ -134,14 +148,19 @@ describe("TUI screen transitions", () => {
     const submitted = handleTuiKey(opened.state, { input: "\r", return: true });
 
     expect(submitted.state.screen).toEqual({ name: "dashboard" });
-    expect(submitted.commands?.[0]).toMatchObject({
-      type: "session.create",
-      payload: {
-        projectId: "web",
-        terminal: {
-          provider: "tmux",
-          layout: "agent-build-shell",
-          focus: false,
+    expect(submitted.commands).toBeUndefined();
+    expect(submitted.operations?.[0]).toMatchObject({
+      type: "createSession",
+      projectId: "web",
+      command: {
+        type: "session.create",
+        payload: {
+          projectId: "web",
+          terminal: {
+            provider: "tmux",
+            layout: "agent-build-shell",
+            focus: false,
+          },
         },
       },
     });

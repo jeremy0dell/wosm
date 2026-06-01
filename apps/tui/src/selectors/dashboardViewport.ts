@@ -1,7 +1,16 @@
 import type { ProjectId, ProjectView, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
 import { clampDashboardScrollOffset, dashboardBodyRows } from "../components/Dashboard/layout.js";
+import type {
+  FailedCreateSessionRow,
+  PendingCreateSessionRow,
+  PendingRemoveWorktreeRow,
+} from "../state/localRows.js";
 import type { TuiViewState } from "../state/screen.js";
 import { type KeyedChoice, keyChoices, selectProjectGroups } from "./selectors.js";
+
+export type DashboardCreateSessionLocalRow =
+  | ({ status: "pending" } & PendingCreateSessionRow)
+  | ({ status: "failed" } & FailedCreateSessionRow);
 
 export type DashboardViewportItem =
   | {
@@ -24,6 +33,12 @@ export type DashboardViewportItem =
       type: "worktree";
       id: string;
       row: WorktreeRow;
+      pendingRemove?: PendingRemoveWorktreeRow;
+    }
+  | {
+      type: "createLocalRow";
+      id: string;
+      row: DashboardCreateSessionLocalRow;
     };
 
 export type DashboardViewport = {
@@ -65,6 +80,7 @@ export function selectDashboardItems(
   snapshot: WosmSnapshot,
   state: TuiViewState,
 ): DashboardViewportItem[] {
+  const localRows = visibleCreateSessionLocalRows(snapshot, state);
   return selectProjectGroups(snapshot, state).flatMap((group, index) => {
     const items: DashboardViewportItem[] = [];
     if (index > 0) {
@@ -83,7 +99,11 @@ export function selectDashboardItems(
     if (group.collapsed) {
       return items;
     }
-    if (group.rows.length === 0) {
+    const projectLocalRows = localRows
+      .filter((row) => row.projectId === group.project.id)
+      .filter((row) => localRowMatchesSearch(row, group.project, state.searchQuery));
+    const rows = mergeRowsAndCreateSessionLocalRows(group.rows, projectLocalRows);
+    if (rows.length === 0) {
       items.push({
         type: "emptyProject",
         id: `empty:${group.project.id}`,
@@ -91,17 +111,104 @@ export function selectDashboardItems(
       });
       return items;
     }
-    for (const row of group.rows) {
-      items.push({
-        type: "worktree",
-        id: `worktree:${row.id}`,
-        row,
-      });
+    for (const row of rows) {
+      if (row.type === "worktree") {
+        const item: Extract<DashboardViewportItem, { type: "worktree" }> = {
+          type: "worktree",
+          id: `worktree:${row.row.id}`,
+          row: row.row,
+        };
+        const pendingRemove = state.localRows.pendingRemove.find(
+          (localRow) => localRow.worktreeId === row.row.id,
+        );
+        if (pendingRemove !== undefined) {
+          item.pendingRemove = pendingRemove;
+        }
+        items.push(item);
+      } else {
+        items.push({
+          type: "createLocalRow",
+          id: `create:${row.row.localId}`,
+          row: row.row,
+        });
+      }
     }
     return items;
   });
 }
 
 function worktreeRowsFromItems(items: readonly DashboardViewportItem[]): WorktreeRow[] {
-  return items.flatMap((item) => (item.type === "worktree" ? [item.row] : []));
+  return items.flatMap((item) =>
+    item.type === "worktree" && item.pendingRemove === undefined ? [item.row] : [],
+  );
+}
+
+type GroupDashboardRow =
+  | {
+      type: "worktree";
+      row: WorktreeRow;
+    }
+  | {
+      type: "createLocalRow";
+      row: DashboardCreateSessionLocalRow;
+    };
+
+function visibleCreateSessionLocalRows(
+  snapshot: WosmSnapshot,
+  state: TuiViewState,
+): DashboardCreateSessionLocalRow[] {
+  const realRows = new Set(snapshot.rows.map((row) => `${row.projectId}\u0000${row.branch}`));
+  return [
+    ...state.localRows.pendingCreate
+      .filter((row) => !realRows.has(`${row.projectId}\u0000${row.branch}`))
+      .map((row) => ({ ...row, status: "pending" as const })),
+    ...state.localRows.failedCreate.map((row) => ({
+      ...row,
+      status: "failed" as const,
+    })),
+  ];
+}
+
+function mergeRowsAndCreateSessionLocalRows(
+  rows: readonly WorktreeRow[],
+  localRows: readonly DashboardCreateSessionLocalRow[],
+): GroupDashboardRow[] {
+  return [
+    ...rows.map((row) => ({ type: "worktree" as const, row })),
+    ...localRows.map((row) => ({ type: "createLocalRow" as const, row })),
+  ].sort(compareDashboardRows);
+}
+
+function compareDashboardRows(left: GroupDashboardRow, right: GroupDashboardRow): number {
+  const branchOrder = rowBranch(left).localeCompare(rowBranch(right));
+  if (branchOrder !== 0) {
+    return branchOrder;
+  }
+  if (left.type !== right.type) {
+    return left.type === "worktree" ? -1 : 1;
+  }
+  return rowId(left).localeCompare(rowId(right));
+}
+
+function rowBranch(row: GroupDashboardRow): string {
+  return row.row.branch;
+}
+
+function rowId(row: GroupDashboardRow): string {
+  return row.type === "worktree" ? row.row.id : row.row.localId;
+}
+
+function localRowMatchesSearch(
+  row: DashboardCreateSessionLocalRow,
+  project: ProjectView,
+  searchQuery: string,
+): boolean {
+  const query = searchQuery.trim().toLocaleLowerCase();
+  if (query.length === 0) {
+    return true;
+  }
+  const harnessProvider = row.status === "pending" ? row.harnessProvider : "";
+  return [row.branch, project.label, harnessProvider].some((value) =>
+    value.toLocaleLowerCase().includes(query),
+  );
 }

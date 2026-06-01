@@ -8,6 +8,7 @@ import {
 import type { KeyedChoice } from "../../selectors/selectors.js";
 import type { TuiScreen, TuiViewState } from "../../state/screen.js";
 import { useTuiMode } from "../../tuiMode.js";
+import { Throbber } from "../Throbber/Throbber.js";
 import { WorktreeRow } from "../WorktreeRow/WorktreeRow.js";
 
 export type DashboardProps = {
@@ -115,8 +116,44 @@ function DashboardViewportRow({
     case "emptyProject":
       return <EmptyProjectRow project={item.project} />;
     case "worktree":
+      if (item.pendingRemove !== undefined) {
+        return <RemoveWorktreeLocalRow row={item.row} />;
+      }
       return <WorktreeRow row={item.row} slot={keyByRow.get(item.row.id)} />;
+    case "createLocalRow":
+      return <CreateSessionLocalRow row={item.row} />;
   }
+}
+
+function RemoveWorktreeLocalRow({ row }: { row: DashboardViewportWorktree }) {
+  return (
+    <Box>
+      <Text>{" [ ] "}</Text>
+      <Throbber variant="braille" />
+      <Text>{` ${row.branch}  removing worktree...`}</Text>
+    </Box>
+  );
+}
+
+function CreateSessionLocalRow({
+  row,
+}: {
+  row: Extract<DashboardViewportItem, { type: "createLocalRow" }>["row"];
+}) {
+  if (row.status === "failed") {
+    return (
+      <Box>
+        <Text color="red">{` [ ] ! ${row.branch} - ${row.error.message}`}</Text>
+      </Box>
+    );
+  }
+  return (
+    <Box>
+      <Text>{" [ ] "}</Text>
+      <Throbber variant="braille" />
+      <Text>{` ${row.branch}  starting session...`}</Text>
+    </Box>
+  );
 }
 
 function ProjectHeaderRow({ project, collapsed }: { project: ProjectView; collapsed: boolean }) {

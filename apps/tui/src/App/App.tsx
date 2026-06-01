@@ -55,6 +55,7 @@ export function App({
   const collapsedProjectIds = useStore(store, (state) => state.collapsedProjectIds);
   const scrollOffset = useStore(store, (state) => state.scrollOffset);
   const terminalRows = useStore(store, (state) => state.terminalRows);
+  const localRows = useStore(store, (state) => state.localRows);
   const toasts = useStore(store, (state) => state.toasts);
 
   useEffect(() => store.getState().start(), [store]);
@@ -91,7 +92,7 @@ export function App({
           columns={columns}
           snapshot={snapshot}
           screen={screen}
-          viewState={{ searchQuery, collapsedProjectIds, scrollOffset, terminalRows }}
+          viewState={{ searchQuery, collapsedProjectIds, scrollOffset, terminalRows, localRows }}
           quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
         />
         <FixedStatusLayer>

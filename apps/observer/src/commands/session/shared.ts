@@ -4,6 +4,7 @@ import type {
   SafeError,
   SessionId,
   SessionView,
+  TerminalFocusOrigin,
   TerminalIdentityBinding,
   TerminalLaunchProcessRequest,
   TerminalLaunchProcessResult,
@@ -325,6 +326,7 @@ export async function removeWorktreeBestEffort(input: {
 export async function focusTerminalTargetBestEffort(input: {
   terminal: TerminalProvider;
   targetId: string;
+  origin?: TerminalFocusOrigin | undefined;
   context: CommandHandlerContext;
   logger?: JsonlLogger | undefined;
   clock?: RuntimeClock | undefined;
@@ -345,7 +347,7 @@ export async function focusTerminalTargetBestEffort(input: {
           provider: input.terminal.id,
         },
       },
-      () => input.terminal.focusTarget(input.targetId),
+      () => input.terminal.focusTarget(input.targetId, focusContext(input.origin)),
     );
   } catch (error) {
     await input.logger?.warn("Terminal focus failed after session launch.", {
@@ -357,6 +359,15 @@ export async function focusTerminalTargetBestEffort(input: {
       error,
     });
   }
+}
+
+function focusContext(
+  origin: TerminalFocusOrigin | undefined,
+): { origin?: TerminalFocusOrigin } | undefined {
+  if (origin === undefined) {
+    return undefined;
+  }
+  return { origin };
 }
 
 export async function publishSessionCreated(input: {
