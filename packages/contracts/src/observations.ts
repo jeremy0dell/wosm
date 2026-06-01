@@ -68,6 +68,7 @@ export const WorktreeChangeSummarySchema = z
     binaryFiles: z.number().int().nonnegative().optional(),
     baseRef: nonEmptyStringSchema.optional(),
     baseSha: GitShaSchema.optional(),
+    mergeBaseSha: GitShaSchema.optional(),
     headRef: nonEmptyStringSchema.optional(),
     headSha: GitShaSchema.optional(),
     source: nonEmptyStringSchema,
