@@ -1,5 +1,6 @@
 import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
-import { Box, Text, Transform } from "ink";
+import { Box, Text } from "ink";
+import { Link } from "../Link/Link.js";
 import { Throbber, type ThrobberVariant } from "../Throbber/Throbber.js";
 
 export type WorktreeRowProps = {
@@ -108,12 +109,7 @@ function MetadataText({
   }
   const rendered = <Text {...props}>{segment.text}</Text>;
   const url = segment.url;
-  const body =
-    url === undefined ? (
-      rendered
-    ) : (
-      <Transform transform={(children) => osc8(url, children)}>{rendered}</Transform>
-    );
+  const body = url === undefined ? rendered : <Link url={url}>{rendered}</Link>;
   return (
     <>
       {first ? null : <Text> </Text>}
@@ -180,16 +176,4 @@ function checksStateColor(
 
 function failedChecksGlyph(count: number | undefined): string {
   return count === undefined || count <= 0 ? "x" : `x${count}`;
-}
-
-function osc8(url: string, text: string): string {
-  return `\u001B]8;id=${osc8Id(url)};${url}\u0007${text}\u001B]8;;\u0007`;
-}
-
-function osc8Id(value: string): string {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = Math.imul(31, hash) + value.charCodeAt(index);
-  }
-  return `wosm-${(hash >>> 0).toString(36)}`;
 }
