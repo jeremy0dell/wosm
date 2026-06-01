@@ -115,10 +115,23 @@ function DashboardViewportRow({
     case "emptyProject":
       return <EmptyProjectRow project={item.project} />;
     case "worktree":
+      if (item.pendingRemove !== undefined) {
+        return <RemoveWorktreeLocalRow row={item.row} />;
+      }
       return <WorktreeRow row={item.row} slot={keyByRow.get(item.row.id)} />;
     case "createLocalRow":
       return <CreateSessionLocalRow row={item.row} />;
   }
+}
+
+function RemoveWorktreeLocalRow({ row }: { row: DashboardViewportWorktree }) {
+  return (
+    <Box>
+      <Text>{" [ ] "}</Text>
+      <Throbber variant="braille" />
+      <Text>{` ${row.branch}  removing worktree...`}</Text>
+    </Box>
+  );
 }
 
 function CreateSessionLocalRow({

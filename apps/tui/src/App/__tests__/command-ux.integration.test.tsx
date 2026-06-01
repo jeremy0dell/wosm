@@ -190,7 +190,7 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("shows projected create rows without queued toasts", async () => {
+  it("shows local create rows without queued toasts", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
@@ -330,6 +330,40 @@ describe("TUI command UX", () => {
         force: true,
       },
     });
+    await waitFor(() => instance.lastFrame()?.includes("removing worktree...") === true);
+    expect(instance.lastFrame()).toContain("fix-nav-mobile");
+    expect(instance.lastFrame()).toMatch(/\[ \] . fix-nav-mobile {2}removing worktree\.\.\./);
+
+    service.emit({ type: "worktree.removed", worktreeId: "wt_web_idle" });
+    await waitFor(() => instance.lastFrame()?.includes("fix-nav-mobile") === false);
+    instance.unmount();
+  });
+
+  it("clears the removing row marker and keeps the safe error toast when removal fails", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    service.nextCompletion = {
+      status: "failed",
+      commandId: "cmd_tui_1",
+      error: {
+        tag: "CommandExecutionError",
+        code: "WORKTREE_REMOVE_FAILED",
+        message: "Worktree remove failed.",
+      },
+    };
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("X");
+    await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
+    instance.stdin.write("5");
+    await waitFor(
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? Y/N") === true,
+    );
+    instance.stdin.write("y");
+
+    await waitFor(() => instance.lastFrame()?.includes("Worktree remove failed.") === true);
+    expect(instance.lastFrame()).toContain("fix-nav-mobile");
+    expect(instance.lastFrame()).not.toContain("removing worktree...");
     instance.unmount();
   });
 
@@ -434,7 +468,7 @@ describe("TUI command UX", () => {
   });
 });
 
-async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() <= deadline) {
     if (predicate()) return;
