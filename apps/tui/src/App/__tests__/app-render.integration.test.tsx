@@ -57,6 +57,7 @@ describe("TUI app rendering", () => {
             collapsedProjectIds: new Set(),
             scrollOffset: 0,
             terminalRows: 12,
+            localRows: { pendingCreate: [], failedCreate: [] },
           }}
         />
       </Box>,
@@ -92,6 +93,7 @@ describe("TUI app rendering", () => {
               collapsedProjectIds: new Set(),
               scrollOffset: 0,
               terminalRows: 10,
+              localRows: { pendingCreate: [], failedCreate: [] },
             }}
             quitActionLabel="close"
           />

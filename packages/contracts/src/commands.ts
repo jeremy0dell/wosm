@@ -58,11 +58,21 @@ export const StartAgentHarnessCommandOptionsSchema = z
   })
   .strict();
 
+export const TerminalFocusOriginSchema = z
+  .object({
+    provider: ProviderIdSchema,
+    clientId: nonEmptyStringSchema.optional(),
+  })
+  .strict();
+
+export type TerminalFocusOrigin = z.infer<typeof TerminalFocusOriginSchema>;
+
 export const TerminalCommandOptionsSchema = z
   .object({
     provider: ProviderIdSchema,
     layout: z.enum(["default", "agent-only", "agent-build-shell"]).optional(),
     focus: z.boolean().optional(),
+    origin: TerminalFocusOriginSchema.optional(),
   })
   .strict();
 
@@ -91,15 +101,6 @@ export const StartAgentPayloadSchema = z
   .strict();
 
 export type StartAgentPayload = z.infer<typeof StartAgentPayloadSchema>;
-
-export const TerminalFocusOriginSchema = z
-  .object({
-    provider: ProviderIdSchema,
-    clientId: nonEmptyStringSchema.optional(),
-  })
-  .strict();
-
-export type TerminalFocusOrigin = z.infer<typeof TerminalFocusOriginSchema>;
 
 export const TerminalFocusPayloadSchema = z
   .object({

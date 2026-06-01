@@ -97,4 +97,60 @@ describe("dashboard viewport selector", () => {
       "empty:api",
     ]);
   });
+
+  it("renders pending create local rows under the matching project without key choices", () => {
+    const snapshot = createDashboardSnapshot();
+    const viewport = selectDashboardViewport(
+      snapshot,
+      createInitialTuiState({
+        terminalRows: 20,
+        initialSnapshot: snapshot,
+        localRows: {
+          pendingCreate: [
+            {
+              localId: "local_create_1",
+              projectId: "web",
+              branch: "feature/pending",
+              harnessProvider: "codex",
+              createdAt: "2026-05-31T12:00:00.000Z",
+            },
+          ],
+          failedCreate: [],
+        },
+      }),
+    );
+
+    expect(
+      viewport.items.map((item) =>
+        item.type === "createLocalRow" ? `${item.type}:${item.row.branch}` : item.id,
+      ),
+    ).toContain("createLocalRow:feature/pending");
+    expect(viewport.rowChoices.map((choice) => choice.value.branch)).not.toContain(
+      "feature/pending",
+    );
+  });
+
+  it("suppresses matching pending create local rows when observer truth has the row", () => {
+    const snapshot = createDashboardSnapshot();
+    const viewport = selectDashboardViewport(
+      snapshot,
+      createInitialTuiState({
+        initialSnapshot: snapshot,
+        localRows: {
+          pendingCreate: [
+            {
+              localId: "local_create_1",
+              projectId: "web",
+              branch: "fix-nav-mobile",
+              harnessProvider: "codex",
+              createdAt: "2026-05-31T12:00:00.000Z",
+            },
+          ],
+          failedCreate: [],
+        },
+      }),
+    );
+
+    expect(viewport.items.filter((item) => item.type === "createLocalRow")).toEqual([]);
+  });
 });

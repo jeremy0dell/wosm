@@ -7,6 +7,7 @@ import {
 import { safeErrorToToast } from "../../services/errors/errors.js";
 import { buildCreateSessionCommand } from "../commandBuilders.js";
 import type { TuiKey } from "../keys.js";
+import { addPendingCreateSessionRow } from "../localRows.js";
 import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 
@@ -77,17 +78,40 @@ function submitNewSession(state: TuiState): TuiTransition {
     };
   }
 
+  const branch = validation.branch.trim();
+  const command = buildCreateSessionCommand({
+    project: validation.project,
+    branch,
+    harnessProvider: validation.harnessProvider,
+  });
+  if (command.type !== "session.create") {
+    return { state };
+  }
+  const localId = `create:${validation.project.id}:${createNewSessionNameToken()}`;
+
   return {
-    state: {
-      ...state,
-      screen: { name: "dashboard" },
-    },
-    commands: [
-      buildCreateSessionCommand({
-        project: validation.project,
-        branch: validation.branch.trim(),
+    state: addPendingCreateSessionRow(
+      {
+        ...state,
+        screen: { name: "dashboard" },
+      },
+      {
+        localId,
+        projectId: validation.project.id,
+        branch,
         harnessProvider: validation.harnessProvider,
-      }),
+        createdAt: new Date().toISOString(),
+      },
+    ),
+    operations: [
+      {
+        type: "createSession",
+        localId,
+        projectId: validation.project.id,
+        branch,
+        harnessProvider: validation.harnessProvider,
+        command,
+      },
     ],
   };
 }

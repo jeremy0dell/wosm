@@ -1,5 +1,6 @@
 import type { WosmCommand } from "@wosm/contracts";
 import type { TuiKey } from "./keys.js";
+import type { TuiOperation } from "./operations/types.js";
 import type { TuiState } from "./screen.js";
 import { handleDashboardKey } from "./screens/dashboard.js";
 import { handleHelpKey } from "./screens/help.js";
@@ -11,6 +12,7 @@ import { handleSearchKey } from "./screens/search.js";
 export type TuiTransition = {
   state: TuiState;
   commands?: WosmCommand[];
+  operations?: TuiOperation[];
   reconcileReason?: string;
   exitCode?: number;
   dismissPopup?: true;

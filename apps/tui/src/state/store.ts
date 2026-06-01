@@ -1,5 +1,6 @@
 import type {
   CommandReceipt,
+  SafeError,
   TerminalFocusOrigin,
   WosmCommand,
   WosmEvent,
@@ -11,6 +12,12 @@ import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import type { TuiKey } from "./keys.js";
+import { failPendingCreateSessionRow, removeCreateSessionLocalRow } from "./localRows.js";
+import {
+  addCreateSessionErrorToast,
+  runCreateSessionOperation,
+} from "./operations/createSession.js";
+import { prepareCommandForRuntime, withResolvedFocusOrigin } from "./operations/runtimeCommands.js";
 import {
   addTuiToast,
   addTuiToasts,
@@ -22,6 +29,7 @@ import {
 import { handleTuiKey, type TuiTransition } from "./transition.js";
 
 const EVENT_STREAM_RECONNECT_DELAY_MS = 100;
+const FAILED_CREATE_ROW_TTL_MS = 4_000;
 
 export type TuiStore = TuiState & {
   start(): () => void;
@@ -185,6 +193,14 @@ function handleObserverEvent(
       addTuiToasts(replaceSnapshot(current, result.snapshot), result.toasts),
     ),
   );
+  if (event.type === "command.failed") {
+    const row = store
+      .getState()
+      .localRows.pendingCreate.find((candidate) => candidate.commandId === event.commandId);
+    if (row !== undefined) {
+      markCreateSessionRowFailed(store, row.localId, event.error);
+    }
+  }
   if (result.needsSnapshotRefresh) {
     void refreshSnapshot(store, service, () => true);
   }
@@ -212,7 +228,27 @@ async function applyTransitionEffects(
     if (shouldUseFocusLifecycle(command, runtime)) {
       await dispatchFocusWithLifecycle(store, service, command, runtime);
     } else {
-      await dispatchCommand(store, service, command);
+      try {
+        const prepared = await prepareCommandForRuntime(command, runtime);
+        await dispatchCommand(store, service, prepared);
+      } catch (error: unknown) {
+        addToast(store, safeErrorToToast(toSafeError(error)));
+      }
+    }
+  }
+
+  for (const operation of transition.operations ?? []) {
+    if (operation.type === "createSession") {
+      void runCreateSessionOperation(
+        store,
+        service,
+        runtime,
+        operation,
+        (localId, error) => markCreateSessionRowFailed(store, localId, error),
+        (error) => {
+          addCreateSessionErrorToast(store, error);
+        },
+      );
     }
   }
 }
@@ -297,6 +333,24 @@ async function dispatchCommandAndWaitForCompletion(
   }
 }
 
+function markCreateSessionRowFailed(
+  store: StoreApi<TuiStore>,
+  localId: string,
+  error: SafeError,
+): void {
+  store.setState(
+    failPendingCreateSessionRow(
+      store.getState(),
+      localId,
+      error,
+      Date.now() + FAILED_CREATE_ROW_TTL_MS,
+    ),
+  );
+  setTimeout(() => {
+    store.setState(removeCreateSessionLocalRow(store.getState(), localId));
+  }, FAILED_CREATE_ROW_TTL_MS);
+}
+
 function shouldUseFocusLifecycle(
   command: WosmCommand,
   runtime: Pick<
@@ -361,29 +415,6 @@ async function dismissPersistentPopup(
   } catch (error: unknown) {
     addToast(store, safeErrorToToast(toSafeError(error)));
   }
-}
-
-async function withResolvedFocusOrigin(
-  command: Extract<WosmCommand, { type: "terminal.focus" }>,
-  runtime: Pick<RuntimeOptions, "focusOrigin" | "resolveFocusOrigin">,
-): Promise<Extract<WosmCommand, { type: "terminal.focus" }>> {
-  let origin = runtime.focusOrigin;
-  if (runtime.resolveFocusOrigin !== undefined) {
-    const resolved = await runtime.resolveFocusOrigin();
-    if (resolved !== undefined) {
-      origin = resolved;
-    }
-  }
-  if (origin === undefined) {
-    return command;
-  }
-  return {
-    type: "terminal.focus",
-    payload: {
-      ...command.payload,
-      origin,
-    },
-  };
 }
 
 async function consumeCurrentSubscription(
