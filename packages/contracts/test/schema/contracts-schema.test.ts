@@ -295,6 +295,7 @@ describe("Phase 1 contract schemas", () => {
         binaryFiles: 1,
         baseRef: "main",
         baseSha: "1234567890abcdef1234567890abcdef12345678",
+        mergeBaseSha: "1111111111111111111111111111111111111111",
         headRef: "feature/auth",
         headSha: "abcdef1234567890abcdef1234567890abcdef12",
         source: "local_git",
@@ -454,6 +455,25 @@ describe("Phase 1 contract schemas", () => {
         ],
       },
       "snapshot with invalid head sha",
+    );
+    expectFails(
+      WosmSnapshotSchema,
+      {
+        ...snapshot,
+        rows: [
+          {
+            ...row,
+            worktree: {
+              ...row.worktree,
+              changeSummary: {
+                ...normalizedObservation.changeSummary,
+                mergeBaseSha: "not-a-sha",
+              },
+            },
+          },
+        ],
+      },
+      "snapshot with invalid merge-base sha",
     );
   });
 
