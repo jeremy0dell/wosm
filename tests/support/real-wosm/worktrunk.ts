@@ -82,25 +82,28 @@ export async function removeRealWorktrunkWorktree(input: {
   env: RealDogfoodEnvironment;
   config: RealWosmConfigFixture;
   repo: RealTempRepo;
-  branch: string;
+  branch: string | readonly string[];
 }): Promise<void> {
-  await execFileAsync(
-    requireToolPath(input.env, "worktrunk"),
-    [
-      "--config",
-      input.config.worktrunkConfigPath,
-      "remove",
-      input.branch,
-      "--force",
-      "--force-delete",
-      "--foreground",
-      "--format=json",
-    ],
-    {
-      cwd: input.repo.repoPath,
-      timeout: 60_000,
-    },
-  ).catch(() => undefined);
+  const branches = typeof input.branch === "string" ? [input.branch] : input.branch;
+  for (const branch of branches) {
+    await execFileAsync(
+      requireToolPath(input.env, "worktrunk"),
+      [
+        "--config",
+        input.config.worktrunkConfigPath,
+        "remove",
+        branch,
+        "--force",
+        "--force-delete",
+        "--foreground",
+        "--format=json",
+      ],
+      {
+        cwd: input.repo.repoPath,
+        timeout: 60_000,
+      },
+    ).catch(() => undefined);
+  }
 }
 
 export function findWorktrunkObservation(

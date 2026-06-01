@@ -339,6 +339,118 @@ describe("observer persistence", () => {
     sqlite.close();
   });
 
+  it("seeds session titles once before launch and preserves them across reconcile and rename", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const worktree = createFakeWorktree({
+      id: "wt_web_seeded",
+      projectId: "web",
+      branch: "agent-created-branch",
+      now: later,
+    });
+    const terminalTarget = createFakeTerminalTarget({
+      id: "term_web_seeded",
+      projectId: "web",
+      worktreeId: "wt_web_seeded",
+      sessionId: "ses_web_seeded",
+      now: later,
+    });
+    const harnessRun = createFakeHarnessRun({
+      id: "run_web_seeded",
+      projectId: "web",
+      worktreeId: "wt_web_seeded",
+      sessionId: "ses_web_seeded",
+      now: later,
+    });
+
+    await persistence.seedSessionTitle({
+      sessionId: "ses_web_seeded",
+      projectId: "web",
+      worktreeId: "wt_web_seeded",
+      title: "original-session-title",
+      createdAt: now,
+      lastSeenAt: now,
+    });
+    await persistence.seedSessionTitle({
+      sessionId: "ses_web_seeded",
+      projectId: "web",
+      worktreeId: "wt_web_seeded",
+      title: "agent-created-branch",
+      createdAt: later,
+      lastSeenAt: later,
+    });
+
+    expect(await persistence.listSessions()).toEqual([
+      expect.objectContaining({
+        id: "ses_web_seeded",
+        title: "original-session-title",
+        createdAt: now,
+        lastSeenAt: later,
+      }),
+    ]);
+
+    await persistence.persistReconcileResult({
+      projects: [project],
+      worktrees: [worktree],
+      terminalTargets: [terminalTarget],
+      harnessRuns: [harnessRun],
+      observedAt: later,
+    });
+
+    expect(await persistence.listSessions()).toEqual([
+      expect.objectContaining({
+        id: "ses_web_seeded",
+        title: "original-session-title",
+      }),
+    ]);
+
+    await persistence.renameSession({
+      sessionId: "ses_web_seeded",
+      title: "user renamed session",
+    });
+    await persistence.seedSessionTitle({
+      sessionId: "ses_web_seeded",
+      projectId: "web",
+      worktreeId: "wt_web_seeded",
+      title: "ignored later seed",
+      createdAt: later,
+      lastSeenAt: later,
+    });
+
+    expect(await persistence.listSessions()).toEqual([
+      expect.objectContaining({
+        id: "ses_web_seeded",
+        title: "user renamed session",
+      }),
+    ]);
+    sqlite.close();
+  });
+
+  it("deletes a pre-launch title seed when launch cleanup requests it", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+
+    await persistence.seedSessionTitle({
+      sessionId: "ses_cleanup_seed",
+      projectId: "web",
+      worktreeId: "wt_web_cleanup_seed",
+      title: "cleanup-seed",
+      createdAt: now,
+      lastSeenAt: now,
+    });
+    await expect(persistence.deleteSessionTitleSeed("ses_cleanup_seed")).resolves.toBe(1);
+    await expect(persistence.listSessions()).resolves.toEqual([]);
+    sqlite.close();
+  });
+
   it("persists correlation records across observer restart", async () => {
     const dbPath = await tempDbPath();
     const sqlite = openObserverSqlite({ path: dbPath, clock: { now: () => new Date(now) } });

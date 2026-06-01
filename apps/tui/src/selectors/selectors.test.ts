@@ -76,7 +76,7 @@ describe("TUI selectors", () => {
     ]);
   });
 
-  it("sorts rows inside project groups by stable branch identity, not live status", () => {
+  it("sorts rows inside project groups by resolved display title, not live status", () => {
     const snapshot = createDashboardSnapshot();
     const web = selectProjectGroups(snapshot, createInitialTuiState()).find(
       (group) => group.project.id === "web",
@@ -100,6 +100,34 @@ describe("TUI selectors", () => {
       "unknown",
       "stuck",
     ]);
+  });
+
+  it("keeps a titled row in place when its branch metadata changes", () => {
+    const snapshot = createDashboardSnapshot();
+    const titled = {
+      ...snapshot,
+      sessions: snapshot.sessions.map((session) =>
+        session.id === "ses_wt_web_idle" ? { ...session, title: "middle stable session" } : session,
+      ),
+    };
+    const branchChanged = {
+      ...titled,
+      rows: titled.rows.map((candidate) =>
+        candidate.id === "wt_web_idle" ? { ...candidate, branch: "aaa-agent-branch" } : candidate,
+      ),
+    };
+
+    const before = selectProjectGroups(titled, createInitialTuiState()).find(
+      (group) => group.project.id === "web",
+    );
+    const after = selectProjectGroups(branchChanged, createInitialTuiState()).find(
+      (group) => group.project.id === "web",
+    );
+
+    expect(after?.rows.map((candidate) => candidate.id)).toEqual(
+      before?.rows.map((candidate) => candidate.id),
+    );
+    expect(after?.rows.map((candidate) => candidate.id)).toContain("wt_web_idle");
   });
 
   it("keeps the same row position when status priority changes", () => {
@@ -193,13 +221,13 @@ describe("TUI selectors", () => {
     ]);
   });
 
-  it("searches by resolved session title while sorting remains branch based", () => {
+  it("searches by resolved session title while sorting uses resolved titles", () => {
     const snapshot = createDashboardSnapshot();
     const titled = {
       ...snapshot,
       sessions: snapshot.sessions.map((session) =>
         session.id === "ses_wt_web_stuck"
-          ? { ...session, title: "Readable feature task" }
+          ? { ...session, title: "aaa readable feature task" }
           : session,
       ),
     };
@@ -218,15 +246,7 @@ describe("TUI selectors", () => {
     const web = selectProjectGroups(titled, createInitialTuiState()).find(
       (group) => group.project.id === "web",
     );
-    expect(web?.rows.map((candidate) => candidate.branch)).toEqual([
-      "cache-refactor",
-      "checkout-copy",
-      "done-run",
-      "feature-auth",
-      "fix-nav-mobile",
-      "ghost-signal",
-      "slow-tests",
-    ]);
+    expect(web?.rows.map((candidate) => candidate.id)[0]).toBe("wt_web_stuck");
   });
 
   it("assigns stable numeric slots without resolving any selected row", () => {

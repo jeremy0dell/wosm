@@ -118,7 +118,7 @@ export function selectDashboardItems(
     const projectLocalRows = localRows
       .filter((row) => row.projectId === group.project.id)
       .filter((row) => localRowMatchesSearch(row, group.project, state.searchQuery));
-    const rows = mergeRowsAndCreateSessionLocalRows(group.rows, projectLocalRows);
+    const rows = mergeRowsAndCreateSessionLocalRows(group.rows, projectLocalRows, snapshot, state);
     if (rows.length === 0) {
       items.push({
         type: "emptyProject",
@@ -195,22 +195,38 @@ function visibleCreateSessionLocalRows(
 function mergeRowsAndCreateSessionLocalRows(
   rows: readonly WorktreeRow[],
   localRows: readonly DashboardCreateSessionLocalRow[],
+  snapshot: WosmSnapshot,
+  state: TuiViewState,
 ): GroupDashboardRow[] {
   return [
     ...rows.map((row) => ({ type: "worktree" as const, row })),
     ...localRows.map((row) => ({ type: "createLocalRow" as const, row })),
-  ].sort(compareDashboardRows);
+  ].sort((left, right) => compareDashboardRows(left, right, snapshot, state));
 }
 
-function compareDashboardRows(left: GroupDashboardRow, right: GroupDashboardRow): number {
+function compareDashboardRows(
+  left: GroupDashboardRow,
+  right: GroupDashboardRow,
+  snapshot: WosmSnapshot,
+  state: TuiViewState,
+): number {
+  const titleOrder = rowTitle(left, snapshot, state).localeCompare(
+    rowTitle(right, snapshot, state),
+  );
+  if (titleOrder !== 0) return titleOrder;
   const branchOrder = rowBranch(left).localeCompare(rowBranch(right));
-  if (branchOrder !== 0) {
-    return branchOrder;
-  }
+  if (branchOrder !== 0) return branchOrder;
   if (left.type !== right.type) {
     return left.type === "worktree" ? -1 : 1;
   }
   return rowId(left).localeCompare(rowId(right));
+}
+
+function rowTitle(row: GroupDashboardRow, snapshot: WosmSnapshot, state: TuiViewState): string {
+  if (row.type === "createLocalRow") {
+    return row.row.branch;
+  }
+  return worktreeRowDisplayTitle(row.row, snapshot.sessions, state.localRows);
 }
 
 function rowBranch(row: GroupDashboardRow): string {

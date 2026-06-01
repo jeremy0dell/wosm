@@ -257,6 +257,74 @@ describe("session command vertical slice", () => {
     fixture.sqlite.close();
   });
 
+  it("keeps the session.create title stable when the provider branch changes before first reconcile", async () => {
+    const worktree = new FakeWorktreeProvider({ now });
+    const harness = new FakeHarnessProvider({ now });
+    const terminal = new FakeTerminalProvider({
+      now,
+      onLaunch: async ({ launchPlan }) => {
+        const created = worktree.snapshot().worktrees[0];
+        if (created === undefined) {
+          throw new Error("Expected session.create to create a worktree before launch.");
+        }
+        created.branch = "agent-created-branch";
+        harness.addRun(
+          createFakeHarnessRun({
+            id: "run_web_seeded_create",
+            projectId: "web",
+            worktreeId: created.id,
+            sessionId: launchPlan.env?.WOSM_SESSION_ID,
+            state: "working",
+            now,
+          }),
+        );
+      },
+    });
+    const fixture = createFixture({
+      worktree,
+      terminal,
+      harness,
+      sessionIds: ["ses_seeded_create"],
+    });
+
+    await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "original-session-title",
+        harness: {
+          provider: "fake-harness",
+          mode: "interactive",
+        },
+        terminal: {
+          provider: "fake-terminal",
+          layout: "agent-build-shell",
+          focus: false,
+        },
+      },
+    });
+    await fixture.queue.drain();
+
+    expect(fixture.core.getSnapshot().rows).toEqual([
+      expect.objectContaining({
+        id: "wt_web_original_session_title",
+        branch: "agent-created-branch",
+        agent: expect.objectContaining({
+          sessionId: "ses_seeded_create",
+          state: "working",
+        }),
+      }),
+    ]);
+    expect(fixture.core.getSnapshot().sessions).toEqual([
+      expect.objectContaining({
+        id: "ses_seeded_create",
+        worktreeId: "wt_web_original_session_title",
+        title: "original-session-title",
+      }),
+    ]);
+    fixture.sqlite.close();
+  });
+
   it("maps session.create provider failure to SafeError and diagnostic envelope", async () => {
     const fixture = createFixture({
       worktree: new FakeWorktreeProvider({
@@ -441,6 +509,7 @@ describe("session command vertical slice", () => {
         force: true,
       },
     ]);
+    expect(await fixture.persistence.listSessions()).toEqual([]);
     fixture.sqlite.close();
   });
 
@@ -646,6 +715,81 @@ describe("session command vertical slice", () => {
     fixture.sqlite.close();
   });
 
+  it("keeps the session.startAgent title stable when the provider branch changes before first reconcile", async () => {
+    const worktree = new FakeWorktreeProvider({
+      now,
+      worktrees: [
+        createFakeWorktree({
+          id: "wt_web_existing_title",
+          projectId: "web",
+          branch: "existing-session-title",
+          now,
+        }),
+      ],
+    });
+    const harness = new FakeHarnessProvider({ now });
+    const terminal = new FakeTerminalProvider({
+      now,
+      onLaunch: async ({ launchPlan }) => {
+        const existing = worktree.snapshot().worktrees[0];
+        if (existing === undefined) {
+          throw new Error("Expected an existing worktree before launch.");
+        }
+        existing.branch = "agent-switched-branch";
+        harness.addRun(
+          createFakeHarnessRun({
+            id: "run_web_seeded_start",
+            projectId: "web",
+            worktreeId: existing.id,
+            sessionId: launchPlan.env?.WOSM_SESSION_ID,
+            state: "working",
+            now,
+          }),
+        );
+      },
+    });
+    const fixture = createFixture({
+      worktree,
+      terminal,
+      harness,
+      sessionIds: ["ses_seeded_start"],
+    });
+    await fixture.core.reconcile("pre-start-agent-title");
+
+    await fixture.queue.dispatch({
+      type: "session.startAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_existing_title",
+        harness: { provider: "fake-harness", mode: "interactive" },
+        terminal: {
+          provider: "fake-terminal",
+          focus: false,
+        },
+      },
+    });
+    await fixture.queue.drain();
+
+    expect(fixture.core.getSnapshot().rows).toEqual([
+      expect.objectContaining({
+        id: "wt_web_existing_title",
+        branch: "agent-switched-branch",
+        agent: expect.objectContaining({
+          sessionId: "ses_seeded_start",
+          state: "working",
+        }),
+      }),
+    ]);
+    expect(fixture.core.getSnapshot().sessions).toEqual([
+      expect.objectContaining({
+        id: "ses_seeded_start",
+        worktreeId: "wt_web_existing_title",
+        title: "existing-session-title",
+      }),
+    ]);
+    fixture.sqlite.close();
+  });
+
   it("starts an existing worktree with its remembered harness when no provider is requested", async () => {
     const rememberedHarness = new CapturingHarnessProvider({ id: "remembered-harness", now });
     const defaultHarness = new CapturingHarnessProvider({ id: "fake-harness", now });
@@ -833,6 +977,7 @@ describe("session command vertical slice", () => {
     });
     expect(terminal.snapshot().closed).toEqual(["term_fake"]);
     expect(worktree.snapshot().removed).toEqual([]);
+    expect(await fixture.persistence.listSessions()).toEqual([]);
     fixture.sqlite.close();
   });
 

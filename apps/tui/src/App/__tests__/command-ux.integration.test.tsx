@@ -9,6 +9,7 @@ import {
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
 import { App } from "../../App/App.js";
 import { createFakeDashboardSnapshot } from "../../dev/fakeDashboard.js";
+import type { TuiCommandCompletion } from "../../services/types.js";
 
 describe("TUI command UX", () => {
   it("dispatches terminal.focus from numeric slot mappings", async () => {
@@ -260,7 +261,7 @@ describe("TUI command UX", () => {
 
   it("shows local create rows without queued toasts", async () => {
     const snapshot = createDashboardSnapshot();
-    const service = new FakeTuiObserverService(snapshot);
+    const service = new DelayedCompletionService(snapshot, 100);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
@@ -271,6 +272,83 @@ describe("TUI command UX", () => {
     expect(instance.lastFrame()).toContain("[ ]");
     expect(instance.lastFrame()).not.toContain("session.create accepted");
     expect(instance.lastFrame()).not.toContain("session.create queued");
+    instance.unmount();
+  });
+
+  it("clears a successful local create row when the observer row branch differs", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new DeferredCompletionService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("N");
+    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    instance.stdin.write("\r");
+
+    await waitFor(() => service.dispatched.length === 1);
+    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
+    const command = service.dispatched[0];
+    if (command?.type !== "session.create") {
+      throw new Error("Expected a session.create command.");
+    }
+    const originalTitle = command.payload.branch;
+    const sourceRow = snapshot.rows.find((candidate) => candidate.id === "wt_web_idle");
+    const sourceSession = snapshot.sessions.find((candidate) => candidate.id === "ses_wt_web_idle");
+    if (
+      sourceRow === undefined ||
+      sourceRow.agent === undefined ||
+      sourceRow.terminal === undefined
+    ) {
+      throw new Error("Missing source row fixture.");
+    }
+    if (sourceSession === undefined) {
+      throw new Error("Missing source session fixture.");
+    }
+    const observerRow = {
+      ...sourceRow,
+      id: "wt_web_agent_created",
+      branch: "agent-created-branch",
+      path: "/tmp/wosm/web/worktrees/agent-created-branch",
+      agent: {
+        ...sourceRow.agent,
+        runId: "run_agent_created",
+        sessionId: "ses_agent_created",
+      },
+      terminal: {
+        ...sourceRow.terminal,
+        workspaceTargetId: "term_agent_created_window",
+        primaryAgentTargetId: "term_agent_created_agent",
+      },
+    };
+    service.setSnapshot({
+      ...snapshot,
+      rows: [observerRow],
+      sessions: [
+        {
+          ...sourceSession,
+          id: "ses_agent_created",
+          worktreeId: observerRow.id,
+          title: originalTitle,
+          harness: {
+            ...sourceSession.harness,
+            runId: "run_agent_created",
+          },
+          terminal: {
+            ...sourceSession.terminal,
+            workspaceTargetId: "term_agent_created_window",
+            primaryAgentTargetId: "term_agent_created_agent",
+          },
+        },
+      ],
+    });
+    await waitFor(() => service.subscribeCount >= 1);
+    service.emit({ type: "observer.reconciled", at: snapshot.generatedAt, changed: 1 });
+    await waitFor(() => service.loadCount >= 1);
+
+    service.resolveCompletion({ status: "succeeded", commandId: "cmd_tui_1" });
+
+    await waitFor(() => instance.lastFrame()?.includes("starting session...") === false);
+    expect(instance.lastFrame()).toContain(originalTitle);
+    expect(countOccurrences(instance.lastFrame() ?? "", originalTitle)).toBe(1);
     instance.unmount();
   });
 
@@ -856,6 +934,26 @@ class FailingCompletionService extends FakeTuiObserverService {
   override async waitForCommandCompletion(commandId: string) {
     this.waitedForCommandIds.push(commandId);
     throw this.error;
+  }
+}
+
+class DeferredCompletionService extends FakeTuiObserverService {
+  private resolveWaiter: ((completion: TuiCommandCompletion) => void) | undefined;
+
+  override async waitForCommandCompletion(commandId: string) {
+    this.waitedForCommandIds.push(commandId);
+    return new Promise<TuiCommandCompletion>((resolve) => {
+      this.resolveWaiter = resolve;
+    });
+  }
+
+  resolveCompletion(completion: TuiCommandCompletion): void {
+    const resolve = this.resolveWaiter;
+    if (resolve === undefined) {
+      throw new Error("No command completion waiter is registered.");
+    }
+    this.resolveWaiter = undefined;
+    resolve(completion);
   }
 }
 

@@ -156,6 +156,76 @@ describe("dashboard viewport selector", () => {
     expect(viewport.items.filter((item) => item.type === "createLocalRow")).toEqual([]);
   });
 
+  it("orders mixed local and real rows by resolved display title", () => {
+    const snapshot = createDashboardSnapshot();
+    const titled = {
+      ...snapshot,
+      sessions: snapshot.sessions.map((session) =>
+        session.id === "ses_wt_web_stuck" ? { ...session, title: "aaa stable task" } : session,
+      ),
+    };
+    const viewport = selectDashboardViewport(
+      titled,
+      createInitialTuiState({
+        terminalRows: 20,
+        initialSnapshot: titled,
+        localRows: {
+          pendingCreate: [
+            {
+              localId: "local_create_1",
+              projectId: "web",
+              branch: "bbb pending task",
+              harnessProvider: "codex",
+              createdAt: "2026-05-31T12:00:00.000Z",
+            },
+          ],
+          failedCreate: [],
+          pendingRemove: [],
+          pendingStart: [],
+        },
+      }),
+    );
+
+    expect(
+      viewport.items
+        .filter((item) => item.type === "worktree" || item.type === "createLocalRow")
+        .slice(0, 3)
+        .map((item) =>
+          item.type === "worktree" ? `worktree:${item.row.id}` : `create:${item.row.branch}`,
+        ),
+    ).toEqual(["worktree:wt_web_stuck", "create:bbb pending task", "worktree:wt_web_working"]);
+  });
+
+  it("renders one observer row when branch metadata changes but the session title stays stable", () => {
+    const snapshot = createDashboardSnapshot();
+    const changed = {
+      ...snapshot,
+      rows: snapshot.rows.map((candidate) =>
+        candidate.id === "wt_web_idle"
+          ? { ...candidate, branch: "agent-created-branch" }
+          : candidate,
+      ),
+      sessions: snapshot.sessions.map((session) =>
+        session.id === "ses_wt_web_idle" ? { ...session, title: "fix-nav-mobile" } : session,
+      ),
+    };
+    const viewport = selectDashboardViewport(changed, createInitialTuiState());
+    const titledItems = viewport.items.filter(
+      (item) => item.type === "worktree" && item.displayTitle === "fix-nav-mobile",
+    );
+
+    expect(titledItems).toEqual([
+      expect.objectContaining({
+        type: "worktree",
+        row: expect.objectContaining({
+          id: "wt_web_idle",
+          branch: "agent-created-branch",
+        }),
+      }),
+    ]);
+    expect(viewport.items.filter((item) => item.type === "createLocalRow")).toEqual([]);
+  });
+
   it("renders pending remove rows in place without key choices", () => {
     const snapshot = createDashboardSnapshot();
     const viewport = selectDashboardViewport(

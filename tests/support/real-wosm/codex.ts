@@ -13,6 +13,10 @@ export type CodexSentinel = {
   prompt: string;
 };
 
+export type CodexBranchSwitchSentinel = CodexSentinel & {
+  branch: string;
+};
+
 export type CodexHookFixture = {
   hookScriptPath: string;
   hookConfigPath: string;
@@ -31,6 +35,23 @@ export function createCodexSentinel(repo: RealTempRepo, label: string): CodexSen
     absolutePath,
     token,
     prompt: boundedCodexPrompt(relativePath, token),
+  };
+}
+
+export function createCodexBranchSwitchSentinel(
+  repo: RealTempRepo,
+  label: string,
+  branch: string,
+): CodexBranchSwitchSentinel {
+  const token = `wosm-real-${label}-${process.pid}-${Date.now()}`;
+  const relativePath = `.wosm-dogfood/sentinels/${sanitize(label)}-${Date.now()}.txt`;
+  const absolutePath = join(repo.repoPath, relativePath);
+  return {
+    relativePath,
+    absolutePath,
+    token,
+    branch,
+    prompt: boundedCodexBranchSwitchPrompt(relativePath, token, branch),
   };
 }
 
@@ -166,6 +187,20 @@ function boundedCodexPrompt(relativePath: string, token: string): string {
   return [
     "This is a wosm real dogfood sentinel task.",
     `Create or overwrite only ${relativePath}.`,
+    `Write exactly this token followed by a newline: ${token}`,
+    "Do not modify any other files.",
+  ].join("\n");
+}
+
+function boundedCodexBranchSwitchPrompt(
+  relativePath: string,
+  token: string,
+  branch: string,
+): string {
+  return [
+    "This is a wosm real dogfood branch-switch sentinel task.",
+    `Create and switch to a new Git branch named ${branch}.`,
+    `Then create or overwrite only ${relativePath}.`,
     `Write exactly this token followed by a newline: ${token}`,
     "Do not modify any other files.",
   ].join("\n");
