@@ -55,6 +55,7 @@ describe("Dashboard", () => {
 
     expect(lines).toHaveLength(10);
     expect(lines[2]).toContain("↑ 1 hidden");
+    expect(lines.at(-2)).toHaveLength(99);
     expect(body).toContain(" [1] ◜ cache-refactor");
     expect(body).toContain(" [4] - feature-auth");
     expect(body).not.toContain("fix-nav-mobile");

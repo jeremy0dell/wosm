@@ -21,7 +21,7 @@ describe("TUI command UX", () => {
       type: "terminal.focus",
       payload: { targetId: "term_wt_web_idle_agent" },
     });
-    expect(instance.lastFrame()).toContain("1-9/a-z:start/focus");
+    expect(instance.lastFrame()).toContain("1-9/a-z:open");
     instance.unmount();
   });
 

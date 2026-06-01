@@ -86,13 +86,14 @@ describe("WorktreeRow", () => {
     const frame = renderToString(<WorktreeRow row={candidate} slot="9" />);
     const segments = metadataSegments(candidate);
 
-    expect(frame).toContain("\u001B]8;;https://github.com/example/web/pull/123\u0007#123");
+    expect(frame).toContain("\u001B]8;;https://github.com/example/web/pull/123\u001B\\#123");
     expect(segments).toEqual([
       {
-        text: "\u001B]8;;https://github.com/example/web/pull/123\u0007#123\u001B]8;;\u0007",
+        text: "#123",
         stale: true,
         color: "blue",
         underline: true,
+        url: "https://github.com/example/web/pull/123",
       },
       { text: "✓", stale: true, color: "green" },
     ]);
@@ -140,7 +141,7 @@ describe("WorktreeRow", () => {
     );
 
     expect(frame).toContain(" [5] ◜ right-align  codex");
-    expect(frame).toMatch(/\s{2,}\+24 {2}-6 {2}#42 {2}✓$/);
+    expect(frame).toMatch(/\s{2,}\+24 -6 #42 ✓$/);
   });
 
   it("renders PR metadata without checks", () => {

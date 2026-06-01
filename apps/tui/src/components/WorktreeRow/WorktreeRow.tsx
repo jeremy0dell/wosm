@@ -1,5 +1,5 @@
 import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
-import { Box, Text } from "ink";
+import { Box, Text, Transform } from "ink";
 import { Throbber, type ThrobberVariant } from "../Throbber/Throbber.js";
 
 export type WorktreeRowProps = {
@@ -70,6 +70,7 @@ type MetadataSegment = {
   stale: boolean;
   color?: MetadataColor;
   underline?: true;
+  url?: string;
 };
 
 type MetadataColor = "green" | "red" | "blue" | "yellow" | "gray";
@@ -93,7 +94,6 @@ function MetadataText({
   color: "red" | "yellow" | undefined;
   first: boolean;
 }) {
-  const text = `${first ? "" : "  "}${segment.text}`;
   const textColor = segment.color ?? color;
   const props: {
     dimColor: boolean;
@@ -106,7 +106,20 @@ function MetadataText({
   if (textColor !== undefined) {
     props.color = textColor;
   }
-  return <Text {...props}>{text}</Text>;
+  const rendered = <Text {...props}>{segment.text}</Text>;
+  const url = segment.url;
+  const body =
+    url === undefined ? (
+      rendered
+    ) : (
+      <Transform transform={(children) => osc8(url, children)}>{rendered}</Transform>
+    );
+  return (
+    <>
+      {first ? null : <Text> </Text>}
+      {body}
+    </>
+  );
 }
 
 export function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
@@ -132,10 +145,11 @@ export function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
     return segments;
   }
   segments.push({
-    text: pr.url === undefined ? `#${pr.number}` : osc8(pr.url, `#${pr.number}`),
+    text: `#${pr.number}`,
     stale: pr.stale === true,
     color: "blue",
     underline: true,
+    ...(pr.url === undefined ? {} : { url: pr.url }),
   });
   if (checks !== undefined) {
     segments.push({
@@ -169,5 +183,5 @@ function failedChecksGlyph(count: number | undefined): string {
 }
 
 function osc8(url: string, text: string): string {
-  return `\u001B]8;;${url}\u0007${text}\u001B]8;;\u0007`;
+  return `\u001B]8;;${url}\u001B\\${text}\u001B]8;;\u001B\\`;
 }

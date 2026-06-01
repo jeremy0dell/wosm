@@ -28,14 +28,15 @@ export function Dashboard({
   const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
   const mode = useTuiMode();
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";
+  const contentColumns = Math.max(1, columns - 1);
   return (
     <DashboardLayout>
       <DashboardHeader productLabel={productLabel} />
-      <DashboardDivider columns={columns} />
+      <DashboardDivider columns={contentColumns} />
       <ScrollIndicatorRow direction="above" hiddenCount={viewport.hiddenAbove} />
       <DashboardBody items={viewport.visibleItems} choices={viewport.rowChoices} />
       <ScrollIndicatorRow direction="below" hiddenCount={viewport.hiddenBelow} />
-      <DashboardDivider columns={columns} />
+      <DashboardDivider columns={contentColumns} />
       <DashboardFooter quitHint={quitHint} />
     </DashboardLayout>
   );
@@ -43,7 +44,7 @@ export function Dashboard({
 
 function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <Box flexDirection="column" height="100%" overflow="hidden">
+    <Box flexDirection="column" height="100%" overflow="hidden" paddingRight={1}>
       {children}
     </Box>
   );
@@ -133,7 +134,9 @@ function EmptyProjectRow({ project }: { project: ProjectView }) {
 function DashboardFooter({ quitHint }: { quitHint: string }) {
   return (
     <Box flexShrink={0}>
-      <Text>N:new 1-9/a-z:start/focus X:remove /:search R:refresh H:help {quitHint}</Text>
+      <Text wrap="truncate-end">
+        N:new 1-9/a-z:open X:remove /:search R:refresh H:help {quitHint}
+      </Text>
     </Box>
   );
 }
