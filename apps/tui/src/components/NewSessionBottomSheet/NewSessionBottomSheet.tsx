@@ -7,8 +7,9 @@ import {
   selectNewSessionHarnessOptions,
   selectNewSessionProjectChoices,
 } from "../../selectors/selectors.js";
+import { BottomSheetFrame, bottomSheetContentWidth } from "../BottomSheetFrame/BottomSheetFrame.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
-import { newSessionBottomSheetLayout } from "./layout.js";
+import { newSessionContentRowCount } from "./layout.js";
 
 export type NewSessionBottomSheetProps = {
   snapshot: WosmSnapshot;
@@ -25,24 +26,17 @@ export function NewSessionBottomSheet({
 }: NewSessionBottomSheetProps) {
   const project = selectedProject(snapshot, state);
   const optionCount = optionCountForState(snapshot, state, project);
-  const layout = newSessionBottomSheetLayout({ columns, rows, state, optionCount });
-  const contentWidth = Math.max(1, layout.width - 2);
+  const contentWidth = bottomSheetContentWidth(columns);
 
   return (
-    <Box
-      position="absolute"
-      left={layout.left}
-      top={layout.top}
-      width={layout.width}
-      height={layout.height}
-      borderStyle="round"
-      borderColor="gray"
-      flexDirection="column"
-      overflow="hidden"
+    <BottomSheetFrame
+      columns={columns}
+      rows={rows}
+      title={titleForState(state)}
+      contentRows={newSessionContentRowCount(state, optionCount)}
     >
-      <Text bold>{` ${titleForState(state)}`}</Text>
       {renderMode(snapshot, state, project, contentWidth)}
-    </Box>
+    </BottomSheetFrame>
   );
 }
 

@@ -6,11 +6,13 @@ import {
   failPendingCreateSessionRow,
   removeCreateSessionLocalRow,
   removePendingRemoveWorktreeRow,
+  removePendingRenameSessionTitle,
 } from "../localRows.js";
 import type { TuiState } from "../screen.js";
 import type { TuiStore } from "../store.js";
 import { runCreateSessionOperation } from "./createSession.js";
 import { runRemoveWorktreeOperation } from "./removeWorktree.js";
+import { runRenameSessionOperation } from "./renameSession.js";
 import type { CommandRuntimeOptions } from "./runtimeCommands.js";
 import type { TuiOperation } from "./types.js";
 
@@ -28,7 +30,8 @@ type CommandFailedEvent = Extract<WosmEvent, { type: "command.failed" }>;
 
 type LocalCommandFailure =
   | { type: "createSession"; localId: string }
-  | { type: "removeWorktree"; localId: string };
+  | { type: "removeWorktree"; localId: string }
+  | { type: "renameSession"; sessionId: string };
 
 const FAILED_CREATE_ROW_TTL_MS = 4_000;
 
@@ -47,6 +50,12 @@ function localCommandFailureForState(
   );
   if (removeRow !== undefined) {
     return { type: "removeWorktree", localId: removeRow.localId };
+  }
+  const renameRow = Object.values(state.localRows.pendingRenameTitles ?? {}).find(
+    (candidate) => candidate.commandId === commandId,
+  );
+  if (renameRow !== undefined) {
+    return { type: "renameSession", sessionId: renameRow.sessionId };
   }
   return undefined;
 }
@@ -73,9 +82,25 @@ function markRemoveWorktreeRowFailed(store: StoreApi<TuiStore>, localId: string)
   store.setState(removePendingRemoveWorktreeRow(store.getState(), localId));
 }
 
+function markRenameSessionFailed(store: StoreApi<TuiStore>, sessionId: string): void {
+  store.setState(removePendingRenameSessionTitle(store.getState(), sessionId));
+}
+
 function addSafeErrorToast(store: StoreApi<TuiStore>, error: SafeError): void {
   store.setState((state) => ({
     toasts: [...state.toasts, safeErrorToToast(error)],
+  }));
+}
+
+function addRenameSuccessToast(store: StoreApi<TuiStore>): void {
+  store.setState((state) => ({
+    toasts: [
+      ...state.toasts,
+      {
+        kind: "success",
+        message: "Session renamed.",
+      },
+    ],
   }));
 }
 
@@ -113,6 +138,18 @@ export function createTuiLocalOperationRunner(input: {
             (error) => addSafeErrorToast(store(), error),
           );
         }
+        if (operation.type === "renameSession") {
+          void runRenameSessionOperation(
+            store(),
+            input.service,
+            operation,
+            (sessionId) => markRenameSessionFailed(store(), sessionId),
+            (commandId) => handledCommandFailureIds.add(commandId),
+            (commandId) => handledCommandFailureIds.has(commandId),
+            (error) => addSafeErrorToast(store(), error),
+            () => addRenameSuccessToast(store()),
+          );
+        }
       }
     },
     prepareCommandFailedEvent: (event) => {
@@ -128,8 +165,10 @@ export function createTuiLocalOperationRunner(input: {
           handledCommandFailureIds.add(event.commandId);
           if (localFailure.type === "createSession") {
             markCreateSessionRowFailed(store(), localFailure.localId, event.error);
-          } else {
+          } else if (localFailure.type === "removeWorktree") {
             markRemoveWorktreeRowFailed(store(), localFailure.localId);
+          } else {
+            markRenameSessionFailed(store(), localFailure.sessionId);
           }
           addSafeErrorToast(store(), event.error);
         },

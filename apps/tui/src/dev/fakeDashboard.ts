@@ -258,7 +258,7 @@ function fakeSession(row: WorktreeRow): SessionView {
       source: "harness_hook",
       updatedAt: row.agent.updatedAt,
     },
-    title: `${row.projectLabel} ${row.branch}`,
+    title: row.branch,
     tags: [row.agent.harness, row.terminal.provider],
   };
   if (row.agent.runId !== undefined) {

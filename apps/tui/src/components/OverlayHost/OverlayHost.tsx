@@ -3,6 +3,7 @@ import { Box } from "ink";
 import type { TuiScreen } from "../../state/screen.js";
 import { HelpOverlay } from "../HelpOverlay/HelpOverlay.js";
 import { NewSessionBottomSheet } from "../NewSessionBottomSheet/NewSessionBottomSheet.js";
+import { RenameSessionBottomSheet } from "../RenameSessionBottomSheet/RenameSessionBottomSheet.js";
 
 export type OverlayHostProps = {
   snapshot: WosmSnapshot;
@@ -12,7 +13,11 @@ export type OverlayHostProps = {
 };
 
 export function OverlayHost({ snapshot, screen, columns, rows }: OverlayHostProps) {
-  if (screen.name !== "help" && screen.name !== "newSession") {
+  if (
+    screen.name !== "help" &&
+    screen.name !== "newSession" &&
+    !(screen.name === "renameSession" && screen.step === "editName")
+  ) {
     return null;
   }
 
@@ -35,6 +40,9 @@ function renderOverlay(snapshot: WosmSnapshot, screen: TuiScreen, columns: numbe
     return <HelpOverlay columns={columns} rows={rows} />;
   }
   if (screen.name !== "newSession") {
+    if (screen.name === "renameSession" && screen.step === "editName") {
+      return <RenameSessionBottomSheet columns={columns} rows={rows} state={screen} />;
+    }
     return null;
   }
   return (

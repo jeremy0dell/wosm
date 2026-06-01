@@ -6,10 +6,12 @@ import { Throbber, type ThrobberVariant } from "../Throbber/Throbber.js";
 export type WorktreeRowProps = {
   row: WorktreeRowModel;
   slot: string | undefined;
+  title?: string;
 };
 
-export function WorktreeRow({ row, slot }: WorktreeRowProps) {
+export function WorktreeRow({ row, slot, title }: WorktreeRowProps) {
   const marker = statusMarker(row);
+  const displayTitle = title ?? row.branch;
   const harness = row.agent?.harness ?? "-";
   const metadata = metadataSegments(row);
   const warningReason =
@@ -31,7 +33,7 @@ export function WorktreeRow({ row, slot }: WorktreeRowProps) {
         ) : (
           <ColoredText color={color}>{marker.glyph}</ColoredText>
         )}
-        <ColoredText color={color}>{` ${row.branch}`}</ColoredText>
+        <ColoredText color={color}>{` ${displayTitle}`}</ColoredText>
         <ColoredText color={color}>{suffix}</ColoredText>
       </Box>
       {metadata.length > 0 ? (

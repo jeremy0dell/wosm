@@ -1,4 +1,4 @@
-import type { ProviderId, WorktreeId, WosmCommand } from "@wosm/contracts";
+import type { ProviderId, SessionId, WorktreeId, WosmCommand } from "@wosm/contracts";
 
 export type CreateSessionOperation = {
   type: "createSession";
@@ -18,4 +18,14 @@ export type RemoveWorktreeOperation = {
   command: Extract<WosmCommand, { type: "worktree.remove" }>;
 };
 
-export type TuiOperation = CreateSessionOperation | RemoveWorktreeOperation;
+export type RenameSessionOperation = {
+  type: "renameSession";
+  sessionId: SessionId;
+  title: string;
+  command: Extract<WosmCommand, { type: "session.rename" }>;
+};
+
+export type TuiOperation =
+  | CreateSessionOperation
+  | RemoveWorktreeOperation
+  | RenameSessionOperation;

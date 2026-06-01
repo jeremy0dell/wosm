@@ -9,6 +9,7 @@ import {
   buildCreateSessionCommand,
   buildFocusCommand,
   buildPrimaryCommandForRow,
+  buildRenameSessionCommand,
   buildSendPromptCommand,
   buildStartAgentCommand,
   canSendPromptToRow,
@@ -105,6 +106,21 @@ describe("TUI command builders", () => {
         branch: "feature/new-dashboard",
         harness: { provider: "opencode", mode: "interactive" },
         terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
+      },
+    });
+  });
+
+  it("builds session.rename for session title edits", () => {
+    expect(
+      buildRenameSessionCommand({
+        sessionId: "ses_wt_web_idle",
+        title: "Readable feature task",
+      }),
+    ).toEqual({
+      type: "session.rename",
+      payload: {
+        sessionId: "ses_wt_web_idle",
+        title: "Readable feature task",
       },
     });
   });

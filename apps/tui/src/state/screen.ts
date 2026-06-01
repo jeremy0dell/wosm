@@ -1,4 +1,5 @@
-import type { TerminalFocusOrigin, WorktreeId, WosmSnapshot } from "@wosm/contracts";
+import type { SessionId, TerminalFocusOrigin, WorktreeId, WosmSnapshot } from "@wosm/contracts";
+import type { EditableTextInputState } from "../components/EditableTextInput/editing.js";
 import type { NewSessionFlowState } from "../flows/newSession.js";
 import type { TuiToast } from "../services/types.js";
 import {
@@ -44,6 +45,15 @@ export type TuiScreen =
       rowId: WorktreeId;
       forceRequired: boolean;
       label: string;
+    }
+  | { name: "renameSession"; step: "chooseSlot" }
+  | {
+      name: "renameSession";
+      step: "editName";
+      rowId: WorktreeId;
+      sessionId: SessionId;
+      currentTitle: string;
+      draftTitle: EditableTextInputState;
     }
   | { name: "newSession"; flow: NewSessionFlowState };
 

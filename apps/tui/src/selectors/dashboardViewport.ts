@@ -6,7 +6,12 @@ import type {
   PendingRemoveWorktreeRow,
 } from "../state/localRows.js";
 import type { TuiViewState } from "../state/screen.js";
-import { type KeyedChoice, keyChoices, selectProjectGroups } from "./selectors.js";
+import {
+  type KeyedChoice,
+  keyChoices,
+  selectProjectGroups,
+  worktreeRowDisplayTitle,
+} from "./selectors.js";
 
 export type DashboardCreateSessionLocalRow =
   | ({ status: "pending" } & PendingCreateSessionRow)
@@ -33,6 +38,7 @@ export type DashboardViewportItem =
       type: "worktree";
       id: string;
       row: WorktreeRow;
+      displayTitle: string;
       pendingRemove?: PendingRemoveWorktreeRow;
     }
   | {
@@ -117,6 +123,7 @@ export function selectDashboardItems(
           type: "worktree",
           id: `worktree:${row.row.id}`,
           row: row.row,
+          displayTitle: worktreeRowDisplayTitle(row.row, snapshot.sessions, state.localRows),
         };
         const pendingRemove = state.localRows.pendingRemove.find(
           (localRow) => localRow.worktreeId === row.row.id,

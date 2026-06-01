@@ -1,4 +1,11 @@
-import type { CommandId, ProviderId, SafeError, WorktreeId, WosmSnapshot } from "@wosm/contracts";
+import type {
+  CommandId,
+  ProviderId,
+  SafeError,
+  SessionId,
+  WorktreeId,
+  WosmSnapshot,
+} from "@wosm/contracts";
 import type { TuiState } from "./screen.js";
 
 export type PendingCreateSessionRow = {
@@ -27,10 +34,18 @@ export type PendingRemoveWorktreeRow = {
   commandId?: CommandId;
 };
 
+export type PendingRenameSessionTitle = {
+  sessionId: SessionId;
+  title: string;
+  createdAt: string;
+  commandId?: CommandId;
+};
+
 export type TuiLocalRows = {
   pendingCreate: PendingCreateSessionRow[];
   failedCreate: FailedCreateSessionRow[];
   pendingRemove: PendingRemoveWorktreeRow[];
+  pendingRenameTitles?: Readonly<Record<SessionId, PendingRenameSessionTitle>>;
 };
 
 export function createEmptyTuiLocalRows(): TuiLocalRows {
@@ -38,6 +53,7 @@ export function createEmptyTuiLocalRows(): TuiLocalRows {
     pendingCreate: [],
     failedCreate: [],
     pendingRemove: [],
+    pendingRenameTitles: {},
   };
 }
 
@@ -86,6 +102,7 @@ export function failPendingCreateSessionRow(
   return {
     ...state,
     localRows: {
+      ...state.localRows,
       pendingCreate: state.localRows.pendingCreate.filter(
         (candidate) => candidate.localId !== localId,
       ),
@@ -108,6 +125,7 @@ export function removeCreateSessionLocalRow(state: TuiState, localId: string): T
   return {
     ...state,
     localRows: {
+      ...state.localRows,
       pendingCreate: state.localRows.pendingCreate.filter((row) => row.localId !== localId),
       failedCreate: state.localRows.failedCreate.filter((row) => row.localId !== localId),
       pendingRemove: state.localRows.pendingRemove,
@@ -162,17 +180,101 @@ export function removePendingRemoveWorktreeRow(state: TuiState, localId: string)
   };
 }
 
+export function addPendingRenameSessionTitle(
+  state: TuiState,
+  row: PendingRenameSessionTitle,
+): TuiState {
+  return {
+    ...state,
+    localRows: withPendingRenameTitles(state.localRows, {
+      ...pendingRenameTitles(state.localRows),
+      [row.sessionId]: row,
+    }),
+  };
+}
+
+export function bindPendingRenameSessionTitle(
+  state: TuiState,
+  sessionId: SessionId,
+  commandId: CommandId,
+): TuiState {
+  const pending = state.localRows.pendingRenameTitles?.[sessionId];
+  if (pending === undefined) {
+    return state;
+  }
+  return {
+    ...state,
+    localRows: withPendingRenameTitles(state.localRows, {
+      ...pendingRenameTitles(state.localRows),
+      [sessionId]: {
+        ...pending,
+        commandId,
+      },
+    }),
+  };
+}
+
+export function removePendingRenameSessionTitle(state: TuiState, sessionId: SessionId): TuiState {
+  const pending = pendingRenameTitles(state.localRows);
+  if (pending[sessionId] === undefined) {
+    return state;
+  }
+  const nextPending = { ...pending };
+  delete nextPending[sessionId];
+  return {
+    ...state,
+    localRows: withPendingRenameTitles(state.localRows, nextPending),
+  };
+}
+
 export function pruneLocalRowsForSnapshot(
   localRows: TuiLocalRows,
   snapshot: WosmSnapshot,
 ): TuiLocalRows {
   const realRows = new Set(snapshot.rows.map((row) => `${row.projectId}\u0000${row.branch}`));
   const realWorktreeIds = new Set(snapshot.rows.map((row) => row.id));
-  return {
+  return withPendingRenameTitles(
+    {
+      ...localRows,
+      pendingCreate: localRows.pendingCreate.filter(
+        (row) => !realRows.has(`${row.projectId}\u0000${row.branch}`),
+      ),
+      pendingRemove: localRows.pendingRemove.filter((row) => realWorktreeIds.has(row.worktreeId)),
+    },
+    prunePendingRenameTitles(localRows, snapshot),
+  );
+}
+
+export function pendingRenameTitles(
+  localRows: TuiLocalRows,
+): Readonly<Record<SessionId, PendingRenameSessionTitle>> {
+  return localRows.pendingRenameTitles ?? {};
+}
+
+function prunePendingRenameTitles(
+  localRows: TuiLocalRows,
+  snapshot: WosmSnapshot,
+): Record<SessionId, PendingRenameSessionTitle> {
+  const sessionsById = new Map(snapshot.sessions.map((session) => [session.id, session]));
+  return Object.fromEntries(
+    Object.entries(pendingRenameTitles(localRows)).filter(([sessionId, pending]) => {
+      const session = sessionsById.get(sessionId);
+      return session !== undefined && session.title !== pending.title;
+    }),
+  );
+}
+
+function withPendingRenameTitles(
+  localRows: TuiLocalRows,
+  titles: Readonly<Record<SessionId, PendingRenameSessionTitle>>,
+): TuiLocalRows {
+  const next: TuiLocalRows = {
     ...localRows,
-    pendingCreate: localRows.pendingCreate.filter(
-      (row) => !realRows.has(`${row.projectId}\u0000${row.branch}`),
-    ),
-    pendingRemove: localRows.pendingRemove.filter((row) => realWorktreeIds.has(row.worktreeId)),
   };
+  if (Object.keys(titles).length > 0) {
+    next.pendingRenameTitles = titles;
+  } else {
+    delete next.pendingRenameTitles;
+  }
+  return next;
 }
