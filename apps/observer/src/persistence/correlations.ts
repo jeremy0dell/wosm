@@ -162,6 +162,53 @@ export function renameSession(
   return row === undefined ? undefined : sessionFromRow(row);
 }
 
+export function seedSessionTitle(
+  database: DatabaseSync,
+  input: {
+    sessionId: string;
+    projectId: string;
+    worktreeId: string;
+    title: string;
+    createdAt: string;
+    lastSeenAt: string;
+  },
+): PersistedSession {
+  database
+    .prepare(
+      `
+        INSERT INTO sessions
+          (id, project_id, worktree_id, title, created_at, ended_at, last_seen_at)
+        VALUES (?, ?, ?, ?, ?, NULL, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          project_id = excluded.project_id,
+          worktree_id = excluded.worktree_id,
+          title = COALESCE(sessions.title, excluded.title),
+          last_seen_at = excluded.last_seen_at
+      `,
+    )
+    .run(
+      input.sessionId,
+      input.projectId,
+      input.worktreeId,
+      input.title,
+      input.createdAt,
+      input.lastSeenAt,
+    );
+
+  const row = database.prepare("SELECT * FROM sessions WHERE id = ?").get(input.sessionId) as
+    | SqliteSessionRow
+    | undefined;
+  if (row === undefined) {
+    throw new Error(`Failed to seed session title for ${input.sessionId}.`);
+  }
+  return sessionFromRow(row);
+}
+
+export function deleteSessionTitleSeed(database: DatabaseSync, sessionId: string): number {
+  const result = database.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+  return Number(result.changes);
+}
+
 function upsertProject(
   database: DatabaseSync,
   project: ProjectPersistenceInput,

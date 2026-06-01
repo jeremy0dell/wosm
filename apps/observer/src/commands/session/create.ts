@@ -12,6 +12,7 @@ import { reconcileAndPublish } from "../reconcile.js";
 import {
   closeTerminalTargetBestEffort,
   defaultSessionCommandIdFactory,
+  deleteSessionTitleSeedBestEffort,
   findProjectOrThrow,
   focusTerminalTargetBestEffort,
   launchHarnessInTerminal,
@@ -21,6 +22,7 @@ import {
   resolveTerminalProviderOrThrow,
   runProviderMutation,
   type SessionCommandIdFactory,
+  seedSessionTitle,
   terminalTargetObservationFromBinding,
   throwIfAborted,
 } from "./shared.js";
@@ -63,6 +65,7 @@ export function createSessionCreateHandler(
     let createdWorktree: WorktreeObservation | undefined;
     let openedTargetId: string | undefined;
     let harnessLaunched = false;
+    let seededSessionTitle = false;
 
     try {
       const worktree = await runProviderMutation(
@@ -146,6 +149,17 @@ export function createSessionCreateHandler(
       );
       throwIfAborted(context.signal);
 
+      await seedSessionTitle({
+        persistence: options.persistence,
+        sessionId,
+        projectId: project.id,
+        worktreeId: worktree.id,
+        title: payload.branch.trim(),
+        clock: options.clock,
+      });
+      seededSessionTitle = true;
+      throwIfAborted(context.signal);
+
       await launchHarnessInTerminal({
         ...runtime,
         terminal,
@@ -180,6 +194,14 @@ export function createSessionCreateHandler(
             logger: options.logger,
             clock: options.clock,
             commandTimeoutMs: options.commandTimeoutMs,
+          });
+        }
+        if (seededSessionTitle) {
+          await deleteSessionTitleSeedBestEffort({
+            persistence: options.persistence,
+            sessionId,
+            context,
+            logger: options.logger,
           });
         }
         if (createdWorktree !== undefined) {

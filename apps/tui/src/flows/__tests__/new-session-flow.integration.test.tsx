@@ -8,7 +8,7 @@ import { App } from "../../App/App.js";
 describe("new session bottom-sheet flow", () => {
   it("creates a session with selected project, agent, and custom branch", async () => {
     const snapshot = createMultiHarnessSnapshot();
-    const service = new FakeTuiObserverService(snapshot);
+    const service = new DelayedCompletionService(snapshot, 500);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
@@ -125,7 +125,7 @@ describe("new session bottom-sheet flow", () => {
 
   it("shows safe errors on command failures after the sheet closes", async () => {
     const snapshot = createMultiHarnessSnapshot();
-    const service = new FakeTuiObserverService(snapshot);
+    const service = new DelayedCompletionService(snapshot, 500);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
@@ -222,4 +222,19 @@ async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<vo
 
 async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 20));
+}
+
+class DelayedCompletionService extends FakeTuiObserverService {
+  constructor(
+    snapshot: WosmSnapshot,
+    private readonly delayMs: number,
+  ) {
+    super(snapshot);
+  }
+
+  override async waitForCommandCompletion(commandId: string) {
+    this.waitedForCommandIds.push(commandId);
+    await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    return this.nextCompletion;
+  }
 }

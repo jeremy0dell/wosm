@@ -19,6 +19,7 @@ import {
   assertNoCurrentAgent,
   closeTerminalTargetBestEffort,
   defaultSessionCommandIdFactory,
+  deleteSessionTitleSeedBestEffort,
   findProjectOrThrow,
   focusTerminalTargetBestEffort,
   launchHarnessInTerminal,
@@ -27,6 +28,7 @@ import {
   resolveTerminalProviderOrThrow,
   runProviderMutation,
   type SessionCommandIdFactory,
+  seedSessionTitle,
   terminalTargetObservationFromBinding,
   throwIfAborted,
   worktreeObservationFromRow,
@@ -93,6 +95,7 @@ export function createSessionStartAgentHandler(
     throwIfAborted(context.signal);
     let openedTargetId: string | undefined;
     let harnessLaunched = false;
+    let seededSessionTitle = false;
 
     try {
       const opened = await runProviderMutation(
@@ -149,6 +152,17 @@ export function createSessionStartAgentHandler(
       );
       throwIfAborted(context.signal);
 
+      await seedSessionTitle({
+        persistence: options.persistence,
+        sessionId,
+        projectId: project.id,
+        worktreeId: worktree.id,
+        title: worktree.branch,
+        clock: options.clock,
+      });
+      seededSessionTitle = true;
+      throwIfAborted(context.signal);
+
       await launchHarnessInTerminal({
         ...runtime,
         terminal,
@@ -174,15 +188,25 @@ export function createSessionStartAgentHandler(
         });
       }
     } catch (error) {
-      if (!harnessLaunched && openedTargetId !== undefined) {
-        await closeTerminalTargetBestEffort({
-          terminal,
-          targetId: openedTargetId,
-          context,
-          logger: options.logger,
-          clock: options.clock,
-          commandTimeoutMs: options.commandTimeoutMs,
-        });
+      if (!harnessLaunched) {
+        if (openedTargetId !== undefined) {
+          await closeTerminalTargetBestEffort({
+            terminal,
+            targetId: openedTargetId,
+            context,
+            logger: options.logger,
+            clock: options.clock,
+            commandTimeoutMs: options.commandTimeoutMs,
+          });
+        }
+        if (seededSessionTitle) {
+          await deleteSessionTitleSeedBestEffort({
+            persistence: options.persistence,
+            sessionId,
+            context,
+            logger: options.logger,
+          });
+        }
       }
       throw error;
     }

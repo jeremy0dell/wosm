@@ -309,6 +309,15 @@ export type ObserverPersistence = {
   listTerminalTargets(): Promise<PersistedTerminalTarget[]>;
   listHarnessRuns(): Promise<PersistedHarnessRun[]>;
   listSessions(): Promise<PersistedSession[]>;
+  seedSessionTitle(input: {
+    sessionId: string;
+    projectId: string;
+    worktreeId: string;
+    title: string;
+    createdAt: string;
+    lastSeenAt: string;
+  }): Promise<PersistedSession>;
+  deleteSessionTitleSeed(sessionId: string): Promise<number>;
   renameSession(input: { sessionId: string; title: string }): Promise<PersistedSession | undefined>;
   recordRecoveryBreadcrumb(input: {
     projectId: string;

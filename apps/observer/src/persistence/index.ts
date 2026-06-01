@@ -239,6 +239,12 @@ export function createObserverPersistence(
 
     listSessions: () => transaction(correlationStore.listSessions),
 
+    seedSessionTitle: (input) =>
+      transaction((database) => correlationStore.seedSessionTitle(database, input)),
+
+    deleteSessionTitleSeed: (sessionId) =>
+      transaction((database) => correlationStore.deleteSessionTitleSeed(database, sessionId)),
+
     renameSession: (input) =>
       transaction((database) => correlationStore.renameSession(database, input)),
 

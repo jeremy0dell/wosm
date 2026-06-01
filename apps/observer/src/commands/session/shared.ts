@@ -142,6 +142,43 @@ export function terminalTargetObservationFromBinding(input: {
   return target;
 }
 
+export async function seedSessionTitle(input: {
+  persistence: ObserverPersistence;
+  sessionId: SessionId;
+  projectId: string;
+  worktreeId: string;
+  title: string;
+  clock?: RuntimeClock | undefined;
+}): Promise<void> {
+  const seededAt = toIsoTimestamp((input.clock ?? systemClock).now());
+  await input.persistence.seedSessionTitle({
+    sessionId: input.sessionId,
+    projectId: input.projectId,
+    worktreeId: input.worktreeId,
+    title: input.title.trim(),
+    createdAt: seededAt,
+    lastSeenAt: seededAt,
+  });
+}
+
+export async function deleteSessionTitleSeedBestEffort(input: {
+  persistence: ObserverPersistence;
+  sessionId: SessionId;
+  context: CommandHandlerContext;
+  logger?: JsonlLogger | undefined;
+}): Promise<void> {
+  try {
+    await input.persistence.deleteSessionTitleSeed(input.sessionId);
+  } catch (error) {
+    await input.logger?.warn("Session cleanup failed to delete a pre-launch title seed.", {
+      commandId: input.context.commandId,
+      traceId: input.context.trace.traceId,
+      sessionId: input.sessionId,
+      error,
+    });
+  }
+}
+
 export async function runProviderMutation<T>(
   input: RunProviderMutationInput,
   task: (signal: AbortSignal) => Promise<T>,
