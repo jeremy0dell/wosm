@@ -205,7 +205,7 @@ function sessionForRow(candidate: WorktreeRow): SessionView {
       source: "harness_hook",
       updatedAt: fixtureNow,
     },
-    title: `${candidate.projectLabel} ${candidate.branch}`,
+    title: candidate.branch,
     tags: [candidate.agent.harness, candidate.terminal.provider],
   };
 }

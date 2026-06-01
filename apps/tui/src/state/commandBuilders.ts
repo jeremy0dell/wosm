@@ -2,6 +2,7 @@ import type {
   AgentState,
   ProjectView,
   ProviderId,
+  SessionId,
   SessionView,
   TerminalFocusOrigin,
   WorktreeRow,
@@ -24,6 +25,11 @@ export type CreateSessionCommandInput = {
   branch: string;
   harnessProvider: ProviderId;
   initialPrompt?: string;
+};
+
+export type RenameSessionCommandInput = {
+  sessionId: SessionId;
+  title: string;
 };
 
 export type BuildFocusCommandOptions = {
@@ -126,6 +132,16 @@ export function buildCreateSessionCommand(input: CreateSessionCommandInput): Wos
   return {
     type: "session.create",
     payload,
+  };
+}
+
+export function buildRenameSessionCommand(input: RenameSessionCommandInput): WosmCommand {
+  return {
+    type: "session.rename",
+    payload: {
+      sessionId: input.sessionId,
+      title: input.title,
+    },
   };
 }
 

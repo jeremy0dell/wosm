@@ -3,9 +3,11 @@ import type {
   ProjectView,
   ProviderHealth,
   ProviderId,
+  SessionView,
   WorktreeRow,
   WosmSnapshot,
 } from "@wosm/contracts";
+import { pendingRenameTitles, type TuiLocalRows } from "../state/localRows.js";
 import type { TuiViewState } from "../state/screen.js";
 
 export const SELECTION_KEYS = [
@@ -94,7 +96,14 @@ export function selectProjectGroups(snapshot: WosmSnapshot, state: TuiViewState)
     const collapsed = state.collapsedProjectIds.has(project.id);
     const matchingRows = snapshot.rows
       .filter((row) => row.projectId === project.id)
-      .filter((row) => rowMatchesSearch(row, project, query))
+      .filter((row) =>
+        rowMatchesSearch(
+          row,
+          project,
+          query,
+          worktreeRowDisplayTitle(row, snapshot.sessions, state.localRows),
+        ),
+      )
       .sort(compareRows);
     return {
       project,
@@ -175,6 +184,32 @@ export function selectNewSessionHarnessChoices(
   return keyChoices(selectNewSessionHarnessOptions(snapshot, project));
 }
 
+export function sessionForWorktreeRow(
+  row: WorktreeRow,
+  sessions: readonly SessionView[],
+): SessionView | undefined {
+  const sessionId = row.agent?.sessionId;
+  if (sessionId !== undefined) {
+    const direct = sessions.find((session) => session.id === sessionId);
+    if (direct !== undefined) {
+      return direct;
+    }
+  }
+  return sessions.find((session) => session.worktreeId === row.id);
+}
+
+export function worktreeRowDisplayTitle(
+  row: WorktreeRow,
+  sessions: readonly SessionView[],
+  localRows: TuiLocalRows,
+): string {
+  const session = sessionForWorktreeRow(row, sessions);
+  if (session === undefined) {
+    return row.branch;
+  }
+  return pendingRenameTitles(localRows)[session.id]?.title ?? session.title;
+}
+
 function compareRows(left: WorktreeRow, right: WorktreeRow): number {
   return (
     left.branch.localeCompare(right.branch) ||
@@ -183,11 +218,17 @@ function compareRows(left: WorktreeRow, right: WorktreeRow): number {
   );
 }
 
-function rowMatchesSearch(row: WorktreeRow, project: ProjectView, query: string): boolean {
+function rowMatchesSearch(
+  row: WorktreeRow,
+  project: ProjectView,
+  query: string,
+  displayTitle: string,
+): boolean {
   if (query.length === 0) {
     return true;
   }
   return [
+    displayTitle,
     row.branch,
     row.display.statusLabel,
     row.display.reason,

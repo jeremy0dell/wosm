@@ -187,4 +187,23 @@ describe("dashboard viewport selector", () => {
     });
     expect(viewport.rowChoices.map((choice) => choice.value.id)).not.toContain("wt_web_idle");
   });
+
+  it("carries resolved titles for dashboard worktree rendering", () => {
+    const snapshot = createDashboardSnapshot();
+    const titled = {
+      ...snapshot,
+      sessions: snapshot.sessions.map((session) =>
+        session.id === "ses_wt_web_idle" ? { ...session, title: "Readable feature task" } : session,
+      ),
+    };
+    const viewport = selectDashboardViewport(titled, createInitialTuiState());
+
+    const item = viewport.items.find(
+      (candidate) => candidate.type === "worktree" && candidate.row.id === "wt_web_idle",
+    );
+    expect(item).toMatchObject({
+      type: "worktree",
+      displayTitle: "Readable feature task",
+    });
+  });
 });
