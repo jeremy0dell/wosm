@@ -34,6 +34,15 @@ export type PendingRemoveWorktreeRow = {
   commandId?: CommandId;
 };
 
+export type PendingStartAgentRow = {
+  localId: string;
+  projectId: string;
+  worktreeId: WorktreeId;
+  branch: string;
+  createdAt: string;
+  commandId?: CommandId;
+};
+
 export type PendingRenameSessionTitle = {
   sessionId: SessionId;
   title: string;
@@ -45,6 +54,7 @@ export type TuiLocalRows = {
   pendingCreate: PendingCreateSessionRow[];
   failedCreate: FailedCreateSessionRow[];
   pendingRemove: PendingRemoveWorktreeRow[];
+  pendingStart: PendingStartAgentRow[];
   pendingRenameTitles?: Readonly<Record<SessionId, PendingRenameSessionTitle>>;
 };
 
@@ -53,6 +63,7 @@ export function createEmptyTuiLocalRows(): TuiLocalRows {
     pendingCreate: [],
     failedCreate: [],
     pendingRemove: [],
+    pendingStart: [],
     pendingRenameTitles: {},
   };
 }
@@ -180,6 +191,50 @@ export function removePendingRemoveWorktreeRow(state: TuiState, localId: string)
   };
 }
 
+export function addPendingStartAgentRow(state: TuiState, row: PendingStartAgentRow): TuiState {
+  return {
+    ...state,
+    localRows: {
+      ...state.localRows,
+      pendingStart: [
+        ...state.localRows.pendingStart.filter(
+          (candidate) => candidate.worktreeId !== row.worktreeId,
+        ),
+        row,
+      ],
+    },
+  };
+}
+
+export function bindPendingStartAgentRow(
+  state: TuiState,
+  localId: string,
+  commandId: CommandId,
+): TuiState {
+  return {
+    ...state,
+    localRows: {
+      ...state.localRows,
+      pendingStart: state.localRows.pendingStart.map((row) => {
+        if (row.localId !== localId) {
+          return row;
+        }
+        return { ...row, commandId };
+      }),
+    },
+  };
+}
+
+export function removePendingStartAgentRow(state: TuiState, localId: string): TuiState {
+  return {
+    ...state,
+    localRows: {
+      ...state.localRows,
+      pendingStart: state.localRows.pendingStart.filter((row) => row.localId !== localId),
+    },
+  };
+}
+
 export function addPendingRenameSessionTitle(
   state: TuiState,
   row: PendingRenameSessionTitle,
@@ -233,6 +288,8 @@ export function pruneLocalRowsForSnapshot(
 ): TuiLocalRows {
   const realRows = new Set(snapshot.rows.map((row) => `${row.projectId}\u0000${row.branch}`));
   const realWorktreeIds = new Set(snapshot.rows.map((row) => row.id));
+  const rowsByWorktreeId = new Map(snapshot.rows.map((row) => [row.id, row]));
+  const sessionWorktreeIds = new Set(snapshot.sessions.map((session) => session.worktreeId));
   return withPendingRenameTitles(
     {
       ...localRows,
@@ -240,6 +297,14 @@ export function pruneLocalRowsForSnapshot(
         (row) => !realRows.has(`${row.projectId}\u0000${row.branch}`),
       ),
       pendingRemove: localRows.pendingRemove.filter((row) => realWorktreeIds.has(row.worktreeId)),
+      pendingStart: localRows.pendingStart.filter((row) => {
+        const realRow = rowsByWorktreeId.get(row.worktreeId);
+        return (
+          realRow !== undefined &&
+          realRow.agent === undefined &&
+          !sessionWorktreeIds.has(row.worktreeId)
+        );
+      }),
     },
     prunePendingRenameTitles(localRows, snapshot),
   );

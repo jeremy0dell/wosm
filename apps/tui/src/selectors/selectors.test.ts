@@ -151,6 +151,7 @@ describe("TUI selectors", () => {
         pendingCreate: [],
         failedCreate: [],
         pendingRemove: [],
+        pendingStart: [],
         pendingRenameTitles: {
           ses_wt_web_idle: {
             sessionId: "ses_wt_web_idle",
@@ -172,7 +173,7 @@ describe("TUI selectors", () => {
       collapsedProjectIds: new Set(),
       scrollOffset: 0,
       terminalRows: 24,
-      localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [] },
+      localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [], pendingStart: [] },
     };
     expect(selectVisibleRows(snapshot, searched).map((candidate) => candidate.id)).toEqual([
       "wt_web_idle",
@@ -183,7 +184,7 @@ describe("TUI selectors", () => {
       collapsedProjectIds: new Set(["web"]),
       scrollOffset: 0,
       terminalRows: 24,
-      localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [] },
+      localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [], pendingStart: [] },
     };
     const groups = selectProjectGroups(snapshot, collapsed);
     expect(groups.find((group) => group.project.id === "web")?.collapsed).toBe(true);
@@ -207,7 +208,7 @@ describe("TUI selectors", () => {
       collapsedProjectIds: new Set(),
       scrollOffset: 0,
       terminalRows: 24,
-      localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [] },
+      localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [], pendingStart: [] },
     };
 
     expect(selectVisibleRows(titled, searched).map((candidate) => candidate.id)).toEqual([

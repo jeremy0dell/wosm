@@ -74,7 +74,12 @@ function renderShell(columns: number, rows: number, activeOverlay: "help" | unde
               collapsedProjectIds: new Set(),
               scrollOffset: 0,
               terminalRows: rows,
-              localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [] },
+              localRows: {
+                pendingCreate: [],
+                failedCreate: [],
+                pendingRemove: [],
+                pendingStart: [],
+              },
             }}
           />
           <OverlayHost columns={columns} rows={rows} screen={screen} snapshot={snapshot} />

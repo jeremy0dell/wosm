@@ -1,14 +1,17 @@
 import type {
   CommandReceipt,
   TerminalFocusOrigin,
+  WorktreeRow,
   WosmCommand,
   WosmEvent,
   WosmSnapshot,
 } from "@wosm/contracts";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { applyWosmEvent } from "../eventReducer/eventReducer.js";
+import { sessionForWorktreeRow } from "../selectors/selectors.js";
 import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
+import { buildFocusCommand } from "./commandBuilders.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import type { TuiKey } from "./keys.js";
 import {
@@ -56,6 +59,14 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
     getStore: () => store,
     service: options.service,
     runtime,
+    focusStartedAgentRow: async (snapshot, row) => {
+      await dispatchFocusWithLifecycle(
+        store,
+        options.service,
+        buildStartedAgentFocusCommand(snapshot, row),
+        runtime,
+      );
+    },
   });
 
   store = createStore<TuiStore>()((set, get) => ({
@@ -336,6 +347,22 @@ function shouldUseFocusLifecycle(
       runtime.resolveFocusOrigin !== undefined ||
       runtime.onFocusSuccess !== undefined)
   );
+}
+
+function buildStartedAgentFocusCommand(
+  snapshot: WosmSnapshot,
+  row: WorktreeRow,
+): Extract<WosmCommand, { type: "terminal.focus" }> {
+  const session = sessionForWorktreeRow(row, snapshot.sessions);
+  if (row.agent === undefined && session !== undefined) {
+    return {
+      type: "terminal.focus",
+      payload: {
+        sessionId: session.id,
+      },
+    };
+  }
+  return buildFocusCommand(row);
 }
 
 async function dispatchFocusWithLifecycle(

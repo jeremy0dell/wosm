@@ -18,6 +18,15 @@ export type RemoveWorktreeOperation = {
   command: Extract<WosmCommand, { type: "worktree.remove" }>;
 };
 
+export type StartAgentOperation = {
+  type: "startAgent";
+  localId: string;
+  projectId: string;
+  worktreeId: WorktreeId;
+  branch: string;
+  command: Extract<WosmCommand, { type: "session.startAgent" }>;
+};
+
 export type RenameSessionOperation = {
   type: "renameSession";
   sessionId: SessionId;
@@ -28,4 +37,5 @@ export type RenameSessionOperation = {
 export type TuiOperation =
   | CreateSessionOperation
   | RemoveWorktreeOperation
+  | StartAgentOperation
   | RenameSessionOperation;

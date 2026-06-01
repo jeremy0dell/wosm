@@ -39,7 +39,7 @@ export type BuildFocusCommandOptions = {
 export function buildFocusCommand(
   row: WorktreeRow,
   options: BuildFocusCommandOptions = {},
-): WosmCommand {
+): Extract<WosmCommand, { type: "terminal.focus" }> {
   const payload: Extract<WosmCommand, { type: "terminal.focus" }>["payload"] = {};
   const targetId = row.terminal?.primaryAgentTargetId ?? row.terminal?.workspaceTargetId;
   if (targetId !== undefined) {
@@ -58,7 +58,10 @@ export function buildFocusCommand(
   };
 }
 
-export function buildStartAgentCommand(row: WorktreeRow, project: ProjectView): WosmCommand {
+export function buildStartAgentCommand(
+  row: WorktreeRow,
+  project: ProjectView,
+): Extract<WosmCommand, { type: "session.startAgent" }> {
   return {
     type: "session.startAgent",
     payload: {

@@ -52,6 +52,87 @@ describe("TUI screen transitions", () => {
     ).toBe(0);
   });
 
+  it("starts an agent from a no-agent dashboard slot as a local operation", () => {
+    const transition = handleTuiKey(
+      createInitialTuiState({ initialSnapshot: createCommandSnapshot("none") }),
+      { input: "1" },
+    );
+
+    expect(transition.commands).toBeUndefined();
+    expect(transition.state.localRows.pendingStart).toMatchObject([
+      {
+        localId: "start:wt_web_no_agent",
+        projectId: "web",
+        worktreeId: "wt_web_no_agent",
+        branch: "feature-start",
+      },
+    ]);
+    expect(transition.operations).toEqual([
+      expect.objectContaining({
+        type: "startAgent",
+        localId: "start:wt_web_no_agent",
+        projectId: "web",
+        worktreeId: "wt_web_no_agent",
+        branch: "feature-start",
+        command: {
+          type: "session.startAgent",
+          payload: {
+            projectId: "web",
+            worktreeId: "wt_web_no_agent",
+            terminal: {
+              provider: "tmux",
+              layout: "agent-build-shell",
+              focus: false,
+            },
+          },
+        },
+      }),
+    ]);
+  });
+
+  it("keeps agent-backed dashboard slots on the focus command path", () => {
+    const transition = handleTuiKey(
+      createInitialTuiState({ initialSnapshot: createCommandSnapshot("idle") }),
+      { input: "1" },
+    );
+
+    expect(transition.operations).toBeUndefined();
+    expect(transition.commands).toEqual([
+      {
+        type: "terminal.focus",
+        payload: { targetId: "term_wt_web_idle_agent" },
+      },
+    ]);
+    expect(transition.state.localRows.pendingStart).toEqual([]);
+  });
+
+  it("ignores a pending-start slot as an action while preserving dashboard state", () => {
+    const snapshot = createCommandSnapshot("none");
+    const state = createInitialTuiState({
+      initialSnapshot: snapshot,
+      localRows: {
+        pendingCreate: [],
+        failedCreate: [],
+        pendingRemove: [],
+        pendingStart: [
+          {
+            localId: "start:wt_web_no_agent",
+            projectId: "web",
+            worktreeId: "wt_web_no_agent",
+            branch: "feature-start",
+            createdAt: "2026-06-01T12:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    const transition = handleTuiKey(state, { input: "1" });
+
+    expect(transition.state).toBe(state);
+    expect(transition.commands).toBeUndefined();
+    expect(transition.operations).toBeUndefined();
+  });
+
   it("opens remove confirmation for the selected visible row slot", () => {
     const opened = handleTuiKey(
       createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }),
