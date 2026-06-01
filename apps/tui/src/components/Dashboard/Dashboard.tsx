@@ -38,7 +38,7 @@ export function Dashboard({
       <DashboardBody items={viewport.visibleItems} choices={viewport.rowChoices} />
       <ScrollIndicatorRow direction="below" hiddenCount={viewport.hiddenBelow} />
       <DashboardDivider columns={contentColumns} />
-      <DashboardFooter quitHint={quitHint} />
+      <DashboardFooter columns={contentColumns} quitHint={quitHint} />
     </DashboardLayout>
   );
 }
@@ -117,20 +117,22 @@ function DashboardViewportRow({
       return <EmptyProjectRow project={item.project} />;
     case "worktree":
       if (item.pendingRemove !== undefined) {
-        return <RemoveWorktreeLocalRow row={item.row} />;
+        return <RemoveWorktreeLocalRow displayTitle={item.displayTitle} />;
       }
-      return <WorktreeRow row={item.row} slot={keyByRow.get(item.row.id)} />;
+      return (
+        <WorktreeRow row={item.row} slot={keyByRow.get(item.row.id)} title={item.displayTitle} />
+      );
     case "createLocalRow":
       return <CreateSessionLocalRow row={item.row} />;
   }
 }
 
-function RemoveWorktreeLocalRow({ row }: { row: DashboardViewportWorktree }) {
+function RemoveWorktreeLocalRow({ displayTitle }: { displayTitle: string }) {
   return (
     <Box>
       <Text>{" [ ] "}</Text>
       <Throbber variant="braille" />
-      <Text>{` ${row.branch}  removing worktree...`}</Text>
+      <Text>{` ${displayTitle}  removing worktree...`}</Text>
     </Box>
   );
 }
@@ -168,12 +170,13 @@ function EmptyProjectRow({ project }: { project: ProjectView }) {
   return <Text color="gray"> {project.counts.worktrees} worktrees</Text>;
 }
 
-function DashboardFooter({ quitHint }: { quitHint: string }) {
+function DashboardFooter({ columns, quitHint }: { columns: number; quitHint: string }) {
+  const full = `N:new R:rename 1-9/a-z:open X:remove /:search C:collapse H:help ${quitHint}`;
+  const compactClose = `Q/esc:close N:new R:rename 1-9/a-z:open X:remove /:search H:help`;
+  const label = quitHint === "Q/esc:close" && full.length > columns ? compactClose : full;
   return (
     <Box flexShrink={0}>
-      <Text wrap="truncate-end">
-        N:new 1-9/a-z:open X:remove /:search R:refresh H:help {quitHint}
-      </Text>
+      <Text wrap="truncate-end">{label}</Text>
     </Box>
   );
 }

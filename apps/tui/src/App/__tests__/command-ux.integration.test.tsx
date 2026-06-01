@@ -229,7 +229,7 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("refreshes the snapshot directly when R is pressed", async () => {
+  it("refreshes the snapshot directly when Z is pressed", async () => {
     const staleSnapshot = createCommandSnapshot("none");
     const refreshedSnapshot = createCommandSnapshot("idle");
     const service = new FakeTuiObserverService(staleSnapshot);
@@ -237,7 +237,7 @@ describe("TUI command UX", () => {
 
     expect(instance.lastFrame()).toContain("feature-start");
     service.setSnapshot(refreshedSnapshot);
-    instance.stdin.write("R");
+    instance.stdin.write("Z");
 
     await waitFor(
       () =>
@@ -245,6 +245,169 @@ describe("TUI command UX", () => {
         instance.lastFrame()?.includes("fix-nav-mobile") === true,
     );
     expect(instance.lastFrame()).toContain(" [1] ○ fix-nav-mobile");
+    instance.unmount();
+  });
+
+  it("renames a session from a visible slot with optimistic title and success toast", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("R");
+    await waitFor(
+      () => instance.lastFrame()?.includes("Choose the slot to rename: 1-9/a-z") === true,
+    );
+    instance.stdin.write("5");
+    await waitFor(() => instance.lastFrame()?.includes("Rename Session") === true);
+    expect(instance.lastFrame()).toContain("Name      fix-nav-mobile|");
+
+    instance.stdin.write(" updated");
+    await waitFor(
+      () => instance.lastFrame()?.includes("Name      fix-nav-mobile updated|") === true,
+    );
+    instance.stdin.write("\r");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toEqual({
+      type: "session.rename",
+      payload: {
+        sessionId: "ses_wt_web_idle",
+        title: "fix-nav-mobile updated",
+      },
+    });
+    await waitFor(
+      () =>
+        instance.lastFrame()?.includes(" [5] ○ fix-nav-mobile updated") === true &&
+        instance.lastFrame()?.includes("Session renamed.") === true,
+    );
+    expect(instance.lastFrame()).not.toContain("session.rename queued");
+    instance.unmount();
+  });
+
+  it("reverts the optimistic rename title when command completion fails", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    service.nextCompletion = {
+      status: "failed",
+      commandId: "cmd_tui_1",
+      error: {
+        tag: "CommandExecutionError",
+        code: "SESSION_RENAME_FAILED",
+        message: "Session rename failed.",
+      },
+    };
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("R");
+    await waitFor(
+      () => instance.lastFrame()?.includes("Choose the slot to rename: 1-9/a-z") === true,
+    );
+    instance.stdin.write("5");
+    await waitFor(() => instance.lastFrame()?.includes("Rename Session") === true);
+    instance.stdin.write(" updated");
+    instance.stdin.write("\r");
+
+    await waitFor(() => instance.lastFrame()?.includes("Session rename failed.") === true);
+    expect(instance.lastFrame()).toContain(" [5] ○ fix-nav-mobile");
+    expect(instance.lastFrame()).not.toContain("fix-nav-mobile updated");
+    expect(countOccurrences(instance.lastFrame() ?? "", "Session rename failed.")).toBe(1);
+    instance.unmount();
+  });
+
+  it("deduplicates command.failed rename errors and clears confirmed pending titles", async () => {
+    const snapshot = createDashboardSnapshot();
+    const error = {
+      tag: "CommandExecutionError" as const,
+      code: "SESSION_RENAME_FAILED",
+      message: "Session rename failed.",
+    };
+    const service = new DelayedCompletionService(snapshot, 50);
+    service.nextCompletion = {
+      status: "failed",
+      commandId: "cmd_tui_1",
+      error,
+    };
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("R");
+    await waitFor(
+      () => instance.lastFrame()?.includes("Choose the slot to rename: 1-9/a-z") === true,
+    );
+    instance.stdin.write("5");
+    await waitFor(() => instance.lastFrame()?.includes("Rename Session") === true);
+    instance.stdin.write(" failed");
+    instance.stdin.write("\r");
+    await waitFor(() => service.waitedForCommandIds.includes("cmd_tui_1"));
+    service.emit({ type: "command.failed", commandId: "cmd_tui_1", error });
+
+    await waitFor(() => instance.lastFrame()?.includes(error.message) === true);
+    await settle(80);
+    expect(instance.lastFrame()).toContain(" [5] ○ fix-nav-mobile");
+    expect(instance.lastFrame()).not.toContain("fix-nav-mobile failed");
+    expect(countOccurrences(instance.lastFrame() ?? "", error.message)).toBe(1);
+
+    service.nextCompletion = {
+      status: "succeeded",
+      commandId: "cmd_tui_1",
+    };
+    instance.stdin.write("R");
+    await waitFor(
+      () => instance.lastFrame()?.includes("Choose the slot to rename: 1-9/a-z") === true,
+    );
+    instance.stdin.write("5");
+    await waitFor(() => instance.lastFrame()?.includes("Rename Session") === true);
+    instance.stdin.write(" confirmed");
+    instance.stdin.write("\r");
+    await waitFor(() => instance.lastFrame()?.includes("fix-nav-mobile confirmed") === true);
+    service.emit({
+      type: "session.updated",
+      sessionId: "ses_wt_web_idle",
+      patch: { title: "fix-nav-mobile confirmed" },
+    });
+    await settle();
+    service.emit({
+      type: "session.updated",
+      sessionId: "ses_wt_web_idle",
+      patch: { title: "Observer final title" },
+    });
+
+    await waitFor(() => instance.lastFrame()?.includes("Observer final title") === true);
+    expect(instance.lastFrame()).not.toContain("fix-nav-mobile confirmed");
+    instance.unmount();
+  }, 15_000);
+
+  it("deduplicates command.failed rename errors after command wait errors", async () => {
+    const snapshot = createDashboardSnapshot();
+    const waitError = {
+      tag: "CommandExecutionError" as const,
+      code: "SESSION_RENAME_WAIT_FAILED",
+      message: "Session rename wait failed.",
+    };
+    const commandFailedError = {
+      tag: "CommandExecutionError" as const,
+      code: "SESSION_RENAME_FAILED",
+      message: "Session rename command failed.",
+    };
+    const service = new FailingCompletionService(snapshot, waitError);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("R");
+    await waitFor(
+      () => instance.lastFrame()?.includes("Choose the slot to rename: 1-9/a-z") === true,
+    );
+    instance.stdin.write("5");
+    await waitFor(() => instance.lastFrame()?.includes("Rename Session") === true);
+    instance.stdin.write(" failed");
+    instance.stdin.write("\r");
+
+    await waitFor(() => instance.lastFrame()?.includes(waitError.message) === true);
+    service.emit({ type: "command.failed", commandId: "cmd_tui_1", error: commandFailedError });
+    await settle();
+
+    expect(instance.lastFrame()).toContain(" [5] ○ fix-nav-mobile");
+    expect(instance.lastFrame()).not.toContain("fix-nav-mobile failed");
+    expect(instance.lastFrame()).not.toContain(commandFailedError.message);
+    expect(countOccurrences(instance.lastFrame() ?? "", waitError.message)).toBe(1);
     instance.unmount();
   });
 
@@ -491,6 +654,7 @@ describe("TUI command UX", () => {
 
     instance.stdin.write("n");
     instance.stdin.write("r");
+    instance.stdin.write("z");
     instance.stdin.write("x");
 
     await settle();
@@ -515,6 +679,35 @@ async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<vo
   throw new Error("Timed out waiting for condition.");
 }
 
-async function settle(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 20));
+class DelayedCompletionService extends FakeTuiObserverService {
+  constructor(
+    snapshot: ReturnType<typeof createDashboardSnapshot>,
+    private readonly delayMs: number,
+  ) {
+    super(snapshot);
+  }
+
+  override async waitForCommandCompletion(commandId: string) {
+    this.waitedForCommandIds.push(commandId);
+    await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    return this.nextCompletion;
+  }
+}
+
+class FailingCompletionService extends FakeTuiObserverService {
+  constructor(
+    snapshot: ReturnType<typeof createDashboardSnapshot>,
+    private readonly error: unknown,
+  ) {
+    super(snapshot);
+  }
+
+  override async waitForCommandCompletion(commandId: string) {
+    this.waitedForCommandIds.push(commandId);
+    throw this.error;
+  }
+}
+
+async function settle(ms = 20): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

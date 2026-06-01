@@ -142,15 +142,15 @@ describe("TUI help overlay", () => {
 
     service.emit({
       type: "worktree.updated",
-      worktreeId: "wt_web_idle",
+      worktreeId: "wt_web_no_agent",
       patch: {
-        branch: "fix-nav-current",
+        branch: "feature-current",
       },
     });
 
     instance.stdin.write("Q");
 
-    await waitFor(() => instance.lastFrame()?.includes("fix-nav-current") === true);
+    await waitFor(() => instance.lastFrame()?.includes("feature-current") === true);
     expect(instance.lastFrame()).not.toContain("wosm help");
     instance.unmount();
   });

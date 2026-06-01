@@ -6,6 +6,14 @@ export type CommandPromptProps = {
 };
 
 export function CommandPrompt({ screen }: CommandPromptProps) {
+  if (screen.name === "renameSession" && screen.step === "chooseSlot") {
+    return (
+      <Box marginTop={1}>
+        <Text color="yellow">Choose the slot to rename: 1-9/a-z</Text>
+      </Box>
+    );
+  }
+
   if (screen.name === "removeWorktree" && screen.step === "confirm") {
     return (
       <Box marginTop={1}>

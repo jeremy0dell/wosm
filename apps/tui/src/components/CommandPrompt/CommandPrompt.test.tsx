@@ -10,6 +10,7 @@ describe("CommandPrompt", () => {
   it.each([
     [{ name: "search", value: "mobile" } as const, "search: mobile"],
     [{ name: "removeWorktree", step: "chooseSlot" } as const, "remove slot:"],
+    [{ name: "renameSession", step: "chooseSlot" } as const, "Choose the slot to rename: 1-9/a-z"],
     [{ name: "projectCollapse", value: "1:web" } as const, "collapse project: 1:web"],
   ])("labels screen prompts", (screen, expected) => {
     const frame = renderToString(<CommandPrompt screen={screen} />);

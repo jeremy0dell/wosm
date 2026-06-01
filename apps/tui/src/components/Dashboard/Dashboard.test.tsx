@@ -84,6 +84,8 @@ describe("Dashboard", () => {
     );
 
     expect(props.children).toContain("N:new");
+    expect(props.children).toContain("R:rename");
+    expect(props.children).not.toContain("refresh");
     expect(props.color).toBeUndefined();
     expect(props.dimColor).toBe(false);
   });
