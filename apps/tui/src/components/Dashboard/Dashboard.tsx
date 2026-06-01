@@ -121,8 +121,7 @@ function DashboardViewportRow({
 function ProjectHeaderRow({ project, collapsed }: { project: ProjectView; collapsed: boolean }) {
   return (
     <Text bold>
-      {collapsed ? "▶" : "▼"} {project.label} - {project.counts.worktrees} worktrees |{" "}
-      {project.defaults.harness}
+      {collapsed ? "▶" : "▼"} {project.label} - {project.counts.worktrees} worktrees
     </Text>
   );
 }
@@ -134,9 +133,7 @@ function EmptyProjectRow({ project }: { project: ProjectView }) {
 function DashboardFooter({ quitHint }: { quitHint: string }) {
   return (
     <Box flexShrink={0}>
-      <Text color="gray">
-        N:new 1-9/a-z:start/focus X:remove /:search R:refresh H:help {quitHint}
-      </Text>
+      <Text>N:new 1-9/a-z:start/focus X:remove /:search R:refresh H:help {quitHint}</Text>
     </Box>
   );
 }

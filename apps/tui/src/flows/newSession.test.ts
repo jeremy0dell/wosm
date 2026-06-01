@@ -10,7 +10,7 @@ import {
 } from "./newSession.js";
 
 describe("new session flow", () => {
-  it("defaults to the first configured project and its default agent", () => {
+  it("defaults to the first configured project and first configured agent", () => {
     const state = createNewSessionFlow(createHarnessSnapshot(), "k7p3x9");
 
     expect(state).toEqual({
@@ -105,7 +105,7 @@ describe("new session flow", () => {
     expect(selected).toMatchObject({
       mode: "review",
       selectedProjectId: "api",
-      selectedHarness: "opencode",
+      selectedHarness: "codex",
       branch: "api-bbbbbb",
       nameSource: "generated",
     });
@@ -131,7 +131,7 @@ describe("new session flow", () => {
 
     expect(selected).toMatchObject({
       selectedProjectId: "api",
-      selectedHarness: "opencode",
+      selectedHarness: "codex",
       branch: "feature/custom",
       nameSource: "custom",
     });
@@ -269,14 +269,14 @@ describe("new session flow", () => {
     });
   });
 
-  it("orders agent options with the selected project default first", () => {
+  it("orders agent options from configured harnesses without a project default", () => {
     const snapshot = createHarnessSnapshot();
     const api = snapshot.projects.find((project) => project.id === "api");
     if (api === undefined) throw new Error("missing api project");
 
     expect(harnessOptions(snapshot, api).map((option) => option.id)).toEqual([
-      "opencode",
       "codex",
+      "opencode",
       "scripted",
     ]);
   });

@@ -65,20 +65,21 @@ export function selectDashboardItems(
   snapshot: WosmSnapshot,
   state: TuiViewState,
 ): DashboardViewportItem[] {
-  return selectProjectGroups(snapshot, state).flatMap((group) => {
-    const items: DashboardViewportItem[] = [
-      {
+  return selectProjectGroups(snapshot, state).flatMap((group, index) => {
+    const items: DashboardViewportItem[] = [];
+    if (index > 0) {
+      items.push({
         type: "projectGap",
         id: `gap:${group.project.id}`,
         projectId: group.project.id,
-      },
-      {
-        type: "projectHeader",
-        id: `project:${group.project.id}`,
-        project: group.project,
-        collapsed: group.collapsed,
-      },
-    ];
+      });
+    }
+    items.push({
+      type: "projectHeader",
+      id: `project:${group.project.id}`,
+      project: group.project,
+      collapsed: group.collapsed,
+    });
     if (group.collapsed) {
       return items;
     }

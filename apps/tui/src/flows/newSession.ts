@@ -117,10 +117,14 @@ export function createNewSessionFlow(
   if (project === undefined) {
     return undefined;
   }
+  const harness = firstHarnessOption(snapshot, project);
+  if (harness === undefined) {
+    return undefined;
+  }
   return {
     ...createStepWizardState("review"),
     selectedProjectId: project.id,
-    selectedHarness: project.defaults.harness,
+    selectedHarness: harness.id,
     branch: generatedSessionBranch(project.id, token),
     nameSource: "generated",
   };
@@ -331,14 +335,25 @@ function selectProjectByKey(
   if (project === undefined) {
     return state;
   }
+  const harness = firstHarnessOption(snapshot, project);
+  if (harness === undefined) {
+    return state;
+  }
   return {
     ...resetWizardStep(baseState(state), "review"),
     selectedProjectId: project.id,
-    selectedHarness: project.defaults.harness,
+    selectedHarness: harness.id,
     branch:
       state.nameSource === "generated" ? generatedSessionBranch(project.id, token) : state.branch,
     nameSource: state.nameSource,
   };
+}
+
+function firstHarnessOption(
+  snapshot: WosmSnapshot,
+  project: NonNullable<ReturnType<typeof selectNewSessionProject>>,
+) {
+  return selectNewSessionHarnessOptions(snapshot, project)[0];
 }
 
 function selectAgentByKey(
