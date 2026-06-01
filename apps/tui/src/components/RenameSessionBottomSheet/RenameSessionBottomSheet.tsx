@@ -10,23 +10,6 @@ export type RenameSessionBottomSheetProps = {
   rows: number;
 };
 
-export function RenameSessionBottomSheet({ state, columns, rows }: RenameSessionBottomSheetProps) {
-  const contentWidth = bottomSheetContentWidth(columns);
-  return (
-    <BottomSheetFrame
-      columns={columns}
-      rows={rows}
-      title="Rename Session"
-      contentRows={4}
-      minHeight={7}
-    >
-      <BlankLine />
-      <LabelValue label="Name" value={<EditableTextInput {...state.draftTitle} />} />
-      <FooterLine width={contentWidth}>{"Enter:rename   Esc:back"}</FooterLine>
-    </BottomSheetFrame>
-  );
-}
-
 function LabelValue({ label, value }: { label: string; value: ReactNode }) {
   return (
     <Box>
@@ -43,4 +26,21 @@ function BlankLine() {
 function FooterLine({ children, width }: { children: string; width: number }) {
   const text = ` ${children}`.padEnd(width).slice(0, width);
   return <Text>{text}</Text>;
+}
+
+export function RenameSessionBottomSheet({ state, columns, rows }: RenameSessionBottomSheetProps) {
+  const contentWidth = bottomSheetContentWidth(columns);
+  return (
+    <BottomSheetFrame
+      columns={columns}
+      rows={rows}
+      title="Rename Session"
+      contentRows={4}
+      minHeight={7}
+    >
+      <BlankLine />
+      <LabelValue label="Name" value={<EditableTextInput {...state.draftTitle} />} />
+      <FooterLine width={contentWidth}>{"Enter:rename   Esc:back"}</FooterLine>
+    </BottomSheetFrame>
+  );
 }

@@ -16,18 +16,6 @@ import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 import { scrollDeltaForKey } from "./dashboard.js";
 
-export function handleRenameSessionKey(state: TuiState, key: TuiKey): TuiTransition {
-  if (state.screen.name !== "renameSession") {
-    return { state };
-  }
-
-  if (state.screen.step === "chooseSlot") {
-    return handleChooseSlotKey(state, key);
-  }
-
-  return handleEditNameKey(state, key);
-}
-
 function handleChooseSlotKey(state: TuiState, key: TuiKey): TuiTransition {
   if (key.escape === true) {
     return {
@@ -195,4 +183,16 @@ function sessionForRow(snapshot: WosmSnapshot, row: WorktreeRow): SessionView | 
     }
   }
   return snapshot.sessions.find((session) => session.worktreeId === row.id);
+}
+
+export function handleRenameSessionKey(state: TuiState, key: TuiKey): TuiTransition {
+  if (state.screen.name !== "renameSession") {
+    return { state };
+  }
+
+  if (state.screen.step === "chooseSlot") {
+    return handleChooseSlotKey(state, key);
+  }
+
+  return handleEditNameKey(state, key);
 }
