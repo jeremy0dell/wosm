@@ -1,5 +1,5 @@
 import type { BoxProps } from "ink";
-import { Box } from "ink";
+import { Box, Text } from "ink";
 
 export type FloatingBlankBackgroundProps = {
   left: number;
@@ -14,7 +14,7 @@ export function FloatingBlankBackground({
   top,
   width,
   height,
-  backgroundColor = "black",
+  backgroundColor,
 }: FloatingBlankBackgroundProps) {
   if (width <= 0 || height <= 0) {
     return null;
@@ -27,7 +27,28 @@ export function FloatingBlankBackground({
       top={top}
       width={width}
       height={height}
-      backgroundColor={backgroundColor}
-    />
+      flexDirection="column"
+      overflow="hidden"
+    >
+      {floatingBlankBackgroundRows({ width, height }).map((row) =>
+        backgroundColor === undefined ? (
+          <Text key={row.key}>{row.line}</Text>
+        ) : (
+          <Text key={row.key} backgroundColor={backgroundColor}>
+            {row.line}
+          </Text>
+        ),
+      )}
+    </Box>
   );
+}
+
+function floatingBlankBackgroundRows(input: {
+  width: number;
+  height: number;
+}): Array<{ key: string; line: string }> {
+  return Array.from({ length: input.height }, (_unused, index) => ({
+    key: `floating-blank-background-${index}`,
+    line: " ".repeat(input.width),
+  }));
 }
