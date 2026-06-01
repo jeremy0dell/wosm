@@ -134,14 +134,19 @@ describe("TUI screen transitions", () => {
     const submitted = handleTuiKey(opened.state, { input: "\r", return: true });
 
     expect(submitted.state.screen).toEqual({ name: "dashboard" });
-    expect(submitted.commands?.[0]).toMatchObject({
-      type: "session.create",
-      payload: {
-        projectId: "web",
-        terminal: {
-          provider: "tmux",
-          layout: "agent-build-shell",
-          focus: false,
+    expect(submitted.commands).toBeUndefined();
+    expect(submitted.operations?.[0]).toMatchObject({
+      type: "createSession",
+      projectId: "web",
+      command: {
+        type: "session.create",
+        payload: {
+          projectId: "web",
+          terminal: {
+            provider: "tmux",
+            layout: "agent-build-shell",
+            focus: false,
+          },
         },
       },
     });

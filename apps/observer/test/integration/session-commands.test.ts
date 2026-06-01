@@ -62,6 +62,10 @@ describe("session command vertical slice", () => {
           provider: "fake-terminal",
           layout: "agent-build-shell",
           focus: true,
+          origin: {
+            provider: "tmux",
+            clientId: "client_1",
+          },
         },
         initialPrompt: "Start the feature.",
       },
@@ -71,6 +75,9 @@ describe("session command vertical slice", () => {
     expect(receipt).toMatchObject({ accepted: true, status: "accepted" });
     expect(terminal.snapshot().launches).toHaveLength(1);
     expect(terminal.snapshot().focused).toEqual(["term_fake"]);
+    expect(terminal.snapshot().focusContexts).toEqual([
+      { origin: { provider: "tmux", clientId: "client_1" } },
+    ]);
     expect(fixture.core.getSnapshot().sessions).toEqual([
       expect.objectContaining({
         id: "ses_web_feature",
@@ -615,13 +622,23 @@ describe("session command vertical slice", () => {
         projectId: "web",
         worktreeId: "wt_web_existing",
         harness: { provider: "fake-harness", mode: "interactive" },
-        terminal: { provider: "fake-terminal", focus: false },
+        terminal: {
+          provider: "fake-terminal",
+          focus: true,
+          origin: {
+            provider: "tmux",
+            clientId: "client_1",
+          },
+        },
       },
     });
     await fixture.queue.drain();
 
     expect(terminal.snapshot().launches).toHaveLength(1);
-    expect(terminal.snapshot().focused).toEqual([]);
+    expect(terminal.snapshot().focused).toEqual(["term_fake"]);
+    expect(terminal.snapshot().focusContexts).toEqual([
+      { origin: { provider: "tmux", clientId: "client_1" } },
+    ]);
     expect(fixture.core.getSnapshot().rows[0]?.agent).toMatchObject({
       sessionId: "ses_existing",
       state: "working",

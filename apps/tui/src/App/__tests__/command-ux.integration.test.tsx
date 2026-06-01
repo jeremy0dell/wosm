@@ -135,7 +135,41 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("labels accepted command receipts as queued work", async () => {
+  it("dispatches popup session.create with focus origin without dismissing the popup", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    let dismissed = false;
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        onDismiss={async () => {
+          dismissed = true;
+        }}
+        persistentPopup={true}
+        resolveFocusOrigin={async () => ({ provider: "tmux", clientId: "client_1" })}
+        service={service}
+      />,
+    );
+
+    instance.stdin.write("N");
+    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    instance.stdin.write("\r");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toMatchObject({
+      type: "session.create",
+      payload: {
+        terminal: {
+          focus: true,
+          origin: { provider: "tmux", clientId: "client_1" },
+        },
+      },
+    });
+    expect(dismissed).toBe(false);
+    instance.unmount();
+  });
+
+  it("keeps fullscreen session.create background-first", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
@@ -144,8 +178,31 @@ describe("TUI command UX", () => {
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
-    await waitFor(() => instance.lastFrame()?.includes("session.create queued") === true);
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toMatchObject({
+      type: "session.create",
+      payload: {
+        terminal: {
+          focus: false,
+        },
+      },
+    });
+    instance.unmount();
+  });
+
+  it("shows projected create rows without queued toasts", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("N");
+    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    instance.stdin.write("\r");
+
+    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
+    expect(instance.lastFrame()).toContain("[ ]");
     expect(instance.lastFrame()).not.toContain("session.create accepted");
+    expect(instance.lastFrame()).not.toContain("session.create queued");
     instance.unmount();
   });
 

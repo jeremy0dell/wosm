@@ -16,6 +16,7 @@ describe("Dashboard", () => {
             collapsedProjectIds: new Set(["web"]),
             scrollOffset: 0,
             terminalRows: 24,
+            localRows: { pendingCreate: [], failedCreate: [] },
           }}
         />
       </Box>,
@@ -41,6 +42,7 @@ describe("Dashboard", () => {
             collapsedProjectIds: new Set(),
             scrollOffset: 2,
             terminalRows: 10,
+            localRows: { pendingCreate: [], failedCreate: [] },
           }}
         />
       </Box>,
