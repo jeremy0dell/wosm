@@ -80,6 +80,57 @@ describe("TUI transient focus-and-close navigation", () => {
     instance.unmount();
   });
 
+  it("starts no-agent rows through the focus-and-close lifecycle", async () => {
+    const snapshot = createCommandSnapshot("none");
+    const service = new DelayedCompletionService(snapshot, 50);
+    const exits: number[] = [];
+    const instance = render(
+      <App
+        focusOrigin={{ provider: "tmux", clientId: "client_1" }}
+        initialSnapshot={snapshot}
+        onExit={(code) => exits.push(code)}
+        exitOnFocusSuccess={true}
+        service={service}
+      />,
+    );
+
+    instance.stdin.write("1");
+    await waitFor(() => service.waitedForCommandIds.includes("cmd_tui_1"));
+    service.emit({
+      type: "worktree.agentStateChanged",
+      worktreeId: "wt_web_no_agent",
+      agent: {
+        harness: "codex",
+        state: "idle",
+        runId: "run_wt_web_no_agent",
+        sessionId: "ses_wt_web_no_agent",
+        confidence: "high",
+        reason: "Harness reported the turn completed.",
+        updatedAt: snapshot.generatedAt,
+      },
+    });
+
+    await waitFor(() => exits.length === 1);
+    expect(service.dispatched[0]).toMatchObject({
+      type: "session.startAgent",
+      payload: {
+        terminal: {
+          focus: true,
+          origin: { provider: "tmux", clientId: "client_1" },
+        },
+      },
+    });
+    expect(service.dispatched[1]).toEqual({
+      type: "terminal.focus",
+      payload: {
+        sessionId: "ses_wt_web_no_agent",
+        origin: { provider: "tmux", clientId: "client_1" },
+      },
+    });
+    expect(exits).toEqual([0]);
+    instance.unmount();
+  });
+
   it("dismisses a persistent popup on Q without exiting the TUI process", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
@@ -267,4 +318,19 @@ async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<vo
 
 async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 20));
+}
+
+class DelayedCompletionService extends FakeTuiObserverService {
+  constructor(
+    snapshot: ReturnType<typeof createDashboardSnapshot>,
+    private readonly delayMs: number,
+  ) {
+    super(snapshot);
+  }
+
+  override async waitForCommandCompletion(commandId: string) {
+    this.waitedForCommandIds.push(commandId);
+    await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    return this.nextCompletion;
+  }
 }

@@ -4,6 +4,7 @@ import type {
   FailedCreateSessionRow,
   PendingCreateSessionRow,
   PendingRemoveWorktreeRow,
+  PendingStartAgentRow,
 } from "../state/localRows.js";
 import type { TuiViewState } from "../state/screen.js";
 import {
@@ -40,6 +41,7 @@ export type DashboardViewportItem =
       row: WorktreeRow;
       displayTitle: string;
       pendingRemove?: PendingRemoveWorktreeRow;
+      pendingStart?: PendingStartAgentRow;
     }
   | {
       type: "createLocalRow";
@@ -55,6 +57,7 @@ export type DashboardViewport = {
   items: DashboardViewportItem[];
   visibleItems: DashboardViewportItem[];
   rowChoices: Array<KeyedChoice<WorktreeRow>>;
+  displayRowChoices: Array<KeyedChoice<WorktreeRow>>;
 };
 
 export function selectDashboardViewport(
@@ -71,6 +74,12 @@ export function selectDashboardViewport(
   const visibleItems = items.slice(clampedScrollOffset, clampedScrollOffset + bodyRows);
   const hiddenAbove = clampedScrollOffset;
   const hiddenBelow = Math.max(0, items.length - clampedScrollOffset - bodyRows);
+  const displayRowChoices = keyChoices(displayWorktreeRowsFromItems(visibleItems));
+  const pendingStartWorktreeIds = new Set(
+    visibleItems.flatMap((item) =>
+      item.type === "worktree" && item.pendingStart !== undefined ? [item.row.id] : [],
+    ),
+  );
   return {
     bodyRows,
     clampedScrollOffset,
@@ -78,7 +87,8 @@ export function selectDashboardViewport(
     hiddenBelow,
     items,
     visibleItems,
-    rowChoices: keyChoices(worktreeRowsFromItems(visibleItems)),
+    rowChoices: displayRowChoices.filter((choice) => !pendingStartWorktreeIds.has(choice.value.id)),
+    displayRowChoices,
   };
 }
 
@@ -131,6 +141,12 @@ export function selectDashboardItems(
         if (pendingRemove !== undefined) {
           item.pendingRemove = pendingRemove;
         }
+        const pendingStart = state.localRows.pendingStart.find(
+          (localRow) => localRow.worktreeId === row.row.id,
+        );
+        if (pendingStart !== undefined) {
+          item.pendingStart = pendingStart;
+        }
         items.push(item);
       } else {
         items.push({
@@ -144,7 +160,7 @@ export function selectDashboardItems(
   });
 }
 
-function worktreeRowsFromItems(items: readonly DashboardViewportItem[]): WorktreeRow[] {
+function displayWorktreeRowsFromItems(items: readonly DashboardViewportItem[]): WorktreeRow[] {
   return items.flatMap((item) =>
     item.type === "worktree" && item.pendingRemove === undefined ? [item.row] : [],
   );

@@ -115,6 +115,7 @@ describe("dashboard viewport selector", () => {
           ],
           failedCreate: [],
           pendingRemove: [],
+          pendingStart: [],
         },
       }),
     );
@@ -147,6 +148,7 @@ describe("dashboard viewport selector", () => {
           ],
           failedCreate: [],
           pendingRemove: [],
+          pendingStart: [],
         },
       }),
     );
@@ -172,6 +174,7 @@ describe("dashboard viewport selector", () => {
               createdAt: "2026-05-31T12:00:00.000Z",
             },
           ],
+          pendingStart: [],
         },
       }),
     );
@@ -186,6 +189,51 @@ describe("dashboard viewport selector", () => {
       },
     });
     expect(viewport.rowChoices.map((choice) => choice.value.id)).not.toContain("wt_web_idle");
+  });
+
+  it("keeps pending start rows slotted for display but removes them from actions", () => {
+    const snapshot = createDashboardSnapshot();
+    const viewport = selectDashboardViewport(
+      snapshot,
+      createInitialTuiState({
+        initialSnapshot: snapshot,
+        localRows: {
+          pendingCreate: [],
+          failedCreate: [],
+          pendingRemove: [],
+          pendingStart: [
+            {
+              localId: "start:wt_web_no_agent",
+              projectId: "web",
+              worktreeId: "wt_web_no_agent",
+              branch: "feature-auth",
+              createdAt: "2026-05-31T12:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    );
+
+    const item = viewport.items.find(
+      (candidate) => candidate.type === "worktree" && candidate.row.id === "wt_web_no_agent",
+    );
+    expect(item).toMatchObject({
+      type: "worktree",
+      pendingStart: {
+        localId: "start:wt_web_no_agent",
+      },
+    });
+    expect(
+      viewport.displayRowChoices.map((choice) => [choice.key, choice.value.id]),
+    ).toContainEqual(["4", "wt_web_no_agent"]);
+    expect(viewport.rowChoices.map((choice) => [choice.key, choice.value.id])).not.toContainEqual([
+      "4",
+      "wt_web_no_agent",
+    ]);
+    expect(viewport.rowChoices.map((choice) => [choice.key, choice.value.id])).toContainEqual([
+      "5",
+      "wt_web_idle",
+    ]);
   });
 
   it("carries resolved titles for dashboard worktree rendering", () => {

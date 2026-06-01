@@ -7,6 +7,7 @@ import {
   removeCreateSessionLocalRow,
   removePendingRemoveWorktreeRow,
   removePendingRenameSessionTitle,
+  removePendingStartAgentRow,
 } from "../localRows.js";
 import type { TuiState } from "../screen.js";
 import type { TuiStore } from "../store.js";
@@ -14,6 +15,7 @@ import { runCreateSessionOperation } from "./createSession.js";
 import { runRemoveWorktreeOperation } from "./removeWorktree.js";
 import { runRenameSessionOperation } from "./renameSession.js";
 import type { CommandRuntimeOptions } from "./runtimeCommands.js";
+import { type FocusStartedAgentRow, runStartAgentOperation } from "./startAgent.js";
 import type { TuiOperation } from "./types.js";
 
 export type CommandFailedEventHandling = {
@@ -31,6 +33,7 @@ type CommandFailedEvent = Extract<WosmEvent, { type: "command.failed" }>;
 type LocalCommandFailure =
   | { type: "createSession"; localId: string }
   | { type: "removeWorktree"; localId: string }
+  | { type: "startAgent"; localId: string }
   | { type: "renameSession"; sessionId: string };
 
 const FAILED_CREATE_ROW_TTL_MS = 4_000;
@@ -50,6 +53,12 @@ function localCommandFailureForState(
   );
   if (removeRow !== undefined) {
     return { type: "removeWorktree", localId: removeRow.localId };
+  }
+  const startRow = state.localRows.pendingStart.find(
+    (candidate) => candidate.commandId === commandId,
+  );
+  if (startRow !== undefined) {
+    return { type: "startAgent", localId: startRow.localId };
   }
   const renameRow = Object.values(state.localRows.pendingRenameTitles ?? {}).find(
     (candidate) => candidate.commandId === commandId,
@@ -82,6 +91,10 @@ function markRemoveWorktreeRowFailed(store: StoreApi<TuiStore>, localId: string)
   store.setState(removePendingRemoveWorktreeRow(store.getState(), localId));
 }
 
+function markStartAgentRowFailed(store: StoreApi<TuiStore>, localId: string): void {
+  store.setState(removePendingStartAgentRow(store.getState(), localId));
+}
+
 function markRenameSessionFailed(store: StoreApi<TuiStore>, sessionId: string): void {
   store.setState(removePendingRenameSessionTitle(store.getState(), sessionId));
 }
@@ -108,6 +121,7 @@ export function createTuiLocalOperationRunner(input: {
   getStore: () => StoreApi<TuiStore>;
   service: TuiObserverService;
   runtime: CommandRuntimeOptions;
+  focusStartedAgentRow: FocusStartedAgentRow;
 }): TuiLocalOperationRunner {
   const handledCommandFailureIds = new Set<CommandId>();
   const store = () => input.getStore();
@@ -136,6 +150,19 @@ export function createTuiLocalOperationRunner(input: {
             (commandId) => handledCommandFailureIds.add(commandId),
             (commandId) => handledCommandFailureIds.has(commandId),
             (error) => addSafeErrorToast(store(), error),
+          );
+        }
+        if (operation.type === "startAgent") {
+          void runStartAgentOperation(
+            store(),
+            input.service,
+            input.runtime,
+            operation,
+            (localId) => markStartAgentRowFailed(store(), localId),
+            (commandId) => handledCommandFailureIds.add(commandId),
+            (commandId) => handledCommandFailureIds.has(commandId),
+            (error) => addSafeErrorToast(store(), error),
+            input.focusStartedAgentRow,
           );
         }
         if (operation.type === "renameSession") {
@@ -167,6 +194,8 @@ export function createTuiLocalOperationRunner(input: {
             markCreateSessionRowFailed(store(), localFailure.localId, event.error);
           } else if (localFailure.type === "removeWorktree") {
             markRemoveWorktreeRowFailed(store(), localFailure.localId);
+          } else if (localFailure.type === "startAgent") {
+            markStartAgentRowFailed(store(), localFailure.localId);
           } else {
             markRenameSessionFailed(store(), localFailure.sessionId);
           }
