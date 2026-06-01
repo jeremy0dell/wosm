@@ -12,6 +12,7 @@ import {
   selectProjectChoices,
   selectProjectGroups,
   selectVisibleRows,
+  worktreeRowDisplayTitle,
 } from "./selectors.js";
 
 describe("TUI selectors", () => {
@@ -131,6 +132,39 @@ describe("TUI selectors", () => {
     );
   });
 
+  it("resolves row labels from session titles with branch fallback and pending overrides", () => {
+    const snapshot = createDashboardSnapshot();
+    const row = snapshot.rows.find((candidate) => candidate.id === "wt_web_idle");
+    if (row === undefined) throw new Error("missing fixture row");
+    const titled = {
+      ...snapshot,
+      sessions: snapshot.sessions.map((session) =>
+        session.id === "ses_wt_web_idle" ? { ...session, title: "Readable feature task" } : session,
+      ),
+    };
+
+    expect(worktreeRowDisplayTitle(row, titled.sessions, createInitialTuiState().localRows)).toBe(
+      "Readable feature task",
+    );
+    expect(
+      worktreeRowDisplayTitle(row, titled.sessions, {
+        pendingCreate: [],
+        failedCreate: [],
+        pendingRemove: [],
+        pendingRenameTitles: {
+          ses_wt_web_idle: {
+            sessionId: "ses_wt_web_idle",
+            title: "Optimistic readable title",
+            createdAt: "2026-05-31T12:00:00.000Z",
+          },
+        },
+      }),
+    ).toBe("Optimistic readable title");
+    expect(
+      worktreeRowDisplayTitle({ ...row, agent: undefined }, [], createInitialTuiState().localRows),
+    ).toBe(row.branch);
+  });
+
   it("filters by search and collapses project groups without changing snapshot truth", () => {
     const snapshot = createDashboardSnapshot();
     const searched: TuiViewState = {
@@ -155,6 +189,42 @@ describe("TUI selectors", () => {
     expect(groups.find((group) => group.project.id === "web")?.collapsed).toBe(true);
     expect(selectVisibleRows(snapshot, collapsed).map((candidate) => candidate.projectId)).toEqual([
       "api",
+    ]);
+  });
+
+  it("searches by resolved session title while sorting remains branch based", () => {
+    const snapshot = createDashboardSnapshot();
+    const titled = {
+      ...snapshot,
+      sessions: snapshot.sessions.map((session) =>
+        session.id === "ses_wt_web_stuck"
+          ? { ...session, title: "Readable feature task" }
+          : session,
+      ),
+    };
+    const searched: TuiViewState = {
+      searchQuery: "readable",
+      collapsedProjectIds: new Set(),
+      scrollOffset: 0,
+      terminalRows: 24,
+      localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [] },
+    };
+
+    expect(selectVisibleRows(titled, searched).map((candidate) => candidate.id)).toEqual([
+      "wt_web_stuck",
+    ]);
+
+    const web = selectProjectGroups(titled, createInitialTuiState()).find(
+      (group) => group.project.id === "web",
+    );
+    expect(web?.rows.map((candidate) => candidate.branch)).toEqual([
+      "cache-refactor",
+      "checkout-copy",
+      "done-run",
+      "feature-auth",
+      "fix-nav-mobile",
+      "ghost-signal",
+      "slow-tests",
     ]);
   });
 

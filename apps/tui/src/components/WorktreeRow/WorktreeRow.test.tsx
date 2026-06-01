@@ -52,6 +52,17 @@ describe("WorktreeRow", () => {
     expect(frame).not.toContain("tmux");
   });
 
+  it("renders a session title when the dashboard resolves one", () => {
+    const candidate = makeRow("idle", "fix-nav-mobile");
+
+    const frame = renderToString(
+      <WorktreeRow row={candidate} slot="5" title="Readable feature task" />,
+    );
+
+    expect(frame).toContain(" [5] ○ Readable feature task");
+    expect(frame).not.toContain("fix-nav-mobile");
+  });
+
   it("shows warning reasons without rendering ordinary display reasons", () => {
     const ordinary = makeRow("working", "ordinary-reason");
     const warning: WorktreeRowModel = {

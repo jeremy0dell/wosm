@@ -2,6 +2,7 @@ import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
 import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
 import { createNewSessionFlow } from "../../flows/newSession.js";
+import { createEditableTextInputState } from "../EditableTextInput/editing.js";
 import { OverlayHost } from "./OverlayHost.js";
 
 describe("OverlayHost", () => {
@@ -87,6 +88,33 @@ describe("OverlayHost", () => {
     expect(frame).toContain("New Session");
     expect(frame).toContain("Project   web");
     expect(frame).toContain("Name      web-k7p3x9");
+  });
+
+  it("renders the rename sheet only for edit-name rename state", () => {
+    const frame = stripAnsi(
+      renderToString(
+        <Box position="relative" flexDirection="column" width={72} height={16}>
+          <Text>dashboard footer</Text>
+          <OverlayHost
+            columns={72}
+            rows={16}
+            screen={{
+              name: "renameSession",
+              step: "editName",
+              rowId: "wt_web_idle",
+              sessionId: "ses_wt_web_idle",
+              currentTitle: "Readable feature task",
+              draftTitle: createEditableTextInputState("Readable feature task"),
+            }}
+            snapshot={createDashboardSnapshot()}
+          />
+        </Box>,
+        { columns: 72 },
+      ),
+    );
+
+    expect(frame).toContain("Rename Session");
+    expect(frame).toContain("Name      Readable feature task|");
   });
 });
 

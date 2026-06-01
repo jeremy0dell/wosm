@@ -6,9 +6,9 @@ describe("HelpOverlay", () => {
   it("sizes and centers the panel inside the terminal", () => {
     expect(helpPanelLayout(80, 24)).toEqual({
       left: 8,
-      top: 5,
+      top: 4,
       width: 64,
-      height: 13,
+      height: 15,
     });
 
     expect(helpPanelLayout(36, 12)).toEqual({
@@ -28,9 +28,12 @@ describe("HelpOverlay", () => {
     expect(lines.every((line) => line.length === 36)).toBe(true);
     expect(lines).toContain("│                                  │");
     expect(lines.join("\n")).toContain("wosm help");
+    expect(lines.join("\n")).toContain("↑/↓ wheel  scroll dashboard");
     expect(lines.join("\n")).toContain("1-9/a-z    choose visible item");
     expect(lines.join("\n")).toContain("N          new session");
-    expect(helpPanelLines(64, 13).join("\n")).toContain("Q          quit or close popup");
+    expect(helpPanelLines(64, 15).join("\n")).toContain("R          rename session");
+    expect(helpPanelLines(64, 15).join("\n")).toContain("Z          refresh snapshot");
+    expect(helpPanelLines(64, 15).join("\n")).toContain("Q          quit or close popup");
     expect(lines.join("\n")).not.toContain("Dashboard");
   });
 

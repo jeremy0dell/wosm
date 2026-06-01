@@ -59,6 +59,15 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
 
   if (key.input === "R") {
     return {
+      state: {
+        ...state,
+        screen: { name: "renameSession", step: "chooseSlot" },
+      },
+    };
+  }
+
+  if (key.input === "Z") {
+    return {
       state,
       reconcileReason: "tui-refresh",
     };
