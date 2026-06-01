@@ -39,7 +39,7 @@ describe("observer reconcile with Worktrunk provider", () => {
 
     expect(snapshot.rows).toEqual([
       expect.objectContaining({
-        id: expect.stringMatching(/^wt_web_feature_auth_[a-f0-9]{10}$/),
+        id: "wt_web_feature-auth",
         projectId: "web",
         branch: "feature/auth",
         worktree: expect.objectContaining({
@@ -51,6 +51,52 @@ describe("observer reconcile with Worktrunk provider", () => {
     ]);
     expect(snapshot.providerHealth.worktrunk?.status).toBe("healthy");
     expect(calls).toContainEqual(["list", "--format=json"]);
+  });
+
+  it("keeps the same Worktrunk-derived row id when the same path changes branches", async () => {
+    let branch = "original-title";
+    const providers = new ProviderRegistry({
+      worktree: new WorktrunkProvider({
+        command: "wt",
+        clock: { now: () => new Date(now) },
+        runner: createFakeWorktrunkRunner({
+          get listJson() {
+            return [
+              {
+                path: "/tmp/wosm/web/worktrees/original_title",
+                branch,
+              },
+            ];
+          },
+        }),
+      }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
+    const core = createObserverCore({
+      config,
+      providers,
+      clock: { now: () => new Date(now) },
+    });
+
+    const before = await core.reconcile("worktrunk-branch-before");
+    branch = "agent-created-branch";
+    const after = await core.reconcile("worktrunk-branch-after");
+
+    expect(before.rows).toEqual([
+      expect.objectContaining({
+        id: "wt_web_original_title",
+        branch: "original-title",
+        path: "/tmp/wosm/web/worktrees/original_title",
+      }),
+    ]);
+    expect(after.rows).toEqual([
+      expect.objectContaining({
+        id: "wt_web_original_title",
+        branch: "agent-created-branch",
+        path: "/tmp/wosm/web/worktrees/original_title",
+      }),
+    ]);
   });
 });
 

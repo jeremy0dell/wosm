@@ -9,7 +9,12 @@ import {
   FakeWorktreeProvider,
 } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
-import { createObserverCore, ProviderRegistry } from "../../src/internal";
+import {
+  createObserverCore,
+  createObserverPersistence,
+  openObserverSqlite,
+  ProviderRegistry,
+} from "../../src/internal";
 
 const now = "2026-05-20T12:00:00.000Z";
 
@@ -239,6 +244,105 @@ describe("observer reconcile with fake providers", () => {
       ["web", "feature", "/tmp/home/.worktrees/web/feature"],
       ["api", "feature", "/tmp/home/.worktrees/api/feature"],
     ]);
+  });
+
+  it("reattaches old branch-derived session bindings to the current path-stable worktree", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+    });
+    const currentWorktreeId = "wt_web_branch_fix_too_path";
+    const oldWorktreeId = "wt_web_branch_fix_too_branch";
+    const sessionId = "ses_branch_fix_too";
+    const worktreePath = "/tmp/wosm/web/worktrees/branch-fix-too";
+    await persistence.seedSessionTitle({
+      sessionId,
+      projectId: "web",
+      worktreeId: oldWorktreeId,
+      title: "Branch Fix too",
+      createdAt: now,
+      lastSeenAt: now,
+    });
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: currentWorktreeId,
+            projectId: "web",
+            branch: "agent-created-branch",
+            path: worktreePath,
+            now,
+          }),
+        ],
+      }),
+      terminal: new FakeTerminalProvider({
+        now,
+        targets: [
+          createFakeTerminalTarget({
+            id: "term_branch_fix_too",
+            projectId: "web",
+            worktreeId: oldWorktreeId,
+            sessionId,
+            cwd: worktreePath,
+            now,
+          }),
+        ],
+      }),
+      harnesses: [
+        new FakeHarnessProvider({
+          now,
+          runs: [
+            createFakeHarnessRun({
+              id: "run_branch_fix_too",
+              projectId: "web",
+              worktreeId: oldWorktreeId,
+              sessionId,
+              cwd: worktreePath,
+              state: "idle",
+              now,
+            }),
+          ],
+        }),
+      ],
+    });
+    const core = createObserverCore({
+      config,
+      providers,
+      persistence,
+      clock: {
+        now: () => new Date(now),
+      },
+    });
+
+    const snapshot = await core.reconcile("old-branch-id-path-reattach");
+
+    expect(snapshot.rows).toEqual([
+      expect.objectContaining({
+        id: currentWorktreeId,
+        branch: "agent-created-branch",
+        agent: expect.objectContaining({
+          sessionId,
+          state: "idle",
+        }),
+      }),
+    ]);
+    expect(snapshot.sessions).toEqual([
+      expect.objectContaining({
+        id: sessionId,
+        worktreeId: currentWorktreeId,
+        title: "Branch Fix too",
+      }),
+    ]);
+    await expect(persistence.listSessions()).resolves.toEqual([
+      expect.objectContaining({
+        id: sessionId,
+        worktreeId: currentWorktreeId,
+        title: "Branch Fix too",
+      }),
+    ]);
+    sqlite.close();
   });
 
   it("maps provider failures into health and keeps a valid snapshot", async () => {

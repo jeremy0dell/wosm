@@ -1,6 +1,6 @@
 import type { ProviderId, ProviderProjectConfig, WorktreeObservation } from "@wosm/contracts";
 import { normalizeObservedPath, WorktreeObservationSchema } from "@wosm/contracts";
-import { stableName, stableNameHash } from "@wosm/runtime";
+import { stableName } from "@wosm/runtime";
 import { WorktrunkProviderError } from "./errors.js";
 import {
   applyMetadataToObservation,
@@ -63,7 +63,7 @@ export function parseWorktrunkListItem(
   const behind = numberField(main, "behind");
   const dirty = dirtyFromItem(item);
   const observationInput: WorktreeObservation = {
-    id: metadata?.worktreeId ?? worktreeId(options.project.id, branch, path),
+    id: metadata?.worktreeId ?? worktreeId(options.project.id, path),
     provider: options.providerId ?? "worktrunk",
     projectId: options.project.id,
     branch,
@@ -248,21 +248,28 @@ function hasWorktreePath(item: unknown): item is WorktrunkListItem {
   );
 }
 
-function worktreeId(projectId: string, branch: string, path: string): string {
+function worktreeId(projectId: string, path: string): string {
   const identityPath = normalizeObservedPath(path);
-  const stableDisplayName = branch.startsWith("detached:")
-    ? `${branch}_${stableNameHash(["worktree-path", identityPath], 8)}`
-    : branch || path;
+  const stableDisplayName = pathDisplaySlug(identityPath);
   return stableName({
     prefix: "wt",
     profile: "id",
     display: [projectId, stableDisplayName],
-    unique: ["worktree", projectId, identityPath, branch],
+    unique: ["worktree", projectId, identityPath],
+    hash: shouldHashPathDisplay(stableDisplayName) ? "always" : "auto",
   });
 }
 
 function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? "unknown";
+}
+
+function pathDisplaySlug(path: string): string {
+  return basename(path) || "worktree";
+}
+
+function shouldHashPathDisplay(slug: string): boolean {
+  return slug === "repo" || slug === "wosm" || slug === "worktree" || slug === "unknown";
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

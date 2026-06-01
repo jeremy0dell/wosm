@@ -115,6 +115,7 @@ export type CreateFakeTerminalTargetInput = {
   worktreeId?: WorktreeId;
   sessionId?: string;
   harnessRunId?: string;
+  cwd?: string;
   state?: TerminalState;
   confidence?: Confidence;
   reason?: string;
@@ -128,6 +129,7 @@ export type CreateFakeHarnessRunInput = {
   projectId?: string;
   worktreeId?: WorktreeId;
   sessionId?: string;
+  cwd?: string;
   state?: HarnessRunObservation["state"];
   confidence?: Confidence;
   reason?: string;
@@ -272,6 +274,7 @@ export function createFakeTerminalTarget(
     ...(input.worktreeId === undefined ? {} : { worktreeId: input.worktreeId }),
     ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
     ...(input.harnessRunId === undefined ? {} : { harnessRunId: input.harnessRunId }),
+    ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
     state,
     confidence: input.confidence ?? (state === "unknown" ? "low" : "high"),
     reason: input.reason ?? "Fake provider listed the terminal target.",
@@ -290,6 +293,7 @@ export function createFakeHarnessRun(input: CreateFakeHarnessRunInput = {}): Har
     ...(input.projectId === undefined ? {} : { projectId: input.projectId }),
     ...(input.worktreeId === undefined ? {} : { worktreeId: input.worktreeId }),
     ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+    ...(input.cwd === undefined ? {} : { cwd: input.cwd }),
     ...(pid === undefined ? {} : { pid }),
     state,
     confidence: input.confidence ?? (state === "unknown" ? "low" : "high"),

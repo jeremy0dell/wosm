@@ -16,6 +16,7 @@ import type {
 import type { JsonlLogger } from "@wosm/observability";
 import {
   durationMs,
+  pathIsSameOrInside,
   type RuntimeClock,
   runRuntimeBoundaryWithRetryAndTimeout,
   safeErrorFromUnknown,
@@ -116,11 +117,15 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     providerHealth,
     errors,
   });
+  const terminalTargets = normalizeTerminalTargetsForCurrentWorktrees({
+    terminalTargets: terminalResult.terminalTargets,
+    worktrees: worktreeResult.worktrees,
+  });
   const harnessResult = await readHarnessObservations({
     providers: input.providers,
     projects: input.projects,
     worktrees: worktreeResult.worktrees,
-    terminalTargets: terminalResult.terminalTargets,
+    terminalTargets,
     read: input.read,
     providerHealth,
     errors,
@@ -144,7 +149,12 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
   if (input.persistence !== undefined) {
     harnessStatusInput.persistence = input.persistence;
   }
-  const harnessRuns = await harnessRunsWithPersistedEventStatus(harnessStatusInput);
+  const harnessRunsWithStatus = await harnessRunsWithPersistedEventStatus(harnessStatusInput);
+  const harnessRuns = normalizeHarnessRunsForCurrentWorktrees({
+    harnessRuns: harnessRunsWithStatus,
+    worktrees: worktreeResult.worktrees,
+    terminalTargets,
+  });
   const metadataInput: {
     persistence?: ObserverPersistence;
     worktrees: WorktreeObservation[];
@@ -166,7 +176,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     durationMs: durationMs(started, finishedAt),
     projectsScanned: worktreeResult.projectsScanned,
     worktreesObserved: worktreeResult.worktrees.length,
-    terminalTargetsObserved: terminalResult.terminalTargets.length,
+    terminalTargetsObserved: terminalTargets.length,
     harnessRunsObserved: harnessRuns.length,
     eventsEmitted: 0,
     errors,
@@ -180,7 +190,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     harnesses: harnessesFromRegistry(input.providers),
     harnessCapabilities: harnessResult.harnessCapabilities,
     worktrees: worktreesForSnapshot,
-    terminalTargets: terminalResult.terminalTargets,
+    terminalTargets,
     harnessRuns,
     sessionMetadata,
     ...(input.featureFlags === undefined ? {} : { featureFlags: input.featureFlags }),
@@ -190,7 +200,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     ...(input.persistence === undefined ? {} : { persistence: input.persistence }),
     projects: input.projects,
     worktrees: worktreeResult.worktrees,
-    terminalTargets: terminalResult.terminalTargets,
+    terminalTargets,
     harnessRuns: harnessRuns.map((harnessRun) => harnessRun.run),
     providerHealth,
     observedAt: finishedAt,
@@ -219,6 +229,131 @@ export function harnessesFromRegistry(providers: ProviderRegistry): SnapshotHarn
     id: provider.id,
     label: provider.id,
   }));
+}
+
+function normalizeTerminalTargetsForCurrentWorktrees(input: {
+  terminalTargets: TerminalTargetObservation[];
+  worktrees: WorktreeObservation[];
+}): TerminalTargetObservation[] {
+  return input.terminalTargets.map((target) => {
+    const worktree = resolveTerminalTargetWorktree(target, input.worktrees);
+    if (worktree === undefined || target.worktreeId === worktree.id) {
+      return target;
+    }
+    return {
+      ...target,
+      worktreeId: worktree.id,
+    };
+  });
+}
+
+function resolveTerminalTargetWorktree(
+  target: TerminalTargetObservation,
+  worktrees: readonly WorktreeObservation[],
+): WorktreeObservation | undefined {
+  if (target.worktreeId !== undefined) {
+    const claimed = worktrees.find((worktree) => worktree.id === target.worktreeId);
+    if (claimed !== undefined) {
+      return claimed;
+    }
+  }
+  if (
+    target.projectId === undefined ||
+    target.sessionId === undefined ||
+    target.cwd === undefined
+  ) {
+    return undefined;
+  }
+  return resolveWorktreeByProjectPath({
+    projectId: target.projectId,
+    cwd: target.cwd,
+    worktrees,
+  });
+}
+
+function normalizeHarnessRunsForCurrentWorktrees(input: {
+  harnessRuns: ObserverHarnessRun[];
+  worktrees: WorktreeObservation[];
+  terminalTargets: TerminalTargetObservation[];
+}): ObserverHarnessRun[] {
+  return input.harnessRuns.map((harnessRun) => {
+    const worktree = resolveHarnessRunWorktree({
+      run: harnessRun.run,
+      worktrees: input.worktrees,
+      terminalTargets: input.terminalTargets,
+    });
+    if (worktree === undefined || harnessRun.run.worktreeId === worktree.id) {
+      return harnessRun;
+    }
+    return {
+      ...harnessRun,
+      run: {
+        ...harnessRun.run,
+        worktreeId: worktree.id,
+      },
+    };
+  });
+}
+
+function resolveHarnessRunWorktree(input: {
+  run: HarnessRunObservation;
+  worktrees: readonly WorktreeObservation[];
+  terminalTargets: readonly TerminalTargetObservation[];
+}): WorktreeObservation | undefined {
+  if (input.run.worktreeId !== undefined) {
+    const claimed = input.worktrees.find((worktree) => worktree.id === input.run.worktreeId);
+    if (claimed !== undefined) {
+      return claimed;
+    }
+  }
+  if (input.run.sessionId !== undefined) {
+    const terminal = input.terminalTargets.find(
+      (target) => target.sessionId === input.run.sessionId && target.worktreeId !== undefined,
+    );
+    if (terminal?.worktreeId !== undefined) {
+      const terminalWorktree = input.worktrees.find(
+        (worktree) => worktree.id === terminal.worktreeId,
+      );
+      if (terminalWorktree !== undefined) {
+        return terminalWorktree;
+      }
+    }
+  }
+  if (input.run.projectId === undefined || input.run.cwd === undefined) {
+    return undefined;
+  }
+  return resolveWorktreeByProjectPath({
+    projectId: input.run.projectId,
+    cwd: input.run.cwd,
+    worktrees: input.worktrees,
+  });
+}
+
+function resolveWorktreeByProjectPath(input: {
+  projectId: string;
+  cwd: string;
+  worktrees: readonly WorktreeObservation[];
+}): WorktreeObservation | undefined {
+  const matches = input.worktrees
+    .filter(
+      (worktree) =>
+        worktree.projectId === input.projectId && pathIsSameOrInside(input.cwd, worktree.path),
+    )
+    .sort(
+      (left, right) =>
+        right.path.length - left.path.length ||
+        left.id.localeCompare(right.id) ||
+        left.path.localeCompare(right.path),
+    );
+  const match = matches[0];
+  if (match === undefined) {
+    return undefined;
+  }
+  const next = matches[1];
+  if (next !== undefined && next.path.length === match.path.length) {
+    return undefined;
+  }
+  return match;
 }
 
 async function readWorktreeObservations(input: {

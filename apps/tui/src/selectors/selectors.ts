@@ -104,7 +104,7 @@ export function selectProjectGroups(snapshot: WosmSnapshot, state: TuiViewState)
           worktreeRowDisplayTitle(row, snapshot.sessions, state.localRows),
         ),
       )
-      .sort(compareRows);
+      .sort((left, right) => compareRows(left, right, snapshot.sessions, state.localRows));
     return {
       project,
       rows: collapsed ? [] : matchingRows,
@@ -210,8 +210,16 @@ export function worktreeRowDisplayTitle(
   return pendingRenameTitles(localRows)[session.id]?.title ?? session.title;
 }
 
-function compareRows(left: WorktreeRow, right: WorktreeRow): number {
+function compareRows(
+  left: WorktreeRow,
+  right: WorktreeRow,
+  sessions: readonly SessionView[],
+  localRows: TuiLocalRows,
+): number {
   return (
+    worktreeRowDisplayTitle(left, sessions, localRows).localeCompare(
+      worktreeRowDisplayTitle(right, sessions, localRows),
+    ) ||
     left.branch.localeCompare(right.branch) ||
     left.path.localeCompare(right.path) ||
     left.id.localeCompare(right.id)

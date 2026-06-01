@@ -247,7 +247,7 @@ describe("WorktrunkProvider", () => {
     await expect(
       provider.createWorktree({ project: managedProject, branch: "feature/auth" }),
     ).resolves.toMatchObject({
-      id: expect.stringMatching(/^wt_web_feature_auth_[a-f0-9]{10}$/),
+      id: expect.stringMatching(/^wt_web_feature-auth-[a-f0-9]{10}$/),
       path: expect.stringMatching(/^\/tmp\/wosm\/web\/\.worktrees\/feature-auth-[a-f0-9]{10}$/),
     });
     expect(calls[0]?.env).toEqual({
