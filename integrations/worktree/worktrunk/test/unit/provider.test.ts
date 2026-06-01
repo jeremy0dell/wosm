@@ -38,7 +38,7 @@ describe("WorktrunkProvider", () => {
     const observations = await provider.listWorktrees(project);
 
     expect(observations[0]).toMatchObject({
-      id: "wt_web_feature",
+      id: expect.stringMatching(/^wt_web_feature_[a-f0-9]{10}$/),
       branch: "feature",
       observedAt: now,
     });
@@ -78,7 +78,7 @@ describe("WorktrunkProvider", () => {
 
     await expect(provider.listWorktrees(managedProject)).resolves.toEqual([
       expect.objectContaining({
-        id: "wt_web_feature",
+        id: expect.stringMatching(/^wt_web_feature_[a-f0-9]{10}$/),
         branch: "feature",
         path: "/tmp/wosm/web/.worktrees/feature",
       }),
@@ -112,7 +112,7 @@ describe("WorktrunkProvider", () => {
 
     await expect(provider.listWorktrees(managedProject)).resolves.toEqual([
       expect.objectContaining({
-        id: "wt_web_feature",
+        id: expect.stringMatching(/^wt_web_feature_[a-f0-9]{10}$/),
         branch: "feature",
         path: "/tmp/home/.worktrees/web/feature",
       }),
@@ -147,7 +147,7 @@ describe("WorktrunkProvider", () => {
 
     await expect(provider.listWorktrees(managedProject)).resolves.toEqual([
       expect.objectContaining({
-        id: "wt_web_feature",
+        id: expect.stringMatching(/^wt_web_feature_[a-f0-9]{10}$/),
         branch: "feature",
       }),
     ]);
@@ -179,7 +179,7 @@ describe("WorktrunkProvider", () => {
     await expect(
       provider.createWorktree({ project: managedProject, branch: "feature" }),
     ).resolves.toMatchObject({
-      id: "wt_web_feature",
+      id: expect.stringMatching(/^wt_web_feature_[a-f0-9]{10}$/),
       path: "/tmp/wosm/web/.worktrees/feature",
     });
     expect(calls[0]?.env).toEqual({
@@ -213,7 +213,7 @@ describe("WorktrunkProvider", () => {
     await expect(
       provider.createWorktree({ project: managedProject, branch: "feature" }),
     ).resolves.toMatchObject({
-      id: "wt_web_feature",
+      id: expect.stringMatching(/^wt_web_feature_[a-f0-9]{10}$/),
       path: "/tmp/home/.worktrees/web/feature",
     });
     expect(calls[0]?.env).toEqual({
@@ -247,7 +247,7 @@ describe("WorktrunkProvider", () => {
     await expect(
       provider.createWorktree({ project: managedProject, branch: "feature/auth" }),
     ).resolves.toMatchObject({
-      id: expect.stringMatching(/^wt_web_feature-auth-[a-f0-9]{10}$/),
+      id: expect.stringMatching(/^wt_web_feature-auth-[a-f0-9]{10}_[a-f0-9]{10}$/),
       path: expect.stringMatching(/^\/tmp\/wosm\/web\/\.worktrees\/feature-auth-[a-f0-9]{10}$/),
     });
     expect(calls[0]?.env).toEqual({
@@ -283,7 +283,7 @@ describe("WorktrunkProvider", () => {
     const created = await provider.createWorktree({ project, branch: "feature" });
     const removed = await provider.removeWorktree({ worktreeId: created.id, force: true });
 
-    expect(removed).toEqual({ worktreeId: "wt_web_feature", removed: true });
+    expect(removed).toEqual({ worktreeId: created.id, removed: true });
     expect(calls.map((call) => call.args)).toEqual([
       ["switch", "--create", "feature", "--base", "main", "--no-cd", "--format=json"],
       ["remove", "feature", "--force", "--force-delete", "--foreground", "--format=json"],

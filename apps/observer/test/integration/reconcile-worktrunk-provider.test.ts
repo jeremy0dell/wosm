@@ -39,7 +39,7 @@ describe("observer reconcile with Worktrunk provider", () => {
 
     expect(snapshot.rows).toEqual([
       expect.objectContaining({
-        id: "wt_web_feature-auth",
+        id: expect.stringMatching(/^wt_web_feature-auth_[a-f0-9]{10}$/),
         projectId: "web",
         branch: "feature/auth",
         worktree: expect.objectContaining({
@@ -85,14 +85,14 @@ describe("observer reconcile with Worktrunk provider", () => {
 
     expect(before.rows).toEqual([
       expect.objectContaining({
-        id: "wt_web_original_title",
+        id: expect.stringMatching(/^wt_web_original_title_[a-f0-9]{10}$/),
         branch: "original-title",
         path: "/tmp/wosm/web/worktrees/original_title",
       }),
     ]);
     expect(after.rows).toEqual([
       expect.objectContaining({
-        id: "wt_web_original_title",
+        id: before.rows[0]?.id,
         branch: "agent-created-branch",
         path: "/tmp/wosm/web/worktrees/original_title",
       }),

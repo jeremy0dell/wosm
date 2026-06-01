@@ -156,8 +156,27 @@ describe("Worktrunk list parser", () => {
 
     expect(new Set(observations.map((observation) => observation.id)).size).toBe(2);
     expect(observations.map((observation) => observation.id)).toEqual([
-      "wt_web_feature-auth",
-      "wt_web_feature_auth",
+      expect.stringMatching(/^wt_web_feature-auth_[a-f0-9]{10}$/),
+      expect.stringMatching(/^wt_web_feature_auth_[a-f0-9]{10}$/),
+    ]);
+  });
+
+  it("keeps path-derived worktree IDs distinct when path labels collide", () => {
+    const observations = parseWorktrunkListJson(
+      JSON.stringify([
+        { path: "/tmp/wosm/web/worktrees/alpha/feature", branch: "feature/alpha" },
+        { path: "/tmp/wosm/web/worktrees/beta/feature", branch: "feature/beta" },
+      ]),
+      {
+        project,
+        observedAt: now,
+      },
+    );
+
+    expect(new Set(observations.map((observation) => observation.id)).size).toBe(2);
+    expect(observations.map((observation) => observation.id)).toEqual([
+      expect.stringMatching(/^wt_web_feature_[a-f0-9]{10}$/),
+      expect.stringMatching(/^wt_web_feature_[a-f0-9]{10}$/),
     ]);
   });
 
@@ -189,7 +208,7 @@ describe("Worktrunk list parser", () => {
 
     expect(after?.id).toBe(before?.id);
     expect(after).toMatchObject({
-      id: "wt_web_original_title",
+      id: expect.stringMatching(/^wt_web_original_title_[a-f0-9]{10}$/),
       branch: "agent-created-branch",
       path: "/tmp/wosm/web/worktrees/original_title",
     });
@@ -223,7 +242,7 @@ describe("Worktrunk list parser", () => {
     )[0];
 
     expect(varObservation?.id).toBe(privateVarObservation?.id);
-    expect(varObservation?.id).toBe("wt_web_feature");
+    expect(varObservation?.id).toMatch(/^wt_web_feature_[a-f0-9]{10}$/);
   });
 
   it("rejects non-JSON output with a typed provider error", () => {

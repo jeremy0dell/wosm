@@ -345,6 +345,78 @@ describe("observer reconcile with fake providers", () => {
     sqlite.close();
   });
 
+  it("prefers terminal cwd over stale claimed worktree IDs that still exist", async () => {
+    const staleWorktreeId = "wt_web_original_branch";
+    const currentWorktreeId = "wt_web_agent_branch";
+    const sessionId = "ses_branch_fix_existing_claim";
+    const currentPath = "/tmp/wosm/web/worktrees/original-branch";
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: staleWorktreeId,
+            projectId: "web",
+            branch: "original-branch",
+            path: "/tmp/wosm/web/worktrees/original-branch-old",
+            now,
+          }),
+          createFakeWorktree({
+            id: currentWorktreeId,
+            projectId: "web",
+            branch: "agent-created-branch",
+            path: currentPath,
+            now,
+          }),
+        ],
+      }),
+      terminal: new FakeTerminalProvider({
+        now,
+        targets: [
+          createFakeTerminalTarget({
+            id: "term_branch_fix_existing_claim",
+            projectId: "web",
+            worktreeId: staleWorktreeId,
+            sessionId,
+            cwd: currentPath,
+            now,
+          }),
+        ],
+      }),
+      harnesses: [
+        new FakeHarnessProvider({
+          now,
+          runs: [
+            createFakeHarnessRun({
+              id: "run_branch_fix_existing_claim",
+              projectId: "web",
+              worktreeId: staleWorktreeId,
+              sessionId,
+              cwd: currentPath,
+              state: "working",
+              now,
+            }),
+          ],
+        }),
+      ],
+    });
+    const core = createObserverCore({
+      config,
+      providers,
+      clock: {
+        now: () => new Date(now),
+      },
+    });
+
+    const snapshot = await core.reconcile("stale-claimed-id-with-current-cwd");
+
+    expect(snapshot.rows.find((row) => row.id === staleWorktreeId)?.agent).toBeUndefined();
+    expect(snapshot.rows.find((row) => row.id === currentWorktreeId)?.agent).toMatchObject({
+      sessionId,
+      state: "working",
+    });
+  });
+
   it("maps provider failures into health and keeps a valid snapshot", async () => {
     const providers = new ProviderRegistry({
       worktree: new FakeWorktreeProvider({

@@ -256,7 +256,7 @@ function worktreeId(projectId: string, path: string): string {
     profile: "id",
     display: [projectId, stableDisplayName],
     unique: ["worktree", projectId, identityPath],
-    hash: shouldHashPathDisplay(stableDisplayName) ? "always" : "auto",
+    hash: "always",
   });
 }
 
@@ -266,10 +266,6 @@ function basename(path: string): string {
 
 function pathDisplaySlug(path: string): string {
   return basename(path) || "worktree";
-}
-
-function shouldHashPathDisplay(slug: string): boolean {
-  return slug === "repo" || slug === "wosm" || slug === "worktree" || slug === "unknown";
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

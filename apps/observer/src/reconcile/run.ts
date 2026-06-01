@@ -251,24 +251,23 @@ function resolveTerminalTargetWorktree(
   target: TerminalTargetObservation,
   worktrees: readonly WorktreeObservation[],
 ): WorktreeObservation | undefined {
+  if (target.projectId !== undefined && target.cwd !== undefined) {
+    const cwdWorktree = resolveWorktreeByProjectPath({
+      projectId: target.projectId,
+      cwd: target.cwd,
+      worktrees,
+    });
+    if (cwdWorktree !== undefined) {
+      return cwdWorktree;
+    }
+  }
   if (target.worktreeId !== undefined) {
     const claimed = worktrees.find((worktree) => worktree.id === target.worktreeId);
     if (claimed !== undefined) {
       return claimed;
     }
   }
-  if (
-    target.projectId === undefined ||
-    target.sessionId === undefined ||
-    target.cwd === undefined
-  ) {
-    return undefined;
-  }
-  return resolveWorktreeByProjectPath({
-    projectId: target.projectId,
-    cwd: target.cwd,
-    worktrees,
-  });
+  return undefined;
 }
 
 function normalizeHarnessRunsForCurrentWorktrees(input: {
@@ -300,10 +299,14 @@ function resolveHarnessRunWorktree(input: {
   worktrees: readonly WorktreeObservation[];
   terminalTargets: readonly TerminalTargetObservation[];
 }): WorktreeObservation | undefined {
-  if (input.run.worktreeId !== undefined) {
-    const claimed = input.worktrees.find((worktree) => worktree.id === input.run.worktreeId);
-    if (claimed !== undefined) {
-      return claimed;
+  if (input.run.projectId !== undefined && input.run.cwd !== undefined) {
+    const cwdWorktree = resolveWorktreeByProjectPath({
+      projectId: input.run.projectId,
+      cwd: input.run.cwd,
+      worktrees: input.worktrees,
+    });
+    if (cwdWorktree !== undefined) {
+      return cwdWorktree;
     }
   }
   if (input.run.sessionId !== undefined) {
@@ -319,14 +322,13 @@ function resolveHarnessRunWorktree(input: {
       }
     }
   }
-  if (input.run.projectId === undefined || input.run.cwd === undefined) {
-    return undefined;
+  if (input.run.worktreeId !== undefined) {
+    const claimed = input.worktrees.find((worktree) => worktree.id === input.run.worktreeId);
+    if (claimed !== undefined) {
+      return claimed;
+    }
   }
-  return resolveWorktreeByProjectPath({
-    projectId: input.run.projectId,
-    cwd: input.run.cwd,
-    worktrees: input.worktrees,
-  });
+  return undefined;
 }
 
 function resolveWorktreeByProjectPath(input: {
