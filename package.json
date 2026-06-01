@@ -23,6 +23,7 @@
     "agent:reset:run": "node scripts/maintenance/agent-reset.mjs --yes",
     "wosm": "bin/wosm",
     "wosm:reset": "node scripts/maintenance/wosm-reset.mjs",
+    "wosm:reset:tmux-tui": "node scripts/maintenance/wosm-tmux-tui-reset.mjs",
     "wosm:tui-dev": "node scripts/tui-dev.mjs",
     "wosm-ingress": "bin/wosm-ingress",
     "wosm:link": "pnpm link --global",
