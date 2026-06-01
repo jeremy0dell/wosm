@@ -4,6 +4,7 @@ import { defaultPersistentPopupSessionName } from "./constants.js";
 import type { BuildTmuxPopupArgsOptions, TmuxPopupState } from "./types.js";
 
 const safeShellTokenPattern = /^[A-Za-z0-9_@%+=,./:-]+$/;
+const persistentPopupAttachFeatures = "hyperlinks";
 
 function buildPopupTuiCommand(options: { focusClientId?: string; tuiCommand: string }): string {
   const envAssignments = ["WOSM_TUI_POPUP=1", "WOSM_FOCUS_PROVIDER=tmux"];
@@ -17,9 +18,7 @@ function buildPersistentPopupAttachCommand(options: {
   tmuxCommand: string;
   uiSessionName: string;
 }): string {
-  return `env -u TMUX ${quoteShellValue(options.tmuxCommand)} attach-session -t ${quoteShellValue(
-    options.uiSessionName,
-  )}`;
+  return `env -u TMUX ${quoteShellValue(options.tmuxCommand)} -T ${persistentPopupAttachFeatures} attach-session -t ${quoteShellValue(options.uiSessionName)}`;
 }
 
 function withPopupStateCleanup(command: string, popupState: TmuxPopupState): string {

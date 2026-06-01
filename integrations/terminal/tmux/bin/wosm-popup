@@ -145,7 +145,7 @@ fi
 width=${WOSM_POPUP_WIDTH:-50%}
 height=${WOSM_POPUP_HEIGHT:-50%}
 position=${WOSM_POPUP_POSITION:-C}
-attach_command="env -u TMUX $(quote_shell "$tmux_bin") attach-session -t $(quote_shell "$session_name")"
+attach_command="env -u TMUX $(quote_shell "$tmux_bin") -T hyperlinks attach-session -t $(quote_shell "$session_name")"
 
 set +e
 if [ -n "$position" ] && [ "$position" != "C" ]; then

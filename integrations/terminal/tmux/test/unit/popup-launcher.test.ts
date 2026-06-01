@@ -35,7 +35,7 @@ describe("tmux popup launcher", () => {
       "set-option -gq @wosm_popup_focus_client client_1",
       "set-option -t _wosm-ui-dev mouse on",
       expect.stringContaining(
-        `display-popup -c client_1 -w 50% -h 50% -E env -u TMUX '${fixture.tmuxPath}' attach-session -t '_wosm-ui-dev'`,
+        `display-popup -c client_1 -w 50% -h 50% -E env -u TMUX '${fixture.tmuxPath}' -T hyperlinks attach-session -t '_wosm-ui-dev'`,
       ),
       "show-options -gqv @wosm_popup_client",
       "show-options -gqv @wosm_popup_focus_client",
@@ -57,7 +57,7 @@ describe("tmux popup launcher", () => {
 
     expect(await readLog(fixture.logPath)).toContain(
       "display-popup -c client_from_binding -w 50% -h 50% -E env -u TMUX " +
-        `'${fixture.tmuxPath}' attach-session -t '_wosm-ui-dev'`,
+        `'${fixture.tmuxPath}' -T hyperlinks attach-session -t '_wosm-ui-dev'`,
     );
   });
 
@@ -90,7 +90,7 @@ describe("tmux popup launcher", () => {
       "set-option -gq @wosm_popup_focus_client client_1",
       "set-option -t _wosm-ui mouse on",
       expect.stringContaining(
-        `display-popup -c client_1 -w 50% -h 50% -E env -u TMUX '${fixture.tmuxPath}' attach-session -t '_wosm-ui'`,
+        `display-popup -c client_1 -w 50% -h 50% -E env -u TMUX '${fixture.tmuxPath}' -T hyperlinks attach-session -t '_wosm-ui'`,
       ),
       "show-options -gqv @wosm_popup_client",
       "show-options -gqv @wosm_popup_focus_client",
