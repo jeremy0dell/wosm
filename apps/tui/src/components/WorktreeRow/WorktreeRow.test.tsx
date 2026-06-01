@@ -86,7 +86,7 @@ describe("WorktreeRow", () => {
     const frame = renderToString(<WorktreeRow row={candidate} slot="9" />);
     const segments = metadataSegments(candidate);
 
-    expect(frame).toContain("\u001B]8;;https://github.com/example/web/pull/123\u001B\\#123");
+    expect(frame).toContain("\u001B]8;;https://github.com/example/web/pull/123\u0007#123");
     expect(segments).toEqual([
       {
         text: "#123",
