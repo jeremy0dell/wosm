@@ -163,6 +163,23 @@ describe("TUI observer service", () => {
     });
   });
 
+  it("uses a longer default timeout for command completion waits than request calls", async () => {
+    let observedTimeoutMs: number | undefined;
+    const service = createTuiObserverService({
+      timeoutMs: 10,
+      client: fakeClient({
+        waitForCommand: async (commandId, options) => {
+          observedTimeoutMs = options?.timeoutMs;
+          return commandRecord(commandId, "succeeded") as TerminalCommandRecord;
+        },
+      }),
+    });
+
+    await service.waitForCommandCompletion("cmd_done");
+
+    expect(observedTimeoutMs).toBe(35_000);
+  });
+
   it("maps failed terminal command records and preserves SafeError diagnostic context", async () => {
     const service = createTuiObserverService({
       client: fakeClient({

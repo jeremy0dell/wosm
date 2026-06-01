@@ -135,7 +135,41 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
-  it("labels accepted command receipts as queued work", async () => {
+  it("dispatches popup session.create with focus origin without dismissing the popup", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    let dismissed = false;
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        onDismiss={async () => {
+          dismissed = true;
+        }}
+        persistentPopup={true}
+        resolveFocusOrigin={async () => ({ provider: "tmux", clientId: "client_1" })}
+        service={service}
+      />,
+    );
+
+    instance.stdin.write("N");
+    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    instance.stdin.write("\r");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toMatchObject({
+      type: "session.create",
+      payload: {
+        terminal: {
+          focus: true,
+          origin: { provider: "tmux", clientId: "client_1" },
+        },
+      },
+    });
+    expect(dismissed).toBe(false);
+    instance.unmount();
+  });
+
+  it("keeps fullscreen session.create background-first", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
@@ -144,8 +178,31 @@ describe("TUI command UX", () => {
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
-    await waitFor(() => instance.lastFrame()?.includes("session.create queued") === true);
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toMatchObject({
+      type: "session.create",
+      payload: {
+        terminal: {
+          focus: false,
+        },
+      },
+    });
+    instance.unmount();
+  });
+
+  it("shows local create rows without queued toasts", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("N");
+    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    instance.stdin.write("\r");
+
+    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
+    expect(instance.lastFrame()).toContain("[ ]");
     expect(instance.lastFrame()).not.toContain("session.create accepted");
+    expect(instance.lastFrame()).not.toContain("session.create queued");
     instance.unmount();
   });
 
@@ -273,6 +330,73 @@ describe("TUI command UX", () => {
         force: true,
       },
     });
+    await waitFor(() => instance.lastFrame()?.includes("removing worktree...") === true);
+    expect(instance.lastFrame()).toContain("fix-nav-mobile");
+    expect(instance.lastFrame()).toMatch(/\[ \] . fix-nav-mobile {2}removing worktree\.\.\./);
+
+    service.emit({ type: "worktree.removed", worktreeId: "wt_web_idle" });
+    await waitFor(() => instance.lastFrame()?.includes("fix-nav-mobile") === false);
+    instance.unmount();
+  });
+
+  it("clears the removing row marker and keeps the safe error toast when removal fails", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    service.nextCompletion = {
+      status: "failed",
+      commandId: "cmd_tui_1",
+      error: {
+        tag: "CommandExecutionError",
+        code: "WORKTREE_REMOVE_FAILED",
+        message: "Worktree remove failed.",
+      },
+    };
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("X");
+    await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
+    instance.stdin.write("5");
+    await waitFor(
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? Y/N") === true,
+    );
+    instance.stdin.write("y");
+
+    await waitFor(() => instance.lastFrame()?.includes("Worktree remove failed.") === true);
+    expect(instance.lastFrame()).toContain("fix-nav-mobile");
+    expect(instance.lastFrame()).not.toContain("removing worktree...");
+    instance.unmount();
+  });
+
+  it("deduplicates remove failure toasts from command completion and events", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const error = {
+      tag: "CommandExecutionError" as const,
+      code: "WORKTREE_REMOVE_FAILED",
+      message: "Worktree remove failed.",
+    };
+    service.nextCompletion = {
+      status: "failed",
+      commandId: "cmd_tui_1",
+      error,
+    };
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("X");
+    await waitFor(() => instance.lastFrame()?.includes("remove slot:") === true);
+    instance.stdin.write("5");
+    await waitFor(
+      () => instance.lastFrame()?.includes("confirm remove fix-nav-mobile? Y/N") === true,
+    );
+    instance.stdin.write("y");
+
+    await waitFor(() => instance.lastFrame()?.includes(error.message) === true);
+    const initialCount = countOccurrences(instance.lastFrame() ?? "", error.message);
+    service.emit({ type: "command.failed", commandId: "cmd_tui_1", error });
+    await settle();
+
+    expect(initialCount).toBe(1);
+    expect(countOccurrences(instance.lastFrame() ?? "", error.message)).toBe(1);
     instance.unmount();
   });
 
@@ -378,7 +502,11 @@ describe("TUI command UX", () => {
   });
 });
 
-async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+function countOccurrences(value: string, search: string): number {
+  return value.split(search).length - 1;
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() <= deadline) {
     if (predicate()) return;

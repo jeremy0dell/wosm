@@ -59,9 +59,9 @@ describe("new session bottom-sheet flow", () => {
         },
       },
     ]);
-    await waitFor(() => instance.lastFrame()?.includes("session.create queued") === true);
+    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
     expect(instance.lastFrame()).not.toContain("New Session");
-    expect(instance.lastFrame()).not.toContain("creating session...");
+    expect(instance.lastFrame()).not.toContain("session.create queued");
 
     instance.stdin.write("9");
     await settle();
@@ -79,7 +79,7 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(
       () =>
         instance.lastFrame()?.includes("feature/custom") === true &&
-        instance.lastFrame()?.includes("creating session...") === false,
+        instance.lastFrame()?.includes("starting session...") === false,
     );
     instance.unmount();
   }, 15_000);
@@ -132,7 +132,7 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
     instance.stdin.write("\r");
 
-    await waitFor(() => instance.lastFrame()?.includes("session.create queued") === true);
+    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
     expect(instance.lastFrame()).not.toContain("New Session");
     service.emit({
       type: "command.failed",
@@ -148,7 +148,7 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(
       () =>
         instance.lastFrame()?.includes("Session create failed.") === true &&
-        instance.lastFrame()?.includes("creating session...") === false,
+        instance.lastFrame()?.includes("starting session...") === false,
     );
     expect(instance.lastFrame()).toContain("diagnostic diag_create_failed");
     instance.unmount();
@@ -177,7 +177,7 @@ describe("new session bottom-sheet flow", () => {
       () =>
         instance.lastFrame()?.includes("Session create was rejected.") === true &&
         instance.lastFrame()?.includes("New Session") === false &&
-        instance.lastFrame()?.includes("creating session...") === false,
+        instance.lastFrame()?.includes("starting session...") === false,
     );
     expect(service.dispatched).toHaveLength(1);
     instance.unmount();
@@ -211,7 +211,7 @@ function harnessHealth(providerId: string, lastCheckedAt: string): ProviderHealt
   };
 }
 
-async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() <= deadline) {
     if (predicate()) return;

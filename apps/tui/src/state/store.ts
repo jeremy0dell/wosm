@@ -12,6 +12,11 @@ import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import type { TuiKey } from "./keys.js";
 import {
+  createTuiLocalOperationRunner,
+  type TuiLocalOperationRunner,
+} from "./operations/localOperationRunner.js";
+import { prepareCommandForRuntime, withResolvedFocusOrigin } from "./operations/runtimeCommands.js";
+import {
   addTuiToast,
   addTuiToasts,
   type CreateInitialTuiStateOptions,
@@ -46,8 +51,13 @@ export type TuiStoreOptions = {
 
 export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
   const runtime = createRuntimeOptions(options);
-
   let store: StoreApi<TuiStore>;
+  const operations = createTuiLocalOperationRunner({
+    getStore: () => store,
+    service: options.service,
+    runtime,
+  });
+
   store = createStore<TuiStore>()((set, get) => ({
     ...createInitialTuiState({
       ...(options.initialState ?? {}),
@@ -67,10 +77,10 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
     handleKey: (key): void => {
       const transition = handleTuiKey(get(), key);
       set(transition.state);
-      void applyTransitionEffects(store, options.service, runtime, transition);
+      void applyTransitionEffects(store, options.service, runtime, operations, transition);
     },
     handleObserverEvent: (event): void => {
-      handleObserverEvent(store, options.service, event);
+      handleObserverEvent(store, options.service, operations, event);
     },
     setTerminalRows: (rows): void => {
       set(clampDashboardStateScroll({ ...get(), terminalRows: rows }));
@@ -172,6 +182,7 @@ function startStoreRuntime(store: StoreApi<TuiStore>, service: TuiObserverServic
 function handleObserverEvent(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
+  operations: TuiLocalOperationRunner,
   event: WosmEvent,
 ): void {
   const current = store.getState();
@@ -179,12 +190,18 @@ function handleObserverEvent(
     return;
   }
 
+  const commandFailureHandling =
+    event.type === "command.failed" ? operations.prepareCommandFailedEvent(event) : undefined;
   const result = applyWosmEvent(current.snapshot, event);
   store.setState(
     clampDashboardStateScroll(
-      addTuiToasts(replaceSnapshot(current, result.snapshot), result.toasts),
+      addTuiToasts(
+        replaceSnapshot(current, result.snapshot),
+        commandFailureHandling?.suppressReducerToast === true ? [] : result.toasts,
+      ),
     ),
   );
+  commandFailureHandling?.applyLocalEffect();
   if (result.needsSnapshotRefresh) {
     void refreshSnapshot(store, service, () => true);
   }
@@ -194,6 +211,7 @@ async function applyTransitionEffects(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
   runtime: RuntimeOptions,
+  operations: TuiLocalOperationRunner,
   transition: TuiTransition,
 ): Promise<void> {
   if (transition.dismissPopup === true && runtime.onDismiss !== undefined) {
@@ -212,9 +230,16 @@ async function applyTransitionEffects(
     if (shouldUseFocusLifecycle(command, runtime)) {
       await dispatchFocusWithLifecycle(store, service, command, runtime);
     } else {
-      await dispatchCommand(store, service, command);
+      try {
+        const prepared = await prepareCommandForRuntime(command, runtime);
+        await dispatchCommand(store, service, prepared);
+      } catch (error: unknown) {
+        addToast(store, safeErrorToToast(toSafeError(error)));
+      }
     }
   }
+
+  operations.run(transition.operations);
 }
 
 async function refreshSnapshot(
@@ -361,29 +386,6 @@ async function dismissPersistentPopup(
   } catch (error: unknown) {
     addToast(store, safeErrorToToast(toSafeError(error)));
   }
-}
-
-async function withResolvedFocusOrigin(
-  command: Extract<WosmCommand, { type: "terminal.focus" }>,
-  runtime: Pick<RuntimeOptions, "focusOrigin" | "resolveFocusOrigin">,
-): Promise<Extract<WosmCommand, { type: "terminal.focus" }>> {
-  let origin = runtime.focusOrigin;
-  if (runtime.resolveFocusOrigin !== undefined) {
-    const resolved = await runtime.resolveFocusOrigin();
-    if (resolved !== undefined) {
-      origin = resolved;
-    }
-  }
-  if (origin === undefined) {
-    return command;
-  }
-  return {
-    type: "terminal.focus",
-    payload: {
-      ...command.payload,
-      origin,
-    },
-  };
 }
 
 async function consumeCurrentSubscription(

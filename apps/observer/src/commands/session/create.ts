@@ -163,6 +163,7 @@ export function createSessionCreateHandler(
         await focusTerminalTargetBestEffort({
           terminal,
           targetId: opened.target.targetId,
+          ...(payload.terminal.origin === undefined ? {} : { origin: payload.terminal.origin }),
           context,
           logger: options.logger,
           clock: options.clock,

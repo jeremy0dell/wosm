@@ -1,6 +1,11 @@
 import type { TerminalFocusOrigin, WorktreeId, WosmSnapshot } from "@wosm/contracts";
 import type { NewSessionFlowState } from "../flows/newSession.js";
 import type { TuiToast } from "../services/types.js";
+import {
+  createEmptyTuiLocalRows,
+  pruneLocalRowsForSnapshot,
+  type TuiLocalRows,
+} from "./localRows.js";
 
 export type TuiRuntimeState = {
   persistentPopup: boolean;
@@ -16,6 +21,7 @@ export type TuiViewState = {
   collapsedProjectIds: ReadonlySet<string>;
   scrollOffset: number;
   terminalRows: number;
+  localRows: TuiLocalRows;
 };
 
 export type TuiState = TuiViewState & {
@@ -47,6 +53,7 @@ export type CreateInitialTuiStateOptions = {
   collapsedProjectIds?: Iterable<string>;
   scrollOffset?: number;
   terminalRows?: number;
+  localRows?: TuiLocalRows;
   runtime?: Partial<TuiRuntimeState>;
 };
 
@@ -60,6 +67,7 @@ export function createInitialTuiState(options: CreateInitialTuiStateOptions = {}
     collapsedProjectIds: new Set(options.collapsedProjectIds ?? []),
     scrollOffset: options.scrollOffset ?? 0,
     terminalRows: options.terminalRows ?? 24,
+    localRows: options.localRows ?? createEmptyTuiLocalRows(),
     runtime,
   };
   if (options.initialSnapshot !== undefined) {
@@ -73,6 +81,7 @@ export function replaceSnapshot(state: TuiState, snapshot: WosmSnapshot): TuiSta
     ...state,
     snapshot,
     loading: false,
+    localRows: pruneLocalRowsForSnapshot(state.localRows, snapshot),
   };
 }
 
