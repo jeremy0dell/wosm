@@ -2,8 +2,10 @@ import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
+import { EventHookInvocationSchema } from "@wosm/contracts";
 import {
   createCommandQueue,
+  createEventHookRuntime,
   createObserverApi,
   createObserverCore,
   createObserverEventBus,
@@ -14,6 +16,7 @@ import {
   startObserverServer,
 } from "@wosm/observer/internal";
 import { createObserverClient } from "@wosm/protocol";
+import type { ExternalCommandInput } from "@wosm/runtime";
 import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
 import { FakeTerminalProvider, FakeWorktreeProvider } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
@@ -35,6 +38,7 @@ describe("full session lifecycle e2e", () => {
     const ids = observerIds();
     const persistence = createObserverPersistence({ sqlite, clock, idFactory: ids });
     const eventBus = createObserverEventBus();
+    const eventHookCalls: ExternalCommandInput[] = [];
     const queue = createCommandQueue({ persistence, clock, idFactory: ids, eventBus });
     const terminal = new FakeTerminalProvider({
       now,
@@ -56,6 +60,21 @@ describe("full session lifecycle e2e", () => {
       now: () => new Date(now),
     });
     const config = configFor(root, stateDir, socketPath);
+    const eventHooks = createEventHookRuntime({
+      hooks: config.hooks?.event ?? [],
+      eventBus,
+      clock,
+      commandRunner: async (input) => {
+        eventHookCalls.push(input);
+        return {
+          command: input.command,
+          args: input.args ?? [],
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+        };
+      },
+    });
     const providers = new ProviderRegistry({
       worktree: new FakeWorktreeProvider({
         now,
@@ -125,7 +144,19 @@ describe("full session lifecycle e2e", () => {
         ],
       });
       expect(terminal.snapshot().focused).toEqual([]);
+      await waitFor(() => eventHookCalls.length === 1);
+      const invocation = EventHookInvocationSchema.parse(
+        JSON.parse(eventHookCalls[0]?.stdin ?? "{}"),
+      );
+      expect(invocation).toMatchObject({
+        hookId: "notify-command-succeeded",
+        event: {
+          type: "command.succeeded",
+          commandId: "cmd_1",
+        },
+      });
     } finally {
+      await eventHooks.shutdown();
       await server.close();
       sqlite.close();
     }
@@ -141,6 +172,17 @@ function configFor(root: string, stateDir: string, socketPath: string): WosmConf
       terminal: "fake-terminal",
       harness: "scripted",
       layout: "agent-shell",
+    },
+    hooks: {
+      event: [
+        {
+          id: "notify-command-succeeded",
+          events: ["command.succeeded"],
+          command: "notify-bin",
+          args: ["command-succeeded"],
+          timeoutMs: 1000,
+        },
+      ],
     },
     projects: [
       {
@@ -158,6 +200,17 @@ function configFor(root: string, stateDir: string, socketPath: string): WosmConf
       },
     ],
   };
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + 1000;
+  while (Date.now() <= deadline) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Timed out waiting for condition.");
 }
 
 function observerIds() {

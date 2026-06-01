@@ -39,6 +39,16 @@ sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 install_hooks = true
 
+[[hooks.event]]
+id = "notify-agent-idle"
+events = ["worktree.agentStateChanged"]
+command = "wosm"
+args = ["notify", "turn-completion"]
+timeout_ms = 3000
+
+[hooks.event.filter]
+agent_state = "idle"
+
 [[projects]]
 id = "wosm"
 label = "wosm"

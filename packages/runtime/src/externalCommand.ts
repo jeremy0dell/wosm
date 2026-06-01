@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "./boundary.js";
 import {
@@ -34,6 +34,7 @@ export type ExternalCommandInput = {
   env?: Record<string, string>;
   timeoutMs?: number;
   maxOutputChars?: number;
+  stdin?: string;
   signal?: AbortSignal;
   allowedExitCodes?: number[];
 };
@@ -95,6 +96,9 @@ export async function runExternalCommand(
 export async function nodeExternalCommandRunner(
   input: ExternalCommandInput,
 ): Promise<ExternalCommandResult> {
+  if (input.stdin !== undefined) {
+    return nodeExternalCommandRunnerWithStdin(input);
+  }
   const args = input.args ?? [];
   const result = await execFileAsync(input.command, args, {
     cwd: input.cwd,
@@ -109,6 +113,53 @@ export async function nodeExternalCommandRunner(
     stderr: result.stderr,
     exitCode: 0,
   };
+}
+
+async function nodeExternalCommandRunnerWithStdin(
+  input: ExternalCommandInput,
+): Promise<ExternalCommandResult> {
+  const args = input.args ?? [];
+  const maxOutputChars = input.maxOutputChars ?? 64 * 1024;
+  return new Promise((resolve, reject) => {
+    const child = spawn(input.command, args, {
+      cwd: input.cwd,
+      env: input.env === undefined ? process.env : { ...process.env, ...input.env },
+      signal: input.signal,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout = boundedAppend(stdout, chunk, maxOutputChars);
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr = boundedAppend(stderr, chunk, maxOutputChars);
+    });
+    child.once("error", reject);
+    child.once("close", (code, signal) => {
+      if (code === 0) {
+        resolve({ command: input.command, args, stdout, stderr, exitCode: 0 });
+        return;
+      }
+      const error = new Error(`External command exited with code ${code ?? "signal"}.`);
+      Object.assign(error, {
+        code: code ?? undefined,
+        exitCode: code ?? undefined,
+        signal: signal ?? undefined,
+        stdout,
+        stderr,
+      });
+      reject(error);
+    });
+    child.stdin.end(input.stdin);
+  });
+}
+
+function boundedAppend(current: string, chunk: string, maxChars: number): string {
+  const next = current + chunk;
+  return next.length <= maxChars ? next : next.slice(0, maxChars);
 }
 
 export function createFakeExternalCommandRunner(
