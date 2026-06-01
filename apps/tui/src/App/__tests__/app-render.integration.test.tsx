@@ -21,13 +21,6 @@ describe("TUI app rendering", () => {
     expect(frame).toContain("wosm");
     expect(frame).toContain("web");
     expect(frame).toContain("api");
-    expect(frame).toContain("needs attention");
-    expect(frame).toContain("stuck");
-    expect(frame).toContain("working");
-    expect(frame).toContain("idle");
-    expect(frame).toContain("unknown");
-    expect(frame).toContain("exited");
-    expect(frame).toContain("no agent");
     expect(frame).toContain(" [1] ◜ cache-refactor");
     expect(frame).toContain(" [2] ! checkout-copy");
     expect(frame).toContain(" [3] x done-run");
@@ -35,6 +28,13 @@ describe("TUI app rendering", () => {
     expect(frame).toContain(" [5] ○ fix-nav-mobile");
     expect(frame).toContain(" [6] ? ghost-signal");
     expect(frame).toContain(" [7] ! slow-tests");
+    expect(frame).not.toContain("needs attention");
+    expect(frame).not.toContain("stuck");
+    expect(frame).not.toContain("working");
+    expect(frame).not.toContain("idle");
+    expect(frame).not.toContain("unknown");
+    expect(frame).not.toContain("exited");
+    expect(frame).not.toContain("no agent");
     expect(frame).not.toContain(">");
     expect(frame).not.toContain("s:start bg");
     expect(frame).not.toContain("enter/1-9");
@@ -69,13 +69,12 @@ describe("TUI app rendering", () => {
     expect(lines[0]).toBe("wosm");
     expect(lines[1]).toMatch(/^─+$/);
     expect(lines[2]?.trim()).toBe("");
+    expect(lines[3]).toContain("web");
     expect(body).toContain("web");
     expect(body).toContain("api");
     expect(lines.at(-3)?.trim()).toBe("");
     expect(lines.at(-2)).toMatch(/^─+$/);
-    expect(lines.at(-1)).toContain(
-      "N:new 1-9/a-z:start/focus X:remove /:search R:refresh H:help Q:quit",
-    );
+    expect(lines.at(-1)).toContain("N:new 1-9/a-z:open X:remove /:search R:refresh H:help Q:quit");
     expect(lines.slice(0, -1).join("\n")).not.toContain("N:new 1-9/a-z");
   });
 
