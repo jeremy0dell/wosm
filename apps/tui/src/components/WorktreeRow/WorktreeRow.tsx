@@ -183,5 +183,5 @@ function failedChecksGlyph(count: number | undefined): string {
 }
 
 function osc8(url: string, text: string): string {
-  return `\u001B]8;;${url}\u001B\\${text}\u001B]8;;\u001B\\`;
+  return `\u001B]8;;${url}\u0007${text}\u001B]8;;\u0007`;
 }
