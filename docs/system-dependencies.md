@@ -1,8 +1,8 @@
 # System Dependencies
 
-wosm ships Worktrunk, tmux, Codex, and OpenCode as external provider integrations. They are not npm packages bundled into the workspace. The repo depends on them through provider contracts, runtime preflights, `wosm doctor`, and opt-in real-provider test lanes.
+wosm ships Worktrunk, tmux, Codex, Pi, and OpenCode as external provider integrations. They are not npm packages bundled into the workspace. The repo depends on them through provider contracts, runtime preflights, `wosm doctor`, and opt-in real-provider test lanes.
 
-The local checkout also expects Node.js 24.x and pnpm 11. `pnpm setup:system:check` verifies those versions before checking real provider tools.
+The local checkout also expects Node.js 24.x and pnpm 11. `pnpm setup:system:check` verifies those versions, Worktrunk, and tmux. Real harness binaries such as Codex, Pi, and OpenCode are checked by their opt-in lanes and provider health.
 
 ## Worktrunk And Tmux
 

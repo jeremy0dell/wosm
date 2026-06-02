@@ -7,7 +7,7 @@ Status: current living doc for development, test, and documentation workflow.
 - Use Node.js 24.x and pnpm 11. The root `package.json` pins `node: 24.x`, `pnpm: 11.0.0`, and `packageManager: pnpm@11.0.0`.
 - Use the repo-local command during development: `pnpm wosm ...`.
 - Use `pnpm wosm:link` only when you intentionally want the current checkout linked as the global `wosm`.
-- External tools are optional unless the lane needs them: Worktrunk for real worktree workflows, tmux for the reference terminal provider, and Codex/OpenCode for real harness workflows.
+- External tools are optional unless the lane needs them: Worktrunk for real worktree workflows, tmux for the reference terminal provider, and Codex, Pi, or OpenCode for real harness workflows.
 
 ## Local TUI Workflow
 
@@ -57,7 +57,10 @@ pnpm test:e2e
 pnpm test:e2e:real
 pnpm test:e2e:worktrunk:real
 pnpm test:e2e:codex:real
+pnpm test:e2e:pi:real
+pnpm test:e2e:opencode:real
 pnpm test:e2e:real:local
+pnpm test:e2e:real:codex-hooks
 ```
 
 Use `pnpm setup:system:check` before real lanes. Real lanes may require `WOSM_REAL_*` flags, installed provider CLIs, credentials, tmux, model access, and isolated temporary projects. They must not become required for ordinary PR or `main` CI.

@@ -12,6 +12,7 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 ## Operational References
 
 - [Diagnostics](diagnostics.md) is the detailed operational reference for `wosm doctor`, debug bundles, redaction, retention, hook setup, and diagnostic evidence.
+- [Harness ingress](harness-ingress.md) is the current guidance for provider harness event admission and allow-listing.
 - [Manual smoke testing](manual-smoke.md) is the detailed reference for runnable CLI/TUI smoke loops, real provider lanes, popup behavior, and cleanup smoke.
 - [Install](install.md) is the current local-checkout setup path for Node.js 24.x, pnpm 11, system dependency checks, build, smoke, and local CLI use.
 - [System dependencies](system-dependencies.md) is the reference for external provider tools, install checks, command resolution, and dependency diagnostics.
@@ -32,8 +33,10 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 - [TypeScript shape boundary audit](planning/active/typescript_shape_boundary_audit.md) is the current one-off audit brief for finding JavaScript-style runtime shape probing where schemas or typed unions should own the shape.
 - [Light commenting audit](planning/active/light_commenting_audit.md) is a scoped planning addendum for adding sparse comments to non-obvious runtime, provider, protocol, and correlation code paths.
 - [Harness socket ingress and observer queue plan](planning/active/harness_socket_ingress_and_observer_queue_plan.md) is the active plan for removing the `wosm-hook` hot path and fixing observer ingress backpressure.
+- [Observer hook reconcile profiling](planning/active/observer_hook_reconcile_profiling.md) is an active profiling note for observer responsiveness under high hook volume.
 - [OpenCode harness integration plan](planning/active/opencode_harness_integration_plan.md) is the active plan for real OpenCode launch, plugin event capture, observer-shaped event reports, contract changes, and deterministic plus real-provider tests.
 - [TUI dashboard visual notes](planning/active/tui_dashboard_visual_notes.md) are active product notes for TUI row layout and visual direction, not contract authority.
+- [TUI screen-driven state transition](planning/active/tui_screen_driven_state_transition.md) is the active simplification plan for TUI state, keys, and screen-owned transitions.
 
 ## Historical/Deprecated Baselines
 
