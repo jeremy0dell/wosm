@@ -12,15 +12,15 @@ describe("new session bottom-sheet flow", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     expect(instance.lastFrame()).toContain("Project   web");
     expect(instance.lastFrame()).not.toContain("N:new 1-9/a-z:open");
 
-    instance.stdin.write("E");
-    await waitFor(() => instance.lastFrame()?.includes("Edit Session Name") === true);
-    expect(instance.lastFrame()).toContain("Enter:use generated name");
+    instance.stdin.write("N");
+    await waitFor(() => instance.lastFrame()?.includes("Set Session Name") === true);
+    expect(instance.lastFrame()).toContain("Enter:save");
     instance.stdin.write("feature/custom");
-    await waitFor(() => instance.lastFrame()?.includes("Enter:use name") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Name      feature/custom|") === true);
     instance.stdin.write("\r");
     await waitFor(() => instance.lastFrame()?.includes("Name      feature/custom") === true);
 
@@ -60,7 +60,7 @@ describe("new session bottom-sheet flow", () => {
       },
     ]);
     await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
-    expect(instance.lastFrame()).not.toContain("New Session");
+    expect(instance.lastFrame()).not.toContain("Create Session");
     expect(instance.lastFrame()).not.toContain("session.create queued");
 
     instance.stdin.write("9");
@@ -90,9 +90,9 @@ describe("new session bottom-sheet flow", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
-    instance.stdin.write("E");
-    await waitFor(() => instance.lastFrame()?.includes("Edit Session Name") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
+    instance.stdin.write("N");
+    await waitFor(() => instance.lastFrame()?.includes("Set Session Name") === true);
 
     instance.stdin.write("featurefoo");
     instance.stdin.write("\u001B[D");
@@ -129,11 +129,11 @@ describe("new session bottom-sheet flow", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
-    expect(instance.lastFrame()).not.toContain("New Session");
+    expect(instance.lastFrame()).not.toContain("Create Session");
     service.emit({
       type: "command.failed",
       commandId: "cmd_tui_1",
@@ -170,13 +170,13 @@ describe("new session bottom-sheet flow", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(
       () =>
         instance.lastFrame()?.includes("Session create was rejected.") === true &&
-        instance.lastFrame()?.includes("New Session") === false &&
+        instance.lastFrame()?.includes("Create Session") === false &&
         instance.lastFrame()?.includes("starting session...") === false,
     );
     expect(service.dispatched).toHaveLength(1);

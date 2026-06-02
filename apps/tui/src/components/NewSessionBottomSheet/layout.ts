@@ -31,7 +31,7 @@ export function newSessionContentRowCount(state: NewSessionFlowState, optionCoun
     return Math.min(optionCount, MAX_PICKER_OPTIONS) + 4;
   }
   if (state.mode === "editName") {
-    return 7;
+    return 6;
   }
-  return 8;
+  return 7;
 }
