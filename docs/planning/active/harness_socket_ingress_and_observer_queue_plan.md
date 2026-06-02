@@ -134,7 +134,7 @@ Worktrunk lifecycle hooks are lower-frequency, but they also keep the `wosm-hook
 Worktrunk hook
   -> wosm-hook --config <config> worktrunk <event>
   -> packages/hook-bridge
-  -> observer.ingestHookEvent
+  -> observer.ingestProviderHookEvent
 ```
 
 That matters because deleting only the harness usages would still leave `apps/hook-runner`, `packages/hook-bridge`, `bin/wosm-hook`, package bin entries, installer tests, real-smoke assumptions, and docs.
@@ -377,7 +377,7 @@ observer reportHarnessEvent inline persistence before ack
 observer reportHarnessEvent inline status projection before ack
 per-event full provider observation writes for high-frequency harness status
 ProviderHookEvent compatibility path once Worktrunk and harness hooks no longer need it
-observer.ingestHookEvent protocol method if no remaining provider uses it
+legacy observer.ingestHookEvent protocol alias if no installed provider hook scripts need it
 hook spool drain path that bypasses the new queue
 ```
 

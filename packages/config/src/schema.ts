@@ -1,7 +1,7 @@
 import {
-  EventHookConfigSchema,
   FeatureFlagConfigSchema,
   HarnessPermissionModeSchema,
+  ObserverEventHookConfigSchema,
 } from "@wosm/contracts";
 import { z } from "zod";
 
@@ -173,7 +173,7 @@ export type HarnessProviderConfig = z.infer<typeof HarnessProviderConfigSchema>;
 
 export const HooksConfigSchema = z
   .object({
-    event: z.array(EventHookConfigSchema).optional(),
+    event: z.array(ObserverEventHookConfigSchema).optional(),
   })
   .strict();
 

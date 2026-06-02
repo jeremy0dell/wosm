@@ -64,7 +64,7 @@ export function statusFromScriptedEvent(
       value: "needs_attention",
       confidence: "high",
       reason: event.message ?? "Scripted agent requested attention.",
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -84,7 +84,7 @@ export function statusFromScriptedEvent(
       value: "idle",
       confidence: "high",
       reason: event.message ?? "Scripted agent reported idle.",
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }

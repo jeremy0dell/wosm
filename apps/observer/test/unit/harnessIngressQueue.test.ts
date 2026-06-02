@@ -135,7 +135,7 @@ function harnessReport(reportId: string, sessionId = "session_1"): HarnessEventR
       value: "working",
       confidence: "medium",
       reason: "Codex is about to use Bash.",
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: now,
     },
     correlation: {

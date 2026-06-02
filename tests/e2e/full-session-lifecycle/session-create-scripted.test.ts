@@ -2,13 +2,13 @@ import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
-import { EventHookInvocationSchema } from "@wosm/contracts";
+import { ObserverEventHookInvocationSchema } from "@wosm/contracts";
 import {
   createCommandQueue,
-  createEventHookRuntime,
   createObserverApi,
   createObserverCore,
   createObserverEventBus,
+  createObserverEventHookRuntime,
   createObserverPersistence,
   openObserverSqlite,
   ProviderRegistry,
@@ -60,7 +60,7 @@ describe("full session lifecycle e2e", () => {
       now: () => new Date(now),
     });
     const config = configFor(root, stateDir, socketPath);
-    const eventHooks = createEventHookRuntime({
+    const eventHooks = createObserverEventHookRuntime({
       hooks: config.hooks?.event ?? [],
       eventBus,
       clock,
@@ -145,7 +145,7 @@ describe("full session lifecycle e2e", () => {
       });
       expect(terminal.snapshot().focused).toEqual([]);
       await waitFor(() => eventHookCalls.length === 1);
-      const invocation = EventHookInvocationSchema.parse(
+      const invocation = ObserverEventHookInvocationSchema.parse(
         JSON.parse(eventHookCalls[0]?.stdin ?? "{}"),
       );
       expect(invocation).toMatchObject({

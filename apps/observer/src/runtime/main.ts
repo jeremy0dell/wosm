@@ -8,8 +8,11 @@ import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { createCommandQueue } from "../commands/queue.js";
 import { registerObserverCommandHandlers } from "../commands/router.js";
 import { createFeatureFlagEvaluator } from "../features/evaluator.js";
-import { createEventHookRuntime, type EventHookRuntime } from "../hooks/eventHooks.js";
-import { hookSpoolDir } from "../hooks/spool.js";
+import {
+  createObserverEventHookRuntime,
+  type ObserverEventHookRuntime,
+} from "../hooks/observerEventHooks.js";
+import { providerIngressSpoolDir } from "../hooks/spool.js";
 import { createObserverPersistence } from "../persistence/index.js";
 import {
   providerObservationLegacyCutoff,
@@ -42,7 +45,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     homeDir,
   );
   const socketPath = resolveObserverSocketPath(options.socketPath, config, stateDir, homeDir);
-  const spoolDir = hookSpoolDir(stateDir);
+  const spoolDir = providerIngressSpoolDir(stateDir);
   await mkdir(stateDir, { recursive: true, mode: 0o700 });
 
   const sqlite = openObserverSqlite({
@@ -143,12 +146,12 @@ function createConfiguredEventHooks(
   config: WosmConfig,
   eventBus: ReturnType<typeof createObserverEventBus>,
   logger: ReturnType<typeof createObserverLogger>,
-): EventHookRuntime | undefined {
+): ObserverEventHookRuntime | undefined {
   const hooks = config.hooks?.event ?? [];
   if (hooks.length === 0) {
     return undefined;
   }
-  return createEventHookRuntime({ hooks, eventBus, clock: systemClock, logger });
+  return createObserverEventHookRuntime({ hooks, eventBus, clock: systemClock, logger });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

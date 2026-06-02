@@ -342,7 +342,7 @@
           "value": "idle",
           "confidence": "high",
           "reason": "Harness reported the last turn completed.",
-          "source": "harness_hook",
+          "source": "harness_event",
           "updatedAt": "2026-05-20T11:59:35.000Z"
         },
         "title": "web idle-agent",

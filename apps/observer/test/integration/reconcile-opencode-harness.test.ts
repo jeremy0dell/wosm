@@ -78,7 +78,7 @@ describe("observer reconcile with OpenCode harness", () => {
     });
     await core.reconcile("initial-opencode-context");
 
-    const receipt = await api.ingestHookEvent({
+    const receipt = await api.ingestProviderHookEvent({
       schemaVersion: WOSM_SCHEMA_VERSION,
       hookId: "hook_opencode_busy",
       provider: "opencode",
@@ -120,7 +120,7 @@ describe("observer reconcile with OpenCode harness", () => {
     const stateEvents = eventBus
       .subscribe({ type: "worktree.agentStateChanged" })
       [Symbol.asyncIterator]();
-    await api.ingestHookEvent({
+    await api.ingestProviderHookEvent({
       schemaVersion: WOSM_SCHEMA_VERSION,
       hookId: "hook_opencode_idle",
       provider: "opencode",

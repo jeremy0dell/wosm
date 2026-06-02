@@ -5,6 +5,7 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 ## Current Living Docs
 
 - [Architecture](architecture.md) is the current authoritative boundary map for ordinary architecture and ownership decisions.
+- [Naming](naming.md) is the current terminology guide for provider hooks, provider hook ingress, harness event reports, WOSM events, and observer event hooks.
 - [Development](development.md) is the current authoritative guide for environment, test gates, data-shape conventions, and agent-instruction maintenance.
 - [TUI development](tui.md) is the current guide for `apps/tui` React/Ink coding, terminal layout, boundary, and test expectations.
 - [Debugging](debugging.md) is the current authoritative entrypoint for trace IDs, command IDs, diagnostic IDs, no-action debugging, and runtime evidence lookup.
@@ -30,6 +31,7 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 - [Effect boundary hardening sequence](planning/active/effect_boundary_hardening_sequence.md) is a scoped planning addendum for runtime timeout, retry, cancellation, queue, protocol, observer, provider, CLI, and TUI IO boundaries.
 - [Code smell remediation P1/P2](planning/active/code_smell_remediation_p1_p2.md) is a scoped planning addendum for optional object construction, provider diagnostics boundaries, validation, and async spread cleanup.
 - [TypeScript shape boundary audit](planning/active/typescript_shape_boundary_audit.md) is the current one-off audit brief for finding JavaScript-style runtime shape probing where schemas or typed unions should own the shape.
+- [Hook/event naming audit](planning/active/hook_event_naming_audit.md) is the active cleanup map for hook/event terminology across contracts, protocol, observer, integrations, CLI, tests, and docs.
 - [Light commenting audit](planning/active/light_commenting_audit.md) is a scoped planning addendum for adding sparse comments to non-obvious runtime, provider, protocol, and correlation code paths.
 - [Harness socket ingress and observer queue plan](planning/active/harness_socket_ingress_and_observer_queue_plan.md) is the active plan for removing the `wosm-hook` hot path and fixing observer ingress backpressure.
 - [OpenCode harness integration plan](planning/active/opencode_harness_integration_plan.md) is the active plan for real OpenCode launch, plugin event capture, observer-shaped event reports, contract changes, and deterministic plus real-provider tests.

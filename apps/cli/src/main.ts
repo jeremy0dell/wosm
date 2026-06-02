@@ -42,6 +42,7 @@ export type CliRunOptions = {
 
 const configBackedCommands = [
   "doctor",
+  "event-hooks",
   "hooks",
   "command",
   "observer",
@@ -126,6 +127,15 @@ export async function runCli(
     const stdin = options.stdin ?? (await readStdinIfAvailable());
     const result = await runNotifyCommand(commandArgs, { stdin }, options.notifyDeps);
     return { code: 0, output: result };
+  }
+
+  if (command === "event-hooks") {
+    const result = await runEventHooksCommand(commandArgs, {
+      config,
+      configPath: resolvedConfigPath,
+      env: options.env,
+    });
+    return { code: hookCommandExitCode(result), output: result };
   }
 
   if (command === "command") {
@@ -218,7 +228,7 @@ export async function runCli(
       config,
       configPath: resolvedConfigPath,
     });
-    return { code: "status" in result && result.status === "warn" ? 1 : 0, output: result };
+    return { code: hookCommandExitCode(result), output: result };
   }
 
   const hookAction = commandArgs[0];
@@ -227,35 +237,42 @@ export async function runCli(
     hookAction !== undefined &&
     ["plan", "install", "uninstall", "doctor"].includes(hookAction)
   ) {
-    const provider = commandArgs[1];
-    const result =
-      provider === "worktrunk"
-        ? await runWorktrunkHooksCommand([hookAction, ...commandArgs.slice(2)], {
-            config,
-            configPath: resolvedConfigPath,
-          })
-        : provider === "codex"
-          ? await runCodexHooksCommand([hookAction, ...commandArgs.slice(2)], {
-              config,
-              configPath: resolvedConfigPath,
-              env: options.env,
-            })
-          : provider === "opencode"
-            ? await runOpenCodeHooksCommand([hookAction, ...commandArgs.slice(2)], {
-                config,
-                env: options.env,
-              })
-            : provider === "event"
-              ? await runEventHooksCommand([hookAction, ...commandArgs.slice(2)], {
-                  config,
-                  configPath: resolvedConfigPath,
-                  env: options.env,
-                })
-              : undefined;
-    if (result === undefined) {
-      throw new Error(`Unknown hook provider: ${provider ?? ""}`);
+    const hookTarget = commandArgs[1];
+    const hookArgs = [hookAction, ...commandArgs.slice(2)];
+    switch (hookTarget) {
+      case "worktrunk": {
+        const result = await runWorktrunkHooksCommand(hookArgs, {
+          config,
+          configPath: resolvedConfigPath,
+        });
+        return { code: hookCommandExitCode(result), output: result };
+      }
+      case "codex": {
+        const result = await runCodexHooksCommand(hookArgs, {
+          config,
+          configPath: resolvedConfigPath,
+          env: options.env,
+        });
+        return { code: hookCommandExitCode(result), output: result };
+      }
+      case "opencode": {
+        const result = await runOpenCodeHooksCommand(hookArgs, {
+          config,
+          env: options.env,
+        });
+        return { code: hookCommandExitCode(result), output: result };
+      }
+      case "event": {
+        const result = await runEventHooksCommand(hookArgs, {
+          config,
+          configPath: resolvedConfigPath,
+          env: options.env,
+        });
+        return { code: hookCommandExitCode(result), output: result };
+      }
+      default:
+        throw new Error(`Unknown hook target: ${hookTarget ?? ""}`);
     }
-    return { code: "status" in result && result.status === "warn" ? 1 : 0, output: result };
   }
 
   throw new Error(`Unknown command: ${command ?? ""}`);
@@ -267,6 +284,10 @@ function defaultCommand(env: CliEnv): "popup" | "tui" {
 
 function defaultCommandEnv(options: CliRunOptions): CliEnv {
   return options.env ?? options.popupDeps?.env ?? options.tuiDeps?.env ?? process.env;
+}
+
+function hookCommandExitCode(result: object): number {
+  return "status" in result && result.status === "warn" ? 1 : 0;
 }
 
 function defaultPopupTuiCommand(configPath: string | undefined, env: CliEnv | undefined): string {

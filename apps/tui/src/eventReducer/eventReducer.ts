@@ -74,8 +74,8 @@ export function applyWosmEvent(snapshot: WosmSnapshot, event: WosmEvent): TuiEve
   if (
     event.type === "observer.reconciled" ||
     event.type === "project.updated" ||
-    event.type === "hook.ingested" ||
-    event.type === "hook.spoolDrained"
+    event.type === "providerHook.ingested" ||
+    event.type === "providerHook.spoolDrained"
   ) {
     return {
       snapshot,

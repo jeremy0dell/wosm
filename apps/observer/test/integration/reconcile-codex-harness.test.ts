@@ -179,7 +179,7 @@ describe("observer reconcile with Codex harness", () => {
         patch: expect.objectContaining({
           status: expect.objectContaining({
             value: "working",
-            source: "harness_hook",
+            source: "harness_event",
           }),
         }),
       },
@@ -199,7 +199,7 @@ describe("observer reconcile with Codex harness", () => {
     });
     expect(snapshot.sessions[0]?.status).toMatchObject({
       value: "working",
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: "2026-05-21T12:00:01.000Z",
     });
     expect(snapshot.rows[0]?.id).toBe("wt_web_task");
@@ -228,7 +228,7 @@ describe("observer reconcile with Codex harness", () => {
             worktreeId: "wt_web_task",
             status: expect.objectContaining({
               value: "working",
-              source: "harness_hook",
+              source: "harness_event",
             }),
           }),
         }),
