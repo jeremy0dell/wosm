@@ -56,6 +56,11 @@ describe("new session flow", () => {
       type: "transition",
       action: { type: "pickProject" },
     });
+    expect(newSessionIntentForInput(opened, input("N"))).toEqual({
+      type: "transition",
+      action: { type: "editName" },
+    });
+    expect(newSessionIntentForInput(opened, input("E"))).toEqual({ type: "none" });
     expect(newSessionIntentForInput(opened, input("p"))).toEqual({ type: "none" });
     expect(newSessionIntentForInput(opened, input("a"))).toEqual({ type: "none" });
     expect(newSessionIntentForInput(opened, input("\r", { return: true }))).toEqual({

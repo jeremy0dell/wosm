@@ -85,7 +85,7 @@ describe("OverlayHost", () => {
       ),
     );
 
-    expect(frame).toContain("New Session");
+    expect(frame).toContain("Create Session");
     expect(frame).toContain("Project   web");
     expect(frame).toContain("Name      web-k7p3x9");
   });
