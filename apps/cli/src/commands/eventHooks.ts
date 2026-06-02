@@ -53,6 +53,7 @@ type ParsedFlags = {
 
 const builtInHookName = "notify-turn-completion";
 const builtInHookId = "notify-agent-idle";
+const builtInHookTimeoutMs = 8000;
 
 async function planBuiltInEventHook(
   options: EventHooksCommandOptions,
@@ -236,7 +237,7 @@ function builtInEventHookToml(configPath: string): string {
     'events = ["worktree.agentStateChanged"]',
     'command = "wosm"',
     `args = [${args.map((arg) => JSON.stringify(arg)).join(", ")}]`,
-    "timeout_ms = 3000",
+    `timeout_ms = ${builtInHookTimeoutMs}`,
   ].join("\n");
 }
 
