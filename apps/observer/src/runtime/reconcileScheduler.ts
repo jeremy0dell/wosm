@@ -7,6 +7,7 @@ export type ReconcileScheduler = {
 export type CreateReconcileSchedulerOptions = {
   reconcile(reason: string): Promise<unknown>;
   debounceMs?: number;
+  backlogDebounceMs?: number;
   onError?: (error: unknown) => Promise<void> | void;
   onFlushFinish?: (profile: ReconcileSchedulerFlushProfile) => Promise<void> | void;
 };
@@ -21,11 +22,13 @@ export type ReconcileSchedulerFlushProfile = {
 };
 
 const defaultDebounceMs = 100;
+const defaultBacklogDebounceMs = 1000;
 
 export function createReconcileScheduler(
   options: CreateReconcileSchedulerOptions,
 ): ReconcileScheduler {
   const debounceMs = options.debounceMs ?? defaultDebounceMs;
+  const backlogDebounceMs = options.backlogDebounceMs ?? defaultBacklogDebounceMs;
   let running = false;
   let timerScheduled = false;
   let firstQueuedAt: number | undefined;
@@ -40,13 +43,13 @@ export function createReconcileScheduler(
       if (running || timerScheduled) {
         return;
       }
-      scheduleFlush();
+      scheduleFlush(debounceMs);
     },
   };
 
-  function scheduleFlush(): void {
+  function scheduleFlush(delayMs: number): void {
     timerScheduled = true;
-    void sleep(debounceMs).then(
+    void sleep(delayMs).then(
       () => {
         timerScheduled = false;
         void flush().catch((error: unknown) => reportError(error));
@@ -85,7 +88,7 @@ export function createReconcileScheduler(
         queuedAfter,
       });
       if (queuedReasons.length > 0 && !timerScheduled) {
-        scheduleFlush();
+        scheduleFlush(backlogDebounceMs);
       }
     }
   }

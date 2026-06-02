@@ -180,6 +180,7 @@ export const WosmObserverPlugin = async ({ directory, worktree }) => {
   return {
     event: async ({ event }) => {
       if (!isWosmOpenCodeSession(process.env)) return;
+      if (!shouldSendOpenCodeEvent(event)) return;
       const receivedAt = new Date().toISOString();
       const payload = compactOpenCodeEvent(event, { directory, worktree, receivedAt });
       const hookEvent = hookEventFromPayload(payload, receivedAt);
@@ -194,6 +195,35 @@ export const WosmObserverPlugin = async ({ directory, worktree }) => {
 
 function isWosmOpenCodeSession(env) {
   return env.WOSM_HARNESS_PROVIDER === "opencode" && stringValue(env.WOSM_WORKTREE_ID) !== undefined;
+}
+
+const sentOpenCodeEventTypes = new Set([
+  "command.executed",
+  "permission.asked",
+  "permission.replied",
+  "question.asked",
+  "question.rejected",
+  "question.replied",
+  "session.created",
+  "session.deleted",
+  "session.error",
+  "session.idle",
+  "session.next.prompted",
+  "session.next.step.ended",
+  "session.next.step.failed",
+  "session.next.step.started",
+  "session.next.tool.called",
+  "session.next.tool.failed",
+  "session.next.tool.success",
+  "session.status",
+  "tool.execute.after",
+  "tool.execute.before",
+  "tui.command.execute",
+]);
+
+function shouldSendOpenCodeEvent(event) {
+  const eventType = stringValue(event?.type);
+  return eventType !== undefined && sentOpenCodeEventTypes.has(eventType);
 }
 
 function compactOpenCodeEvent(event, context) {
