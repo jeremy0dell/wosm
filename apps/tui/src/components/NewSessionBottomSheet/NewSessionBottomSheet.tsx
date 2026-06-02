@@ -1,6 +1,5 @@
 import type { ProjectView, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text } from "ink";
-import type { ReactNode } from "react";
 import { type NewSessionFlowState, selectedProject } from "../../flows/newSession.js";
 import {
   selectNewSessionHarnessChoices,
@@ -59,10 +58,16 @@ function renderMode(
 }
 
 function titleForState(state: NewSessionFlowState): string {
-  if (state.mode === "editName") {
-    return "Edit Session Name";
+  switch (state.mode) {
+    case "review":
+      return "Create Session";
+    case "editName":
+      return "Set Session Name";
+    case "pickProject":
+      return "Choose Project";
+    case "pickAgent":
+      return "Choose Agent";
   }
-  return "New Session";
 }
 
 function Review({
@@ -80,21 +85,22 @@ function Review({
     project === undefined ? undefined : selectedHarnessOption(snapshot, project, state);
   return (
     <>
-      <BlankLine />
-      <LabelValue label="Project" value={project?.label ?? "-"} />
+      <BlankLine width={width} />
+      <LabelValue label="Project" value={project?.label ?? "-"} width={width} />
       <LabelValue
         label="Name"
         value={state.branch}
         color={state.nameSource === "generated" ? "gray" : undefined}
+        width={width}
       />
       <LabelValue
         label="Agent"
         value={harness === undefined ? state.selectedHarness : `${harness.label} ${harness.status}`}
         color={statusColor(harness?.status)}
+        width={width}
       />
-      <BlankLine />
-      <Text> Enter:create</Text>
-      <FooterLine width={width}>{"E:edit name   P:project   A:agent   Esc:cancel"}</FooterLine>
+      <BlankLine width={width} />
+      <FooterLine width={width}>{"Enter:create N:name P:project A:agent Esc:cancel"}</FooterLine>
     </>
   );
 }
@@ -108,16 +114,13 @@ function EditName({
   project: ProjectView | undefined;
   width: number;
 }) {
-  const hasDraft = state.draftName.value.trim().length > 0;
   return (
     <>
-      <BlankLine />
-      <LabelValue label="Project" value={project?.label ?? "-"} />
-      <LabelValue label="Name" value={<EditNameValue state={state} />} />
-      <BlankLine />
-      <FooterLine width={width}>
-        {hasDraft ? "Enter:use name   Esc:back" : "Enter:use generated name   Esc:back"}
-      </FooterLine>
+      <BlankLine width={width} />
+      <LabelValue label="Project" value={project?.label ?? "-"} width={width} />
+      <EditableNameLine state={state} width={width} />
+      <BlankLine width={width} />
+      <FooterLine width={width}>{"Enter:save   Esc:back"}</FooterLine>
     </>
   );
 }
@@ -130,7 +133,7 @@ function ProjectPicker({ snapshot, width }: { snapshot: WosmSnapshot; width: num
   const projects = selectNewSessionProjectChoices(snapshot);
   return (
     <>
-      <BlankLine />
+      <BlankLine width={width} />
       {projects.map((choice) => (
         <PickerLine
           key={choice.value.id}
@@ -138,10 +141,11 @@ function ProjectPicker({ snapshot, width }: { snapshot: WosmSnapshot; width: num
           label={choice.value.label}
           detail={choice.value.health.status}
           color={statusColor(choice.value.health.status)}
+          width={width}
         />
       ))}
-      <BlankLine />
-      <FooterLine width={width}>1-9/a-z:select Esc:back</FooterLine>
+      <BlankLine width={width} />
+      <FooterLine width={width}>{"1-9/a-z:select   Esc:back"}</FooterLine>
     </>
   );
 }
@@ -158,7 +162,7 @@ function AgentPicker({
   const options = selectNewSessionHarnessChoices(snapshot, project);
   return (
     <>
-      <BlankLine />
+      <BlankLine width={width} />
       {options.map((choice) => (
         <PickerLine
           key={choice.value.id}
@@ -166,10 +170,11 @@ function AgentPicker({
           label={choice.value.label}
           detail={choice.value.status}
           color={statusColor(choice.value.status)}
+          width={width}
         />
       ))}
-      <BlankLine />
-      <FooterLine width={width}>1-9/a-z:select Esc:back</FooterLine>
+      <BlankLine width={width} />
+      <FooterLine width={width}>{"1-9/a-z:select   Esc:back"}</FooterLine>
     </>
   );
 }
@@ -178,23 +183,46 @@ function LabelValue({
   label,
   value,
   color,
+  width,
 }: {
   label: string;
-  value: ReactNode;
+  value: string;
   color?: "red" | "yellow" | "gray" | undefined;
+  width: number;
 }) {
+  const labelText = ` ${label.padEnd(10)}`;
+  const valueWidth = Math.max(0, width - labelText.length);
+  const visibleValue = value.slice(0, valueWidth);
+  const padding = spaces(Math.max(0, valueWidth - visibleValue.length));
   return (
     <Box>
-      <Text>{` ${label.padEnd(10)}`}</Text>
-      {typeof value === "string" ? (
-        color === undefined ? (
-          <Text>{value}</Text>
-        ) : (
-          <Text color={color}>{value}</Text>
-        )
+      <Text>{labelText}</Text>
+      {color === undefined ? (
+        <Text>{visibleValue}</Text>
       ) : (
-        value
+        <Text color={color}>{visibleValue}</Text>
       )}
+      <Text>{padding}</Text>
+    </Box>
+  );
+}
+
+function EditableNameLine({
+  state,
+  width,
+}: {
+  state: Extract<NewSessionFlowState, { mode: "editName" }>;
+  width: number;
+}) {
+  const labelText = ` ${"Name".padEnd(10)}`;
+  const inputLength =
+    (state.draftName.value.length === 0 ? state.branch.length : state.draftName.value.length) + 1;
+  const padding = spaces(Math.max(0, width - labelText.length - inputLength));
+  return (
+    <Box>
+      <Text>{labelText}</Text>
+      <EditNameValue state={state} />
+      <Text>{padding}</Text>
     </Box>
   );
 }
@@ -204,29 +232,47 @@ function PickerLine({
   label,
   detail,
   color,
+  width,
 }: {
   choiceKey: string;
   label: string;
   detail: string;
   color?: "red" | "yellow" | "gray" | undefined;
+  width: number;
 }) {
+  const prefix = ` ${choiceKey} `;
+  const detailPrefix = `${label} `;
+  const detailWidth = Math.max(0, width - prefix.length - detailPrefix.length);
+  const visibleDetail = detail.slice(0, detailWidth);
+  const padding = spaces(Math.max(0, detailWidth - visibleDetail.length));
   return (
     <Box>
-      <Text>{` ${choiceKey} `}</Text>
-      <Text>{label}</Text>
-      <Text> </Text>
-      {color === undefined ? <Text>{detail}</Text> : <Text color={color}>{detail}</Text>}
+      <Text>{prefix}</Text>
+      <Text>{detailPrefix}</Text>
+      {color === undefined ? (
+        <Text>{visibleDetail}</Text>
+      ) : (
+        <Text color={color}>{visibleDetail}</Text>
+      )}
+      <Text>{padding}</Text>
     </Box>
   );
 }
 
-function BlankLine() {
-  return <Box height={1} />;
+function BlankLine({ width }: { width: number }) {
+  return <Text>{spaces(width)}</Text>;
 }
 
 function FooterLine({ children, width }: { children: string; width: number }) {
-  const text = ` ${children}`.padEnd(width).slice(0, width);
-  return <Text>{text}</Text>;
+  return <Text>{fitLine(` ${children}`, width)}</Text>;
+}
+
+function fitLine(value: string, width: number): string {
+  return value.padEnd(width).slice(0, width);
+}
+
+function spaces(width: number): string {
+  return " ".repeat(Math.max(0, width));
 }
 
 function selectedHarnessOption(
