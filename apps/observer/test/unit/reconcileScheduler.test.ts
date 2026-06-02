@@ -43,6 +43,69 @@ describe("reconcile scheduler", () => {
 
     expect(reasons).toEqual(["hook:codex:PreToolUse", "hook:batch(2)"]);
   });
+
+  it("reports flush profile metrics", async () => {
+    const profiles: unknown[] = [];
+    const scheduler = createReconcileScheduler({
+      debounceMs: 0,
+      reconcile: async () => undefined,
+      onFlushFinish: (profile) => {
+        profiles.push(profile);
+      },
+    });
+
+    scheduler.request("hook:codex:PreToolUse");
+    scheduler.request("hook:codex:PostToolUse");
+    await drainMicrotasks();
+
+    expect(profiles).toEqual([
+      expect.objectContaining({
+        reason: "hook:batch(2)",
+        queuedCount: 2,
+        queuedAfter: 0,
+      }),
+    ]);
+  });
+
+  it("reports queued requests that arrive while a reconcile is running", async () => {
+    const profiles: unknown[] = [];
+    const firstReconcile = deferred<void>();
+    const firstStarted = deferred<void>();
+    const scheduler = createReconcileScheduler({
+      debounceMs: 0,
+      reconcile: async () => {
+        if (profiles.length === 0) {
+          firstStarted.resolve();
+          await firstReconcile.promise;
+        }
+      },
+      onFlushFinish: (profile) => {
+        profiles.push(profile);
+      },
+    });
+
+    scheduler.request("hook:codex:PreToolUse");
+    await firstStarted.promise;
+    scheduler.request("hook:codex:PostToolUse");
+    scheduler.request("hook:codex:Stop");
+    firstReconcile.resolve();
+    await drainMicrotasks();
+
+    expect(profiles).toEqual([
+      expect.objectContaining({
+        reason: "hook:codex:PreToolUse",
+        queuedCount: 1,
+        queuedWhileRunning: 2,
+        queuedAfter: 2,
+      }),
+      expect.objectContaining({
+        reason: "hook:batch(2)",
+        queuedCount: 2,
+        queuedWhileRunning: 0,
+        queuedAfter: 0,
+      }),
+    ]);
+  });
 });
 
 async function drainMicrotasks(): Promise<void> {

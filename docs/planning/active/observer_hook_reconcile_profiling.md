@@ -225,9 +225,9 @@ Not sufficient by itself:
 
 - Replacing `for (;;)` with `Effect.forever` while still scheduling the same amount of full reconcile work.
 
-## Profiling To Add
+## Profiling Added
 
-Add temporary or thresholded profiling logs around these phases:
+This branch adds thresholded profiling logs around these phases:
 
 ```text
 Reconcile scheduler profile
@@ -249,7 +249,7 @@ Reconcile phase profile
   projectsScanned
 ```
 
-Prefer thresholded logging to avoid making storms worse:
+The implementation uses thresholded logging to avoid making storms worse:
 
 ```text
 log only if totalMs >= 1000
@@ -265,6 +265,13 @@ This should answer whether time is spent in:
 - event publication
 - metadata refresh side effects
 - scheduler backlog while a reconcile is running
+
+Unit coverage verifies:
+
+- Scheduler flush profiles include coalesced reason, queued count, duration, wait time, and queued-after counts.
+- Scheduler profiles report requests that arrive while a reconcile is already running.
+- Slow reconcile profiles emit phase dimensions through the real `createObserverApi` reconcile path.
+- Fast reconcile profiles are suppressed.
 
 ## Possible Fix Directions
 
