@@ -1,6 +1,7 @@
 import type { ProjectView, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
+import stringWidth from "string-width";
 import {
   type DashboardViewportItem,
   selectDashboardViewport,
@@ -8,6 +9,7 @@ import {
 import type { KeyedChoice } from "../../selectors/selectors.js";
 import type { TuiScreen, TuiViewState } from "../../state/screen.js";
 import { useTuiMode } from "../../tuiMode.js";
+import type { TopRowWidgetView } from "../../widgets/types.js";
 import { Throbber } from "../Throbber/Throbber.js";
 import { WorktreeRow } from "../WorktreeRow/WorktreeRow.js";
 
@@ -17,6 +19,7 @@ export type DashboardProps = {
   viewState: TuiViewState;
   quitActionLabel?: "close" | "quit";
   columns?: number;
+  topRowWidgets?: readonly TopRowWidgetView[];
 };
 
 export function Dashboard({
@@ -24,6 +27,7 @@ export function Dashboard({
   viewState,
   quitActionLabel = "quit",
   columns = 80,
+  topRowWidgets = [],
 }: DashboardProps) {
   const viewport = selectDashboardViewport(snapshot, viewState);
   const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
@@ -32,7 +36,11 @@ export function Dashboard({
   const contentColumns = Math.max(1, columns - 1);
   return (
     <DashboardLayout>
-      <DashboardHeader productLabel={productLabel} />
+      <DashboardHeader
+        productLabel={productLabel}
+        columns={contentColumns}
+        widgets={topRowWidgets}
+      />
       <DashboardDivider columns={contentColumns} />
       <ScrollIndicatorRow direction="above" hiddenCount={viewport.hiddenAbove} />
       <DashboardBody items={viewport.visibleItems} choices={viewport.displayRowChoices} />
@@ -51,12 +59,55 @@ function DashboardLayout({ children }: { children: ReactNode }) {
   );
 }
 
-function DashboardHeader({ productLabel }: { productLabel: string }) {
+export function DashboardHeader({
+  productLabel,
+  columns,
+  widgets,
+}: {
+  productLabel: string;
+  columns: number;
+  widgets: readonly TopRowWidgetView[];
+}) {
+  const headerLine = dashboardHeaderLine({ productLabel, columns, widgets });
+  const suffix = headerLine.startsWith(productLabel) ? headerLine.slice(productLabel.length) : "";
   return (
     <Box flexShrink={0}>
-      <Text bold>{productLabel}</Text>
+      <Text wrap="truncate-end">
+        <Text bold>{productLabel}</Text>
+        {suffix}
+      </Text>
     </Box>
   );
+}
+
+export function dashboardHeaderLine({
+  productLabel,
+  columns,
+  widgets,
+}: {
+  productLabel: string;
+  columns: number;
+  widgets: readonly TopRowWidgetView[];
+}): string {
+  const safeColumns = Math.max(1, columns);
+  const productWidth = stringWidth(productLabel);
+  if (widgets.length === 0 || productWidth >= safeColumns) {
+    return productLabel;
+  }
+
+  for (let visibleCount = widgets.length; visibleCount > 0; visibleCount -= 1) {
+    const strip = widgets
+      .slice(0, visibleCount)
+      .map((widget) => widget.text)
+      .join("  ");
+    const stripWidth = stringWidth(strip);
+    const gapWidth = safeColumns - productWidth - stripWidth;
+    if (gapWidth >= 1) {
+      return `${productLabel}${" ".repeat(gapWidth)}${strip}`;
+    }
+  }
+
+  return productLabel;
 }
 
 function DashboardDivider({ columns }: { columns: number }) {

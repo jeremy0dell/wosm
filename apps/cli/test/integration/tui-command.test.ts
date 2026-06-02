@@ -1,16 +1,34 @@
+import { writeFile } from "node:fs/promises";
 import { runCli } from "@wosm/cli";
 import { runTuiCommand } from "@wosm/cli/internal";
+import type { TuiConfig } from "@wosm/config";
 import type { RunTuiOptions } from "@wosm/tui";
 import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
 
 const now = "2026-05-20T12:00:00.000Z";
+const tuiConfig: TuiConfig = {
+  widgets: [
+    {
+      type: "time",
+      timeFormat: "12h",
+    },
+    {
+      type: "weather",
+      city: "New York, NY",
+      label: "NYC",
+      temperatureUnit: "fahrenheit",
+      refreshIntervalMinutes: 15,
+    },
+  ],
+};
 
 describe("CLI tui command", () => {
   it("starts or connects the observer and hands its socket to the TUI runner", async () => {
     const fixture = await createTempState();
+    fixture.config.tui = tuiConfig;
     const configPath = await writeConfigToml(fixture.root, fixture.config);
-    const sockets: string[] = [];
+    const runOptions: RunTuiOptions[] = [];
     let running = false;
     const reconciles: string[] = [];
 
@@ -64,7 +82,7 @@ describe("CLI tui command", () => {
       },
       tuiDeps: {
         runTui: async (options) => {
-          sockets.push(options.socketPath);
+          runOptions.push(options);
           return { status: "exited", code: 0 };
         },
       },
@@ -74,14 +92,20 @@ describe("CLI tui command", () => {
       code: 0,
       output: { status: "exited", code: 0 },
     });
-    expect(sockets).toEqual([fixture.socketPath]);
+    expect(runOptions).toEqual([
+      {
+        socketPath: fixture.socketPath,
+        tuiConfig,
+      },
+    ]);
     expect(reconciles).toEqual(["tui-startup"]);
   });
 
   it("defaults bare wosm to the full TUI outside tmux", async () => {
     const fixture = await createTempState();
+    fixture.config.tui = tuiConfig;
     const configPath = await writeConfigToml(fixture.root, fixture.config);
-    const runOptions: unknown[] = [];
+    const runOptions: RunTuiOptions[] = [];
     let running = false;
 
     const result = await runCli(["--config", configPath], {
@@ -142,13 +166,14 @@ describe("CLI tui command", () => {
       code: 0,
       output: { status: "exited", code: 0 },
     });
-    expect(runOptions).toEqual([{ socketPath: fixture.socketPath }]);
+    expect(runOptions).toEqual([{ socketPath: fixture.socketPath, tuiConfig }]);
   });
 
   it("maps --popup to transient focus-and-close mode with focus origin", async () => {
     const fixture = await createTempState();
+    fixture.config.tui = tuiConfig;
     const configPath = await writeConfigToml(fixture.root, fixture.config);
-    const runOptions: unknown[] = [];
+    const runOptions: RunTuiOptions[] = [];
     let running = false;
 
     const result = await runCli(["--config", configPath, "tui", "--popup"], {
@@ -215,6 +240,7 @@ describe("CLI tui command", () => {
     expect(runOptions).toEqual([
       {
         socketPath: fixture.socketPath,
+        tuiConfig,
         exitOnFocusSuccess: true,
         focusOrigin: {
           provider: "tmux",
@@ -281,6 +307,7 @@ describe("CLI tui command", () => {
 
   it("maps --popup --persistent to popup lifecycle hooks", async () => {
     const fixture = await createTempState();
+    fixture.config.tui = tuiConfig;
     const configPath = await writeConfigToml(fixture.root, fixture.config);
     const runOptions: RunTuiOptions[] = [];
     let running = false;
@@ -362,6 +389,7 @@ describe("CLI tui command", () => {
     expect(runOptions).toHaveLength(1);
     expect(runOptions[0]).toMatchObject({
       socketPath: fixture.socketPath,
+      tuiConfig,
       persistentPopup: true,
       resolveFocusOrigin,
       onFocusSuccess,
@@ -407,6 +435,7 @@ describe("CLI tui command", () => {
 
   it("runs a fake dashboard without observer startup or startup reconcile", async () => {
     const fixture = await createTempState();
+    fixture.config.tui = tuiConfig;
     const runOptions: RunTuiOptions[] = [];
 
     const result = await runTuiCommand(
@@ -434,9 +463,54 @@ describe("CLI tui command", () => {
     expect(result).toEqual({ status: "exited", code: 0 });
     expect(runOptions).toHaveLength(1);
     expect(runOptions[0]?.socketPath).toBeUndefined();
+    expect(runOptions[0]?.tuiConfig).toEqual(tuiConfig);
     expect(runOptions[0]?.service).toBeDefined();
     expect(runOptions[0]?.initialSnapshot?.projects).toHaveLength(3);
     expect(runOptions[0]?.initialSnapshot?.rows).toHaveLength(15);
+  });
+
+  it("rejects invalid widget config before starting the TUI", async () => {
+    const fixture = await createTempState();
+    const configPath = `${fixture.root}/invalid-widget-config.toml`;
+    await writeFile(
+      configPath,
+      [
+        "schema_version = 1",
+        "projects = []",
+        "",
+        "[defaults]",
+        'worktree_provider = "fake-worktree"',
+        'terminal = "fake-terminal"',
+        'harness = "fake-harness"',
+        'layout = "agent-shell"',
+        "",
+        "[observer]",
+        `socket_path = ${JSON.stringify(fixture.socketPath)}`,
+        `state_dir = ${JSON.stringify(fixture.stateDir)}`,
+        "",
+        "[[tui.widgets]]",
+        'type = "weather"',
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    await expect(
+      runCli(["--config", configPath, "tui"], {
+        observerDeps: {
+          spawnObserver: async () => {
+            throw new Error("observer should not start for invalid widget config");
+          },
+        },
+        tuiDeps: {
+          runTui: async () => {
+            throw new Error("TUI should not start for invalid widget config");
+          },
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "CONFIG_VALIDATION_FAILED",
+    });
   });
 
   it("rejects invalid fake dashboard count flags before observer startup", async () => {

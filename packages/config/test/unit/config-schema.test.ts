@@ -103,6 +103,75 @@ describe("Phase 1 config schemas", () => {
     ).toBe(false);
   });
 
+  it("validates configured TUI widgets", async () => {
+    const config = ParsedWosmConfigSchema.parse({
+      ...(await loadJson("valid-config.json")),
+      tui: {
+        widgets: [
+          {
+            type: "time",
+            timeFormat: "24h",
+          },
+          {
+            type: "weather",
+            city: "New York, NY",
+            label: "NYC",
+            temperatureUnit: "fahrenheit",
+            refreshIntervalMinutes: 15,
+          },
+        ],
+      },
+    });
+
+    expect(config.tui?.widgets?.map((widget) => widget.type)).toEqual(["time", "weather"]);
+    expect(
+      ParsedWosmConfigSchema.safeParse({
+        ...config,
+        tui: {
+          widgets: [
+            {
+              type: "weather",
+              city: "",
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      ParsedWosmConfigSchema.safeParse({
+        ...config,
+        tui: {
+          widgets: [
+            {
+              type: "time",
+              timeFormat: "locale",
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts omitted and empty TUI widget config", async () => {
+    const config = await loadJson("valid-config.json");
+
+    expect(ParsedWosmConfigSchema.parse(config).tui).toBeUndefined();
+    expect(
+      ParsedWosmConfigSchema.parse({
+        ...config,
+        tui: {},
+      }).tui,
+    ).toEqual({});
+    expect(
+      ParsedWosmConfigSchema.parse({
+        ...config,
+        tui: {
+          widgets: [],
+        },
+      }).tui,
+    ).toEqual({ widgets: [] });
+  });
+
   it("validates explicit project recovery breadcrumb opt-in", () => {
     const project = ProjectConfigSchema.parse({
       id: "web",

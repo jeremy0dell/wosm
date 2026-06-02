@@ -14,6 +14,7 @@ export function normalizeGlobalConfig(value: unknown): unknown {
       terminal: normalizeTerminalProvidersConfig,
       harness: normalizeHarnessProvidersConfig,
       hooks: normalizeHooksConfig,
+      tui: normalizeTuiConfig,
       repository: normalizeRepositoryProvidersConfig,
       observability: normalizeObservabilityConfig,
       projects: normalizeProjects,
@@ -106,6 +107,21 @@ function normalizeHarnessProviderConfig(value: unknown): unknown {
 
 function normalizeHooksConfig(value: unknown): unknown {
   return normalizeObject(value, {}, { event: normalizeEventHookConfigs });
+}
+
+function normalizeTuiConfig(value: unknown): unknown {
+  return normalizeObject(value, {}, { widgets: normalizeTuiWidgetConfigs });
+}
+
+function normalizeTuiWidgetConfigs(value: unknown): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  return value.map(normalizeTuiWidgetConfig);
+}
+
+function normalizeTuiWidgetConfig(value: unknown): unknown {
+  return normalizeObject(value);
 }
 
 function normalizeEventHookConfigs(value: unknown): unknown {
