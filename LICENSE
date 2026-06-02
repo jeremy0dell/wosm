@@ -1,0 +1,71 @@
+The Jeremy License
+
+Copyright (c) 2026 Jeremy Odell
+
+Permission is hereby granted, free of charge, to any person or entity obtaining
+a copy of this software and associated documentation files (the "Software"), to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons or entities to whom the Software is furnished
+to do so, subject to the following conditions:
+
+1. Copyright Notice
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+2. Prohibited Uses
+
+The Software, and any modified version, derivative work, service, product, or
+system that incorporates, links to, depends on, or is materially enabled by the
+Software, may not be used, directly or indirectly, for any of the following:
+
+a. Weapons
+
+Designing, developing, manufacturing, training, testing, simulating, targeting,
+deploying, operating, maintaining, selling, or otherwise enabling weapons,
+weapon systems, munitions, autonomous or semi-autonomous targeting systems,
+or systems intended to cause physical injury, death, or destruction.
+
+b. Surveillance
+
+Creating, enabling, operating, supporting, or materially improving systems used
+for surveillance, tracking, identification, profiling, monitoring, interception,
+or analysis of individuals or groups without their informed consent.
+
+This includes, without limitation, systems used for mass surveillance, biometric
+identification, location tracking, communications monitoring, predictive policing,
+social scoring, or targeted monitoring of activists, journalists, workers,
+minorities, political opponents, or other vulnerable groups.
+
+3. Ordinary Security and Operations Exception
+
+The restriction on surveillance does not prohibit reasonable, disclosed, and
+proportionate uses of the Software for ordinary software observability, debugging,
+fraud prevention, access control, abuse prevention, system security, compliance
+logging, or protection of users and systems, provided that such uses are not
+designed or deployed for prohibited surveillance purposes.
+
+4. No Circumvention
+
+No person or entity may use the Software to assist, enable, or provide services
+to another person or entity where the person or entity knows, or reasonably
+should know, that the Software will be used for a prohibited purpose described
+above.
+
+5. Termination
+
+Any rights granted under this License terminate automatically for any person or
+entity that violates Section 2 or Section 4. Upon termination, that person or
+entity must cease all use, copying, modification, distribution, sublicensing,
+and sale of the Software and any modified version, derivative work, service,
+product, or system that incorporates or is materially enabled by the Software.
+
+6. Disclaimer of Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, TITLE, AND NONINFRINGEMENT. IN NO EVENT SHALL JEREMY
+ODELL OR ANY COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
