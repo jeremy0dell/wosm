@@ -1,4 +1,9 @@
-import { HarnessEventObservationSchema, OpenCodeCompactEventSchema } from "@wosm/contracts";
+import {
+  HarnessEventObservationSchema,
+  OpenCodeCompactEventSchema,
+  openCodeForwardedEventTypes,
+  openCodeIngressRules,
+} from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { compactOpenCodeHookPayload } from "../../src/compaction";
 import {
@@ -191,6 +196,36 @@ describe("OpenCode event parsing", () => {
     });
   });
 
+  it("derives OpenCode status projection coverage from ingress contract rules", () => {
+    expect(new Set(openCodeForwardedEventTypes).size).toBe(openCodeForwardedEventTypes.length);
+    expect(openCodeForwardedEventTypes).not.toContain("message.part.delta");
+    expect(openCodeForwardedEventTypes).not.toContain("message.part.updated");
+    expect(openCodeForwardedEventTypes).toEqual(
+      expect.arrayContaining([
+        "session.compacted",
+        "session.next.compaction.started",
+        "session.next.shell.started",
+        "session.next.synthetic",
+        "session.next.tool.progress",
+        "session.next.tool.input.delta",
+      ]),
+    );
+
+    for (const rule of openCodeIngressRules) {
+      if (rule.statusIntents === undefined) continue;
+      const status = normalizeOpenCodeRawEvent(
+        {
+          provider: "opencode",
+          observedAt: now,
+          event: samplePayloadForEventType(rule.eventType),
+        },
+        context(),
+      )[0]?.status;
+
+      expect(status, rule.eventType).toBeDefined();
+    }
+  });
+
   it("leaves non-status OpenCode telemetry as provider data without fabricating state", () => {
     const observations = normalizeOpenCodeRawEvent(
       {
@@ -250,5 +285,18 @@ function context() {
         },
       },
     ],
+  };
+}
+
+function samplePayloadForEventType(eventType: string) {
+  return {
+    event_type: eventType,
+    cwd: "/tmp/wosm/web/task",
+    opencode_session_id: "opencode_session_123",
+    status_type: "busy",
+    permission_reply: "allow",
+    question_reply: "answered",
+    command_name: eventType === "tui.command.execute" ? "session.interrupt" : "test.command",
+    tool_name: "bash",
   };
 }
