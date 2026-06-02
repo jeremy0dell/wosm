@@ -28,11 +28,11 @@ describe("NewSessionBottomSheet", () => {
     );
     const lines = frame.split("\n");
 
-    expect(layout.top).toBe(8);
+    expect(layout.top).toBe(9);
     expect(lines).toHaveLength(18);
     expect(lines.slice(0, layout.top).join("").trim()).toBe("");
     expect(lines[layout.top]).toContain("╭");
-    expect(frame).toContain("New Session");
+    expect(frame).toContain("Create Session");
     expect(frame).toContain("Project   web");
     expect(frame).toContain("Name      web-k7p3x9");
     expect(frame).toContain("Agent     codex unknown");
@@ -74,15 +74,17 @@ describe("NewSessionBottomSheet", () => {
 
     expect(projectFrame).toContain("1 web");
     expect(projectFrame).toContain("2 api");
+    expect(projectFrame).toContain("Choose Project");
     expect(projectFrame).not.toContain("›");
     expect(projectFrame).not.toContain("Enter:select");
-    expect(projectFrame).toContain("1-9/a-z:select Esc:back");
+    expect(projectFrame).toContain("1-9/a-z:select   Esc:back");
     expect(agentFrame).toContain("1 codex");
     expect(agentFrame).toContain("unknown");
+    expect(agentFrame).toContain("Choose Agent");
     expect(agentFrame).not.toContain("default");
     expect(agentFrame).toContain("2 opencode");
     expect(agentFrame).not.toContain("›");
-    expect(agentFrame).toContain("1-9/a-z:select Esc:back");
+    expect(agentFrame).toContain("1-9/a-z:select   Esc:back");
   });
 
   it("renders only configured harnesses in the agent picker, including Codex, Pi, and OpenCode", () => {
@@ -118,7 +120,7 @@ describe("NewSessionBottomSheet", () => {
 
     expect(frame).toContain("Project 01");
     expect(frame).toContain("Project 08");
-    expect(frame).toContain("1-9/a-z:select Esc:back");
+    expect(frame).toContain("1-9/a-z:select   Esc:back");
   });
 
   it("renders letter keys for long project pickers", () => {
@@ -138,7 +140,7 @@ describe("NewSessionBottomSheet", () => {
     expect(frame).toContain("9 Project 09");
     expect(frame).toContain("a Project 10");
     expect(frame).not.toContain("›");
-    expect(frame).toContain("1-9/a-z:select Esc:back");
+    expect(frame).toContain("1-9/a-z:select   Esc:back");
   });
 
   it("renders letter keys for long agent pickers", () => {
@@ -158,7 +160,7 @@ describe("NewSessionBottomSheet", () => {
     expect(frame).toContain("9 Agent 09");
     expect(frame).toContain("a Agent 10");
     expect(frame).not.toContain("›");
-    expect(frame).toContain("1-9/a-z:select Esc:back");
+    expect(frame).toContain("1-9/a-z:select   Esc:back");
   });
 
   it("renders edit-name mode with the cursor before the generated fallback", () => {
@@ -177,13 +179,52 @@ describe("NewSessionBottomSheet", () => {
       ),
     );
 
-    expect(frame).toContain("Edit Session Name");
+    expect(frame).toContain("Set Session Name");
     expect(frame).toContain("Project   web");
     expect(frame).toContain("Name      |web-k7p3x9");
     expect(frame).not.toMatch(/Project\s+web\n\s*\n\s*Name/);
-    expect(frame).toContain("Enter:use generated name   Esc:back");
+    expect(frame).toContain("Enter:save   Esc:back");
     expect(frame).not.toContain("Agent     codex");
     expect(frame).not.toContain("Enter:create");
+  });
+
+  it("paints edit-name rows over stale dashboard text", () => {
+    const snapshot = createDashboardSnapshot();
+    const review = createNewSessionFlow(snapshot, "k7p3x9");
+    if (review === undefined) throw new Error("expected a flow");
+    const editName = transitionNewSessionFlow(review, snapshot, { type: "editName" });
+    if (editName?.mode !== "editName") throw new Error("expected edit-name state");
+
+    const columns = 80;
+    const rows = 12;
+    const layout = newSessionBottomSheetLayout({
+      columns,
+      rows,
+      state: editName,
+      optionCount: 0,
+    });
+    const frame = stripAnsi(
+      renderToString(
+        <Box position="relative" flexDirection="column" width={columns} height={rows}>
+          {noisyBackgroundRows(rows, columns).map((line) => (
+            <Text key={line}>{line}</Text>
+          ))}
+          <NewSessionBottomSheet
+            columns={columns}
+            rows={rows}
+            snapshot={snapshot}
+            state={editName}
+          />
+        </Box>,
+        { columns },
+      ),
+    );
+    const sheetLines = frame.split("\n").slice(layout.top, layout.top + layout.height);
+
+    expect(sheetLines.join("\n")).toContain("Set Session Name");
+    expect(sheetLines.join("\n")).toContain("Project   web");
+    expect(sheetLines.join("\n")).toContain("Name      |web-k7p3x9");
+    expect(sheetLines.join("\n")).not.toContain("stale-error");
   });
 
   it("renders the edit-name cursor after typed draft text", () => {
@@ -211,7 +252,7 @@ describe("NewSessionBottomSheet", () => {
     );
 
     expect(frame).toContain("Name      feature/foo|");
-    expect(frame).toContain("Enter:use name   Esc:back");
+    expect(frame).toContain("Enter:save   Esc:back");
   });
 
   it("paints full interior rows over dashboard divider characters", () => {
@@ -231,10 +272,12 @@ describe("NewSessionBottomSheet", () => {
       ),
     );
 
-    expect(frame).toContain("E:edit name   P:project   A:agent   Esc:cancel");
-    const shortcutLine = frame.split("\n").find((line) => line.includes("E:edit name   P:project"));
-    expect(shortcutLine).toContain("│ E:edit");
-    expect(shortcutLine).not.toContain("─E:edit");
+    expect(frame).toContain("Enter:create N:name P:project A:agent Esc:cancel");
+    const shortcutLine = frame
+      .split("\n")
+      .find((line) => line.includes("Enter:create N:name P:project"));
+    expect(shortcutLine).toContain("│ Enter:create");
+    expect(shortcutLine).not.toContain("─Enter:create");
     expect(shortcutLine).not.toContain("Esc:cancel──");
   });
 });
@@ -374,6 +417,12 @@ function backgroundRows(): string[] {
     "background-8",
     "background-9",
   ];
+}
+
+function noisyBackgroundRows(rows: number, columns: number): string[] {
+  return Array.from({ length: rows }, (_, index) =>
+    `stale-error-${index} `.repeat(columns).slice(0, columns),
+  );
 }
 
 function ansiEscapePattern(): RegExp {

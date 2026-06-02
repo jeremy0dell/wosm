@@ -1,6 +1,6 @@
 # Known Issues
 
-These are accepted limitations for the Phase 18 dogfood milestone.
+These are accepted limitations for the current dogfood milestone.
 
 - Real E2E remains opt-in because it requires local Worktrunk, tmux, Codex login, model access, and isolated temporary projects.
 - wosm is still a private workspace package. There is no public npm package, installer, or release artifact outside this repository.
