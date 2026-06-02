@@ -54,7 +54,22 @@ import type { ObserverEventBus } from "./eventBus.js";
 import {
   type CreateReconcileSchedulerOptions,
   createReconcileScheduler,
+  type ReconcileSchedulerFlushProfile,
 } from "./reconcileScheduler.js";
+
+type ReconcileProfile = {
+  reason: string;
+  totalMs: number;
+  drainMs: number;
+  coreReconcileMs: number;
+  publishMs: number;
+  metadataRefreshScheduled: boolean;
+  rows: number;
+  projectsScanned: number;
+};
+
+const profileSlowReconcileMs = 1000;
+const profileLargeQueueCount = 25;
 
 export type CreateObserverApiOptions = {
   core: ObserverCore;
@@ -92,6 +107,9 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
   if (options.logger !== undefined) {
     schedulerOptions.onError = async (error) => {
       await options.logger?.error("Scheduled observer reconcile failed.", { error });
+    };
+    schedulerOptions.onFlushFinish = async (profile) => {
+      await logReconcileSchedulerProfile(options.logger, profile);
     };
   }
   const reconcileScheduler = createReconcileScheduler(schedulerOptions);
@@ -206,6 +224,11 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
   };
 
   async function runReconcile(reason = "manual"): Promise<ReconcileReceipt> {
+    const profileStartedAt = Date.now();
+    let drainMs = 0;
+    let coreReconcileMs = 0;
+    let publishMs = 0;
+    let metadataRefreshScheduled = false;
     if (!reconciling) {
       if (reason === "observer.startup") {
         void drainConfiguredSpoolAndQueue().catch(async (error: unknown) => {
@@ -213,15 +236,18 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
         });
       } else {
         reconciling = true;
+        const drainStartedAt = Date.now();
         try {
           await drainConfiguredSpoolAndQueue();
         } finally {
+          drainMs = elapsedMs(drainStartedAt);
           reconciling = false;
         }
       }
     }
 
     const previousSnapshot = options.core.getSnapshot();
+    const coreReconcileStartedAt = Date.now();
     const result = await runRuntimeBoundary(
       {
         operation: "observer.reconcile",
@@ -234,11 +260,13 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       },
       () => options.core.reconcile(reason),
     );
+    coreReconcileMs = elapsedMs(coreReconcileStartedAt);
 
     if (!result.ok) {
       throw result.error;
     }
 
+    const publishStartedAt = Date.now();
     const event: WosmEvent = {
       type: "observer.reconciled",
       at: result.value.generatedAt,
@@ -248,11 +276,23 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       options.eventBus.publish(agentEvent);
     }
     options.eventBus.publish(event);
+    publishMs = elapsedMs(publishStartedAt);
     if (metadataRefresh !== undefined) {
+      metadataRefreshScheduled = true;
       void metadataRefresh.refresh(result.value).catch(async (error: unknown) => {
         await options.logger?.error("Worktree metadata refresh failed.", { error });
       });
     }
+    await logReconcileProfile(options.logger, {
+      reason,
+      totalMs: elapsedMs(profileStartedAt),
+      drainMs,
+      coreReconcileMs,
+      publishMs,
+      metadataRefreshScheduled,
+      rows: result.value.rows.length,
+      projectsScanned: result.value.projects.length,
+    });
     return {
       schemaVersion: WOSM_SCHEMA_VERSION,
       reason,
@@ -398,6 +438,34 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     if (options.providers !== undefined) deps.providers = options.providers;
     return deps;
   }
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.max(0, Date.now() - startedAt);
+}
+
+async function logReconcileSchedulerProfile(
+  logger: JsonlLogger | undefined,
+  profile: ReconcileSchedulerFlushProfile,
+): Promise<void> {
+  if (
+    profile.durationMs < profileSlowReconcileMs &&
+    profile.queuedCount < profileLargeQueueCount &&
+    profile.queuedWhileRunning === 0
+  ) {
+    return;
+  }
+  await logger?.info("Reconcile scheduler profile.", profile);
+}
+
+async function logReconcileProfile(
+  logger: JsonlLogger | undefined,
+  profile: ReconcileProfile,
+): Promise<void> {
+  if (profile.totalMs < profileSlowReconcileMs) {
+    return;
+  }
+  await logger?.info("Reconcile profile.", profile);
 }
 
 export function agentStateChangedEventsFromReconcile(
