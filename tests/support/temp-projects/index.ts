@@ -63,6 +63,7 @@ export async function writeConfigToml(root: string, config: WosmConfig): Promise
       `harness = ${JSON.stringify(config.defaults.harness)}`,
       `layout = ${JSON.stringify(config.defaults.layout)}`,
       "",
+      ...tuiConfigToml(config),
       ...(config.terminal?.tmux === undefined
         ? []
         : [
@@ -81,6 +82,45 @@ export async function writeConfigToml(root: string, config: WosmConfig): Promise
     ].join("\n"),
   );
   return path;
+}
+
+function tuiConfigToml(config: WosmConfig): string[] {
+  if (config.tui === undefined) {
+    return [];
+  }
+  if (config.tui.widgets === undefined) {
+    return ["[tui]", ""];
+  }
+  if (config.tui.widgets.length === 0) {
+    return ["[tui]", "widgets = []", ""];
+  }
+
+  return config.tui.widgets.flatMap((widget) => {
+    if (widget.type === "time") {
+      return [
+        "[[tui.widgets]]",
+        'type = "time"',
+        ...(widget.timeFormat === undefined
+          ? []
+          : [`time_format = ${JSON.stringify(widget.timeFormat)}`]),
+        "",
+      ];
+    }
+
+    return [
+      "[[tui.widgets]]",
+      'type = "weather"',
+      `city = ${JSON.stringify(widget.city)}`,
+      ...(widget.label === undefined ? [] : [`label = ${JSON.stringify(widget.label)}`]),
+      ...(widget.temperatureUnit === undefined
+        ? []
+        : [`temperature_unit = ${JSON.stringify(widget.temperatureUnit)}`]),
+      ...(widget.refreshIntervalMinutes === undefined
+        ? []
+        : [`refresh_interval_minutes = ${widget.refreshIntervalMinutes}`]),
+      "",
+    ];
+  });
 }
 
 async function cleanupTempRoot(root: string): Promise<void> {

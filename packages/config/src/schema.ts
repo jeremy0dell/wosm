@@ -179,6 +179,42 @@ export const HooksConfigSchema = z
 
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;
 
+export const TuiTimeWidgetConfigSchema = z
+  .object({
+    type: z.literal("time"),
+    timeFormat: z.enum(["12h", "24h"]).optional(),
+  })
+  .strict();
+
+export type TuiTimeWidgetConfig = z.infer<typeof TuiTimeWidgetConfigSchema>;
+
+export const TuiWeatherWidgetConfigSchema = z
+  .object({
+    type: z.literal("weather"),
+    city: nonEmptyStringSchema,
+    label: nonEmptyStringSchema.optional(),
+    temperatureUnit: z.enum(["fahrenheit", "celsius"]).optional(),
+    refreshIntervalMinutes: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export type TuiWeatherWidgetConfig = z.infer<typeof TuiWeatherWidgetConfigSchema>;
+
+export const TuiWidgetConfigSchema = z.discriminatedUnion("type", [
+  TuiTimeWidgetConfigSchema,
+  TuiWeatherWidgetConfigSchema,
+]);
+
+export type TuiWidgetConfig = z.infer<typeof TuiWidgetConfigSchema>;
+
+export const TuiConfigSchema = z
+  .object({
+    widgets: z.array(TuiWidgetConfigSchema).optional(),
+  })
+  .strict();
+
+export type TuiConfig = z.infer<typeof TuiConfigSchema>;
+
 export const GithubRepositoryConfigSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -286,6 +322,7 @@ export const ParsedWosmConfigSchema = z
     terminal: TerminalProvidersConfigSchema.optional(),
     harness: z.record(providerIdSchema, HarnessProviderConfigSchema).optional(),
     hooks: HooksConfigSchema.optional(),
+    tui: TuiConfigSchema.optional(),
     repository: RepositoryProvidersConfigSchema.optional(),
     observability: ObservabilityConfigSchema.optional(),
     featureFlags: FeatureFlagConfigSchema.optional(),

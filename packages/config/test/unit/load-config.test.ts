@@ -262,6 +262,177 @@ ${projectToml("web", root)}
     ]);
   });
 
+  it("loads TUI widgets in configured order and normalizes snake_case keys", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[[tui.widgets]]
+type = "time"
+time_format = "24h"
+
+[[tui.widgets]]
+type = "weather"
+city = "New York, NY"
+label = "NYC"
+temperature_unit = "fahrenheit"
+refresh_interval_minutes = 15
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.tui?.widgets).toEqual([
+      {
+        type: "time",
+        timeFormat: "24h",
+      },
+      {
+        type: "weather",
+        city: "New York, NY",
+        label: "NYC",
+        temperatureUnit: "fahrenheit",
+        refreshIntervalMinutes: 15,
+      },
+    ]);
+  });
+
+  it("accepts empty and omitted TUI widgets", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const empty = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[tui]
+widgets = []
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+    const omitted = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[tui]
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config-empty.toml"), homeDir: tempDir },
+    );
+
+    expect(empty.config.tui).toEqual({ widgets: [] });
+    expect(omitted.config.tui).toEqual({});
+  });
+
+  it.each([
+    [
+      "unknown widget type",
+      `
+[[tui.widgets]]
+type = "moon"
+`,
+    ],
+    [
+      "weather widget missing city",
+      `
+[[tui.widgets]]
+type = "weather"
+`,
+    ],
+    [
+      "weather widget with empty city",
+      `
+[[tui.widgets]]
+type = "weather"
+city = ""
+`,
+    ],
+    [
+      "weather widget with empty label",
+      `
+[[tui.widgets]]
+type = "weather"
+city = "New York, NY"
+label = ""
+`,
+    ],
+    [
+      "invalid temperature unit",
+      `
+[[tui.widgets]]
+type = "weather"
+city = "New York, NY"
+temperature_unit = "kelvin"
+`,
+    ],
+    [
+      "invalid time format",
+      `
+[[tui.widgets]]
+type = "time"
+time_format = "locale"
+`,
+    ],
+    [
+      "non-positive refresh interval",
+      `
+[[tui.widgets]]
+type = "weather"
+city = "New York, NY"
+refresh_interval_minutes = 0
+`,
+    ],
+  ])("rejects %s", async (_name, tuiToml) => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    await expect(
+      loadConfigFromToml(
+        `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+${tuiToml}
+${projectToml("web", root)}
+`,
+        { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+      ),
+    ).rejects.toMatchObject({
+      tag: "ConfigError",
+      code: "CONFIG_VALIDATION_FAILED",
+    });
+  });
+
   it("normalizes an empty feature flag table without adding production flags", async () => {
     const tempDir = await makeTempDir();
     const root = await makeProjectRoot(tempDir, "web");
