@@ -1,4 +1,7 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "./boundary.js";
 import {
@@ -119,47 +122,41 @@ async function nodeExternalCommandRunnerWithStdin(
   input: ExternalCommandInput,
 ): Promise<ExternalCommandResult> {
   const args = input.args ?? [];
-  const maxOutputChars = input.maxOutputChars ?? 64 * 1024;
-  return new Promise((resolve, reject) => {
-    const child = spawn(input.command, args, {
-      cwd: input.cwd,
-      env: input.env === undefined ? process.env : { ...process.env, ...input.env },
-      signal: input.signal,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout = boundedAppend(stdout, chunk, maxOutputChars);
-    });
-    child.stderr.on("data", (chunk: string) => {
-      stderr = boundedAppend(stderr, chunk, maxOutputChars);
-    });
-    child.once("error", reject);
-    child.once("close", (code, signal) => {
-      if (code === 0) {
-        resolve({ command: input.command, args, stdout, stderr, exitCode: 0 });
-        return;
-      }
-      const error = new Error(`External command exited with code ${code ?? "signal"}.`);
-      Object.assign(error, {
-        code: code ?? undefined,
-        exitCode: code ?? undefined,
-        signal: signal ?? undefined,
-        stdout,
-        stderr,
-      });
-      reject(error);
-    });
-    child.stdin.end(input.stdin);
-  });
-}
-
-function boundedAppend(current: string, chunk: string, maxChars: number): string {
-  const next = current + chunk;
-  return next.length <= maxChars ? next : next.slice(0, maxChars);
+  const stdin = input.stdin;
+  if (stdin === undefined) {
+    throw new Error("External command stdin runner requires stdin input.");
+  }
+  const tempDir = await mkdtemp(join(tmpdir(), "wosm-command-stdin-"));
+  const stdinPath = join(tempDir, "stdin");
+  await writeFile(stdinPath, stdin, "utf8");
+  try {
+    const result = await execFileAsync(
+      "sh",
+      [
+        "-c",
+        'stdin_path=$1; shift; exec "$@" < "$stdin_path"',
+        "sh",
+        stdinPath,
+        input.command,
+        ...args,
+      ],
+      {
+        cwd: input.cwd,
+        env: input.env === undefined ? process.env : { ...process.env, ...input.env },
+        maxBuffer: input.maxOutputChars ?? 64 * 1024,
+        signal: input.signal,
+      },
+    );
+    return {
+      command: input.command,
+      args,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: 0,
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 }
 
 export function createFakeExternalCommandRunner(

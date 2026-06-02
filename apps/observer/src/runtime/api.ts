@@ -221,6 +221,7 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       }
     }
 
+    const previousSnapshot = options.core.getSnapshot();
     const result = await runRuntimeBoundary(
       {
         operation: "observer.reconcile",
@@ -243,6 +244,9 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       at: result.value.generatedAt,
       changed: 0,
     };
+    for (const agentEvent of agentStateChangedEventsFromReconcile(previousSnapshot, result.value)) {
+      options.eventBus.publish(agentEvent);
+    }
     options.eventBus.publish(event);
     if (metadataRefresh !== undefined) {
       void metadataRefresh.refresh(result.value).catch(async (error: unknown) => {
@@ -394,4 +398,32 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     if (options.providers !== undefined) deps.providers = options.providers;
     return deps;
   }
+}
+
+function agentStateChangedEventsFromReconcile(
+  before: WosmSnapshot,
+  after: WosmSnapshot,
+): WosmEvent[] {
+  const previousAgents = new Map(before.rows.map((row) => [row.id, row.agent]));
+  const events: WosmEvent[] = [];
+  for (const row of after.rows) {
+    const previous = previousAgents.get(row.id);
+    if (sameAgent(previous, row.agent)) {
+      continue;
+    }
+    const event: WosmEvent = {
+      type: "worktree.agentStateChanged",
+      worktreeId: row.id,
+    };
+    if (row.agent !== undefined) event.agent = row.agent;
+    events.push(event);
+  }
+  return events;
+}
+
+function sameAgent(
+  left: WosmSnapshot["rows"][number]["agent"],
+  right: WosmSnapshot["rows"][number]["agent"],
+): boolean {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }

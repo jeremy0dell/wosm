@@ -22,6 +22,7 @@ import { runReconcileCommand } from "./commands/reconcile.js";
 import { runSnapshotCommand } from "./commands/snapshot.js";
 import { runTuiCommand, type TuiCommandDeps } from "./commands/tui.js";
 import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
+import type { CliEnv } from "./env.js";
 import type { ObserverProcessDeps } from "./observerProcess.js";
 import { readStdinIfAvailable } from "./stdin.js";
 
@@ -32,7 +33,7 @@ export type CliRunResult = {
 
 export type CliRunOptions = {
   stdin?: string | undefined;
-  env?: Record<string, string | undefined> | undefined;
+  env?: CliEnv | undefined;
   observerDeps?: ObserverProcessDeps | undefined;
   popupDeps?: PopupCommandDeps | undefined;
   tuiDeps?: TuiCommandDeps | undefined;
@@ -248,6 +249,7 @@ export async function runCli(
               ? await runEventHooksCommand([hookAction, ...commandArgs.slice(2)], {
                   config,
                   configPath: resolvedConfigPath,
+                  env: options.env,
                 })
               : undefined;
     if (result === undefined) {
@@ -259,18 +261,15 @@ export async function runCli(
   throw new Error(`Unknown command: ${command ?? ""}`);
 }
 
-function defaultCommand(env: Record<string, string | undefined>): "popup" | "tui" {
+function defaultCommand(env: CliEnv): "popup" | "tui" {
   return env.TMUX === undefined || env.TMUX.length === 0 ? "tui" : "popup";
 }
 
-function defaultCommandEnv(options: CliRunOptions): Record<string, string | undefined> {
+function defaultCommandEnv(options: CliRunOptions): CliEnv {
   return options.env ?? options.popupDeps?.env ?? options.tuiDeps?.env ?? process.env;
 }
 
-function defaultPopupTuiCommand(
-  configPath: string | undefined,
-  env: Record<string, string | undefined> | undefined,
-): string {
+function defaultPopupTuiCommand(configPath: string | undefined, env: CliEnv | undefined): string {
   const command = nonEmptyString(env?.WOSM_TUI_COMMAND);
   const parts =
     command === undefined
@@ -283,9 +282,7 @@ function defaultPopupTuiCommand(
   return parts.join(" ");
 }
 
-function popupUiSessionNameFromEnv(
-  env: Record<string, string | undefined> | undefined,
-): string | undefined {
+function popupUiSessionNameFromEnv(env: CliEnv | undefined): string | undefined {
   return nonEmptyString(env?.WOSM_TUI_SESSION_NAME);
 }
 
@@ -322,7 +319,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         }
         process.exit(result.code);
       }
-      process.exitCode = result.code;
+      process.exit(result.code);
     })
     .catch((error) => {
       process.stderr.write(`${formatCliError(error)}\n`);

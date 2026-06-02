@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "@wosm/cli";
@@ -8,6 +8,7 @@ describe("CLI event hook commands", () => {
   it("plans and installs the built-in turn completion notification hook", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-cli-event-hooks-"));
     const configPath = await writeConfig(root);
+    const env = await envWithFakeCommand(root, "osascript", 0);
 
     const plan = await runCli([
       "--config",
@@ -53,19 +54,73 @@ describe("CLI event hook commands", () => {
     const after = await readFile(configPath, "utf8");
     expect(after).toContain('id = "notify-agent-idle"');
     expect(after).toContain('events = ["worktree.agentStateChanged"]');
-    expect(after).toContain('args = ["notify", "turn-completion"]');
+    expect(after).toContain('command = "osascript"');
+    expect(after).toContain("display notification");
 
-    const doctor = await runCli(["--config", configPath, "hooks", "doctor", "event"]);
+    const doctor = await runCli(["--config", configPath, "hooks", "doctor", "event"], { env });
     expect(doctor).toMatchObject({
       code: 0,
       output: {
         provider: "event",
         status: "ok",
         installed: true,
+        commandCheck: {
+          status: "ok",
+          command: expect.stringContaining("osascript -e"),
+        },
+      },
+    });
+  });
+
+  it("warns when the installed notification command is stale or unusable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-cli-event-hooks-stale-"));
+    const configPath = await writeConfig(root);
+    const env = await envWithoutCommand(root);
+
+    await runCli([
+      "--config",
+      configPath,
+      "hooks",
+      "install",
+      "event",
+      "notify-turn-completion",
+      "--yes",
+    ]);
+
+    const doctor = await runCli(["--config", configPath, "hooks", "doctor", "event"], { env });
+
+    expect(doctor).toMatchObject({
+      code: 1,
+      output: {
+        provider: "event",
+        status: "warn",
+        installed: true,
+        commandCheck: {
+          status: "warn",
+          command: expect.stringContaining("osascript -e"),
+        },
       },
     });
   });
 });
+
+async function envWithFakeCommand(
+  root: string,
+  name: string,
+): Promise<Record<string, string | undefined>> {
+  const binDir = join(root, "bin");
+  await mkdir(binDir, { recursive: true });
+  const executable = join(binDir, name);
+  await writeFile(executable, ["#!/bin/sh", "exit 0", ""].join("\n"), "utf8");
+  await chmod(executable, 0o755);
+  return { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` };
+}
+
+async function envWithoutCommand(root: string): Promise<Record<string, string | undefined>> {
+  const binDir = join(root, "empty-bin");
+  await mkdir(binDir, { recursive: true });
+  return { ...process.env, PATH: binDir };
+}
 
 async function writeConfig(root: string): Promise<string> {
   const configPath = join(root, "config.toml");
