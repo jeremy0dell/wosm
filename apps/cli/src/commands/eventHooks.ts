@@ -46,41 +46,13 @@ export type EventHooksCommandResult =
   | EventHookInstallResult
   | EventHookDoctorResult;
 
-const builtInHookName = "notify-turn-completion";
-const builtInHookId = "notify-agent-idle";
-
-export async function runEventHooksCommand(
-  args: string[],
-  options: EventHooksCommandOptions = {},
-): Promise<EventHooksCommandResult> {
-  const [action, name] = args;
-  const flags = parseFlags(args.slice(2));
-  if (action === "doctor") {
-    return doctorEventHooks(options);
-  }
-  if (name !== builtInHookName) {
-    throw new Error(`Unknown event hook example: ${name ?? ""}`);
-  }
-  if (action === "plan") {
-    return planBuiltInEventHook(options, flags);
-  }
-  if (action === "install") {
-    if (!flags.yes) {
-      throw new Error("Refusing to install event hook without --yes.");
-    }
-    const plan = await planBuiltInEventHook(options, flags);
-    if (plan.changed) {
-      await writeFile(plan.configPath, plan.after, "utf8");
-    }
-    return { ...plan, installed: true };
-  }
-  throw new Error("Usage: wosm hooks plan|install event notify-turn-completion [--yes]");
-}
-
 type ParsedFlags = {
   yes: boolean;
   force: boolean;
 };
+
+const builtInHookName = "notify-turn-completion";
+const builtInHookId = "notify-agent-idle";
 
 async function planBuiltInEventHook(
   options: EventHooksCommandOptions,
@@ -291,4 +263,32 @@ function requiredConfigPath(options: EventHooksCommandOptions): string {
     throw new Error("Event hook installation requires a wosm config path.");
   }
   return options.configPath;
+}
+
+export async function runEventHooksCommand(
+  args: string[],
+  options: EventHooksCommandOptions = {},
+): Promise<EventHooksCommandResult> {
+  const [action, name] = args;
+  const flags = parseFlags(args.slice(2));
+  if (action === "doctor") {
+    return doctorEventHooks(options);
+  }
+  if (name !== builtInHookName) {
+    throw new Error(`Unknown event hook example: ${name ?? ""}`);
+  }
+  if (action === "plan") {
+    return planBuiltInEventHook(options, flags);
+  }
+  if (action === "install") {
+    if (!flags.yes) {
+      throw new Error("Refusing to install event hook without --yes.");
+    }
+    const plan = await planBuiltInEventHook(options, flags);
+    if (plan.changed) {
+      await writeFile(plan.configPath, plan.after, "utf8");
+    }
+    return { ...plan, installed: true };
+  }
+  throw new Error("Usage: wosm hooks plan|install event notify-turn-completion [--yes]");
 }
