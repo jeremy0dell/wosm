@@ -1,8 +1,6 @@
 import { EventHookInvocationSchema, type WorktreeRow } from "@wosm/contracts";
 import { type ExternalCommandRunner, runExternalCommand } from "@wosm/runtime";
 
-type WorktreeAgent = NonNullable<WorktreeRow["agent"]>;
-
 export type NotifyCommandOptions = {
   stdin?: string | undefined;
   platform?: NodeJS.Platform | undefined;
@@ -20,6 +18,17 @@ export type NotifyCommandResult = {
   title?: string;
   message?: string;
 };
+
+type WorktreeAgent = NonNullable<WorktreeRow["agent"]>;
+
+function notificationMessage(agent: WorktreeAgent): string {
+  const harness = agent.harness;
+  return agent.reason === undefined ? `${harness} is idle.` : agent.reason;
+}
+
+function appleScriptString(value: string): string {
+  return JSON.stringify(value);
+}
 
 export async function runNotifyCommand(
   args: string[],
@@ -60,13 +69,4 @@ export async function runNotifyCommand(
     deps.commandRunner,
   );
   return { notified: true, title, message };
-}
-
-function notificationMessage(agent: WorktreeAgent): string {
-  const harness = agent.harness;
-  return agent.reason === undefined ? `${harness} is idle.` : agent.reason;
-}
-
-function appleScriptString(value: string): string {
-  return JSON.stringify(value);
 }

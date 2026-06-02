@@ -24,7 +24,78 @@ export type CreateEventHookRuntimeOptions = {
   commandRunner?: ExternalCommandRunner;
 };
 
+type EventHookDispatchInput = {
+  event: WosmEvent;
+  hooks: EventHookConfig[];
+  clock: RuntimeClock;
+  logger?: JsonlLogger;
+  commandRunner?: ExternalCommandRunner;
+};
+
 const defaultTimeoutMs = 3000;
+
+function dispatchEventHooks(input: EventHookDispatchInput): void {
+  for (const hook of input.hooks) {
+    if (!eventHookMatches(hook, input.event)) {
+      continue;
+    }
+    void runEventHook({ ...input, hook }).catch(async (error) => {
+      await input.logger?.error("Event hook failed.", {
+        hookId: hook.id,
+        eventType: input.event.type,
+        error: safeErrorFromUnknown(error, {
+          tag: "EventHookError",
+          code: "EVENT_HOOK_FAILED",
+          message: "Observer event hook command failed.",
+        }),
+      });
+    });
+  }
+}
+
+async function runEventHook(input: {
+  event: WosmEvent;
+  hook: EventHookConfig;
+  clock: RuntimeClock;
+  logger?: JsonlLogger;
+  commandRunner?: ExternalCommandRunner;
+}): Promise<void> {
+  const invocation = EventHookInvocationSchema.parse({
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    hookId: input.hook.id,
+    observedAt: observedAtForEvent(input.event, input.clock),
+    event: input.event,
+  });
+  const command: ExternalCommandInput = {
+    command: input.hook.command,
+    args: input.hook.args ?? [],
+    timeoutMs: input.hook.timeoutMs ?? defaultTimeoutMs,
+    stdin: `${JSON.stringify(invocation)}\n`,
+  };
+  if (input.commandRunner === undefined) {
+    await runExternalCommand(command);
+  } else {
+    await runExternalCommand(command, input.commandRunner);
+  }
+  await input.logger?.info("Event hook completed.", {
+    hookId: input.hook.id,
+    eventType: input.event.type,
+  });
+}
+
+function observedAtForEvent(event: WosmEvent, clock: RuntimeClock): string {
+  const metadata = wosmEventMetadata(event);
+  if (metadata.timestamp !== undefined) {
+    return metadata.timestamp;
+  }
+  if (event.type === "worktree.agentStateChanged" && event.agent?.updatedAt !== undefined) {
+    return event.agent.updatedAt;
+  }
+  if (event.type === "session.updated" && event.patch.updatedAt !== undefined) {
+    return event.patch.updatedAt;
+  }
+  return toIsoTimestamp(clock.now());
+}
 
 export function createEventHookRuntime(options: CreateEventHookRuntimeOptions): EventHookRuntime {
   const hooks = options.hooks;
@@ -93,75 +164,4 @@ export function eventHookMatches(hook: EventHookConfig, event: WosmEvent): boole
     }
   }
   return true;
-}
-
-type EventHookDispatchInput = {
-  event: WosmEvent;
-  hooks: EventHookConfig[];
-  clock: RuntimeClock;
-  logger?: JsonlLogger;
-  commandRunner?: ExternalCommandRunner;
-};
-
-function dispatchEventHooks(input: EventHookDispatchInput): void {
-  for (const hook of input.hooks) {
-    if (!eventHookMatches(hook, input.event)) {
-      continue;
-    }
-    void runEventHook({ ...input, hook }).catch(async (error) => {
-      await input.logger?.error("Event hook failed.", {
-        hookId: hook.id,
-        eventType: input.event.type,
-        error: safeErrorFromUnknown(error, {
-          tag: "EventHookError",
-          code: "EVENT_HOOK_FAILED",
-          message: "Observer event hook command failed.",
-        }),
-      });
-    });
-  }
-}
-
-async function runEventHook(input: {
-  event: WosmEvent;
-  hook: EventHookConfig;
-  clock: RuntimeClock;
-  logger?: JsonlLogger;
-  commandRunner?: ExternalCommandRunner;
-}): Promise<void> {
-  const invocation = EventHookInvocationSchema.parse({
-    schemaVersion: WOSM_SCHEMA_VERSION,
-    hookId: input.hook.id,
-    observedAt: observedAtForEvent(input.event, input.clock),
-    event: input.event,
-  });
-  const command: ExternalCommandInput = {
-    command: input.hook.command,
-    args: input.hook.args ?? [],
-    timeoutMs: input.hook.timeoutMs ?? defaultTimeoutMs,
-    stdin: `${JSON.stringify(invocation)}\n`,
-  };
-  if (input.commandRunner === undefined) {
-    await runExternalCommand(command);
-  } else {
-    await runExternalCommand(command, input.commandRunner);
-  }
-  await input.logger?.info("Event hook completed.", {
-    hookId: input.hook.id,
-    eventType: input.event.type,
-  });
-}
-
-function observedAtForEvent(event: WosmEvent, clock: RuntimeClock): string {
-  const metadata = wosmEventMetadata(event);
-  if (metadata.timestamp !== undefined) {
-    return metadata.timestamp;
-  }
-  if (event.type === "worktree.agentStateChanged" && event.agent?.updatedAt !== undefined) {
-    return event.agent.updatedAt;
-  }
-  if (event.type === "session.updated" && event.patch.updatedAt !== undefined) {
-    return event.patch.updatedAt;
-  }
-  return toIsoTimestamp(clock.now());
 }
