@@ -1,13 +1,25 @@
-import { ObserverEventHookInvocationSchema, type WorktreeRow } from "@wosm/contracts";
-import { type ExternalCommandRunner, runExternalCommand } from "@wosm/runtime";
+import {
+  ObserverEventHookInvocationSchema,
+  type WorktreeRow,
+  type WosmEvent,
+} from "@wosm/contracts";
+import type { ExternalCommandRunner } from "@wosm/runtime";
+import {
+  buildClickFocusShellCommand,
+  buildFocusCommand,
+  defaultCliCommandParts,
+} from "./notify/focusAction.js";
+import { playMacNotificationSound, showMacNotification } from "./notify/macos.js";
 
 export type NotifyCommandOptions = {
   stdin?: string | undefined;
   platform?: NodeJS.Platform | undefined;
+  configPath?: string | undefined;
 };
 
 export type NotifyCommandDeps = {
   commandRunner?: ExternalCommandRunner;
+  cliCommandParts?: string[] | undefined;
   platform?: NodeJS.Platform;
 };
 
@@ -17,17 +29,49 @@ export type NotifyCommandResult = {
   reason?: string;
   title?: string;
   message?: string;
+  notifier?: "terminal-notifier" | "osascript";
+  sound?: "played" | "failed" | "skipped";
+  clickAction?: boolean;
 };
 
 type WorktreeAgent = NonNullable<WorktreeRow["agent"]>;
+type WorktreeAgentStateChangedEvent = Extract<WosmEvent, { type: "worktree.agentStateChanged" }>;
+type NotificationKind = "finished" | "needs_attention";
+
+type NotifiableAgentEvent = {
+  event: WorktreeAgentStateChangedEvent;
+  agent: WorktreeAgent;
+  kind: NotificationKind;
+};
 
 function notificationMessage(agent: WorktreeAgent): string {
   const harness = agent.harness;
   return agent.reason === undefined ? `${harness} is idle.` : agent.reason;
 }
 
-function appleScriptString(value: string): string {
-  return JSON.stringify(value);
+function notificationSubject(event: WorktreeAgentStateChangedEvent, agent: WorktreeAgent): string {
+  return agent.sessionId ?? event.worktreeId;
+}
+
+function notificationTitle(input: NotifiableAgentEvent): string {
+  const subject = notificationSubject(input.event, input.agent);
+  return input.kind === "needs_attention" ? `${subject} needs attention` : `${subject} finished`;
+}
+
+function notifiableAgentEvent(
+  event: WorktreeAgentStateChangedEvent,
+): NotifiableAgentEvent | undefined {
+  const agent = event.agent;
+  if (agent === undefined) {
+    return undefined;
+  }
+  if (agent.state === "idle") {
+    return { event, agent, kind: "finished" };
+  }
+  if (agent.state === "needs_attention") {
+    return { event, agent, kind: "needs_attention" };
+  }
+  return undefined;
 }
 
 export async function runNotifyCommand(
@@ -47,26 +91,44 @@ export async function runNotifyCommand(
   if (invocation.event.type !== "worktree.agentStateChanged") {
     return { notified: false, skipped: true, reason: "unsupported-event" };
   }
-  const agent = invocation.event.agent;
-  if (agent?.state !== "idle") {
-    return { notified: false, skipped: true, reason: "agent-not-idle" };
+  const notifiable = notifiableAgentEvent(invocation.event);
+  if (notifiable === undefined) {
+    return { notified: false, skipped: true, reason: "agent-not-notifiable" };
   }
-  const title = "Agent turn complete";
-  const message = notificationMessage(agent);
+  const title = notificationTitle(notifiable);
+  const message = notificationMessage(notifiable.agent);
   const platform = deps.platform ?? options.platform ?? process.platform;
   if (platform !== "darwin") {
     return { notified: false, skipped: true, reason: "unsupported-platform", title, message };
   }
-  await runExternalCommand(
+
+  const focusCommand = buildFocusCommand(notifiable.event);
+  const clickAction = buildClickFocusShellCommand({
+    command: focusCommand,
+    cliCommandParts: deps.cliCommandParts ?? defaultCliCommandParts(),
+    configPath: options.configPath,
+  });
+  const group = `wosm:${notificationSubject(notifiable.event, notifiable.agent)}`;
+  const soundPromise = playMacNotificationSound({
+    kind: notifiable.kind,
+    commandRunner: deps.commandRunner,
+  });
+  const notifier = await showMacNotification(
     {
-      command: "osascript",
-      args: [
-        "-e",
-        `display notification ${appleScriptString(message)} with title ${appleScriptString(title)}`,
-      ],
-      timeoutMs: 3000,
+      title,
+      message,
+      group,
+      clickAction,
     },
     deps.commandRunner,
   );
-  return { notified: true, title, message };
+  const sound = await soundPromise;
+  return {
+    notified: true,
+    title,
+    message,
+    notifier,
+    sound,
+    clickAction: notifier === "terminal-notifier",
+  };
 }

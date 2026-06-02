@@ -114,9 +114,6 @@ function eventHookConfigLines(options: WriteRealWosmConfigOptions): string[] {
     `args = [${(options.eventHook.args ?? []).map(tomlString).join(", ")}]`,
     "timeout_ms = 3000",
     "",
-    "[hooks.event.filter]",
-    'agent_state = "idle"',
-    "",
   ];
 }
 
