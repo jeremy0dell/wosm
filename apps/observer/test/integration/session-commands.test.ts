@@ -877,22 +877,23 @@ describe("session command vertical slice", () => {
     fixture.sqlite.close();
   });
 
-  it("remembers the previous harness when the worktree id changes but the path is stable", async () => {
+  it("remembers the previous harness when the worktree id changes but the normalized path is stable", async () => {
     const rememberedHarness = new CapturingHarnessProvider({ id: "remembered-harness", now });
     const defaultHarness = new CapturingHarnessProvider({ id: "fake-harness", now });
-    const worktreePath = "/tmp/wosm/web/remembered";
+    const previousWorktreePath = "/private/var/tmp/wosm/web/remembered/";
+    const currentWorktreePath = "/var/tmp/wosm/web/remembered";
     const previousWorktree = createFakeWorktree({
       id: "wt_web_remembered_old",
       projectId: "web",
       branch: "remembered-old",
-      path: worktreePath,
+      path: previousWorktreePath,
       now: "2026-05-21T11:00:00.000Z",
     });
     const currentWorktree = createFakeWorktree({
       id: "wt_web_remembered_current",
       projectId: "web",
       branch: "remembered-current",
-      path: worktreePath,
+      path: currentWorktreePath,
       now,
     });
     const terminal = new FakeTerminalProvider({
@@ -954,7 +955,7 @@ describe("session command vertical slice", () => {
       sessionId: "ses_remembered_current",
       worktree: {
         id: "wt_web_remembered_current",
-        path: worktreePath,
+        path: currentWorktreePath,
       },
     });
     expect(fixture.core.getSnapshot().rows[0]?.agent).toMatchObject({
