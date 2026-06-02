@@ -1,6 +1,6 @@
 # Manual Smoke Enablement
 
-Phase 11.5 makes the current rebuild runnable enough for direct terminal testing. It does not make the TUI complete. The purpose is to start the real observer, reconcile configured projects through the selected providers, inspect a snapshot, and launch the TUI shell from the same command surface.
+This is the current local manual smoke path for starting the observer, reconciling configured projects through selected providers, inspecting a snapshot, and launching the TUI from the same command surface.
 
 ## Build
 
@@ -59,7 +59,7 @@ worktree_provider = "worktrunk"
 
 and it uses `worktree.worktrunk.command`, `WOSM_WORKTRUNK_BIN`, or `wt` in that order.
 
-If `wt` is missing, `wosm doctor` reports `WORKTRUNK_UNAVAILABLE` with the attempted command and install hint. The TUI blocks the new-session prompt while the selected project's worktree provider is unavailable, so `n` should fail before it dispatches `session.create`.
+If `wt` is missing, `wosm doctor` reports `WORKTRUNK_UNAVAILABLE` with the attempted command and install hint. The TUI blocks the new-session prompt while the selected project's worktree provider is unavailable, so `N` should fail before it dispatches `session.create`.
 
 wosm can restrict each project to a managed Worktrunk directory under a shared root. This keeps `main`, Codex temporary worktrees, and sibling worktrees out of the main TUI rows while still letting diagnostics report orphaned terminal targets:
 
@@ -149,7 +149,7 @@ Then launch:
 wosm
 ```
 
-Outside tmux, no subcommand defaults to the full TUI. `wosm tui` always opens the full TUI explicitly. TUI startup performs one observer reconcile with reason `tui-startup` before rendering, so the first screen is based on a fresh snapshot.
+Outside tmux, bare `wosm` defaults to the full TUI. `wosm tui` always opens the full TUI explicitly. TUI startup performs one observer reconcile with reason `tui-startup` before rendering, so the first screen is based on a fresh snapshot.
 
 For TUI development, use the same command routing with a reloadable dev TUI:
 
@@ -181,7 +181,8 @@ pnpm wosm:reset
 Background-first create/start should keep the dashboard as the cockpit:
 
 ```text
-n  enter a branch name  Enter
+N  Enter
+N  E  edit the generated name  Enter  Enter
 ```
 
 Expected behavior:
@@ -191,7 +192,7 @@ Expected behavior:
 - A tmux workbench window opens in the background for that worktree.
 - The primary pane runs Codex from the worktree path; wosm should not visibly type a
   `cd ... && env ... codex ...` command into a shell.
-- Press the row slot number or Enter only when you explicitly want to focus that agent pane.
+- Press the visible row slot (`1-9/a-z`) only when you explicitly want to focus that agent pane.
 
 To reset stale local workbench state during manual smoke, clear the tmux workbench deliberately:
 
@@ -219,7 +220,7 @@ From inside the tmux workbench, popup navigation should behave like an overlay:
 wosm
 ```
 
-Inside tmux, bare `wosm` defaults to the popup dashboard. `wosm popup` is the explicit form, and `wosm tui` remains the full TUI. Select a focusable row with its numeric slot or Enter. On success, the popup closes and tmux lands in the selected worktree window's primary agent pane. If focus fails, the popup stays open and shows the SafeError message plus any diagnostic ID.
+Inside tmux, bare `wosm` defaults to the popup dashboard. `wosm popup` is the explicit form, and `wosm tui` remains the full TUI. Select a focusable row with its visible slot (`1-9/a-z`). On success, the popup closes and tmux lands in the selected worktree window's primary agent pane. If focus fails, the popup stays open and shows the SafeError message plus any diagnostic ID.
 
 wosm-created tmux workbench sessions set `mouse on`, `history-limit 100000`, and `set-clipboard on` on the workbench session so scrolling, mouse selection, and copy behavior are closer to a normal Ghostty terminal without changing global tmux defaults.
 
@@ -263,14 +264,11 @@ Exercise cleanup commands only against throwaway fake-provider state or an isola
 Worktrunk project. Do not manually test removal against an active repository or worktree that has
 uncommitted work you care about.
 
-For the fake-provider smoke config from [diagnostics.md](diagnostics.md), use the TUI cleanup keys on
+For the fake-provider smoke config from [diagnostics.md](diagnostics.md), use the TUI removal flow on
 disposable rows only:
 
 ```text
-a  close agent
-t  close terminal
-c  close all
-x  remove worktree
+X  choose a visible row slot  y
 ```
 
 The observer should reject dirty or active-agent worktree removal unless the confirmed command carries
@@ -302,7 +300,7 @@ The test uses a temporary project/worktree plus a temporary Codex shim that reco
 
 ## Real Dogfood E2E
 
-Phase 16 adds an opt-in product dogfood lane that drives the built `bin/wosm` CLI against real config TOML, a real observer process, real Unix socket, real SQLite file, real Worktrunk, real tmux, and real Codex. It uses a temporary clone of this repository and unique tmux/Worktrunk state, not the active checkout.
+The opt-in product dogfood lane drives the built `bin/wosm` CLI against real config TOML, a real observer process, real Unix socket, real SQLite file, real Worktrunk, real tmux, and real Codex. It uses a temporary clone of this repository and unique tmux/Worktrunk state, not the active checkout.
 
 ```bash
 pnpm build

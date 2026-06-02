@@ -1,6 +1,6 @@
 # wosm Diagnostics
 
-Phase 6 established the local diagnostic surface for fake-provider observer runs before real Worktrunk, tmux, Codex, or OpenCode integrations shipped. Phase 15 adds a derived, agent-readable evidence index and injected-failure tests for common local failures.
+This document describes the current local diagnostic surface for observer runs, provider health, debug bundles, redaction, retention, and derived evidence indexes.
 
 ## Commands
 
@@ -113,7 +113,7 @@ max_bundles = 10
 max_days = 30
 ```
 
-Phase 6 enforces file retention for logs and bundles created by this diagnostic surface. SQLite over-limit status is reported, but SQLite rows are not pruned in this phase.
+File retention is enforced for logs and bundles created by this diagnostic surface. SQLite over-limit status is reported, but SQLite rows are not pruned by this retention pass.
 
 ## Redaction
 

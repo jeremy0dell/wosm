@@ -67,7 +67,7 @@ Real failures must have enough evidence to triage from `doctor`, `snapshot --jso
 - `docs/system-dependencies.md` names required external tools and override env vars.
 - `tests/e2e/real-dogfood/README.md` lists real-lane flags, cleanup behavior, and triage files.
 - `docs/dogfood-checklist.md` reflects the current manual dogfood loop.
-- `docs/known-issues.md` lists accepted Phase 18 limitations.
+- `docs/known-issues.md` lists accepted current dogfood limitations.
 - `docs/release-notes/phase-18-dogfood-milestone.md` records the dogfood checkpoint.
 
 ## Release Notes Gate

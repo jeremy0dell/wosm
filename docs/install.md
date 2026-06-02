@@ -1,6 +1,6 @@
 # Install
 
-This Phase 18 dogfood path is for a local development checkout. wosm remains a private workspace package for this milestone; there is no public npm package or publish flow yet.
+This setup path is for a local development checkout. wosm remains a private workspace package for this milestone; there is no public npm package or publish flow yet.
 
 ## Requirements
 
@@ -8,7 +8,7 @@ This Phase 18 dogfood path is for a local development checkout. wosm remains a p
 - pnpm 11
 - Worktrunk `wt` for real Worktrunk workflows
 - tmux for the reference terminal provider and popup dogfood path
-- Codex or OpenCode only when running those real harness providers
+- Codex, Pi, or OpenCode only when running those real harness providers
 
 ## Fresh Checkout
 
