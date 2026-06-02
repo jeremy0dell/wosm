@@ -26,6 +26,10 @@ export type WriteRealWosmConfigOptions = {
   installOpenCodeHooks?: boolean;
   useLifecycleHooks?: boolean;
   tmuxSession?: string;
+  eventHook?: {
+    command: string;
+    args?: string[];
+  };
 };
 
 export async function writeRealWosmConfig(
@@ -66,6 +70,7 @@ export async function writeRealWosmConfig(
     `workbench_session = ${tomlString(tmuxSession)}`,
     "",
     ...harnessConfigLines(options, harnessProvider),
+    ...eventHookConfigLines(options),
     "[[projects]]",
     `id = ${tomlString(projectId)}`,
     'label = "wosm real dogfood"',
@@ -95,6 +100,24 @@ export async function writeRealWosmConfig(
     tmuxSession,
     projectId,
   };
+}
+
+function eventHookConfigLines(options: WriteRealWosmConfigOptions): string[] {
+  if (options.eventHook === undefined) {
+    return [];
+  }
+  return [
+    "[[hooks.event]]",
+    'id = "notify-agent-idle"',
+    'events = ["worktree.agentStateChanged"]',
+    `command = ${tomlString(options.eventHook.command)}`,
+    `args = [${(options.eventHook.args ?? []).map(tomlString).join(", ")}]`,
+    "timeout_ms = 3000",
+    "",
+    "[hooks.event.filter]",
+    'agent_state = "idle"',
+    "",
+  ];
 }
 
 function harnessConfigLines(

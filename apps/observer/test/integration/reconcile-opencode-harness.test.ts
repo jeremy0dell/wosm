@@ -117,6 +117,42 @@ describe("observer reconcile with OpenCode harness", () => {
       source: "harness_event",
       updatedAt: "2026-05-20T12:00:01.000Z",
     });
+    const stateEvents = eventBus
+      .subscribe({ type: "worktree.agentStateChanged" })
+      [Symbol.asyncIterator]();
+    await api.ingestHookEvent({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      hookId: "hook_opencode_idle",
+      provider: "opencode",
+      kind: "harness",
+      event: "session.status",
+      receivedAt: "2026-05-20T12:00:02.000Z",
+      projectId: "web",
+      worktreeId: "wt_web_task",
+      sessionId: "ses_web_task",
+      payload: {
+        event_type: "session.status",
+        cwd: "/tmp/wosm/web/task",
+        opencode_session_id: "opencode_session_123",
+        status_type: "idle",
+        wosm_project_id: "web",
+        wosm_worktree_id: "wt_web_task",
+        wosm_session_id: "ses_web_task",
+        wosm_terminal_target_id: "tmux:wosm:@1:%2",
+      },
+    });
+    await api.reconcile("opencode-idle-reconcile");
+    await expect(stateEvents.next()).resolves.toMatchObject({
+      value: {
+        type: "worktree.agentStateChanged",
+        worktreeId: "wt_web_task",
+        agent: expect.objectContaining({
+          harness: "opencode",
+          state: "idle",
+          reason: "OpenCode session status is idle.",
+        }),
+      },
+    });
     await expect(persistence.listProviderObservations()).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({

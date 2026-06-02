@@ -246,6 +246,7 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       }
     }
 
+    const previousSnapshot = options.core.getSnapshot();
     const coreReconcileStartedAt = Date.now();
     const result = await runRuntimeBoundary(
       {
@@ -271,6 +272,9 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       at: result.value.generatedAt,
       changed: 0,
     };
+    for (const agentEvent of agentStateChangedEventsFromReconcile(previousSnapshot, result.value)) {
+      options.eventBus.publish(agentEvent);
+    }
     options.eventBus.publish(event);
     publishMs = elapsedMs(publishStartedAt);
     if (metadataRefresh !== undefined) {
@@ -462,4 +466,32 @@ async function logReconcileProfile(
     return;
   }
   await logger?.info("Reconcile profile.", profile);
+}
+
+export function agentStateChangedEventsFromReconcile(
+  before: WosmSnapshot,
+  after: WosmSnapshot,
+): WosmEvent[] {
+  const previousAgents = new Map(before.rows.map((row) => [row.id, row.agent]));
+  const events: WosmEvent[] = [];
+  for (const row of after.rows) {
+    const previous = previousAgents.get(row.id);
+    if (!agentStateChanged(previous, row.agent)) {
+      continue;
+    }
+    const event: WosmEvent = {
+      type: "worktree.agentStateChanged",
+      worktreeId: row.id,
+    };
+    if (row.agent !== undefined) event.agent = row.agent;
+    events.push(event);
+  }
+  return events;
+}
+
+function agentStateChanged(
+  left: WosmSnapshot["rows"][number]["agent"],
+  right: WosmSnapshot["rows"][number]["agent"],
+): boolean {
+  return left !== undefined && left.state !== right?.state;
 }
