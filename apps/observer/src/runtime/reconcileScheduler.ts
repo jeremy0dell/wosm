@@ -8,6 +8,16 @@ export type CreateReconcileSchedulerOptions = {
   reconcile(reason: string): Promise<unknown>;
   debounceMs?: number;
   onError?: (error: unknown) => Promise<void> | void;
+  onFlushFinish?: (profile: ReconcileSchedulerFlushProfile) => Promise<void> | void;
+};
+
+export type ReconcileSchedulerFlushProfile = {
+  reason: string;
+  queuedCount: number;
+  queuedWhileRunning: number;
+  waitMs: number;
+  durationMs: number;
+  queuedAfter: number;
 };
 
 const defaultDebounceMs = 100;
@@ -18,10 +28,14 @@ export function createReconcileScheduler(
   const debounceMs = options.debounceMs ?? defaultDebounceMs;
   let running = false;
   let timerScheduled = false;
+  let firstQueuedAt: number | undefined;
   const queuedReasons: string[] = [];
 
   return {
     request: (reason) => {
+      if (queuedReasons.length === 0) {
+        firstQueuedAt = Date.now();
+      }
       queuedReasons.push(reason);
       if (running || timerScheduled) {
         return;
@@ -51,12 +65,25 @@ export function createReconcileScheduler(
     if (reasons.length === 0) {
       return;
     }
+    const queuedAt = firstQueuedAt;
+    firstQueuedAt = undefined;
+    const reason = summarizeReasons(reasons);
+    const startedAt = Date.now();
 
     running = true;
     try {
-      await options.reconcile(summarizeReasons(reasons));
+      await options.reconcile(reason);
     } finally {
+      const queuedAfter = queuedReasons.length;
       running = false;
+      reportFlushFinish({
+        reason,
+        queuedCount: reasons.length,
+        queuedWhileRunning: queuedAfter,
+        waitMs: queuedAt === undefined ? 0 : Math.max(0, startedAt - queuedAt),
+        durationMs: Math.max(0, Date.now() - startedAt),
+        queuedAfter,
+      });
       if (queuedReasons.length > 0 && !timerScheduled) {
         scheduleFlush();
       }
@@ -68,6 +95,13 @@ export function createReconcileScheduler(
       return;
     }
     void Promise.resolve(options.onError(error)).catch(() => undefined);
+  }
+
+  function reportFlushFinish(profile: ReconcileSchedulerFlushProfile): void {
+    if (options.onFlushFinish === undefined) {
+      return;
+    }
+    void Promise.resolve(options.onFlushFinish(profile)).catch(() => undefined);
   }
 }
 
