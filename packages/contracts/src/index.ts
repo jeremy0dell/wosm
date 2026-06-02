@@ -3,6 +3,7 @@ export * from "./diagnostics.js";
 export * from "./errors.js";
 export * from "./events.js";
 export * from "./featureFlags.js";
+export * from "./harnessIngress.js";
 export * from "./harnessTerminalBinding.js";
 export * from "./hooks.js";
 export * from "./ids.js";

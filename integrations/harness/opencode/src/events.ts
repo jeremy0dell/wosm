@@ -13,6 +13,7 @@ import {
   OpenCodeCompactEventSchema,
   OpenCodeEventTypeSchema,
   observedPathIsSameOrInside,
+  openCodeIngressRuleForEventType,
   sameObservedPath,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
@@ -71,7 +72,10 @@ export function normalizeOpenCodeRawEvent(
     observedAt,
     providerData: providerDataFromOpenCodeEvent(event),
   };
-  const status = statusFromOpenCodeEvent(event, observedAt);
+  const status =
+    openCodeIngressRuleForEventType(event.event_type) !== undefined
+      ? statusFromOpenCodeEvent(event, observedAt)
+      : undefined;
   if (status !== undefined) {
     observation.status = status;
   }
@@ -136,7 +140,10 @@ export function openCodeHookPayloadToHarnessEventReport(
     eventType: event.event_type,
     observedAt: input.observedAt,
   };
-  const status = statusFromOpenCodeEvent(event, input.observedAt);
+  const status =
+    openCodeIngressRuleForEventType(event.event_type) !== undefined
+      ? statusFromOpenCodeEvent(event, input.observedAt)
+      : undefined;
   if (status !== undefined) {
     report.status = status;
   }

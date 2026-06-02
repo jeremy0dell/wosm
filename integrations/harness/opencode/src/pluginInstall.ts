@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { openCodeForwardedEventTypes, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 
 export const OPENCODE_WOSM_PLUGIN_NAME = "wosm-agent-state.js";
 export const OPENCODE_WOSM_PLUGIN_MARKER = "wosm-opencode-observer-plugin:v1";
@@ -175,6 +175,7 @@ const schemaVersion = ${JSON.stringify(WOSM_SCHEMA_VERSION)};
 const fallbackSocketPath = ${JSON.stringify(observerSocketPath)};
 const fallbackStateDir = ${JSON.stringify(stateDir)};
 const fallbackSpoolDir = ${JSON.stringify(hookSpoolDir)};
+const sentOpenCodeEventTypes = new Set(${JSON.stringify(openCodeForwardedEventTypes)});
 
 export const WosmObserverPlugin = async ({ directory, worktree }) => {
   return {
@@ -196,30 +197,6 @@ export const WosmObserverPlugin = async ({ directory, worktree }) => {
 function isWosmOpenCodeSession(env) {
   return env.WOSM_HARNESS_PROVIDER === "opencode" && stringValue(env.WOSM_WORKTREE_ID) !== undefined;
 }
-
-const sentOpenCodeEventTypes = new Set([
-  "command.executed",
-  "permission.asked",
-  "permission.replied",
-  "question.asked",
-  "question.rejected",
-  "question.replied",
-  "session.created",
-  "session.deleted",
-  "session.error",
-  "session.idle",
-  "session.next.prompted",
-  "session.next.step.ended",
-  "session.next.step.failed",
-  "session.next.step.started",
-  "session.next.tool.called",
-  "session.next.tool.failed",
-  "session.next.tool.success",
-  "session.status",
-  "tool.execute.after",
-  "tool.execute.before",
-  "tui.command.execute",
-]);
 
 function shouldSendOpenCodeEvent(event) {
   const eventType = stringValue(event?.type);

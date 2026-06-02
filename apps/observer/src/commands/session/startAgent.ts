@@ -4,6 +4,7 @@ import type {
   WorktreeObservation,
   WorktreeRow,
 } from "@wosm/contracts";
+import { sameObservedPath } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
 import type { ObserverPersistence } from "../../persistence/index.js";
@@ -307,7 +308,10 @@ async function rememberedHarnessProviderForWorktree(input: {
   ]);
   const matchingWorktreeIds = new Set([input.worktreeId]);
   for (const worktree of worktrees) {
-    if (worktree.projectId === input.projectId && worktree.path === input.worktreePath) {
+    if (
+      worktree.projectId === input.projectId &&
+      sameObservedPath(worktree.path, input.worktreePath)
+    ) {
       matchingWorktreeIds.add(worktree.id);
     }
   }
