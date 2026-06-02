@@ -55,7 +55,11 @@ describe("CLI event hook commands", () => {
     expect(after).toContain('id = "notify-agent-idle"');
     expect(after).toContain('events = ["worktree.agentStateChanged"]');
     expect(after).toContain('command = "wosm"');
-    expect(after).toContain('args = ["notify", "turn-completion"]');
+    expect(after).toContain(
+      `args = ["--config", ${JSON.stringify(configPath)}, "notify", "turn-completion"]`,
+    );
+    expect(after).not.toContain("[hooks.event.filter]");
+    expect(after).not.toContain('agent_state = "idle"');
 
     const doctor = await runCli(["--config", configPath, "hooks", "doctor", "event"], { env });
     expect(doctor).toMatchObject({
@@ -66,7 +70,7 @@ describe("CLI event hook commands", () => {
         installed: true,
         commandCheck: {
           status: "ok",
-          command: "wosm notify turn-completion",
+          command: `wosm --config ${configPath} notify turn-completion`,
         },
       },
     });
@@ -97,7 +101,7 @@ describe("CLI event hook commands", () => {
         installed: true,
         commandCheck: {
           status: "warn",
-          command: "wosm notify turn-completion",
+          command: `wosm --config ${configPath} notify turn-completion`,
         },
       },
     });

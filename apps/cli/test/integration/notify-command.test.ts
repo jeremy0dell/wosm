@@ -2,15 +2,26 @@ import { runCli } from "@wosm/cli";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 
+type ExternalCommandCall = {
+  command: string;
+  args: string[];
+  timeoutMs?: number | undefined;
+};
+
 describe("CLI notify command", () => {
-  it("sends a platform notification for idle agent state events", async () => {
-    const calls: Array<{ command: string; args: string[] }> = [];
-    const result = await runCli(["notify", "turn-completion"], {
-      stdin: JSON.stringify(invocation("idle")),
+  it("plays a sound and sends a clickable terminal-notifier notification for idle agent state events", async () => {
+    const calls: ExternalCommandCall[] = [];
+    const result = await runCli(["--config", "/tmp/wosm-test.toml", "notify", "turn-completion"], {
+      stdin: JSON.stringify(invocation("idle", { sessionId: "ses_web_task" })),
       notifyDeps: {
+        cliCommandParts: ["wosm-test"],
         platform: "darwin",
         commandRunner: async (input) => {
-          calls.push({ command: input.command, args: input.args ?? [] });
+          calls.push({
+            command: input.command,
+            args: input.args ?? [],
+            timeoutMs: input.timeoutMs,
+          });
           return {
             command: input.command,
             args: input.args ?? [],
@@ -26,21 +37,134 @@ describe("CLI notify command", () => {
       code: 0,
       output: {
         notified: true,
-        title: "Agent turn complete",
+        title: "ses_web_task finished",
+        notifier: "terminal-notifier",
+        sound: "played",
+        clickAction: true,
       },
     });
-    expect(calls).toEqual([
-      {
-        command: "osascript",
-        args: [
-          "-e",
-          'display notification "Codex turn completed." with title "Agent turn complete"',
-        ],
-      },
-    ]);
+    expect(calls[0]).toEqual({
+      command: "/usr/bin/afplay",
+      args: ["/System/Library/Sounds/Glass.aiff"],
+      timeoutMs: 5000,
+    });
+    expect(calls[1]).toMatchObject({
+      command: "terminal-notifier",
+      args: [
+        "-title",
+        "ses_web_task finished",
+        "-message",
+        "Codex turn completed.",
+        "-group",
+        "wosm:ses_web_task",
+        "-execute",
+        expect.any(String),
+      ],
+    });
+    const executeCommand = calls[1]?.args[7];
+    expect(executeCommand).toContain(
+      "'wosm-test' '--config' '/tmp/wosm-test.toml' 'command' 'dispatch'",
+    );
+    expect(executeCommand).toContain('"type":"terminal.focus"');
+    expect(executeCommand).toContain('"sessionId":"ses_web_task"');
   });
 
-  it("skips non-idle agent state events", async () => {
+  it("falls back to osascript when terminal-notifier is not available", async () => {
+    const calls: ExternalCommandCall[] = [];
+    const result = await runCli(["notify", "turn-completion"], {
+      stdin: JSON.stringify(invocation("idle")),
+      notifyDeps: {
+        platform: "darwin",
+        commandRunner: async (input) => {
+          calls.push({
+            command: input.command,
+            args: input.args ?? [],
+            timeoutMs: input.timeoutMs,
+          });
+          if (input.command === "terminal-notifier") {
+            throw new Error("not installed");
+          }
+          return {
+            command: input.command,
+            args: input.args ?? [],
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+          };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      code: 0,
+      output: {
+        notified: true,
+        title: "wt_web_task finished",
+        notifier: "osascript",
+        clickAction: false,
+      },
+    });
+    expect(calls.map((call) => call.command)).toEqual([
+      "/usr/bin/afplay",
+      "terminal-notifier",
+      "/usr/bin/osascript",
+    ]);
+    expect(calls[2]).toEqual({
+      command: "/usr/bin/osascript",
+      args: [
+        "-e",
+        "on run argv",
+        "-e",
+        "display notification (item 2 of argv) with title (item 1 of argv)",
+        "-e",
+        "end run",
+        "wt_web_task finished",
+        "Codex turn completed.",
+      ],
+      timeoutMs: 3000,
+    });
+  });
+
+  it("labels attention notifications and uses the attention sound", async () => {
+    const calls: ExternalCommandCall[] = [];
+    const result = await runCli(["notify", "turn-completion"], {
+      stdin: JSON.stringify(invocation("needs_attention")),
+      notifyDeps: {
+        cliCommandParts: ["wosm-test"],
+        platform: "darwin",
+        commandRunner: async (input) => {
+          calls.push({
+            command: input.command,
+            args: input.args ?? [],
+            timeoutMs: input.timeoutMs,
+          });
+          return {
+            command: input.command,
+            args: input.args ?? [],
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+          };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      code: 0,
+      output: {
+        notified: true,
+        title: "wt_web_task needs attention",
+      },
+    });
+    expect(calls[0]).toEqual({
+      command: "/usr/bin/afplay",
+      args: ["/System/Library/Sounds/Ping.aiff"],
+      timeoutMs: 5000,
+    });
+    expect(calls[1]?.args).toContain("wt_web_task needs attention");
+  });
+
+  it("skips non-notifiable agent state events", async () => {
     const result = await runCli(["notify", "turn-completion"], {
       stdin: JSON.stringify(invocation("working")),
       notifyDeps: { platform: "darwin" },
@@ -51,13 +175,31 @@ describe("CLI notify command", () => {
       output: {
         notified: false,
         skipped: true,
-        reason: "agent-not-idle",
+        reason: "agent-not-notifiable",
       },
     });
   });
 });
 
-function invocation(state: "idle" | "working") {
+function invocation(
+  state: "idle" | "working" | "needs_attention",
+  options: { sessionId?: string } = {},
+) {
+  const agent: Record<string, unknown> = {
+    harness: "codex",
+    state,
+    confidence: "high",
+    reason:
+      state === "idle"
+        ? "Codex turn completed."
+        : state === "needs_attention"
+          ? "Codex needs input."
+          : "Codex is working.",
+    updatedAt: "2026-06-01T12:00:00.000Z",
+  };
+  if (options.sessionId !== undefined) {
+    agent.sessionId = options.sessionId;
+  }
   return {
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: "notify-agent-idle",
@@ -65,13 +207,7 @@ function invocation(state: "idle" | "working") {
     event: {
       type: "worktree.agentStateChanged",
       worktreeId: "wt_web_task",
-      agent: {
-        harness: "codex",
-        state,
-        confidence: "high",
-        reason: state === "idle" ? "Codex turn completed." : "Codex is working.",
-        updatedAt: "2026-06-01T12:00:00.000Z",
-      },
+      agent,
     },
   };
 }
