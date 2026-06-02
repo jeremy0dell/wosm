@@ -124,7 +124,7 @@ export async function runCli(
 
   if (command === "notify") {
     const stdin = options.stdin ?? (await readStdinIfAvailable());
-    const result = await runNotifyCommand(commandArgs, { stdin }, options.notifyDeps);
+    const result = await runNotifyCommand(commandArgs, { stdin, configPath }, options.notifyDeps);
     return { code: 0, output: result };
   }
 

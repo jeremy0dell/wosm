@@ -53,6 +53,7 @@ type ParsedFlags = {
 
 const builtInHookName = "notify-turn-completion";
 const builtInHookId = "notify-agent-idle";
+const builtInHookTimeoutMs = 8000;
 
 async function planBuiltInEventHook(
   options: EventHooksCommandOptions,
@@ -72,7 +73,7 @@ async function planBuiltInEventHook(
       after: before,
     };
   }
-  const after = `${before.trimEnd()}\n\n${builtInEventHookToml()}\n`;
+  const after = `${before.trimEnd()}\n\n${builtInEventHookToml(configPath)}\n`;
   return {
     provider: "event",
     hookId: builtInHookId,
@@ -228,17 +229,15 @@ function envForExternalCommand(env: CliEnv | undefined): Record<string, string> 
   return result;
 }
 
-function builtInEventHookToml(): string {
+function builtInEventHookToml(configPath: string): string {
+  const args = ["--config", configPath, "notify", "turn-completion"];
   return [
     "[[hooks.event]]",
     `id = ${JSON.stringify(builtInHookId)}`,
     'events = ["worktree.agentStateChanged"]',
     'command = "wosm"',
-    'args = ["notify", "turn-completion"]',
-    "timeout_ms = 3000",
-    "",
-    "[hooks.event.filter]",
-    'agent_state = "idle"',
+    `args = [${args.map((arg) => JSON.stringify(arg)).join(", ")}]`,
+    `timeout_ms = ${builtInHookTimeoutMs}`,
   ].join("\n");
 }
 
