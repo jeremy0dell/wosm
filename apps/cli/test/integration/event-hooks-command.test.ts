@@ -8,7 +8,7 @@ describe("CLI event hook commands", () => {
   it("plans and installs the built-in turn completion notification hook", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-cli-event-hooks-"));
     const configPath = await writeConfig(root);
-    const env = await envWithFakeCommand(root, "osascript", 0);
+    const env = await envWithFakeCommand(root, "wosm");
 
     const plan = await runCli([
       "--config",
@@ -54,8 +54,8 @@ describe("CLI event hook commands", () => {
     const after = await readFile(configPath, "utf8");
     expect(after).toContain('id = "notify-agent-idle"');
     expect(after).toContain('events = ["worktree.agentStateChanged"]');
-    expect(after).toContain('command = "osascript"');
-    expect(after).toContain("display notification");
+    expect(after).toContain('command = "wosm"');
+    expect(after).toContain('args = ["notify", "turn-completion"]');
 
     const doctor = await runCli(["--config", configPath, "hooks", "doctor", "event"], { env });
     expect(doctor).toMatchObject({
@@ -66,7 +66,7 @@ describe("CLI event hook commands", () => {
         installed: true,
         commandCheck: {
           status: "ok",
-          command: expect.stringContaining("osascript -e"),
+          command: "wosm notify turn-completion",
         },
       },
     });
@@ -97,7 +97,7 @@ describe("CLI event hook commands", () => {
         installed: true,
         commandCheck: {
           status: "warn",
-          command: expect.stringContaining("osascript -e"),
+          command: "wosm notify turn-completion",
         },
       },
     });

@@ -319,7 +319,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         }
         process.exit(result.code);
       }
-      process.exit(result.code);
+      process.exitCode = result.code;
     })
     .catch((error) => {
       process.stderr.write(`${formatCliError(error)}\n`);

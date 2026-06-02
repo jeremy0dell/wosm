@@ -400,7 +400,7 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
   }
 }
 
-function agentStateChangedEventsFromReconcile(
+export function agentStateChangedEventsFromReconcile(
   before: WosmSnapshot,
   after: WosmSnapshot,
 ): WosmEvent[] {
@@ -408,7 +408,7 @@ function agentStateChangedEventsFromReconcile(
   const events: WosmEvent[] = [];
   for (const row of after.rows) {
     const previous = previousAgents.get(row.id);
-    if (sameAgent(previous, row.agent)) {
+    if (!agentStateChanged(previous, row.agent)) {
       continue;
     }
     const event: WosmEvent = {
@@ -421,9 +421,9 @@ function agentStateChangedEventsFromReconcile(
   return events;
 }
 
-function sameAgent(
+function agentStateChanged(
   left: WosmSnapshot["rows"][number]["agent"],
   right: WosmSnapshot["rows"][number]["agent"],
 ): boolean {
-  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+  return left !== undefined && left.state !== right?.state;
 }
