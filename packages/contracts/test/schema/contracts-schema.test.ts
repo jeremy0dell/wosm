@@ -6,6 +6,8 @@ import {
   createFeatureFlagConfigSchema,
   ErrorEnvelopeSchema,
   EventFilterSchema,
+  EventHookConfigSchema,
+  EventHookInvocationSchema,
   FeatureFlagConfigSchema,
   type FeatureFlagDefinitionsMap,
   HarnessCapabilitiesSchema,
@@ -865,6 +867,47 @@ describe("Phase 1 contract schemas", () => {
         scheduledReconcile: true,
       },
       "harness event report receipt",
+    );
+
+    const eventHookConfig = {
+      id: "notify-agent-idle",
+      events: ["worktree.agentStateChanged"],
+      command: "wosm",
+      args: ["notify", "turn-completion"],
+      timeoutMs: 3000,
+      filter: {
+        agentState: "idle",
+        harness: "codex",
+      },
+    };
+    expectParses(EventHookConfigSchema, eventHookConfig, "event hook config");
+    expectFails(
+      EventHookConfigSchema,
+      {
+        ...eventHookConfig,
+        events: ["unknown.event"],
+      },
+      "event hook config rejects unknown event type",
+    );
+    expectParses(
+      EventHookInvocationSchema,
+      {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        hookId: "notify-agent-idle",
+        observedAt: "2026-05-20T12:02:00.000Z",
+        event: {
+          type: "worktree.agentStateChanged",
+          worktreeId: "wt_web_task",
+          agent: {
+            harness: "codex",
+            state: "idle",
+            confidence: "high",
+            reason: "Codex turn completed.",
+            updatedAt: "2026-05-20T12:02:00.000Z",
+          },
+        },
+      },
+      "event hook invocation",
     );
 
     expectParses(

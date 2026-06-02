@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "./boundary.js";
 import {
@@ -34,6 +37,7 @@ export type ExternalCommandInput = {
   env?: Record<string, string>;
   timeoutMs?: number;
   maxOutputChars?: number;
+  stdin?: string;
   signal?: AbortSignal;
   allowedExitCodes?: number[];
 };
@@ -95,6 +99,9 @@ export async function runExternalCommand(
 export async function nodeExternalCommandRunner(
   input: ExternalCommandInput,
 ): Promise<ExternalCommandResult> {
+  if (input.stdin !== undefined) {
+    return nodeExternalCommandRunnerWithStdin(input);
+  }
   const args = input.args ?? [];
   const result = await execFileAsync(input.command, args, {
     cwd: input.cwd,
@@ -109,6 +116,47 @@ export async function nodeExternalCommandRunner(
     stderr: result.stderr,
     exitCode: 0,
   };
+}
+
+async function nodeExternalCommandRunnerWithStdin(
+  input: ExternalCommandInput,
+): Promise<ExternalCommandResult> {
+  const args = input.args ?? [];
+  const stdin = input.stdin;
+  if (stdin === undefined) {
+    throw new Error("External command stdin runner requires stdin input.");
+  }
+  const tempDir = await mkdtemp(join(tmpdir(), "wosm-command-stdin-"));
+  const stdinPath = join(tempDir, "stdin");
+  await writeFile(stdinPath, stdin, "utf8");
+  try {
+    const result = await execFileAsync(
+      "sh",
+      [
+        "-c",
+        'stdin_path=$1; shift; exec "$@" < "$stdin_path"',
+        "sh",
+        stdinPath,
+        input.command,
+        ...args,
+      ],
+      {
+        cwd: input.cwd,
+        env: input.env === undefined ? process.env : { ...process.env, ...input.env },
+        maxBuffer: input.maxOutputChars ?? 64 * 1024,
+        signal: input.signal,
+      },
+    );
+    return {
+      command: input.command,
+      args,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: 0,
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 }
 
 export function createFakeExternalCommandRunner(

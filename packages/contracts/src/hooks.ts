@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SafeErrorSchema } from "./errors.js";
+import { WosmEventSchema, WosmEventTypeSchema } from "./events.js";
 import {
   HarnessRunIdSchema,
   ProjectIdSchema,
@@ -210,3 +211,36 @@ export const HarnessEventReportSpoolRecordSchema = z
   .strict();
 
 export type HarnessEventReportSpoolRecord = z.infer<typeof HarnessEventReportSpoolRecordSchema>;
+
+export const EventHookFilterSchema = z
+  .object({
+    agentState: ObservedStatusSchema.shape.value.optional(),
+    harness: ProviderIdSchema.optional(),
+  })
+  .strict();
+
+export type EventHookFilter = z.infer<typeof EventHookFilterSchema>;
+
+export const EventHookConfigSchema = z
+  .object({
+    id: nonEmptyStringSchema,
+    events: z.array(WosmEventTypeSchema).min(1),
+    command: nonEmptyStringSchema,
+    args: z.array(nonEmptyStringSchema).optional(),
+    timeoutMs: z.number().int().positive().optional(),
+    filter: EventHookFilterSchema.optional(),
+  })
+  .strict();
+
+export type EventHookConfig = z.infer<typeof EventHookConfigSchema>;
+
+export const EventHookInvocationSchema = z
+  .object({
+    schemaVersion: SchemaVersionSchema,
+    hookId: nonEmptyStringSchema,
+    observedAt: TimestampSchema,
+    event: WosmEventSchema,
+  })
+  .strict();
+
+export type EventHookInvocation = z.infer<typeof EventHookInvocationSchema>;

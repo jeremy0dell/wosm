@@ -4,6 +4,8 @@ export * from "./commands/configDiagnostics.js";
 export * from "./commands/debugBundle.js";
 export * from "./commands/debugTrace.js";
 export * from "./commands/doctor.js";
+export * from "./commands/eventHooks.js";
+export * from "./commands/notify.js";
 export * from "./commands/observer.js";
 export * from "./commands/opencodeHooks.js";
 export * from "./commands/popup.js";

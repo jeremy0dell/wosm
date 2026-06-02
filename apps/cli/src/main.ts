@@ -13,6 +13,8 @@ import {
 import { runDebugBundleCommand } from "./commands/debugBundle.js";
 import { runDebugTraceCommand } from "./commands/debugTrace.js";
 import { runDoctorCommand } from "./commands/doctor.js";
+import { runEventHooksCommand } from "./commands/eventHooks.js";
+import { type NotifyCommandDeps, runNotifyCommand } from "./commands/notify.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
 import { runOpenCodeHooksCommand } from "./commands/opencodeHooks.js";
 import { type PopupCommandDeps, runPopupCommand } from "./commands/popup.js";
@@ -20,6 +22,7 @@ import { runReconcileCommand } from "./commands/reconcile.js";
 import { runSnapshotCommand } from "./commands/snapshot.js";
 import { runTuiCommand, type TuiCommandDeps } from "./commands/tui.js";
 import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
+import type { CliEnv } from "./env.js";
 import type { ObserverProcessDeps } from "./observerProcess.js";
 import { readStdinIfAvailable } from "./stdin.js";
 
@@ -30,10 +33,11 @@ export type CliRunResult = {
 
 export type CliRunOptions = {
   stdin?: string | undefined;
-  env?: Record<string, string | undefined> | undefined;
+  env?: CliEnv | undefined;
   observerDeps?: ObserverProcessDeps | undefined;
   popupDeps?: PopupCommandDeps | undefined;
   tuiDeps?: TuiCommandDeps | undefined;
+  notifyDeps?: NotifyCommandDeps | undefined;
 };
 
 const configBackedCommands = [
@@ -48,7 +52,7 @@ const configBackedCommands = [
   "worktrunk",
 ] as const;
 
-const topLevelCommands = ["debug", ...configBackedCommands] as const;
+const topLevelCommands = ["debug", "notify", ...configBackedCommands] as const;
 
 export async function runCli(
   argv = process.argv.slice(2),
@@ -116,6 +120,12 @@ export async function runCli(
       config,
     });
     return { code: result.matched ? 0 : 1, output: result };
+  }
+
+  if (command === "notify") {
+    const stdin = options.stdin ?? (await readStdinIfAvailable());
+    const result = await runNotifyCommand(commandArgs, { stdin }, options.notifyDeps);
+    return { code: 0, output: result };
   }
 
   if (command === "command") {
@@ -235,7 +245,13 @@ export async function runCli(
                 config,
                 env: options.env,
               })
-            : undefined;
+            : provider === "event"
+              ? await runEventHooksCommand([hookAction, ...commandArgs.slice(2)], {
+                  config,
+                  configPath: resolvedConfigPath,
+                  env: options.env,
+                })
+              : undefined;
     if (result === undefined) {
       throw new Error(`Unknown hook provider: ${provider ?? ""}`);
     }
@@ -245,18 +261,15 @@ export async function runCli(
   throw new Error(`Unknown command: ${command ?? ""}`);
 }
 
-function defaultCommand(env: Record<string, string | undefined>): "popup" | "tui" {
+function defaultCommand(env: CliEnv): "popup" | "tui" {
   return env.TMUX === undefined || env.TMUX.length === 0 ? "tui" : "popup";
 }
 
-function defaultCommandEnv(options: CliRunOptions): Record<string, string | undefined> {
+function defaultCommandEnv(options: CliRunOptions): CliEnv {
   return options.env ?? options.popupDeps?.env ?? options.tuiDeps?.env ?? process.env;
 }
 
-function defaultPopupTuiCommand(
-  configPath: string | undefined,
-  env: Record<string, string | undefined> | undefined,
-): string {
+function defaultPopupTuiCommand(configPath: string | undefined, env: CliEnv | undefined): string {
   const command = nonEmptyString(env?.WOSM_TUI_COMMAND);
   const parts =
     command === undefined
@@ -269,9 +282,7 @@ function defaultPopupTuiCommand(
   return parts.join(" ");
 }
 
-function popupUiSessionNameFromEnv(
-  env: Record<string, string | undefined> | undefined,
-): string | undefined {
+function popupUiSessionNameFromEnv(env: CliEnv | undefined): string | undefined {
   return nonEmptyString(env?.WOSM_TUI_SESSION_NAME);
 }
 
