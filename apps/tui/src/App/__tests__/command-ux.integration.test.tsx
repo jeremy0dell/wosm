@@ -182,7 +182,7 @@ describe("TUI command UX", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => service.dispatched.length === 1);
@@ -221,7 +221,7 @@ describe("TUI command UX", () => {
     );
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => service.dispatched.length === 1);
@@ -244,7 +244,7 @@ describe("TUI command UX", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => service.dispatched.length === 1);
@@ -265,7 +265,7 @@ describe("TUI command UX", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
@@ -281,7 +281,7 @@ describe("TUI command UX", () => {
     const instance = render(<App initialSnapshot={snapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => service.dispatched.length === 1);
@@ -606,11 +606,11 @@ describe("TUI command UX", () => {
     const instance = render(<App initialSnapshot={blockedSnapshot} service={service} />);
 
     instance.stdin.write("N");
-    await waitFor(() => instance.lastFrame()?.includes("New Session") === true);
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
     await waitFor(() => instance.lastFrame()?.includes("Worktrunk is not available.") === true);
-    expect(instance.lastFrame()).not.toContain("New Session");
+    expect(instance.lastFrame()).not.toContain("Create Session");
     expect(service.dispatched).toHaveLength(0);
     instance.unmount();
   });
@@ -804,7 +804,7 @@ describe("TUI command UX", () => {
     instance.stdin.write("x");
 
     await settle();
-    expect(instance.lastFrame()).not.toContain("New Session");
+    expect(instance.lastFrame()).not.toContain("Create Session");
     expect(instance.lastFrame()).not.toContain("remove slot:");
     expect(service.reconcileReasons).not.toContain("tui-refresh");
     expect(service.dispatched).toHaveLength(0);

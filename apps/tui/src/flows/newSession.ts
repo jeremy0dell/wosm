@@ -278,7 +278,7 @@ function reviewInputIntent(input: NewSessionInput): NewSessionInputIntent {
 }
 
 const reviewKeyIntents: Record<string, NewSessionInputIntent> = {
-  E: transitionIntent({ type: "editName" }),
+  N: transitionIntent({ type: "editName" }),
   P: transitionIntent({ type: "pickProject" }),
   A: transitionIntent({ type: "pickAgent" }),
 };
