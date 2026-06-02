@@ -29,6 +29,7 @@
     "@wosm/runtime": "workspace:*",
     "@wosm/scripted-harness": "workspace:*",
     "@wosm/tmux": "workspace:*",
-    "@wosm/worktrunk": "workspace:*"
+    "@wosm/worktrunk": "workspace:*",
+    "zod": "^4.1.12"
   }
 }
