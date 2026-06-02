@@ -25,6 +25,7 @@ describe("reconcile scheduler", () => {
     const firstStarted = deferred<void>();
     const scheduler = createReconcileScheduler({
       debounceMs: 0,
+      backlogDebounceMs: 0,
       reconcile: async (reason) => {
         reasons.push(reason);
         if (reasons.length === 1) {
@@ -73,6 +74,7 @@ describe("reconcile scheduler", () => {
     const firstStarted = deferred<void>();
     const scheduler = createReconcileScheduler({
       debounceMs: 0,
+      backlogDebounceMs: 0,
       reconcile: async () => {
         if (profiles.length === 0) {
           firstStarted.resolve();
@@ -106,6 +108,39 @@ describe("reconcile scheduler", () => {
       }),
     ]);
   });
+
+  it("waits for a backlog quiet period before follow-up reconcile", async () => {
+    const reasons: string[] = [];
+    const firstReconcile = deferred<void>();
+    const firstStarted = deferred<void>();
+    const scheduler = createReconcileScheduler({
+      debounceMs: 0,
+      backlogDebounceMs: 20,
+      reconcile: async (reason) => {
+        reasons.push(reason);
+        if (reasons.length === 1) {
+          firstStarted.resolve();
+          await firstReconcile.promise;
+        }
+      },
+    });
+
+    scheduler.request("hook:opencode:message.part.delta");
+    await firstStarted.promise;
+    scheduler.request("hook:opencode:message.part.delta");
+    firstReconcile.resolve();
+    await drainMicrotasks();
+
+    expect(reasons).toEqual(["hook:opencode:message.part.delta"]);
+
+    await sleep(30);
+    await drainMicrotasks();
+
+    expect(reasons).toEqual([
+      "hook:opencode:message.part.delta",
+      "hook:opencode:message.part.delta",
+    ]);
+  });
 });
 
 async function drainMicrotasks(): Promise<void> {
@@ -122,4 +157,8 @@ function deferred<T>() {
     reject = innerReject;
   });
   return { promise, resolve, reject };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
