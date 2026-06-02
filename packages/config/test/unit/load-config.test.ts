@@ -217,6 +217,51 @@ ${projectToml("web", root)}
     });
   });
 
+  it("loads generic observer event hooks", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[[hooks.event]]
+id = "notify-agent-idle"
+events = ["worktree.agentStateChanged"]
+command = "wosm"
+args = ["notify", "turn-completion"]
+timeout_ms = 3000
+
+[hooks.event.filter]
+agent_state = "idle"
+harness = "codex"
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.hooks?.event).toEqual([
+      {
+        id: "notify-agent-idle",
+        events: ["worktree.agentStateChanged"],
+        command: "wosm",
+        args: ["notify", "turn-completion"],
+        timeoutMs: 3000,
+        filter: {
+          agentState: "idle",
+          harness: "codex",
+        },
+      },
+    ]);
+  });
+
   it("normalizes an empty feature flag table without adding production flags", async () => {
     const tempDir = await makeTempDir();
     const root = await makeProjectRoot(tempDir, "web");
