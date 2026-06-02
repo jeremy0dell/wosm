@@ -58,6 +58,7 @@ describe("CLI event hook commands", () => {
     expect(after).toContain(
       `args = ["--config", ${JSON.stringify(configPath)}, "notify", "turn-completion"]`,
     );
+    expect(after).toContain("timeout_ms = 8000");
     expect(after).not.toContain("[hooks.event.filter]");
     expect(after).not.toContain('agent_state = "idle"');
 
