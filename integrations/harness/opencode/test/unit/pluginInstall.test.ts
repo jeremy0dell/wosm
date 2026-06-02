@@ -37,6 +37,9 @@ describe("OpenCode plugin setup", () => {
     expect(plan.after).toContain("shouldSendOpenCodeEvent");
     expect(plan.after).not.toContain('"message.part.delta"');
     expect(plan.after).not.toContain('"message.part.updated"');
+    expect(plan.after).toContain('"session.next.shell.started"');
+    expect(plan.after).toContain('"session.next.tool.progress"');
+    expect(plan.after).toContain('"session.next.tool.input.delta"');
     expect(plan.after).toContain("/tmp/wosm/run/observer.sock");
     await expect(readFile(pluginPath, "utf8")).rejects.toThrow();
   });
