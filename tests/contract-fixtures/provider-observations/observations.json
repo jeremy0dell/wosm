@@ -172,7 +172,7 @@
         "value": "needs_attention",
         "confidence": "high",
         "reason": "Harness reported approval requested.",
-        "source": "harness_hook",
+        "source": "harness_event",
         "updatedAt": "2026-05-20T12:00:00.000Z"
       },
       "rawEventType": "approval_requested",

@@ -35,7 +35,7 @@ export const ProviderHookEventSchema = z
 export type ProviderHookEvent = z.infer<typeof ProviderHookEventSchema>;
 export type ProviderHookKind = z.infer<typeof ProviderHookKindSchema>;
 
-export const HookReceiptSchema = z
+export const ProviderHookReceiptSchema = z
   .object({
     schemaVersion: SchemaVersionSchema,
     hookId: nonEmptyStringSchema,
@@ -51,7 +51,9 @@ export const HookReceiptSchema = z
   })
   .strict();
 
-export type HookReceipt = z.infer<typeof HookReceiptSchema>;
+export type ProviderHookReceipt = z.infer<typeof ProviderHookReceiptSchema>;
+export const HookReceiptSchema = ProviderHookReceiptSchema;
+export type HookReceipt = ProviderHookReceipt;
 
 export const HarnessEventReportCorrelationSchema = z
   .object({
@@ -108,7 +110,7 @@ export const HarnessEventReportReceiptSchema = z
 
 export type HarnessEventReportReceipt = z.infer<typeof HarnessEventReportReceiptSchema>;
 
-export const HookPayloadSummarySchema = z
+export const ProviderHookPayloadSummarySchema = z
   .object({
     present: z.boolean(),
     originalBytes: z.number().int().nonnegative().nullable(),
@@ -118,7 +120,9 @@ export const HookPayloadSummarySchema = z
   })
   .strict();
 
-export type HookPayloadSummary = z.infer<typeof HookPayloadSummarySchema>;
+export type ProviderHookPayloadSummary = z.infer<typeof ProviderHookPayloadSummarySchema>;
+export const HookPayloadSummarySchema = ProviderHookPayloadSummarySchema;
+export type HookPayloadSummary = ProviderHookPayloadSummary;
 
 export const WosmHookIdentityPayloadSchema = z
   .object({
@@ -140,7 +144,7 @@ export function parseWosmHookIdentityPayload(
   return result.success ? result.data : undefined;
 }
 
-export type HookScopeDecision =
+export type ProviderHookScopeDecision =
   | {
       action: "accept";
       reason: "not-required" | "wosm-env";
@@ -149,6 +153,7 @@ export type HookScopeDecision =
       action: "ignore";
       reason: "missing-wosm-env";
     };
+export type HookScopeDecision = ProviderHookScopeDecision;
 
 export type ProviderHookPayloadEnrichmentInput = {
   payload: unknown;
@@ -157,7 +162,7 @@ export type ProviderHookPayloadEnrichmentInput = {
 
 export type ProviderHookPayloadCompactionResult = {
   event: ProviderHookEvent;
-  payloadSummary: HookPayloadSummary;
+  payloadSummary: ProviderHookPayloadSummary;
 };
 
 export type HarnessEventReportResult =
@@ -172,7 +177,7 @@ export type HarnessEventReportResult =
 
 export type ProviderHookReportInput = {
   event: ProviderHookEvent;
-  payloadSummary: HookPayloadSummary;
+  payloadSummary: ProviderHookPayloadSummary;
   fallbackReportId: () => string;
 };
 
@@ -181,12 +186,12 @@ export type ProviderHookAdapter = {
   kind?: ProviderHookKind;
   normalizeEventName?: (event: string) => string;
   enrichPayload?: (input: ProviderHookPayloadEnrichmentInput) => unknown;
-  decideScope?: (event: ProviderHookEvent) => HookScopeDecision;
+  decideScope?: (event: ProviderHookEvent) => ProviderHookScopeDecision;
   compactPayload?: (event: ProviderHookEvent) => ProviderHookPayloadCompactionResult;
   toHarnessEventReport?: (input: ProviderHookReportInput) => HarnessEventReportResult;
 };
 
-export const HookSpoolRecordSchema = z
+export const ProviderHookSpoolRecordSchema = z
   .object({
     schemaVersion: SchemaVersionSchema,
     spoolId: nonEmptyStringSchema,
@@ -197,7 +202,9 @@ export const HookSpoolRecordSchema = z
   })
   .strict();
 
-export type HookSpoolRecord = z.infer<typeof HookSpoolRecordSchema>;
+export type ProviderHookSpoolRecord = z.infer<typeof ProviderHookSpoolRecordSchema>;
+export const HookSpoolRecordSchema = ProviderHookSpoolRecordSchema;
+export type HookSpoolRecord = ProviderHookSpoolRecord;
 
 export const HarnessEventReportSpoolRecordSchema = z
   .object({
@@ -212,29 +219,33 @@ export const HarnessEventReportSpoolRecordSchema = z
 
 export type HarnessEventReportSpoolRecord = z.infer<typeof HarnessEventReportSpoolRecordSchema>;
 
-export const EventHookFilterSchema = z
+export const ObserverEventHookFilterSchema = z
   .object({
     agentState: ObservedStatusSchema.shape.value.optional(),
     harness: ProviderIdSchema.optional(),
   })
   .strict();
 
-export type EventHookFilter = z.infer<typeof EventHookFilterSchema>;
+export type ObserverEventHookFilter = z.infer<typeof ObserverEventHookFilterSchema>;
+export const EventHookFilterSchema = ObserverEventHookFilterSchema;
+export type EventHookFilter = ObserverEventHookFilter;
 
-export const EventHookConfigSchema = z
+export const ObserverEventHookConfigSchema = z
   .object({
     id: nonEmptyStringSchema,
     events: z.array(WosmEventTypeSchema).min(1),
     command: nonEmptyStringSchema,
     args: z.array(nonEmptyStringSchema).optional(),
     timeoutMs: z.number().int().positive().optional(),
-    filter: EventHookFilterSchema.optional(),
+    filter: ObserverEventHookFilterSchema.optional(),
   })
   .strict();
 
-export type EventHookConfig = z.infer<typeof EventHookConfigSchema>;
+export type ObserverEventHookConfig = z.infer<typeof ObserverEventHookConfigSchema>;
+export const EventHookConfigSchema = ObserverEventHookConfigSchema;
+export type EventHookConfig = ObserverEventHookConfig;
 
-export const EventHookInvocationSchema = z
+export const ObserverEventHookInvocationSchema = z
   .object({
     schemaVersion: SchemaVersionSchema,
     hookId: nonEmptyStringSchema,
@@ -243,4 +254,6 @@ export const EventHookInvocationSchema = z
   })
   .strict();
 
-export type EventHookInvocation = z.infer<typeof EventHookInvocationSchema>;
+export type ObserverEventHookInvocation = z.infer<typeof ObserverEventHookInvocationSchema>;
+export const EventHookInvocationSchema = ObserverEventHookInvocationSchema;
+export type EventHookInvocation = ObserverEventHookInvocation;

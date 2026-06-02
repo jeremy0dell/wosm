@@ -1,4 +1,4 @@
-import { EventHookInvocationSchema, type WorktreeRow } from "@wosm/contracts";
+import { ObserverEventHookInvocationSchema, type WorktreeRow } from "@wosm/contracts";
 import { type ExternalCommandRunner, runExternalCommand } from "@wosm/runtime";
 
 export type NotifyCommandOptions = {
@@ -43,7 +43,7 @@ export async function runNotifyCommand(
   if (source === undefined || source.length === 0) {
     throw new Error("wosm notify turn-completion requires an event hook invocation on stdin.");
   }
-  const invocation = EventHookInvocationSchema.parse(JSON.parse(source));
+  const invocation = ObserverEventHookInvocationSchema.parse(JSON.parse(source));
   if (invocation.event.type !== "worktree.agentStateChanged") {
     return { notified: false, skipped: true, reason: "unsupported-event" };
   }

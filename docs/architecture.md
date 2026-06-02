@@ -2,6 +2,8 @@
 
 Status: current living doc for ordinary architecture and boundary decisions.
 
+Use [Naming](naming.md) for provider hook, provider hook ingress, harness event report, WOSM event, and observer event hook terminology.
+
 wosm is a local-first, terminal-native control plane for AI-agent worktree sessions. It keeps repositories, worktrees, terminal targets, provider hooks, agent runs, commands, and diagnostics on the developer machine.
 
 ## Current Shape
@@ -52,7 +54,7 @@ When these disagree, reconcile from config, providers, and current observer stat
 - `packages/contracts` defines shared language with strict schemas for untrusted input and shared payloads.
 - The protocol validates transport messages and keeps consumer APIs simple. It should not become a provider boundary.
 - Effect/runtime usage belongs at IO, orchestration, timeout, retry, cancellation, queue, and external-command boundaries. Prefer Effect when one block combines async streams or subscriptions with cancellation, cleanup, retry/reconnect, timeout, queueing, or typed error mapping. Pure schemas, mappers, selectors, fixtures, and React/Ink presentation components should stay plain TypeScript.
-- Hooks are notifications and fast status reports. They can trigger persistence, projection, spool fallback, or scheduled reconcile, but they are not authoritative graph truth by themselves.
+- Provider hooks are ingress notifications and fast status reports. They can trigger persistence, projection, spool fallback, or scheduled reconcile, but they are not authoritative graph truth by themselves. Observer event hooks are configured commands triggered by WOSM events and should not be conflated with provider hook ingress.
 - Terminal topology is provider-owned. Shared contracts and TUI behavior should express product intent where possible, not provider target mechanics.
 
 ## Conflict Rule

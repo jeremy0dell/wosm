@@ -403,7 +403,7 @@ describe("observer graph derivation", () => {
             value: "working",
             confidence: "medium",
             reason: "Codex is about to use Bash.",
-            source: "harness_hook",
+            source: "harness_event",
             updatedAt: statusUpdatedAt,
           },
         },
@@ -420,7 +420,7 @@ describe("observer graph derivation", () => {
       updatedAt: statusUpdatedAt,
       status: {
         value: "working",
-        source: "harness_hook",
+        source: "harness_event",
         updatedAt: statusUpdatedAt,
       },
     });

@@ -38,7 +38,7 @@ describe("harness event status overlays", () => {
     expect(result[0]?.run.providerData).toBeUndefined();
     expect(result[0]?.status).toMatchObject({
       value: "working",
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: eventObservedAt,
     });
   });
@@ -216,7 +216,7 @@ function status(
     value,
     confidence,
     reason,
-    source: "harness_hook",
+    source: "harness_event",
     updatedAt,
   };
 }

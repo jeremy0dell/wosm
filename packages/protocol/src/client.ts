@@ -81,6 +81,8 @@ export function createObserverClient(options: CreateObserverClientOptions): Obse
         "observer.reconcile",
         reason === undefined ? undefined : { reason },
       ),
+    ingestProviderHookEvent: async (event: ProviderHookEvent) =>
+      requestProtocolMethod(options, requestId(), "observer.ingestProviderHookEvent", { event }),
     ingestHookEvent: async (event: ProviderHookEvent) =>
       requestProtocolMethod(options, requestId(), "observer.ingestHookEvent", { event }),
     reportHarnessEvent: async (report: HarnessEventReport) =>

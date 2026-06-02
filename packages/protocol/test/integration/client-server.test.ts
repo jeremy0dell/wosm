@@ -78,7 +78,7 @@ describe("protocol client/server", () => {
       event: "worktree.created",
       receivedAt: protocolTestNow,
     };
-    await expect(client.ingestHookEvent(hookEvent)).resolves.toMatchObject({
+    await expect(client.ingestProviderHookEvent(hookEvent)).resolves.toMatchObject({
       provider: "worktrunk",
       status: "ingested",
     });
@@ -94,7 +94,7 @@ describe("protocol client/server", () => {
         value: "working",
         confidence: "medium",
         reason: "Codex is about to use Bash.",
-        source: "harness_hook",
+        source: "harness_event",
         updatedAt: protocolTestNow,
       },
     };
@@ -104,6 +104,39 @@ describe("protocol client/server", () => {
     });
 
     await server.close();
+  });
+
+  it("keeps observer.ingestHookEvent as a compatibility alias", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const server = await startProtocolServer({ socketPath, api: createFakeObserverApi() });
+
+    try {
+      const response = await sendRawRequest(socketPath, {
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        jsonrpc: "2.0",
+        id: "legacy_hook_ingest",
+        method: "observer.ingestHookEvent",
+        params: {
+          event: {
+            schemaVersion: WOSM_SCHEMA_VERSION,
+            provider: "worktrunk",
+            kind: "worktree",
+            event: "worktree.created",
+            receivedAt: protocolTestNow,
+          },
+        },
+      });
+
+      expect(response).toMatchObject({
+        id: "legacy_hook_ingest",
+        result: {
+          provider: "worktrunk",
+          status: "ingested",
+        },
+      });
+    } finally {
+      await server.close();
+    }
   });
 
   it("returns SafeError envelopes for invalid params without leaking validator details", async () => {

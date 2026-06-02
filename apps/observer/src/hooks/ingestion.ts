@@ -4,8 +4,8 @@ import type {
   HarnessEventObservation,
   HarnessEventReport,
   HarnessEventReportReceipt,
-  HookReceipt,
   ProviderHookEvent,
+  ProviderHookReceipt,
   ProviderProjectConfig,
   WosmEvent,
 } from "@wosm/contracts";
@@ -13,8 +13,8 @@ import {
   HarnessEventObservationSchema,
   HarnessEventReportReceiptSchema,
   HarnessEventReportSchema,
-  HookReceiptSchema,
   ProviderHookEventSchema,
+  ProviderHookReceiptSchema,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
@@ -25,24 +25,27 @@ import {
 } from "../persistence/retention.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
-import { ingestProviderHookEvent } from "./providerIngest.js";
+import { ingestProviderHookEvent } from "./providerHookIngress.js";
 
-export type HookIngestion = {
-  ingest(event: ProviderHookEvent, options?: HookIngestOptions): Promise<HookReceipt>;
+export type ProviderHookIngress = {
+  ingest(
+    event: ProviderHookEvent,
+    options?: ProviderHookIngressOptions,
+  ): Promise<ProviderHookReceipt>;
 };
 
 export type HarnessEventReportIngestion = {
   ingest(
     report: HarnessEventReport,
-    options?: HookIngestOptions,
+    options?: ProviderHookIngressOptions,
   ): Promise<HarnessEventReportReceipt>;
 };
 
-export type HookIngestOptions = {
+export type ProviderHookIngressOptions = {
   triggerReconcile?: boolean;
 };
 
-export type CreateHookIngestionOptions = {
+export type CreateProviderHookIngressOptions = {
   persistence: ObserverPersistence;
   providers?: ProviderRegistry;
   projects?: ProviderProjectConfig[];
@@ -63,7 +66,9 @@ export type CreateHarnessEventReportIngestionOptions = {
 
 const defaultHookId = () => `hook_${randomUUID()}`;
 
-export function createHookIngestion(options: CreateHookIngestionOptions): HookIngestion {
+export function createProviderHookIngress(
+  options: CreateProviderHookIngressOptions,
+): ProviderHookIngress {
   const clock = options.clock ?? systemClock;
   const hookId = options.hookId ?? defaultHookId;
 
@@ -76,7 +81,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
         hookId: id,
       });
       const hookEvent: WosmEvent = {
-        type: "hook.ingested",
+        type: "providerHook.ingested",
         at: event.receivedAt,
         hookId: id,
         provider: event.provider,
@@ -96,7 +101,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
         },
         async () => {
           const result = await options.persistence.recordEventWithIngressDedupe(hookEvent, {
-            source: "hook",
+            source: "provider-hook",
             createdAt: event.receivedAt,
             dedupe: { kind: "hook", id },
           });
@@ -109,7 +114,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
       );
 
       if (!persistResult.ok) {
-        const receipt: HookReceipt = {
+        const receipt: ProviderHookReceipt = {
           schemaVersion: WOSM_SCHEMA_VERSION,
           hookId: id,
           provider: event.provider,
@@ -119,11 +124,11 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
           receivedAt: event.receivedAt,
           error: persistResult.error,
         };
-        return HookReceiptSchema.parse(receipt);
+        return ProviderHookReceiptSchema.parse(receipt);
       }
 
       if (persistResult.value.deduped) {
-        return HookReceiptSchema.parse({
+        return ProviderHookReceiptSchema.parse({
           schemaVersion: WOSM_SCHEMA_VERSION,
           hookId: id,
           provider: event.provider,
@@ -153,7 +158,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
         options.requestReconcile(`hook:${event.provider}:${event.event}`);
       }
 
-      const receipt: HookReceipt = {
+      const receipt: ProviderHookReceipt = {
         schemaVersion: WOSM_SCHEMA_VERSION,
         hookId: id,
         provider: event.provider,
@@ -167,7 +172,7 @@ export function createHookIngestion(options: CreateHookIngestionOptions): HookIn
       if (providerIngestResult?.error !== undefined) {
         receipt.error = providerIngestResult.error;
       }
-      return HookReceiptSchema.parse(receipt);
+      return ProviderHookReceiptSchema.parse(receipt);
     },
   };
 }

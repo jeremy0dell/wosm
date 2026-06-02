@@ -5,10 +5,10 @@ import type {
   DoctorReport,
   HarnessEventReport,
   HarnessEventReportReceipt,
-  HookReceipt,
   ObserverHealth,
   ObserverStopReceipt,
   ProviderHookEvent,
+  ProviderHookReceipt,
   ReconcileReceipt,
   WosmCommand,
   WosmEvent,
@@ -119,6 +119,16 @@ describe("TUI observer service", () => {
           reason: "test",
           reconciledAt: fixtureNow,
           snapshot: createCommandSnapshot("idle"),
+        }),
+        ingestProviderHookEvent: async (event: ProviderHookEvent) => ({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          hookId: "hook_1",
+          provider: event.provider,
+          event: event.event,
+          accepted: true,
+          status: "ingested",
+          receivedAt: event.receivedAt,
+          reconciled: true,
         }),
         ingestHookEvent: async (event: ProviderHookEvent) => ({
           schemaVersion: WOSM_SCHEMA_VERSION,
@@ -263,6 +273,18 @@ describe("TUI observer service", () => {
 
 function fakeApi(overrides: Partial<ObserverApi> & { snapshot?: WosmSnapshot } = {}): ObserverApi {
   const snapshot = overrides.snapshot ?? createCommandSnapshot("idle");
+  const ingestProviderHookEvent =
+    overrides.ingestProviderHookEvent ??
+    (async (event: ProviderHookEvent): Promise<ProviderHookReceipt> => ({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      hookId: "hook_1",
+      provider: event.provider,
+      event: event.event,
+      accepted: true,
+      status: "ingested",
+      receivedAt: event.receivedAt,
+      reconciled: true,
+    }));
   return {
     health: overrides.health ?? (async () => fakeHealth()),
     stop:
@@ -286,18 +308,8 @@ function fakeApi(overrides: Partial<ObserverApi> & { snapshot?: WosmSnapshot } =
         reconciledAt: fixtureNow,
         snapshot,
       })),
-    ingestHookEvent:
-      overrides.ingestHookEvent ??
-      (async (event: ProviderHookEvent): Promise<HookReceipt> => ({
-        schemaVersion: WOSM_SCHEMA_VERSION,
-        hookId: "hook_1",
-        provider: event.provider,
-        event: event.event,
-        accepted: true,
-        status: "ingested",
-        receivedAt: event.receivedAt,
-        reconciled: true,
-      })),
+    ingestProviderHookEvent,
+    ingestHookEvent: overrides.ingestHookEvent ?? ingestProviderHookEvent,
     reportHarnessEvent:
       overrides.reportHarnessEvent ??
       (async (report: HarnessEventReport): Promise<HarnessEventReportReceipt> => ({
@@ -372,6 +384,16 @@ function fakeClient(overrides: Partial<ObserverClient>): ObserverClient {
       reason: "test",
       reconciledAt: fixtureNow,
       snapshot: createCommandSnapshot("idle"),
+    }),
+    ingestProviderHookEvent: async (event: ProviderHookEvent) => ({
+      schemaVersion: WOSM_SCHEMA_VERSION,
+      hookId: "hook_1",
+      provider: event.provider,
+      event: event.event,
+      accepted: true,
+      status: "ingested",
+      receivedAt: event.receivedAt,
+      reconciled: true,
     }),
     ingestHookEvent: async (event: ProviderHookEvent) => ({
       schemaVersion: WOSM_SCHEMA_VERSION,

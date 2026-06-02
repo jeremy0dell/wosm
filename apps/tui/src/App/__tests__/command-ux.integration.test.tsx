@@ -880,7 +880,7 @@ function startedAgentSnapshot(snapshot: WosmSnapshot): WosmSnapshot {
       value: "idle",
       confidence: "high",
       reason: "Harness reported the turn completed.",
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: fixtureNow,
     },
     title: sourceRow.branch,

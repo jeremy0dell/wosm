@@ -65,7 +65,7 @@ describe("observer reconcile profiling", () => {
     });
 
     const reports = Array.from({ length: 25 }, (_, index) =>
-      api.ingestHookEvent({
+      api.ingestProviderHookEvent({
         schemaVersion: WOSM_SCHEMA_VERSION,
         hookId: `hook_${index}`,
         provider: "worktrunk",

@@ -1,4 +1,9 @@
-import type { HarnessEventReport, HarnessEventReportReceipt, HookReceipt } from "@wosm/contracts";
+import type {
+  HarnessEventReport,
+  HarnessEventReportReceipt,
+  ProviderHookEvent,
+  ProviderHookReceipt,
+} from "@wosm/contracts";
 import { runProviderIngressCommand } from "@wosm/provider-hooks";
 import { describe, expect, it } from "vitest";
 import {
@@ -10,7 +15,7 @@ import { createTempState, writeConfigToml } from "../../../../tests/support/temp
 const now = "2026-05-20T12:00:00.000Z";
 
 describe("provider hook ingress command", () => {
-  it("delivers Worktrunk lifecycle hooks through observer.ingestHookEvent", async () => {
+  it("delivers Worktrunk lifecycle hooks through observer.ingestProviderHookEvent", async () => {
     const fixture = await createTempState();
     let observedPayload: unknown;
     let observedSocketPath = "";
@@ -25,20 +30,22 @@ describe("provider hook ingress command", () => {
         hookId: () => "hook_worktrunk_1",
         clientFactory: (socketPath) => {
           observedSocketPath = socketPath;
+          const ingest = async (event: ProviderHookEvent): Promise<ProviderHookReceipt> => {
+            observedPayload = event.payload;
+            return {
+              schemaVersion: "0.3.0",
+              hookId: event.hookId ?? "hook_worktrunk_1",
+              provider: event.provider,
+              event: event.event,
+              accepted: true,
+              status: "ingested",
+              receivedAt: event.receivedAt,
+              reconciled: false,
+            };
+          };
           return {
-            ingestHookEvent: async (event): Promise<HookReceipt> => {
-              observedPayload = event.payload;
-              return {
-                schemaVersion: "0.3.0",
-                hookId: event.hookId ?? "hook_worktrunk_1",
-                provider: event.provider,
-                event: event.event,
-                accepted: true,
-                status: "ingested",
-                receivedAt: event.receivedAt,
-                reconciled: false,
-              };
-            },
+            ingestProviderHookEvent: ingest,
+            ingestHookEvent: ingest,
           } as never;
         },
       },

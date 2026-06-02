@@ -9,10 +9,10 @@ import {
   EventFilterSchema,
   HarnessEventReportReceiptSchema,
   HarnessEventReportSchema,
-  HookReceiptSchema,
   ObserverHealthSchema,
   ObserverStopReceiptSchema,
   ProviderHookEventSchema,
+  ProviderHookReceiptSchema,
   ReconcileReceiptSchema,
   SafeErrorSchema,
   SchemaVersionSchema,
@@ -31,6 +31,7 @@ export const ProtocolMethods = [
   "command.dispatch",
   "command.get",
   "observer.reconcile",
+  "observer.ingestProviderHookEvent",
   "observer.ingestHookEvent",
   "observer.harnessEvent.report",
   "doctor.run",
@@ -125,11 +126,12 @@ export const ReconcileParamsSchema = z
   .strict()
   .optional();
 
-export const HookIngestParamsSchema = z
+export const ProviderHookIngestParamsSchema = z
   .object({
     event: ProviderHookEventSchema,
   })
   .strict();
+export const HookIngestParamsSchema = ProviderHookIngestParamsSchema;
 
 export const HarnessEventReportParamsSchema = z
   .object({
@@ -147,7 +149,8 @@ export const ProtocolParamSchemas = {
   "command.dispatch": CommandDispatchParamsSchema,
   "command.get": CommandGetParamsSchema,
   "observer.reconcile": ReconcileParamsSchema,
-  "observer.ingestHookEvent": HookIngestParamsSchema,
+  "observer.ingestProviderHookEvent": ProviderHookIngestParamsSchema,
+  "observer.ingestHookEvent": ProviderHookIngestParamsSchema,
   "observer.harnessEvent.report": HarnessEventReportParamsSchema,
   "doctor.run": DoctorOptionsSchema,
   "diagnostics.collect": DiagnosticCollectionOptionsSchema,
@@ -161,7 +164,8 @@ export const ProtocolResultSchemas = {
   "command.dispatch": CommandReceiptSchema,
   "command.get": CommandRecordSchema.nullable(),
   "observer.reconcile": ReconcileReceiptSchema,
-  "observer.ingestHookEvent": HookReceiptSchema,
+  "observer.ingestProviderHookEvent": ProviderHookReceiptSchema,
+  "observer.ingestHookEvent": ProviderHookReceiptSchema,
   "observer.harnessEvent.report": HarnessEventReportReceiptSchema,
   "doctor.run": DoctorReportSchema,
   "diagnostics.collect": DiagnosticSnapshotSchema,

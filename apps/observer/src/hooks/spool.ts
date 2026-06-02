@@ -4,12 +4,15 @@ import type {
   HarnessEventReport,
   HarnessEventReportReceipt,
   HarnessEventReportSpoolRecord,
-  HookReceipt,
-  HookSpoolRecord,
   ProviderHookEvent,
+  ProviderHookReceipt,
+  ProviderHookSpoolRecord,
   WosmEvent,
 } from "@wosm/contracts";
-import { HarnessEventReportSpoolRecordSchema, HookSpoolRecordSchema } from "@wosm/contracts";
+import {
+  HarnessEventReportSpoolRecordSchema,
+  ProviderHookSpoolRecordSchema,
+} from "@wosm/contracts";
 import {
   type RuntimeClock,
   safeErrorFromUnknown,
@@ -19,15 +22,15 @@ import {
 import type { ObserverPersistence } from "../persistence/index.js";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
 
-export type HookSpoolDrainResult = {
+export type ProviderIngressSpoolDrainResult = {
   scanned: number;
   drained: number;
   failed: number;
 };
 
-export type DrainHookSpoolOptions = {
+export type DrainProviderIngressSpoolOptions = {
   spoolDir: string;
-  ingest(event: ProviderHookEvent): Promise<HookReceipt>;
+  ingest(event: ProviderHookEvent): Promise<ProviderHookReceipt>;
   report?(report: HarnessEventReport): Promise<HarnessEventReportReceipt>;
   persistence?: ObserverPersistence;
   eventBus?: ObserverEventBus;
@@ -37,21 +40,21 @@ export type DrainHookSpoolOptions = {
 type ParsedSpoolRecord =
   | {
       kind: "hook";
-      record: HookSpoolRecord;
+      record: ProviderHookSpoolRecord;
     }
   | {
       kind: "report";
       record: HarnessEventReportSpoolRecord;
     };
 
-export function hookSpoolDir(stateDir: string): string {
+export function providerIngressSpoolDir(stateDir: string): string {
   return join(stateDir, "spool", "hooks");
 }
 
-export async function listHookSpoolRecords(spoolDir: string): Promise<
+export async function listProviderIngressSpoolRecords(spoolDir: string): Promise<
   Array<{
     path: string;
-    record: HookSpoolRecord | HarnessEventReportSpoolRecord;
+    record: ProviderHookSpoolRecord | HarnessEventReportSpoolRecord;
   }>
 > {
   let entries: string[];
@@ -61,8 +64,10 @@ export async function listHookSpoolRecords(spoolDir: string): Promise<
     return [];
   }
 
-  const records: Array<{ path: string; record: HookSpoolRecord | HarnessEventReportSpoolRecord }> =
-    [];
+  const records: Array<{
+    path: string;
+    record: ProviderHookSpoolRecord | HarnessEventReportSpoolRecord;
+  }> = [];
   for (const entry of entries.filter((name) => name.endsWith(".json")).sort()) {
     const path = join(spoolDir, entry);
     try {
@@ -79,7 +84,7 @@ export async function listHookSpoolRecords(spoolDir: string): Promise<
   return records;
 }
 
-export async function hookSpoolDepth(spoolDir: string): Promise<number> {
+export async function providerIngressSpoolDepth(spoolDir: string): Promise<number> {
   try {
     return (await readdir(spoolDir)).filter((name) => name.endsWith(".json")).length;
   } catch {
@@ -87,9 +92,9 @@ export async function hookSpoolDepth(spoolDir: string): Promise<number> {
   }
 }
 
-export async function drainHookSpool(
-  options: DrainHookSpoolOptions,
-): Promise<HookSpoolDrainResult> {
+export async function drainProviderIngressSpool(
+  options: DrainProviderIngressSpoolOptions,
+): Promise<ProviderIngressSpoolDrainResult> {
   const clock = options.clock ?? systemClock;
   let entries: string[];
   try {
@@ -140,13 +145,13 @@ export async function drainHookSpool(
 
   if (paths.length > 0) {
     const event: WosmEvent = {
-      type: "hook.spoolDrained",
+      type: "providerHook.spoolDrained",
       at: toIsoTimestamp(clock.now()),
       drained,
       failed,
     };
     await options.persistence?.recordEvent(event, {
-      source: "hook-spool",
+      source: "provider-ingress-spool",
       createdAt: event.at,
     });
     options.eventBus?.publish(event);
@@ -161,14 +166,17 @@ export async function drainHookSpool(
 
 async function drainSpoolRecord(
   parsed: ParsedSpoolRecord,
-  options: DrainHookSpoolOptions,
+  options: DrainProviderIngressSpoolOptions,
 ): Promise<
   | {
       status: "drained";
     }
   | {
       status: "failed";
-      error: HookSpoolRecord["lastError"] | HarnessEventReportSpoolRecord["lastError"] | undefined;
+      error:
+        | ProviderHookSpoolRecord["lastError"]
+        | HarnessEventReportSpoolRecord["lastError"]
+        | undefined;
     }
 > {
   if (parsed.kind === "hook") {
@@ -197,7 +205,7 @@ async function drainSpoolRecord(
 }
 
 function parseSpoolRecord(input: unknown): ParsedSpoolRecord {
-  const hook = HookSpoolRecordSchema.safeParse(input);
+  const hook = ProviderHookSpoolRecordSchema.safeParse(input);
   if (hook.success) {
     return { kind: "hook", record: hook.data };
   }
@@ -207,7 +215,10 @@ function parseSpoolRecord(input: unknown): ParsedSpoolRecord {
 async function updateFailedSpoolRecord(
   path: string,
   parsed: ParsedSpoolRecord,
-  error: HookSpoolRecord["lastError"] | HarnessEventReportSpoolRecord["lastError"] | undefined,
+  error:
+    | ProviderHookSpoolRecord["lastError"]
+    | HarnessEventReportSpoolRecord["lastError"]
+    | undefined,
 ): Promise<void> {
   const updated = {
     ...parsed.record,
@@ -217,7 +228,7 @@ async function updateFailedSpoolRecord(
     updated.lastError = error;
   }
   const schema =
-    parsed.kind === "hook" ? HookSpoolRecordSchema : HarnessEventReportSpoolRecordSchema;
+    parsed.kind === "hook" ? ProviderHookSpoolRecordSchema : HarnessEventReportSpoolRecordSchema;
   await writeFile(path, JSON.stringify(schema.parse(updated), null, 2), {
     mode: 0o600,
   });

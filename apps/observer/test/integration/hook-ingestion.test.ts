@@ -23,8 +23,8 @@ import {
 
 const now = "2026-05-20T12:00:00.000Z";
 
-describe("observer hook ingestion", () => {
-  it("persists a hook event, publishes it, and schedules reconciliation", async () => {
+describe("observer provider hook ingress", () => {
+  it("persists a provider hook event, publishes it, and schedules reconciliation", async () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ clock });
     const persistence = createObserverPersistence({
@@ -56,7 +56,7 @@ describe("observer hook ingestion", () => {
     });
     const nextEvent = events.next();
 
-    const receipt = await api.ingestHookEvent({
+    const receipt = await api.ingestProviderHookEvent({
       schemaVersion: WOSM_SCHEMA_VERSION,
       provider: "worktrunk",
       kind: "worktree",
@@ -70,13 +70,13 @@ describe("observer hook ingestion", () => {
       reconciled: false,
     });
     await expect(nextEvent).resolves.toMatchObject({
-      value: { type: "hook.ingested", provider: "worktrunk" },
+      value: { type: "providerHook.ingested", provider: "worktrunk" },
     });
     await expect(reconciled.next).resolves.toMatchObject({
       value: { type: "observer.reconciled" },
     });
     expect((await persistence.listEvents()).map((event) => event.type)).toEqual([
-      "hook.ingested",
+      "providerHook.ingested",
       "observer.reconciled",
     ]);
     await events.return?.();
@@ -126,7 +126,7 @@ describe("observer hook ingestion", () => {
         value: "working",
         confidence: "medium",
         reason: "Codex is about to use Bash.",
-        source: "harness_hook",
+        source: "harness_event",
         updatedAt: now,
       },
       correlation: {
@@ -181,7 +181,7 @@ describe("observer hook ingestion", () => {
             }),
             status: expect.objectContaining({
               value: "working",
-              source: "harness_hook",
+              source: "harness_event",
             }),
             providerData: expect.objectContaining({
               toolName: "Bash",
@@ -356,8 +356,8 @@ describe("observer hook ingestion", () => {
       payload: { state: "idle" },
     };
 
-    const first = await api.ingestHookEvent(event);
-    const second = await api.ingestHookEvent(event);
+    const first = await api.ingestProviderHookEvent(event);
+    const second = await api.ingestProviderHookEvent(event);
 
     expect(first).toMatchObject({ status: "ingested", deduped: false });
     expect(second).toMatchObject({ status: "ingested", deduped: true, reconciled: false });
@@ -367,7 +367,7 @@ describe("observer hook ingestion", () => {
     await reconciled.close();
     expect(harness.ingestCalls).toBe(1);
     expect(
-      (await persistence.listEvents({ type: "hook.ingested" })).map((event) => event.event),
+      (await persistence.listEvents({ type: "providerHook.ingested" })).map((event) => event.event),
     ).toHaveLength(1);
     sqlite.close();
   });
@@ -400,7 +400,7 @@ describe("observer hook ingestion", () => {
     sqlite.close();
   });
 
-  it("routes harness hook events through provider ingest and stores normalized observations", async () => {
+  it("routes harness provider hook events through provider ingress and stores normalized observations", async () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ clock });
     const persistence = createObserverPersistence({
@@ -433,7 +433,7 @@ describe("observer hook ingestion", () => {
       hookReconcileDebounceMs: 0,
     });
 
-    const receipt = await api.ingestHookEvent({
+    const receipt = await api.ingestProviderHookEvent({
       schemaVersion: WOSM_SCHEMA_VERSION,
       hookId: "hook_harness_1",
       provider: "fake-harness",
@@ -463,7 +463,7 @@ describe("observer hook ingestion", () => {
             provider: "fake-harness",
             harnessRunId: "run_hook_1",
             status: expect.objectContaining({
-              source: "harness_hook",
+              source: "harness_event",
               value: "idle",
             }),
           }),
@@ -473,7 +473,7 @@ describe("observer hook ingestion", () => {
     sqlite.close();
   });
 
-  it("passes persisted worktree and terminal context to harness hook ingest", async () => {
+  it("passes persisted worktree and terminal context to harness provider hook ingress", async () => {
     const clock = { now: () => new Date(now) };
     const sqlite = openObserverSqlite({ clock });
     const persistence = createObserverPersistence({
@@ -534,7 +534,7 @@ describe("observer hook ingestion", () => {
       hookReconcileDebounceMs: 0,
     });
 
-    await api.ingestHookEvent({
+    await api.ingestProviderHookEvent({
       schemaVersion: WOSM_SCHEMA_VERSION,
       hookId: "hook_context_1",
       provider: "fake-harness",
@@ -624,7 +624,7 @@ function harnessReport(reportId: string) {
       value: "working" as const,
       confidence: "medium" as const,
       reason: "Codex is about to use Bash.",
-      source: "harness_hook" as const,
+      source: "harness_event" as const,
       updatedAt: now,
     },
     correlation: {
@@ -705,7 +705,7 @@ class RecordingHarnessProvider extends FakeHarnessProvider {
           value: "idle",
           confidence: "high",
           reason: "Fake harness hook reported idle.",
-          source: "harness_hook",
+          source: "harness_event",
           updatedAt: now,
         },
         observedAt: now,

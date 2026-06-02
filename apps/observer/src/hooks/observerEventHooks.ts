@@ -1,5 +1,9 @@
-import type { EventHookConfig, WosmEvent } from "@wosm/contracts";
-import { EventHookInvocationSchema, WOSM_SCHEMA_VERSION, wosmEventMetadata } from "@wosm/contracts";
+import type { ObserverEventHookConfig, WosmEvent } from "@wosm/contracts";
+import {
+  ObserverEventHookInvocationSchema,
+  WOSM_SCHEMA_VERSION,
+  wosmEventMetadata,
+} from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import {
   type ExternalCommandInput,
@@ -12,21 +16,21 @@ import {
 } from "@wosm/runtime";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
 
-export type EventHookRuntime = {
+export type ObserverEventHookRuntime = {
   shutdown(): Promise<void>;
 };
 
-export type CreateEventHookRuntimeOptions = {
-  hooks: EventHookConfig[];
+export type CreateObserverEventHookRuntimeOptions = {
+  hooks: ObserverEventHookConfig[];
   eventBus: ObserverEventBus;
   clock?: RuntimeClock;
   logger?: JsonlLogger;
   commandRunner?: ExternalCommandRunner;
 };
 
-type EventHookDispatchInput = {
+type ObserverEventHookDispatchInput = {
   event: WosmEvent;
-  hooks: EventHookConfig[];
+  hooks: ObserverEventHookConfig[];
   clock: RuntimeClock;
   logger?: JsonlLogger;
   commandRunner?: ExternalCommandRunner;
@@ -34,12 +38,12 @@ type EventHookDispatchInput = {
 
 const defaultTimeoutMs = 3000;
 
-function dispatchEventHooks(input: EventHookDispatchInput): void {
+function dispatchObserverEventHooks(input: ObserverEventHookDispatchInput): void {
   for (const hook of input.hooks) {
-    if (!eventHookMatches(hook, input.event)) {
+    if (!observerEventHookMatches(hook, input.event)) {
       continue;
     }
-    void runEventHook({ ...input, hook }).catch(async (error) => {
+    void runObserverEventHook({ ...input, hook }).catch(async (error) => {
       await input.logger?.error("Event hook failed.", {
         hookId: hook.id,
         eventType: input.event.type,
@@ -53,14 +57,14 @@ function dispatchEventHooks(input: EventHookDispatchInput): void {
   }
 }
 
-async function runEventHook(input: {
+async function runObserverEventHook(input: {
   event: WosmEvent;
-  hook: EventHookConfig;
+  hook: ObserverEventHookConfig;
   clock: RuntimeClock;
   logger?: JsonlLogger;
   commandRunner?: ExternalCommandRunner;
 }): Promise<void> {
-  const invocation = EventHookInvocationSchema.parse({
+  const invocation = ObserverEventHookInvocationSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: input.hook.id,
     observedAt: observedAtForEvent(input.event, input.clock),
@@ -97,7 +101,9 @@ function observedAtForEvent(event: WosmEvent, clock: RuntimeClock): string {
   return toIsoTimestamp(clock.now());
 }
 
-export function createEventHookRuntime(options: CreateEventHookRuntimeOptions): EventHookRuntime {
+export function createObserverEventHookRuntime(
+  options: CreateObserverEventHookRuntimeOptions,
+): ObserverEventHookRuntime {
   const hooks = options.hooks;
   const clock = options.clock ?? systemClock;
   const subscription = options.eventBus.subscribe();
@@ -111,7 +117,7 @@ export function createEventHookRuntime(options: CreateEventHookRuntimeOptions): 
         if (next.done === true || !active) {
           return;
         }
-        const dispatchInput: EventHookDispatchInput = {
+        const dispatchInput: ObserverEventHookDispatchInput = {
           event: next.value,
           hooks,
           clock,
@@ -119,7 +125,7 @@ export function createEventHookRuntime(options: CreateEventHookRuntimeOptions): 
         if (options.logger !== undefined) dispatchInput.logger = options.logger;
         if (options.commandRunner !== undefined)
           dispatchInput.commandRunner = options.commandRunner;
-        dispatchEventHooks(dispatchInput);
+        dispatchObserverEventHooks(dispatchInput);
       }
     } catch (error) {
       await options.logger?.error("Event hook runtime stopped unexpectedly.", {
@@ -140,7 +146,7 @@ export function createEventHookRuntime(options: CreateEventHookRuntimeOptions): 
   };
 }
 
-export function eventHookMatches(hook: EventHookConfig, event: WosmEvent): boolean {
+export function observerEventHookMatches(hook: ObserverEventHookConfig, event: WosmEvent): boolean {
   if (!hook.events.includes(event.type)) {
     return false;
   }

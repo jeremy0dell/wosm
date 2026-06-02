@@ -3,13 +3,13 @@ import { join } from "node:path";
 import type {
   HarnessEventReport,
   HarnessEventReportSpoolRecord,
-  HookSpoolRecord,
   ProviderHookEvent,
+  ProviderHookSpoolRecord,
   SafeError,
 } from "@wosm/contracts";
 import {
   HarnessEventReportSpoolRecordSchema,
-  HookSpoolRecordSchema,
+  ProviderHookSpoolRecordSchema,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
 
@@ -24,8 +24,10 @@ export async function listHookSpoolFiles(spoolDir: string): Promise<string[]> {
 export async function readHookSpoolRecord(
   spoolDir: string,
   fileName: string,
-): Promise<HookSpoolRecord> {
-  return HookSpoolRecordSchema.parse(JSON.parse(await readFile(join(spoolDir, fileName), "utf8")));
+): Promise<ProviderHookSpoolRecord> {
+  return ProviderHookSpoolRecordSchema.parse(
+    JSON.parse(await readFile(join(spoolDir, fileName), "utf8")),
+  );
 }
 
 export async function readHarnessEventReportSpoolRecord(
@@ -59,7 +61,7 @@ export async function writeHookSpoolRecordFixture(input: {
 }): Promise<string> {
   await mkdir(input.spoolDir, { recursive: true });
   const createdAt = input.createdAt ?? "2026-05-20T12:00:00.000Z";
-  const record: HookSpoolRecord = HookSpoolRecordSchema.parse({
+  const record: ProviderHookSpoolRecord = ProviderHookSpoolRecordSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
     spoolId: input.spoolId,
     createdAt,

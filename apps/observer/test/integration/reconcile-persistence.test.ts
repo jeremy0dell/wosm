@@ -229,7 +229,7 @@ describe("observer reconcile persistence", () => {
           value: "needs_attention",
           confidence: "high",
           reason: "Codex requested permission for Bash.",
-          source: "harness_hook",
+          source: "harness_event",
           updatedAt: "2026-05-20T12:00:01.000Z",
         },
         observedAt: "2026-05-20T12:00:01.000Z",
@@ -253,7 +253,7 @@ describe("observer reconcile persistence", () => {
     });
     expect(snapshot.sessions[0]?.status).toMatchObject({
       value: "needs_attention",
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: "2026-05-20T12:00:01.000Z",
     });
     expect(snapshot.projects[0]?.counts).toMatchObject({
@@ -420,7 +420,7 @@ describe("observer reconcile persistence", () => {
           value: "needs_attention",
           confidence: "high",
           reason: "Codex requested permission for Bash.",
-          source: "harness_hook",
+          source: "harness_event",
           updatedAt: "2026-05-20T12:00:01.000Z",
         },
         observedAt: "2026-05-20T12:00:01.000Z",

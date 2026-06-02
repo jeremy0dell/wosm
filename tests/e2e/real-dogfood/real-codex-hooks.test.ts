@@ -1,6 +1,6 @@
 import {
   type CommandRecord,
-  EventHookInvocationSchema,
+  ObserverEventHookInvocationSchema,
   type WosmCommand,
   type WosmSnapshot,
 } from "@wosm/contracts";
@@ -259,7 +259,7 @@ function tmuxPaneTarget(targetId: string): string {
 }
 
 function notifyEventMatches(event: unknown, harness: string): boolean {
-  const parsed = EventHookInvocationSchema.safeParse(event);
+  const parsed = ObserverEventHookInvocationSchema.safeParse(event);
   if (!parsed.success) {
     return false;
   }

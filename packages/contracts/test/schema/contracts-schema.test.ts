@@ -6,8 +6,6 @@ import {
   createFeatureFlagConfigSchema,
   ErrorEnvelopeSchema,
   EventFilterSchema,
-  EventHookConfigSchema,
-  EventHookInvocationSchema,
   FeatureFlagConfigSchema,
   type FeatureFlagDefinitionsMap,
   HarnessCapabilitiesSchema,
@@ -18,15 +16,17 @@ import {
   HarnessLaunchPlanSchema,
   HarnessRunObservationSchema,
   HarnessStatusObservationSchema,
-  HookReceiptSchema,
-  HookSpoolRecordSchema,
   ObservedStatusSchema,
+  ObserverEventHookConfigSchema,
+  ObserverEventHookInvocationSchema,
   ObserverHealthSchema,
   ObserverStopReceiptSchema,
   type ProjectId,
   ProjectIdSchema,
   ProviderHealthSchema,
   ProviderHookEventSchema,
+  ProviderHookReceiptSchema,
+  ProviderHookSpoolRecordSchema,
   ProviderProjectConfigSchema,
   ProviderTypeSchema,
   parseWosmHookIdentityPayload,
@@ -676,12 +676,12 @@ describe("Phase 1 contract schemas", () => {
       "command.started",
       "command.succeeded",
       "harness.eventReported",
-      "hook.ingested",
-      "hook.spoolDrained",
       "observer.reconciled",
       "observer.started",
       "project.updated",
       "provider.healthChanged",
+      "providerHook.ingested",
+      "providerHook.spoolDrained",
       "session.created",
       "session.removed",
       "session.updated",
@@ -727,7 +727,7 @@ describe("Phase 1 contract schemas", () => {
     expect(parseWosmHookIdentityPayload(null)).toBeUndefined();
 
     expectParses(
-      HookReceiptSchema,
+      ProviderHookReceiptSchema,
       {
         schemaVersion: WOSM_SCHEMA_VERSION,
         hookId: "hook_1",
@@ -742,7 +742,7 @@ describe("Phase 1 contract schemas", () => {
     );
 
     expectParses(
-      HookReceiptSchema,
+      ProviderHookReceiptSchema,
       {
         schemaVersion: WOSM_SCHEMA_VERSION,
         hookId: "hook_ignored_1",
@@ -756,7 +756,7 @@ describe("Phase 1 contract schemas", () => {
     );
 
     expectParses(
-      HookSpoolRecordSchema,
+      ProviderHookSpoolRecordSchema,
       {
         schemaVersion: WOSM_SCHEMA_VERSION,
         spoolId: "spool_1",
@@ -779,7 +779,7 @@ describe("Phase 1 contract schemas", () => {
         value: "working",
         confidence: "medium",
         reason: "Codex is about to use Bash.",
-        source: "harness_hook",
+        source: "harness_event",
         updatedAt: "2026-05-20T12:02:00.000Z",
       },
       correlation: {
@@ -880,9 +880,9 @@ describe("Phase 1 contract schemas", () => {
         harness: "codex",
       },
     };
-    expectParses(EventHookConfigSchema, eventHookConfig, "event hook config");
+    expectParses(ObserverEventHookConfigSchema, eventHookConfig, "event hook config");
     expectFails(
-      EventHookConfigSchema,
+      ObserverEventHookConfigSchema,
       {
         ...eventHookConfig,
         events: ["unknown.event"],
@@ -890,7 +890,7 @@ describe("Phase 1 contract schemas", () => {
       "event hook config rejects unknown event type",
     );
     expectParses(
-      EventHookInvocationSchema,
+      ObserverEventHookInvocationSchema,
       {
         schemaVersion: WOSM_SCHEMA_VERSION,
         hookId: "notify-agent-idle",
@@ -995,7 +995,7 @@ describe("Phase 1 contract schemas", () => {
     expectParses(
       EventFilterSchema,
       {
-        type: ["command.accepted", "hook.ingested"],
+        type: ["command.accepted", "providerHook.ingested"],
         since: "2026-05-20T12:00:00.000Z",
       },
       "event filter",

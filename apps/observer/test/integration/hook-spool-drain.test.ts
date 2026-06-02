@@ -22,12 +22,12 @@ import {
   createObserverCore,
   createObserverEventBus,
   createObserverPersistence,
-  drainHookSpool,
+  drainProviderIngressSpool,
   type HarnessEventReportIngestion,
-  type HookIngestion,
-  hookSpoolDir,
   openObserverSqlite,
+  type ProviderHookIngress,
   ProviderRegistry,
+  providerIngressSpoolDir,
   startObserverServer,
 } from "../../src/internal";
 
@@ -36,7 +36,7 @@ const now = "2026-05-20T12:00:00.000Z";
 describe("observer hook spool drain", () => {
   it("drains valid spool files on reconcile and deletes only successful records", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
-    const spoolDir = hookSpoolDir(stateDir);
+    const spoolDir = providerIngressSpoolDir(stateDir);
     await writeHookSpoolRecordFixture({ spoolDir, spoolId: "spool_1" });
     const fixture = createFixture(spoolDir);
 
@@ -44,8 +44,8 @@ describe("observer hook spool drain", () => {
 
     await expect(stat(join(spoolDir, "spool_1.json"))).rejects.toMatchObject({ code: "ENOENT" });
     expect((await fixture.persistence.listEvents()).map((event) => event.type)).toEqual([
-      "hook.ingested",
-      "hook.spoolDrained",
+      "providerHook.ingested",
+      "providerHook.spoolDrained",
       "observer.reconciled",
     ]);
     fixture.sqlite.close();
@@ -53,7 +53,7 @@ describe("observer hook spool drain", () => {
 
   it("keeps invalid spool files, continues valid records, and counts failures", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
-    const spoolDir = hookSpoolDir(stateDir);
+    const spoolDir = providerIngressSpoolDir(stateDir);
     const invalidPath = await writeInvalidHookSpoolFile({ spoolDir, fileName: "bad.json" });
     const validPath = await writeHookSpoolRecordFixture({ spoolDir, spoolId: "spool_valid" });
     const fixture = createFixture(spoolDir);
@@ -63,10 +63,10 @@ describe("observer hook spool drain", () => {
     await expect(fileExists(invalidPath)).resolves.toBe(true);
     await expect(fileExists(validPath)).resolves.toBe(false);
     const drainEvent = (await fixture.persistence.listEvents()).find(
-      (event) => event.type === "hook.spoolDrained",
+      (event) => event.type === "providerHook.spoolDrained",
     );
     expect(drainEvent?.event).toMatchObject({
-      type: "hook.spoolDrained",
+      type: "providerHook.spoolDrained",
       drained: 1,
       failed: 1,
     });
@@ -75,7 +75,7 @@ describe("observer hook spool drain", () => {
 
   it("leaves rejected spool records in place and publishes failed drain counts", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
-    const spoolDir = hookSpoolDir(stateDir);
+    const spoolDir = providerIngressSpoolDir(stateDir);
     const successPath = await writeHookSpoolRecordFixture({
       spoolDir,
       spoolId: "spool_success",
@@ -88,11 +88,11 @@ describe("observer hook spool drain", () => {
     });
     const fixture = createFixture(spoolDir);
     const drainEvents = fixture.eventBus
-      .subscribe({ type: "hook.spoolDrained" })
+      .subscribe({ type: "providerHook.spoolDrained" })
       [Symbol.asyncIterator]();
     const nextDrainEvent = drainEvents.next();
 
-    const result = await drainHookSpool({
+    const result = await drainProviderIngressSpool({
       spoolDir,
       persistence: fixture.persistence,
       eventBus: fixture.eventBus,
@@ -108,7 +108,7 @@ describe("observer hook spool drain", () => {
         ...(event.event === "worktree.rejected"
           ? {
               error: {
-                tag: "HookIngestionError",
+                tag: "ProviderHookIngressError",
                 code: "HOOK_INGESTION_FAILED",
                 message: "Hook event was rejected safely.",
                 provider: event.provider,
@@ -130,7 +130,7 @@ describe("observer hook spool drain", () => {
     await expect(nextDrainEvent).resolves.toMatchObject({
       done: false,
       value: {
-        type: "hook.spoolDrained",
+        type: "providerHook.spoolDrained",
         drained: 1,
         failed: 1,
       },
@@ -141,11 +141,11 @@ describe("observer hook spool drain", () => {
 
   it("starts the observer server without waiting for spool drain work to finish", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
-    const spoolDir = hookSpoolDir(stateDir);
+    const spoolDir = providerIngressSpoolDir(stateDir);
     const spoolPath = await writeHookSpoolRecordFixture({ spoolDir, spoolId: "spool_startup" });
     const gate = deferred();
     const fixture = createFixture(spoolDir, {
-      hookIngestion: {
+      providerHookIngress: {
         ingest: async (event) => {
           await gate.promise;
           return {
@@ -178,7 +178,7 @@ describe("observer hook spool drain", () => {
 
   it("keeps harness report spool files until durable startup processing completes", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
-    const spoolDir = hookSpoolDir(stateDir);
+    const spoolDir = providerIngressSpoolDir(stateDir);
     const report = codexHarnessReport("report_codex_startup_slow", "call_startup");
     const spoolPath = await writeHarnessEventReportSpoolRecordFixture({
       spoolDir,
@@ -214,7 +214,7 @@ describe("observer hook spool drain", () => {
 
   it("keeps rejected harness report spool files in place", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
-    const spoolDir = hookSpoolDir(stateDir);
+    const spoolDir = providerIngressSpoolDir(stateDir);
     const report = codexHarnessReport("report_codex_rejected", "call_rejected");
     const spoolPath = await writeHarnessEventReportSpoolRecordFixture({
       spoolDir,
@@ -259,7 +259,7 @@ describe("observer hook spool drain", () => {
 
   it("drains compacted Codex harness event report records without raw tool payloads", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-state-"));
-    const spoolDir = hookSpoolDir(stateDir);
+    const spoolDir = providerIngressSpoolDir(stateDir);
     const rawCommand = "pnpm test --raw-output";
     const compacted = compactCodexHookPayload({
       session_id: "codex_session_123",
@@ -314,7 +314,7 @@ describe("observer hook spool drain", () => {
             }),
             status: expect.objectContaining({
               value: "working",
-              source: "harness_hook",
+              source: "harness_event",
             }),
             providerData: expect.objectContaining({
               hookEventName: "PreToolUse",
@@ -334,7 +334,7 @@ describe("observer hook spool drain", () => {
 function createFixture(
   spoolDir: string,
   options: {
-    hookIngestion?: HookIngestion;
+    providerHookIngress?: ProviderHookIngress;
     harnessEventReportIngestion?: HarnessEventReportIngestion;
   } = {},
 ) {
@@ -363,7 +363,9 @@ function createFixture(
     persistence,
     commandQueue: queue,
     eventBus,
-    ...(options.hookIngestion === undefined ? {} : { hookIngestion: options.hookIngestion }),
+    ...(options.providerHookIngress === undefined
+      ? {}
+      : { providerHookIngress: options.providerHookIngress }),
     ...(options.harnessEventReportIngestion === undefined
       ? {}
       : { harnessEventReportIngestion: options.harnessEventReportIngestion }),
