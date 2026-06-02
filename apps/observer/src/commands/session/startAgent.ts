@@ -4,6 +4,7 @@ import type {
   WorktreeObservation,
   WorktreeRow,
 } from "@wosm/contracts";
+import { sameObservedPath } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
 import type { ObserverPersistence } from "../../persistence/index.js";
@@ -66,16 +67,6 @@ export function createSessionStartAgentHandler(
     const row = snapshot.rows.find((candidate) => candidate.id === payload.worktreeId);
     validateSnapshotRow(row, payload.projectId);
     assertNoCurrentAgent(row);
-    const harnessProviderId =
-      payload.harness?.provider ??
-      (await createdHarnessProviderForWorktree({
-        persistence: options.persistence,
-        projectId: payload.projectId,
-        worktreeId: payload.worktreeId,
-      })) ??
-      project.defaults.harness;
-    const harness = resolveHarnessProviderOrThrow(options.providers, harnessProviderId);
-
     const sessionId = idFactory.sessionId();
     const runtime = {
       clock: options.clock,
@@ -93,6 +84,17 @@ export function createSessionStartAgentHandler(
           })
         : worktreeObservationFromRow(row, options.providers.worktree.id, nowIso(options.clock));
     throwIfAborted(context.signal);
+    const harnessProviderId =
+      payload.harness?.provider ??
+      (await rememberedHarnessProviderForWorktree({
+        persistence: options.persistence,
+        projectId: payload.projectId,
+        worktreeId: payload.worktreeId,
+        worktreePath: worktree.path,
+      })) ??
+      project.defaults.harness;
+    const harness = resolveHarnessProviderOrThrow(options.providers, harnessProviderId);
+
     let openedTargetId: string | undefined;
     let harnessLaunched = false;
     let seededSessionTitle = false;
@@ -294,29 +296,42 @@ async function lookupWorktree(input: {
   return worktree;
 }
 
-async function createdHarnessProviderForWorktree(input: {
+async function rememberedHarnessProviderForWorktree(input: {
   persistence: ObserverPersistence;
   projectId: string;
   worktreeId: string;
+  worktreePath: string;
 }): Promise<ProviderId | undefined> {
-  const sessions = await input.persistence.listSessions();
+  const [sessions, worktrees] = await Promise.all([
+    input.persistence.listSessions(),
+    input.persistence.listWorktrees(),
+  ]);
+  const matchingWorktreeIds = new Set([input.worktreeId]);
+  for (const worktree of worktrees) {
+    if (
+      worktree.projectId === input.projectId &&
+      sameObservedPath(worktree.path, input.worktreePath)
+    ) {
+      matchingWorktreeIds.add(worktree.id);
+    }
+  }
   return sessions
     .filter(
       (session) =>
         session.projectId === input.projectId &&
-        session.worktreeId === input.worktreeId &&
+        matchingWorktreeIds.has(session.worktreeId) &&
         session.harness !== undefined,
     )
-    .sort(compareCreatedSessions)[0]?.harness;
+    .sort(compareRecentSessions)[0]?.harness;
 }
 
-function compareCreatedSessions(
+function compareRecentSessions(
   left: { id: string; createdAt: string; lastSeenAt: string },
   right: { id: string; createdAt: string; lastSeenAt: string },
 ): number {
   return (
-    left.createdAt.localeCompare(right.createdAt) ||
-    left.lastSeenAt.localeCompare(right.lastSeenAt) ||
-    left.id.localeCompare(right.id)
+    right.lastSeenAt.localeCompare(left.lastSeenAt) ||
+    right.createdAt.localeCompare(left.createdAt) ||
+    right.id.localeCompare(left.id)
   );
 }

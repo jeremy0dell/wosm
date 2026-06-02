@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { openCodeForwardedEventTypes, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 
 export const OPENCODE_WOSM_PLUGIN_NAME = "wosm-agent-state.js";
 export const OPENCODE_WOSM_PLUGIN_MARKER = "wosm-opencode-observer-plugin:v1";
@@ -175,11 +175,13 @@ const schemaVersion = ${JSON.stringify(WOSM_SCHEMA_VERSION)};
 const fallbackSocketPath = ${JSON.stringify(observerSocketPath)};
 const fallbackStateDir = ${JSON.stringify(stateDir)};
 const fallbackSpoolDir = ${JSON.stringify(hookSpoolDir)};
+const sentOpenCodeEventTypes = new Set(${JSON.stringify(openCodeForwardedEventTypes)});
 
 export const WosmObserverPlugin = async ({ directory, worktree }) => {
   return {
     event: async ({ event }) => {
       if (!isWosmOpenCodeSession(process.env)) return;
+      if (!shouldSendOpenCodeEvent(event)) return;
       const receivedAt = new Date().toISOString();
       const payload = compactOpenCodeEvent(event, { directory, worktree, receivedAt });
       const hookEvent = hookEventFromPayload(payload, receivedAt);
@@ -194,6 +196,11 @@ export const WosmObserverPlugin = async ({ directory, worktree }) => {
 
 function isWosmOpenCodeSession(env) {
   return env.WOSM_HARNESS_PROVIDER === "opencode" && stringValue(env.WOSM_WORKTREE_ID) !== undefined;
+}
+
+function shouldSendOpenCodeEvent(event) {
+  const eventType = stringValue(event?.type);
+  return eventType !== undefined && sentOpenCodeEventTypes.has(eventType);
 }
 
 function compactOpenCodeEvent(event, context) {

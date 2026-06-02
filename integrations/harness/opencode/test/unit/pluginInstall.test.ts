@@ -1,6 +1,7 @@
-import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   doctorOpenCodePlugin,
@@ -33,6 +34,12 @@ describe("OpenCode plugin setup", () => {
     expect(plan.after).toContain("wosm-opencode-observer-plugin:v1");
     expect(plan.after).toContain('method: "observer.ingestHookEvent"');
     expect(plan.after).toContain('provider: "opencode"');
+    expect(plan.after).toContain("shouldSendOpenCodeEvent");
+    expect(plan.after).not.toContain('"message.part.delta"');
+    expect(plan.after).not.toContain('"message.part.updated"');
+    expect(plan.after).toContain('"session.next.shell.started"');
+    expect(plan.after).toContain('"session.next.tool.progress"');
+    expect(plan.after).toContain('"session.next.tool.input.delta"');
     expect(plan.after).toContain("/tmp/wosm/run/observer.sock");
     await expect(readFile(pluginPath, "utf8")).rejects.toThrow();
   });
@@ -102,6 +109,49 @@ describe("OpenCode plugin setup", () => {
       removed: false,
     });
     await expect(readFile(pluginPath, "utf8")).resolves.toContain("UserPlugin");
+  });
+
+  it("filters streaming message events before delivery or spool", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-opencode-plugin-"));
+    const pluginPath = join(root, "opencode", "plugins", "wosm-agent-state.js");
+    const spoolDir = join(root, "spool");
+    await installOpenCodePlugin({
+      pluginPath,
+      observerSocketPath: join(root, "missing.sock"),
+      stateDir: join(root, "state"),
+      hookSpoolDir: spoolDir,
+    });
+
+    const previousEnv = { ...process.env };
+    try {
+      process.env.WOSM_HARNESS_PROVIDER = "opencode";
+      process.env.WOSM_WORKTREE_ID = "wt_1";
+      process.env.WOSM_HOOK_SPOOL_DIR = spoolDir;
+      process.env.WOSM_OBSERVER_SOCKET_PATH = join(root, "missing.sock");
+      const moduleUrl = pathToFileURL(pluginPath);
+      moduleUrl.search = `v=${Date.now()}`;
+      const pluginModule = (await import(moduleUrl.href)) as {
+        WosmObserverPlugin: (input: { directory: string; worktree: string }) => Promise<{
+          event: (input: { event: unknown }) => Promise<void>;
+        }>;
+      };
+
+      const plugin = await pluginModule.WosmObserverPlugin({ directory: root, worktree: root });
+      await plugin.event({
+        event: {
+          type: "message.part.delta",
+          properties: {
+            sessionID: "ses_1",
+            messageID: "msg_1",
+            partID: "part_1",
+          },
+        },
+      });
+
+      await expect(readdir(spoolDir)).rejects.toThrow();
+    } finally {
+      process.env = previousEnv;
+    }
   });
 
   it("resolves OpenCode config directory from environment", () => {
