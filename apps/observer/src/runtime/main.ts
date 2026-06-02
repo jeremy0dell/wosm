@@ -8,6 +8,7 @@ import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { createCommandQueue } from "../commands/queue.js";
 import { registerObserverCommandHandlers } from "../commands/router.js";
 import { createFeatureFlagEvaluator } from "../features/evaluator.js";
+import { createEventHookRuntime, type EventHookRuntime } from "../hooks/eventHooks.js";
 import { hookSpoolDir } from "../hooks/spool.js";
 import { createObserverPersistence } from "../persistence/index.js";
 import {
@@ -86,6 +87,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     clock: systemClock,
     logger,
   });
+  const eventHooks = createConfiguredEventHooks(config, eventBus, logger);
 
   let server: ObserverServer | undefined;
   let stopResolve: () => void = () => undefined;
@@ -96,6 +98,7 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
   const stopObserver = async () => {
     stopping ??= (async () => {
       await commandQueue.shutdown();
+      await eventHooks?.shutdown();
       await server?.close();
       stopResolve();
     })();
@@ -134,6 +137,18 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
   await stopped;
   sqlite.close();
   return 0;
+}
+
+function createConfiguredEventHooks(
+  config: WosmConfig,
+  eventBus: ReturnType<typeof createObserverEventBus>,
+  logger: ReturnType<typeof createObserverLogger>,
+): EventHookRuntime | undefined {
+  const hooks = config.hooks?.event ?? [];
+  if (hooks.length === 0) {
+    return undefined;
+  }
+  return createEventHookRuntime({ hooks, eventBus, clock: systemClock, logger });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

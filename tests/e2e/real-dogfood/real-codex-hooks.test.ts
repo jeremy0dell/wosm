@@ -1,4 +1,9 @@
-import type { CommandRecord, WosmCommand, WosmSnapshot } from "@wosm/contracts";
+import {
+  type CommandRecord,
+  EventHookInvocationSchema,
+  type WosmCommand,
+  type WosmSnapshot,
+} from "@wosm/contracts";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertDebugBundleContains, findRowByBranch } from "../../support/real-wosm/assertions";
 import {
@@ -14,6 +19,7 @@ import {
   realDogfoodEnabled,
   requireRealDogfoodEnvironment,
 } from "../../support/real-wosm/env";
+import { createRealNotifyHookCapture, waitForNotifyEvent } from "../../support/real-wosm/notify";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
 import { createRealTempRepo, uniqueBranch } from "../../support/real-wosm/repo";
 import { captureTmuxPane, killTmuxSession, sendTmuxKeys } from "../../support/real-wosm/tmux";
@@ -44,11 +50,16 @@ describeReal("real Codex hook dogfood", () => {
     const repo = await createRealTempRepo(env);
     cleanup.defer(repo.cleanup);
     const codexCommand = await createCodexHookEnabledWrapper({ env, repo });
+    const notify = await createRealNotifyHookCapture(repo.root);
     const config = await writeRealWosmConfig({
       env,
       repo,
       codexCommand,
       installCodexHooks: true,
+      eventHook: {
+        command: notify.command,
+        args: notify.args,
+      },
     });
     const hooks = await installCodexHookProjectConfig({
       env,
@@ -117,6 +128,18 @@ describeReal("real Codex hook dogfood", () => {
         harness: "codex",
         state: "idle",
         sessionId: expect.any(String),
+      });
+      await expect(
+        waitForNotifyEvent(notify.logPath, (event) => notifyEventMatches(event, "codex"), 60_000),
+      ).resolves.toMatchObject({
+        hookId: "notify-agent-idle",
+        event: {
+          type: "worktree.agentStateChanged",
+          agent: {
+            harness: "codex",
+            state: "idle",
+          },
+        },
       });
 
       const bundle = await runWosmJson<{ bundlePath: string }>(env, {
@@ -233,4 +256,15 @@ async function continuePastCodexStartupPrompts(
 
 function tmuxPaneTarget(targetId: string): string {
   return targetId.split(":").at(-1) ?? targetId;
+}
+
+function notifyEventMatches(event: unknown, harness: string): boolean {
+  const parsed = EventHookInvocationSchema.safeParse(event);
+  if (!parsed.success) {
+    return false;
+  }
+  const inner = parsed.data.event;
+  if (inner.type !== "worktree.agentStateChanged") return false;
+  const agent = inner.agent;
+  return agent?.harness === harness && agent.state === "idle";
 }

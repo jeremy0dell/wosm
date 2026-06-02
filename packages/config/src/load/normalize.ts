@@ -13,6 +13,7 @@ export function normalizeGlobalConfig(value: unknown): unknown {
       worktree: normalizeWorktreeProvidersConfig,
       terminal: normalizeTerminalProvidersConfig,
       harness: normalizeHarnessProvidersConfig,
+      hooks: normalizeHooksConfig,
       repository: normalizeRepositoryProvidersConfig,
       observability: normalizeObservabilityConfig,
       projects: normalizeProjects,
@@ -100,6 +101,35 @@ function normalizeHarnessProviderConfig(value: unknown): unknown {
     sandbox_mode: "sandboxMode",
     approval_policy: "approvalPolicy",
     install_hooks: "installHooks",
+  });
+}
+
+function normalizeHooksConfig(value: unknown): unknown {
+  return normalizeObject(value, {}, { event: normalizeEventHookConfigs });
+}
+
+function normalizeEventHookConfigs(value: unknown): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  return value.map(normalizeEventHookConfig);
+}
+
+function normalizeEventHookConfig(value: unknown): unknown {
+  return normalizeObject(
+    value,
+    {
+      timeout_ms: "timeoutMs",
+    },
+    {
+      filter: normalizeEventHookFilter,
+    },
+  );
+}
+
+function normalizeEventHookFilter(value: unknown): unknown {
+  return normalizeObject(value, {
+    agent_state: "agentState",
   });
 }
 
