@@ -122,6 +122,9 @@ importers:
 
   apps/tui:
     dependencies:
+      '@wosm/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -137,6 +140,12 @@ importers:
       react:
         specifier: ^19.2.6
         version: 19.2.6
+      string-width:
+        specifier: ^8.2.1
+        version: 8.2.1
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
       zustand:
         specifier: ^5.0.14
         version: 5.0.14(@types/react@19.2.15)(react@19.2.6)

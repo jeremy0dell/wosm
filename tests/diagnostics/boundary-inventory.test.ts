@@ -46,6 +46,17 @@ const setTimeoutAllowlist = new Map([
     "integrations/harness/opencode/src/pluginInstall.ts",
     "Generated OpenCode plugin uses a short socket send timeout because it runs inside OpenCode, outside WOSM runtime helpers.",
   ],
+  [
+    "apps/tui/src/widgets/useTopRowWidgets.ts",
+    "Header widgets use a TUI-local minute-boundary timer for display text, not observer command timeout or retry plumbing.",
+  ],
+]);
+
+const setIntervalAllowlist = new Map([
+  [
+    "apps/tui/src/widgets/useTopRowWidgets.ts",
+    "Header widgets use local render refresh intervals for clock/weather text, isolated from observer runtime IO.",
+  ],
 ]);
 
 describe("boundary inventory guard", () => {
@@ -60,7 +71,7 @@ describe("boundary inventory guard", () => {
       if (source.includes("Promise.race")) {
         violations.push(`${path}: raw Promise.race`);
       }
-      if (source.includes("setInterval(")) {
+      if (source.includes("setInterval(") && !setIntervalAllowlist.has(path)) {
         violations.push(`${path}: raw setInterval polling`);
       }
       if (source.includes("setTimeout(") && !setTimeoutAllowlist.has(path)) {
@@ -73,6 +84,7 @@ describe("boundary inventory guard", () => {
 
     expect(violations).toEqual([]);
     expect([...setTimeoutAllowlist.values()].every((reason) => reason.length > 20)).toBe(true);
+    expect([...setIntervalAllowlist.values()].every((reason) => reason.length > 20)).toBe(true);
   });
 
   it("keeps tmux implementation details out of provider-neutral source packages", async () => {

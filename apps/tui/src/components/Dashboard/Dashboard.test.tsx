@@ -1,9 +1,10 @@
 import { Box, renderToString, Text } from "ink";
 import type { ReactElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import stringWidth from "string-width";
 import { describe, expect, it, vi } from "vitest";
 import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
-import { Dashboard } from "./Dashboard.js";
+import { Dashboard, dashboardHeaderLine } from "./Dashboard.js";
 
 describe("Dashboard", () => {
   it("respects collapsed project ids when rendering groups and slots", () => {
@@ -141,6 +142,77 @@ describe("Dashboard", () => {
     expect(frame).toContain(" [4] ⠋ feature-auth  starting...");
     expect(frame).toContain(" [ ] ⠋ feature/pending  starting session...");
     expect(frame).toContain(" [ ] ⠋ fix-nav-mobile  removing worktree...");
+  });
+
+  it("renders configured header widgets right-aligned in configured order", () => {
+    const line = dashboardHeaderLine({
+      productLabel: "wosm",
+      columns: 40,
+      widgets: [
+        { id: "time:0", text: "10:42 AM" },
+        { id: "weather:1", text: "NYC 72° ☀️" },
+      ],
+    });
+
+    expect(line).toContain("wosm");
+    expect(line.endsWith("10:42 AM  NYC 72° ☀️")).toBe(true);
+    expect(stringWidth(line)).toBe(40);
+  });
+
+  it("honors widget order and hides later widgets first at narrow widths", () => {
+    const widgets = [
+      { id: "weather:0", text: "NYC 72° ☀️" },
+      { id: "time:1", text: "10:42 AM" },
+    ];
+
+    expect(
+      dashboardHeaderLine({
+        productLabel: "wosm",
+        columns: 40,
+        widgets,
+      }).endsWith("NYC 72° ☀️  10:42 AM"),
+    ).toBe(true);
+    expect(
+      dashboardHeaderLine({
+        productLabel: "wosm",
+        columns: 22,
+        widgets,
+      }).endsWith("NYC 72° ☀️"),
+    ).toBe(true);
+    expect(
+      dashboardHeaderLine({
+        productLabel: "wosm",
+        columns: 12,
+        widgets,
+      }),
+    ).toBe("wosm");
+  });
+
+  it("keeps full emoji weather text on the header row without pushing the divider", () => {
+    const snapshot = createDashboardSnapshot();
+    const frame = renderToString(
+      <Box flexDirection="column" height={10} width={28}>
+        <Dashboard
+          columns={28}
+          snapshot={snapshot}
+          topRowWidgets={[{ id: "weather:0", text: "NYC 72° ☀️" }]}
+          viewState={{
+            searchQuery: "",
+            collapsedProjectIds: new Set(),
+            scrollOffset: 0,
+            terminalRows: 10,
+            localRows: { pendingCreate: [], failedCreate: [], pendingRemove: [], pendingStart: [] },
+          }}
+        />
+      </Box>,
+      { columns: 28 },
+    );
+    const lines = frame.split("\n");
+
+    expect(lines).toHaveLength(10);
+    expect(lines[0]).toContain("wosm");
+    expect(lines[0]).toContain("NYC 72° ☀️");
+    expect(lines[1]).toMatch(/^─+$/);
   });
 });
 

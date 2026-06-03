@@ -7,7 +7,9 @@ import {
 } from "../../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
 import { Dashboard } from "../../components/Dashboard/Dashboard.js";
+import type { TuiObserverService } from "../../services/types.js";
 import { TuiModeProvider } from "../../tuiMode.js";
+import type { WeatherClient } from "../../widgets/types.js";
 import { App } from "../App.js";
 
 describe("TUI app rendering", () => {
@@ -160,4 +162,197 @@ describe("TUI app rendering", () => {
     expect(frame).not.toContain("wosm dev 2 projects");
     instance.unmount();
   });
+
+  it("renders configured widgets on the observer snapshot loading screen", () => {
+    const instance = render(
+      <App
+        service={pendingObserverService()}
+        tuiConfig={{
+          widgets: [
+            { type: "time", timeFormat: "12h" },
+            {
+              type: "weather",
+              city: "New York, NY",
+              label: "NYC",
+            },
+          ],
+        }}
+        topRowWidgetDeps={{
+          now: widgetTestNow,
+          weatherClient: weatherClientPending(),
+        }}
+      />,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("wosm");
+    expect(frame).toContain("10:42 AM  NYC --° ⏳");
+    expect(frame).toContain("Loading observer snapshot...");
+    instance.unmount();
+  });
+
+  it("renders configured time and weather widgets while preserving dashboard rows", async () => {
+    const snapshot = createDashboardSnapshot();
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        service={new FakeTuiObserverService(snapshot)}
+        tuiConfig={{
+          widgets: [
+            { type: "time", timeFormat: "12h" },
+            {
+              type: "weather",
+              city: "New York, NY",
+              label: "NYC",
+              temperatureUnit: "fahrenheit",
+              refreshIntervalMinutes: 15,
+            },
+          ],
+        }}
+        topRowWidgetDeps={{
+          now: widgetTestNow,
+          weatherClient: weatherClientReturning({
+            temperature: 72,
+            weatherCode: 0,
+            isDay: true,
+          }),
+        }}
+      />,
+    );
+
+    await waitFor(() => instance.lastFrame()?.includes("10:42 AM  NYC 72° ☀️") === true);
+    const frame = instance.lastFrame() ?? "";
+    const lines = frame.split("\n");
+
+    expect(lines[0]).toContain("wosm");
+    expect(lines[1]).toMatch(/^─+$/);
+    expect(frame).toMatch(/ \[1\] . cache-refactor/);
+    expect(frame).toContain("N:new");
+    expect(frame).not.toContain("providerData");
+    instance.unmount();
+  });
+
+  it("keeps dashboard rows usable while weather is loading", () => {
+    const snapshot = createDashboardSnapshot();
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        service={new FakeTuiObserverService(snapshot)}
+        tuiConfig={{
+          widgets: [
+            {
+              type: "weather",
+              city: "New York, NY",
+              label: "NYC",
+            },
+          ],
+        }}
+        topRowWidgetDeps={{
+          weatherClient: weatherClientPending(),
+        }}
+      />,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("NYC --° ⏳");
+    expect(frame).toMatch(/ \[1\] . cache-refactor/);
+    expect(frame).toContain("N:new");
+    instance.unmount();
+  });
+
+  it.each([
+    ["not found", "ZZZ", new Error("not_found")],
+    ["timeout", "NYC", new Error("timeout")],
+    ["rejection", "NYC", new Error("network failed")],
+  ])("renders compact weather error on %s without surfacing diagnostics", async (_name, city, error) => {
+    const snapshot = createDashboardSnapshot();
+    const instance = render(
+      <App
+        initialSnapshot={snapshot}
+        service={new FakeTuiObserverService(snapshot)}
+        tuiConfig={{
+          widgets: [
+            {
+              type: "weather",
+              city,
+            },
+          ],
+        }}
+        topRowWidgetDeps={{
+          weatherClient: weatherClientRejecting(error),
+        }}
+      />,
+    );
+
+    await waitFor(() => instance.lastFrame()?.includes(`${city} --° 🫥`) === true);
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toMatch(/ \[1\] . cache-refactor/);
+    expect(frame).not.toContain(error.message);
+    expect(frame).not.toContain("diagnostic");
+    expect(frame).not.toContain("providerData");
+    expect(frame).not.toContain("stack");
+    instance.unmount();
+  });
 });
+
+function widgetTestNow(): Date {
+  return new Date(2026, 5, 2, 10, 42);
+}
+
+function weatherClientReturning(
+  conditions: Awaited<ReturnType<WeatherClient["getCurrentWeather"]>>,
+): WeatherClient {
+  return {
+    getCurrentWeather: async () => conditions,
+  };
+}
+
+function weatherClientRejecting(error: Error): WeatherClient {
+  return {
+    getCurrentWeather: async () => {
+      throw error;
+    },
+  };
+}
+
+function weatherClientPending(): WeatherClient {
+  return {
+    getCurrentWeather: () => new Promise(() => undefined),
+  };
+}
+
+function pendingObserverService(): TuiObserverService {
+  return {
+    loadSnapshot: () => new Promise(() => undefined),
+    subscribeEvents: () => ({
+      [Symbol.asyncIterator]: () => ({
+        next: () => new Promise(() => undefined),
+        return: async () => ({ done: true, value: undefined }),
+      }),
+    }),
+    dispatch: async () => ({
+      commandId: "cmd_tui_1",
+      accepted: true,
+      status: "accepted",
+    }),
+    waitForCommandCompletion: async (commandId) => ({
+      status: "succeeded",
+      commandId,
+    }),
+    reconcile: () => new Promise(() => undefined),
+  };
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {
+  const startedAt = Date.now();
+  for (;;) {
+    if (predicate()) {
+      return;
+    }
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error("Timed out waiting for condition.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
