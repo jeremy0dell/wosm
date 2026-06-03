@@ -1,6 +1,8 @@
 # Known Issues
 
-These are accepted limitations for the current dogfood milestone.
+These are accepted limitations and testing gaps for the current dogfood milestone.
+
+## Product Limitations
 
 - Real E2E remains opt-in because it requires local Worktrunk, tmux, real harness CLIs, credentials or model access, and isolated temporary projects.
 - wosm is still a private workspace package. There is no public npm package, installer, or release artifact outside this repository.
@@ -9,3 +11,14 @@ These are accepted limitations for the current dogfood milestone.
 - Real provider status can be conservative. Provider hooks can promote correlated live rows to working, needs attention, or idle when supported, but terminal-only rows may remain unknown until a reliable hook or provider status signal arrives.
 - Worktrunk hook installation is explicit and reversible; it is not applied by `pnpm smoke:release`.
 - Cleanup and remove workflows should be tested only against disposable projects or isolated real-dogfood temp state.
+
+## Diagnostics Gaps
+
+- Diagnostic file retention is reported through `wosm doctor`, but log and debug-bundle cleanup is not currently wired to the retention policy.
+- A malformed JSONL log line can cause diagnostics collection to fail instead of skipping the bad record and preserving the remaining logs.
+- Debug bundles write `logs/observer.jsonl`, but the manifest `sections` list does not currently name that nested log file.
+
+## Test Coverage Gaps
+
+- `packages/provider-hooks` has focused delivery and autostart-lock tests, but lacks direct coverage for stale socket removal, child cleanup after observer startup timeout, missing observer entry path failures, and stdin byte-limit enforcement.
+- `packages/observability` has redaction and evidence-index tests, but lacks focused regression coverage for malformed JSONL log handling, retention enforcement wiring, and manifest completeness for nested bundle files.
