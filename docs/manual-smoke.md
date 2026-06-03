@@ -104,6 +104,11 @@ session_prefix = "wosm"
 enabled = true
 command = "codex"
 
+# Optional: configure Cursor as another selectable harness.
+[harness.cursor]
+enabled = true
+command = "agent"
+
 [[projects]]
 id = "wosm"
 label = "wosm"
@@ -126,6 +131,10 @@ Place it at `~/.config/wosm/config.toml`, or pass it explicitly with `--config /
 
 Codex profiles are optional. Leave `profile` unset unless the named profile already exists in your
 Codex config; `profile = "default"` is not portable and can make launch fail before the agent starts.
+
+When Cursor is configured, the TUI new-session path is provider-neutral: press `N`, press `A` to open
+the Agent picker, choose `cursor`, then press Enter to submit. Cursor should appear only when the
+observer snapshot includes the configured `cursor` harness.
 
 ## Smoke Loop
 
@@ -297,6 +306,20 @@ pnpm test:e2e:codex:real
 ```
 
 The test uses a temporary project/worktree plus a temporary Codex shim that records argv and then executes the real Codex binary. The expected observer result is a normalized Codex harness run with conservative `unknown` low-confidence status.
+
+## Real Cursor Smoke
+
+The real Cursor lane is opt-in and isolated from normal CI. It requires installed `tmux`, installed Cursor Agent `agent`, and `agent --version` returning success.
+
+```bash
+agent --version
+WOSM_REAL_CURSOR=1 \
+WOSM_CURSOR_AGENT_BIN="$(command -v agent)" \
+WOSM_TMUX_BIN="$(command -v tmux)" \
+pnpm test:e2e:cursor:real
+```
+
+The test uses a temporary project/worktree plus a temporary Cursor shim that records argv/env and then executes the real Cursor Agent binary. The expected observer result is a normalized Cursor harness run with conservative `unknown` low-confidence status and tmux pane/process evidence that an interactive launch exists.
 
 ## Real Dogfood E2E
 
