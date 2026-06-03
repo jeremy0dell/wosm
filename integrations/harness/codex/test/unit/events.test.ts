@@ -44,7 +44,7 @@ describe("Codex hook event parsing", () => {
       status: {
         value: "starting",
         confidence: "high",
-        source: "harness_hook",
+        source: "harness_event",
       },
       providerData: {
         codexSessionId: "codex_session_123",
@@ -415,7 +415,7 @@ describe("Codex hook event parsing", () => {
       coalesceKey: "turn:turn_1:tool:call_test",
       status: {
         value: "working",
-        source: "harness_hook",
+        source: "harness_event",
       },
       correlation: {
         projectId: "web",
@@ -498,7 +498,7 @@ describe("Codex hook event parsing", () => {
     for (const report of reports) {
       expect(report.provider).toBe("codex");
       expect(report.kind).toBe("harness");
-      expect(report.status?.source).toBe("harness_hook");
+      expect(report.status?.source).toBe("harness_event");
       expect(report.diagnostics).toMatchObject({
         rawEventType: report.eventType,
       });

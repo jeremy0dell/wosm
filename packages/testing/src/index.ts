@@ -640,7 +640,7 @@ export class FakeHarnessProvider implements HarnessProvider {
         value: run.state,
         confidence: run.confidence,
         reason: run.reason,
-        source: "harness_hook",
+        source: "harness_event",
         updatedAt: observedAt,
       },
       observedAt,

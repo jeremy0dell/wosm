@@ -13,16 +13,15 @@ describe("CLI event hook commands", () => {
     const plan = await runCli([
       "--config",
       configPath,
-      "hooks",
+      "event-hooks",
       "plan",
-      "event",
       "notify-turn-completion",
     ]);
 
     expect(plan).toMatchObject({
       code: 0,
       output: {
-        provider: "event",
+        category: "observer-event-hook",
         hookId: "notify-agent-idle",
         changed: true,
         installed: false,
@@ -31,15 +30,14 @@ describe("CLI event hook commands", () => {
     await expect(readFile(configPath, "utf8")).resolves.not.toContain("notify-agent-idle");
 
     await expect(
-      runCli(["--config", configPath, "hooks", "install", "event", "notify-turn-completion"]),
+      runCli(["--config", configPath, "event-hooks", "install", "notify-turn-completion"]),
     ).rejects.toThrow("without --yes");
 
     const install = await runCli([
       "--config",
       configPath,
-      "hooks",
+      "event-hooks",
       "install",
-      "event",
       "notify-turn-completion",
       "--yes",
     ]);
@@ -47,7 +45,7 @@ describe("CLI event hook commands", () => {
     expect(install).toMatchObject({
       code: 0,
       output: {
-        provider: "event",
+        category: "observer-event-hook",
         installed: true,
       },
     });
@@ -62,11 +60,11 @@ describe("CLI event hook commands", () => {
     expect(after).not.toContain("[hooks.event.filter]");
     expect(after).not.toContain('agent_state = "idle"');
 
-    const doctor = await runCli(["--config", configPath, "hooks", "doctor", "event"], { env });
+    const doctor = await runCli(["--config", configPath, "event-hooks", "doctor"], { env });
     expect(doctor).toMatchObject({
       code: 0,
       output: {
-        provider: "event",
+        category: "observer-event-hook",
         status: "ok",
         installed: true,
         commandCheck: {
@@ -85,25 +83,46 @@ describe("CLI event hook commands", () => {
     await runCli([
       "--config",
       configPath,
-      "hooks",
+      "event-hooks",
       "install",
-      "event",
       "notify-turn-completion",
       "--yes",
     ]);
 
-    const doctor = await runCli(["--config", configPath, "hooks", "doctor", "event"], { env });
+    const doctor = await runCli(["--config", configPath, "event-hooks", "doctor"], { env });
 
     expect(doctor).toMatchObject({
       code: 1,
       output: {
-        provider: "event",
+        category: "observer-event-hook",
         status: "warn",
         installed: true,
         commandCheck: {
           status: "warn",
           command: `wosm --config ${configPath} notify turn-completion`,
         },
+      },
+    });
+  });
+
+  it("keeps the legacy hooks event route as a compatibility alias", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-cli-event-hooks-legacy-"));
+    const configPath = await writeConfig(root);
+
+    const plan = await runCli([
+      "--config",
+      configPath,
+      "hooks",
+      "plan",
+      "event",
+      "notify-turn-completion",
+    ]);
+
+    expect(plan).toMatchObject({
+      code: 0,
+      output: {
+        category: "observer-event-hook",
+        hookId: "notify-agent-idle",
       },
     });
   });

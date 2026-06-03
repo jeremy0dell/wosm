@@ -36,7 +36,7 @@ describe("classifyCodexRunStatus", () => {
     expect(status.status).toMatchObject({
       value: "needs_attention",
       confidence: "high",
-      source: "harness_hook",
+      source: "harness_event",
       reason: "Codex requested permission for Bash.",
     });
   });

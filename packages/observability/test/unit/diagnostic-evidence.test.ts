@@ -157,7 +157,7 @@ describe("diagnostic evidence index", () => {
         },
         events: [
           {
-            type: "hook.spoolDrained",
+            type: "providerHook.spoolDrained",
             at: diagnosticNow,
             drained: 0,
             failed: 1,

@@ -1,8 +1,8 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type ObserverPaths, resolveObserverPaths, resolvePath } from "@wosm/config";
-import type { HookReceipt } from "@wosm/contracts";
-import { HookReceiptSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import type { ProviderHookReceipt } from "@wosm/contracts";
+import { ProviderHookReceiptSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import {
   type ProviderHookSenderDeps,
@@ -40,7 +40,7 @@ export async function runProviderIngressCommand(
   argv = process.argv.slice(2),
   options: ProviderIngressCommandOptions = {},
   deps: ProviderHookSenderDeps = {},
-): Promise<HookReceipt> {
+): Promise<ProviderHookReceipt> {
   const parsed = parseArgs(argv);
   const [provider, event] = parsed.providerArgs;
   if (provider === undefined) {
@@ -248,7 +248,7 @@ function parseJsonPayload(
   | { ok: true; value: unknown }
   | {
       ok: false;
-      receipt: HookReceipt;
+      receipt: ProviderHookReceipt;
     } {
   const source = stdin?.trim();
   if (source === undefined || source.length === 0) {
@@ -276,7 +276,7 @@ function parseOptionalJsonPayload(
   | { ok: true; value?: unknown }
   | {
       ok: false;
-      receipt: HookReceipt;
+      receipt: ProviderHookReceipt;
     } {
   const source = stdin?.trim();
   if (source === undefined || source.length === 0) {
@@ -296,9 +296,9 @@ function invalidPayloadReceipt(
   provider: string,
   event: string,
   deps: ProviderHookSenderDeps,
-): HookReceipt {
+): ProviderHookReceipt {
   const clock = deps.clock ?? systemClock;
-  return HookReceiptSchema.parse({
+  return ProviderHookReceiptSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: deps.hookId?.() ?? `hook_invalid_${Date.now()}`,
     provider,
@@ -327,7 +327,7 @@ function defaultObserverEntryPath(): string {
   return fileURLToPath(new URL("../../../apps/observer/dist/runtime/main.js", import.meta.url));
 }
 
-function formatRejectedReceipt(receipt: HookReceipt): string {
+function formatRejectedReceipt(receipt: ProviderHookReceipt): string {
   const output: Record<string, unknown> = {
     status: receipt.status,
     provider: receipt.provider,

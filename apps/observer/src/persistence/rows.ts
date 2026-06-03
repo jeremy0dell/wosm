@@ -1,15 +1,18 @@
-import type { WosmCommand, WosmEvent } from "@wosm/contracts";
+import type { WosmCommand } from "@wosm/contracts";
 import {
   AgentStateSchema,
   ConfidenceSchema,
   ErrorEnvelopeSchema,
+  ProviderIdSchema,
   SafeErrorSchema,
   TerminalStateSchema,
+  TimestampSchema,
   WorktreeSourceSchema,
   WorktreeStateSchema,
   WosmCommandSchema,
   WosmEventSchema,
 } from "@wosm/contracts";
+import { z } from "zod";
 import { parseJson } from "./json.js";
 import type {
   PersistedCommand,
@@ -49,7 +52,7 @@ export type SqliteCommandErrorRow = {
 
 export type SqliteEventRow = {
   id: string;
-  type: WosmEvent["type"];
+  type: string;
   source: string;
   command_id: string | null;
   trace_id: string | null;
@@ -171,8 +174,47 @@ export function commandErrorFromRow(row: SqliteCommandErrorRow): PersistedComman
   };
 }
 
+const LegacyProviderHookIngestedEventSchema = z
+  .object({
+    type: z.literal("hook.ingested"),
+    at: TimestampSchema,
+    hookId: z.string().min(1),
+    provider: ProviderIdSchema,
+    event: z.string().min(1),
+  })
+  .strict();
+
+const LegacyProviderHookSpoolDrainedEventSchema = z
+  .object({
+    type: z.literal("hook.spoolDrained"),
+    at: TimestampSchema,
+    drained: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const LegacyPersistedHookEventSchema = z.discriminatedUnion("type", [
+  LegacyProviderHookIngestedEventSchema,
+  LegacyProviderHookSpoolDrainedEventSchema,
+]);
+
+function normalizeLegacyPersistedEventPayload(payload: unknown): unknown {
+  const parsed = LegacyPersistedHookEventSchema.safeParse(payload);
+  if (!parsed.success) {
+    return payload;
+  }
+  switch (parsed.data.type) {
+    case "hook.ingested":
+      return { ...parsed.data, type: "providerHook.ingested" };
+    case "hook.spoolDrained":
+      return { ...parsed.data, type: "providerHook.spoolDrained" };
+  }
+}
+
 export function eventFromRow(row: SqliteEventRow): PersistedEvent {
-  const event = WosmEventSchema.parse(parseJson(row.payload_json));
+  const event = WosmEventSchema.parse(
+    normalizeLegacyPersistedEventPayload(parseJson(row.payload_json)),
+  );
   const persistedEvent: PersistedEvent = {
     id: row.id,
     type: event.type,

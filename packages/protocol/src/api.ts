@@ -9,10 +9,10 @@ import type {
   EventFilter,
   HarnessEventReport,
   HarnessEventReportReceipt,
-  HookReceipt,
   ObserverHealth,
   ObserverStopReceipt,
   ProviderHookEvent,
+  ProviderHookReceipt,
   ReconcileReceipt,
   WosmCommand,
   WosmEvent,
@@ -27,7 +27,8 @@ export type ObserverApi = {
   dispatch(command: WosmCommand): Promise<CommandReceipt>;
   getCommand(commandId: CommandId): Promise<CommandRecord | undefined>;
   reconcile(reason?: string): Promise<ReconcileReceipt>;
-  ingestHookEvent(event: ProviderHookEvent): Promise<HookReceipt>;
+  ingestProviderHookEvent(event: ProviderHookEvent): Promise<ProviderHookReceipt>;
+  ingestHookEvent(event: ProviderHookEvent): Promise<ProviderHookReceipt>;
   reportHarnessEvent(report: HarnessEventReport): Promise<HarnessEventReportReceipt>;
   runDoctor(options?: DoctorOptions): Promise<DoctorReport>;
   collectDiagnostics(options?: DiagnosticCollectionOptions): Promise<DiagnosticSnapshot>;

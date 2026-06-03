@@ -32,7 +32,7 @@ describe("OpenCode plugin setup", () => {
       installed: false,
     });
     expect(plan.after).toContain("wosm-opencode-observer-plugin:v1");
-    expect(plan.after).toContain('method: "observer.ingestHookEvent"');
+    expect(plan.after).toContain('method: "observer.ingestProviderHookEvent"');
     expect(plan.after).toContain('provider: "opencode"');
     expect(plan.after).toContain("shouldSendOpenCodeEvent");
     expect(plan.after).not.toContain('"message.part.delta"');

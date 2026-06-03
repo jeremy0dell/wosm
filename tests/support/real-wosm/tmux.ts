@@ -154,12 +154,15 @@ export async function displayWosmPopupAndSendKey(input: {
     }
   }, delaySeconds * 1000);
   try {
+    await execFileAsync(requireToolPath(input.env, "tmux"), ["select-pane", "-t", input.target], {
+      timeout: 10_000,
+    });
     await execFileAsync(
       requireToolPath(input.env, "tmux"),
       [
         "display-popup",
         "-t",
-        input.target,
+        ptyClient.clientName,
         "-w",
         "50%",
         "-h",

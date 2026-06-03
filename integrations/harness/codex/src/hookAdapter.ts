@@ -1,11 +1,11 @@
 import type {
   HarnessEventReportResult,
-  HookScopeDecision,
   ProviderHookAdapter,
   ProviderHookEvent,
   ProviderHookPayloadCompactionResult,
   ProviderHookPayloadEnrichmentInput,
   ProviderHookReportInput,
+  ProviderHookScopeDecision,
 } from "@wosm/contracts";
 import { ProviderHookEventSchema } from "@wosm/contracts";
 import { compactCodexHookPayload } from "./compaction.js";
@@ -39,7 +39,7 @@ function enrichCodexHookPayload(input: ProviderHookPayloadEnrichmentInput): unkn
   return next;
 }
 
-function decideCodexHookScope(event: ProviderHookEvent): HookScopeDecision {
+function decideCodexHookScope(event: ProviderHookEvent): ProviderHookScopeDecision {
   if (event.kind !== "harness") {
     return { action: "accept", reason: "not-required" };
   }

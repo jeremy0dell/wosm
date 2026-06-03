@@ -13,11 +13,11 @@ import {
   CommandGetParamsSchema,
   EventsSubscribeParamsSchema,
   HarnessEventReportParamsSchema,
-  HookIngestParamsSchema,
   ProtocolEventEnvelopeSchema,
   type ProtocolMethod,
   type ProtocolRequest,
   ProtocolRequestSchema,
+  ProviderHookIngestParamsSchema,
   protocolErrorResponse,
   protocolSafeError,
   protocolSuccessResponse,
@@ -131,8 +131,12 @@ async function routeSingleResponseRequest(
         const params = ReconcileParamsSchema.parse(request.params);
         return await api.reconcile(params?.reason);
       }
+      case "observer.ingestProviderHookEvent": {
+        const params = ProviderHookIngestParamsSchema.parse(request.params);
+        return await api.ingestProviderHookEvent(params.event);
+      }
       case "observer.ingestHookEvent": {
-        const params = HookIngestParamsSchema.parse(request.params);
+        const params = ProviderHookIngestParamsSchema.parse(request.params);
         return await api.ingestHookEvent(params.event);
       }
       case "observer.harnessEvent.report": {

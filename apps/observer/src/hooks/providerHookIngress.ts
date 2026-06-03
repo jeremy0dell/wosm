@@ -51,7 +51,7 @@ export async function ingestProviderHookEvent(
   const clock = options.clock ?? systemClock;
   const result = await runRuntimeBoundaryWithTimeout(
     {
-      operation: `observer.hook.providerIngest.${options.event.provider}`,
+      operation: `observer.providerHook.ingest.${options.event.provider}`,
       clock,
       timeoutMs: options.timeoutMs ?? 1000,
       error: {

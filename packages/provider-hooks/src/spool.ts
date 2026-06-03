@@ -5,27 +5,28 @@ import type {
   HarnessEventReport,
   HarnessEventReportReceipt,
   HarnessEventReportSpoolRecord,
-  HookReceipt,
-  HookSpoolRecord,
   ProviderHookEvent,
+  ProviderHookReceipt,
+  ProviderHookSpoolRecord,
   SafeError,
 } from "@wosm/contracts";
 import {
   HarnessEventReportReceiptSchema,
   HarnessEventReportSpoolRecordSchema,
-  HookReceiptSchema,
-  HookSpoolRecordSchema,
+  ProviderHookReceiptSchema,
+  ProviderHookSpoolRecordSchema,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
 import { type RuntimeClock, runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
 
-export type WriteHookSpoolRecordOptions = {
+export type WriteProviderHookSpoolRecordOptions = {
   spoolDir: string;
   event: ProviderHookEvent;
   error?: SafeError;
   clock?: RuntimeClock;
   spoolId?: () => string;
 };
+export type WriteHookSpoolRecordOptions = WriteProviderHookSpoolRecordOptions;
 
 export type WriteHarnessEventReportSpoolRecordOptions = {
   spoolDir: string;
@@ -37,9 +38,9 @@ export type WriteHarnessEventReportSpoolRecordOptions = {
 
 const defaultSpoolId = () => `spool_${Date.now()}_${randomUUID()}`;
 
-export async function writeHookSpoolRecord(
-  options: WriteHookSpoolRecordOptions,
-): Promise<HookReceipt> {
+export async function writeProviderHookSpoolRecord(
+  options: WriteProviderHookSpoolRecordOptions,
+): Promise<ProviderHookReceipt> {
   const clock = options.clock ?? systemClock;
   const spoolId = (options.spoolId ?? defaultSpoolId)();
   const result = await runRuntimeBoundary(
@@ -49,7 +50,7 @@ export async function writeHookSpoolRecord(
       error: {
         tag: "HookSpoolError",
         code: "HOOK_SPOOL_WRITE_FAILED",
-        message: "Hook event could not be written to the hook spool.",
+        message: "Provider hook event could not be written to the provider ingress spool.",
         provider: options.event.provider,
       },
     },
@@ -57,7 +58,7 @@ export async function writeHookSpoolRecord(
       await mkdir(options.spoolDir, { recursive: true, mode: 0o700 });
       await chmod(options.spoolDir, 0o700);
 
-      const record: HookSpoolRecord = HookSpoolRecordSchema.parse({
+      const record: ProviderHookSpoolRecord = ProviderHookSpoolRecordSchema.parse({
         schemaVersion: WOSM_SCHEMA_VERSION,
         spoolId,
         createdAt: toIsoTimestamp(clock.now()),
@@ -76,7 +77,7 @@ export async function writeHookSpoolRecord(
     throw result.error;
   }
 
-  return HookReceiptSchema.parse({
+  return ProviderHookReceiptSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: options.event.hookId ?? spoolId,
     provider: options.event.provider,
@@ -88,6 +89,8 @@ export async function writeHookSpoolRecord(
     ...(options.error === undefined ? {} : { error: options.error }),
   });
 }
+
+export const writeHookSpoolRecord = writeProviderHookSpoolRecord;
 
 export async function writeHarnessEventReportSpoolRecord(
   options: WriteHarnessEventReportSpoolRecordOptions,

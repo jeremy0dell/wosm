@@ -6,7 +6,7 @@ export function classifyCodexRunStatus(run: HarnessRunObservation): HarnessStatu
       value: "needs_attention",
       confidence: "high",
       reason: run.reason,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: run.observedAt,
     });
   }

@@ -199,7 +199,7 @@ class EvidenceIndexBuilder {
         continue;
       }
 
-      if (event.type === "hook.spoolDrained" && event.failed > 0) {
+      if (event.type === "providerHook.spoolDrained" && event.failed > 0) {
         const item = this.#addItem({
           id: `event-hook-spool-drained-${index}`,
           category: "event",

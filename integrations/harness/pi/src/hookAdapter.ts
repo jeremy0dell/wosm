@@ -1,11 +1,11 @@
 import type {
   HarnessEventReportResult,
-  HookScopeDecision,
   ProviderHookAdapter,
   ProviderHookEvent,
   ProviderHookPayloadCompactionResult,
   ProviderHookPayloadEnrichmentInput,
   ProviderHookReportInput,
+  ProviderHookScopeDecision,
 } from "@wosm/contracts";
 import { ProviderHookEventSchema, parseWosmHookIdentityPayload } from "@wosm/contracts";
 import {
@@ -44,7 +44,7 @@ function enrichPiHookPayload(input: ProviderHookPayloadEnrichmentInput): unknown
   return next;
 }
 
-function decidePiHookScope(event: ProviderHookEvent): HookScopeDecision {
+function decidePiHookScope(event: ProviderHookEvent): ProviderHookScopeDecision {
   if (event.kind !== "harness") {
     return { action: "accept", reason: "not-required" };
   }

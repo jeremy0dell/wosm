@@ -6,7 +6,7 @@ describe("observer event bus", () => {
   it("streams matching events and cleans up subscribers", async () => {
     const bus = createObserverEventBus();
     const iterator = bus
-      .subscribe({ type: ["command.accepted", "hook.ingested"] })
+      .subscribe({ type: ["command.accepted", "providerHook.ingested"] })
       [Symbol.asyncIterator]();
     const commandEvent: WosmEvent = {
       type: "command.accepted",
@@ -19,7 +19,7 @@ describe("observer event bus", () => {
       changed: 0,
     };
     const hookEvent: WosmEvent = {
-      type: "hook.ingested",
+      type: "providerHook.ingested",
       at: "2026-05-20T12:00:01.000Z",
       hookId: "hook_1",
       provider: "worktrunk",

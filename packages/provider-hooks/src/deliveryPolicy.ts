@@ -2,9 +2,9 @@ import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { ObserverPaths } from "@wosm/config";
 import type {
-  HookPayloadSummary,
-  HookReceipt,
   ProviderHookEvent,
+  ProviderHookPayloadSummary,
+  ProviderHookReceipt,
   SafeError,
 } from "@wosm/contracts";
 import { safeErrorFromUnknown, systemClock } from "@wosm/runtime";
@@ -15,16 +15,16 @@ import {
 } from "./observerStartup.js";
 
 export type ProviderDeliveryAttempt = {
-  receipt?: HookReceipt;
+  receipt?: ProviderHookReceipt;
   error?: SafeError;
 };
 
 type ReceiptRecorder = (input: {
   paths: ObserverPaths;
   event: ProviderHookEvent;
-  payloadSummary: HookPayloadSummary;
-  receipt: HookReceipt;
-}) => HookReceipt | Promise<HookReceipt>;
+  payloadSummary: ProviderHookPayloadSummary;
+  receipt: ProviderHookReceipt;
+}) => ProviderHookReceipt | Promise<ProviderHookReceipt>;
 
 const autoStartLockName = "hook-autostart.lock";
 const minimumAutoStartLockStaleMs = 5000;
@@ -32,7 +32,7 @@ const minimumAutoStartLockStaleMs = 5000;
 export async function deliverProviderHookWithSpooling(input: {
   paths: ObserverPaths;
   event: ProviderHookEvent;
-  payloadSummary: HookPayloadSummary;
+  payloadSummary: ProviderHookPayloadSummary;
   autoStart: boolean;
   startupTimeoutMs: number;
   rateLimitMs: number;
@@ -40,9 +40,9 @@ export async function deliverProviderHookWithSpooling(input: {
   observerEntryPath?: string | undefined;
   deps: ProviderHookObserverStartupDeps;
   deliver: () => Promise<ProviderDeliveryAttempt>;
-  spoolReceipt: (error: SafeError | undefined) => Promise<HookReceipt>;
+  spoolReceipt: (error: SafeError | undefined) => Promise<ProviderHookReceipt>;
   recordReceipt?: ReceiptRecorder | undefined;
-}): Promise<HookReceipt> {
+}): Promise<ProviderHookReceipt> {
   const firstDelivery = await input.deliver();
   if (firstDelivery.receipt !== undefined) {
     return recordReceipt(input, firstDelivery.receipt);
@@ -74,11 +74,11 @@ async function recordReceipt(
   input: {
     paths: ObserverPaths;
     event: ProviderHookEvent;
-    payloadSummary: HookPayloadSummary;
+    payloadSummary: ProviderHookPayloadSummary;
     recordReceipt?: ReceiptRecorder | undefined;
   },
-  receipt: HookReceipt,
-): Promise<HookReceipt> {
+  receipt: ProviderHookReceipt,
+): Promise<ProviderHookReceipt> {
   if (input.recordReceipt === undefined) {
     return receipt;
   }

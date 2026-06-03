@@ -26,7 +26,7 @@ describe("protocol event subscriptions", () => {
         command: { type: "observer.reconcile", payload: { reason: "subscription-test" } },
       },
       {
-        type: "hook.ingested",
+        type: "providerHook.ingested",
         at: protocolTestNow,
         hookId: "hook_1",
         provider: "worktrunk",
@@ -45,7 +45,7 @@ describe("protocol event subscriptions", () => {
     const client = createObserverClient({ socketPath, requestId: ids("sub") });
 
     const iterator = client
-      .subscribe({ type: ["command.accepted", "hook.ingested"] })
+      .subscribe({ type: ["command.accepted", "providerHook.ingested"] })
       [Symbol.asyncIterator]();
 
     await expect(iterator.next()).resolves.toMatchObject({
@@ -54,11 +54,11 @@ describe("protocol event subscriptions", () => {
     });
     await expect(iterator.next()).resolves.toMatchObject({
       done: false,
-      value: { type: "hook.ingested", hookId: "hook_1" },
+      value: { type: "providerHook.ingested", hookId: "hook_1" },
     });
     await iterator.return?.();
 
-    expect(observedFilter).toEqual({ type: ["command.accepted", "hook.ingested"] });
+    expect(observedFilter).toEqual({ type: ["command.accepted", "providerHook.ingested"] });
     await server.close();
   });
 

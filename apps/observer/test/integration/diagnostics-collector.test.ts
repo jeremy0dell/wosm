@@ -244,6 +244,73 @@ describe("observer diagnostics collector", () => {
     );
     sqlite.close();
   });
+
+  it("collects diagnostics when persisted event history has legacy provider hook rows", async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-diag-legacy-hooks-"));
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({
+      path: join(stateDir, "observer.sqlite"),
+      clock,
+    });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const providers = new ProviderRegistry({
+      worktree: new ProviderDiagnosticWorktreeProvider({ now }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
+    const core = createObserverCore({
+      config,
+      providers,
+      persistence,
+      sqlite,
+      clock,
+    });
+    sqlite.database
+      .prepare(
+        `
+          INSERT INTO events (id, type, source, command_id, trace_id, span_id, payload_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        "evt_legacy_ingested",
+        "hook.ingested",
+        "hook",
+        null,
+        null,
+        null,
+        JSON.stringify({
+          type: "hook.ingested",
+          at: now,
+          hookId: "hook_legacy",
+          provider: "worktrunk",
+          event: "PostToolUse",
+        }),
+        now,
+      );
+
+    const snapshot = await collectDiagnosticSnapshot({
+      config,
+      core,
+      persistence,
+      providers,
+      paths: { stateDir },
+      clock,
+    });
+
+    expect(snapshot.events).toContainEqual({
+      type: "providerHook.ingested",
+      at: now,
+      hookId: "hook_legacy",
+      provider: "worktrunk",
+      event: "PostToolUse",
+    });
+    sqlite.close();
+  });
 });
 
 class ProviderDiagnosticWorktreeProvider extends FakeWorktreeProvider {

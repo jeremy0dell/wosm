@@ -9,10 +9,10 @@ import type {
   EventFilter,
   HarnessEventReport,
   HarnessEventReportReceipt,
-  HookReceipt,
   ObserverHealth,
   ObserverStopReceipt,
   ProviderHookEvent,
+  ProviderHookReceipt,
   ReconcileReceipt,
   WosmCommand,
   WosmEvent,
@@ -37,11 +37,11 @@ import {
 } from "../hooks/harnessIngressQueue.js";
 import {
   createHarnessEventReportIngestion,
-  createHookIngestion,
+  createProviderHookIngress,
   type HarnessEventReportIngestion,
-  type HookIngestion,
+  type ProviderHookIngress,
 } from "../hooks/ingestion.js";
-import { drainHookSpool, hookSpoolDepth } from "../hooks/spool.js";
+import { drainProviderIngressSpool, providerIngressSpoolDepth } from "../hooks/spool.js";
 import {
   createWorktreeMetadataRefreshService,
   type WorktreeMetadataRefreshService,
@@ -78,7 +78,7 @@ export type CreateObserverApiOptions = {
   commandQueue: CommandQueue;
   eventBus: ObserverEventBus;
   clock?: RuntimeClock;
-  hookIngestion?: HookIngestion;
+  providerHookIngress?: ProviderHookIngress;
   harnessEventReportIngestion?: HarnessEventReportIngestion;
   harnessIngressQueue?: HarnessIngressQueue;
   hookSpoolDir?: string;
@@ -131,9 +131,9 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     defaultMetadataRefresh = createWorktreeMetadataRefreshService(metadataRefreshOptions);
   }
   const metadataRefresh = options.metadataRefresh ?? defaultMetadataRefresh;
-  const hookIngestion =
-    options.hookIngestion ??
-    createHookIngestion({
+  const providerHookIngress =
+    options.providerHookIngress ??
+    createProviderHookIngress({
       persistence: options.persistence,
       ...(options.providers === undefined ? {} : { providers: options.providers }),
       projects: providerProjectsFromConfig(options.config ?? emptyConfig()),
@@ -170,7 +170,9 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
       const coreHealth = options.core.getHealth();
       const snapshot = options.core.getSnapshot();
       const spoolDepth =
-        options.hookSpoolDir === undefined ? undefined : await hookSpoolDepth(options.hookSpoolDir);
+        options.hookSpoolDir === undefined
+          ? undefined
+          : await providerIngressSpoolDepth(options.hookSpoolDir);
 
       const health: ObserverHealth = {
         schemaVersion: WOSM_SCHEMA_VERSION,
@@ -217,8 +219,10 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
     ): Promise<DiagnosticSnapshot> =>
       collectDiagnosticSnapshot(diagnosticDeps(), diagnosticOptions),
     reconcile: runReconcile,
-    ingestHookEvent: (event: ProviderHookEvent): Promise<HookReceipt> =>
-      hookIngestion.ingest(event),
+    ingestProviderHookEvent: (event: ProviderHookEvent): Promise<ProviderHookReceipt> =>
+      providerHookIngress.ingest(event),
+    ingestHookEvent: (event: ProviderHookEvent): Promise<ProviderHookReceipt> =>
+      providerHookIngress.ingest(event),
     reportHarnessEvent: async (report: HarnessEventReport): Promise<HarnessEventReportReceipt> =>
       harnessIngressQueue.enqueue(report),
   };
@@ -327,12 +331,12 @@ export function createObserverApi(options: CreateObserverApiOptions): ObserverAp
         },
       },
       () =>
-        drainHookSpool({
+        drainProviderIngressSpool({
           spoolDir,
           persistence: options.persistence,
           eventBus: options.eventBus,
           clock,
-          ingest: (event) => hookIngestion.ingest(event, { triggerReconcile: false }),
+          ingest: (event) => providerHookIngress.ingest(event, { triggerReconcile: false }),
           report: async (report) => {
             const result = await processHarnessIngressReportInner(report);
             if (result.reconcileReason !== undefined) {
