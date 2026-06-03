@@ -106,6 +106,7 @@ describe("Cursor hook event parsing", () => {
       hook_event_name: "stop",
       session_id: "cursor_session_123",
       conversation_id: "conversation_123",
+      status: "completed",
       cwd: "/tmp/wosm/web/task",
       last_assistant_message: "Done.",
       wosm_project_id: "web",
@@ -148,8 +149,67 @@ describe("Cursor hook event parsing", () => {
         compacted: true,
         omittedFieldNames: ["last_assistant_message"],
       },
+      providerData: {
+        cursorStopStatus: "completed",
+      },
     });
     expect(JSON.stringify(report)).not.toContain("Done.");
+  });
+
+  it("maps Cursor stop errors to needs-attention instead of idle", () => {
+    const observations = normalizeCursorRawEvent(
+      {
+        provider: "cursor",
+        observedAt: now,
+        event: {
+          hook_event_name: "stop",
+          status: "error",
+          session_id: "cursor_session_123",
+          workspace_roots: ["/tmp/wosm/web/task"],
+        },
+      },
+      context(),
+    );
+
+    expect(observations[0]).toMatchObject({
+      rawEventType: "stop",
+      status: {
+        value: "needs_attention",
+        confidence: "high",
+        reason: "Cursor turn ended with an error.",
+      },
+      providerData: {
+        cursorStopStatus: "error",
+      },
+    });
+  });
+
+  it("maps aborted Cursor stops to medium-confidence idle", () => {
+    const observations = normalizeCursorRawEvent(
+      {
+        provider: "cursor",
+        observedAt: now,
+        event: {
+          hook_event_name: "stop",
+          status: "aborted",
+          session_id: "cursor_session_123",
+          workspace_roots: ["/tmp/wosm/web/task"],
+        },
+      },
+      context(),
+    );
+
+    expect(observations[0]).toMatchObject({
+      rawEventType: "stop",
+      status: {
+        value: "idle",
+        confidence: "medium",
+        reason: "Cursor turn was aborted.",
+      },
+      providerData: {
+        cursorStopStatus: "aborted",
+      },
+    });
   });
 
   it("leaves unmatched hook events uncorrelated", () => {

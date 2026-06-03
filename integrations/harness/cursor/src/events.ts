@@ -19,6 +19,7 @@ import { cursorHarnessError } from "./errors.js";
 
 const nonEmptyStringSchema = z.string().min(1);
 const nullableStringSchema = z.string().nullable();
+const cursorStopStatusSchema = z.enum(["completed", "aborted", "error"]);
 
 export const CursorProviderHookPayloadSchema = z
   .object({
@@ -31,6 +32,7 @@ export const CursorProviderHookPayloadSchema = z
     workspace_roots: z.array(nonEmptyStringSchema).optional(),
     model: nonEmptyStringSchema.optional(),
     cursor_version: nonEmptyStringSchema.optional(),
+    status: cursorStopStatusSchema.optional(),
     tool_name: nonEmptyStringSchema.optional(),
     tool_use_id: nonEmptyStringSchema.optional(),
     request_id: nonEmptyStringSchema.optional(),
@@ -153,13 +155,7 @@ export function statusFromCursorProviderHookPayload(
     };
   }
   if (eventName === "stop") {
-    return {
-      value: "idle",
-      confidence: "high",
-      reason: "Cursor turn completed.",
-      source: "harness_event",
-      updatedAt: observedAt,
-    };
+    return statusFromCursorStopEvent(event, observedAt);
   }
   if (
     eventName === "beforeShellExecution" ||
@@ -223,6 +219,37 @@ function cursorWorkingReason(event: CursorProviderHookPayload, verb: string): st
     : `Cursor ${verb} ${event.tool_name}.`;
 }
 
+function statusFromCursorStopEvent(
+  event: CursorProviderHookPayload,
+  observedAt: string,
+): ObservedStatus {
+  if (event.status === "error") {
+    return {
+      value: "needs_attention",
+      confidence: "high",
+      reason: "Cursor turn ended with an error.",
+      source: "harness_event",
+      updatedAt: observedAt,
+    };
+  }
+  if (event.status === "aborted") {
+    return {
+      value: "idle",
+      confidence: "medium",
+      reason: "Cursor turn was aborted.",
+      source: "harness_event",
+      updatedAt: observedAt,
+    };
+  }
+  return {
+    value: "idle",
+    confidence: "high",
+    reason: "Cursor turn completed.",
+    source: "harness_event",
+    updatedAt: observedAt,
+  };
+}
+
 function providerDataFromCursorEvent(event: CursorProviderHookPayload): Record<string, unknown> {
   const providerData: Record<string, unknown> = {
     hookEventName: event.hook_event_name,
@@ -238,6 +265,7 @@ function providerDataFromCursorEvent(event: CursorProviderHookPayload): Record<s
   if (event.workspace_roots !== undefined) providerData.workspaceRoots = event.workspace_roots;
   if (event.model !== undefined) providerData.model = event.model;
   if (event.cursor_version !== undefined) providerData.cursorVersion = event.cursor_version;
+  if (event.status !== undefined) providerData.cursorStopStatus = event.status;
   if (event.tool_name !== undefined) providerData.toolName = event.tool_name;
   if (event.tool_use_id !== undefined) providerData.toolUseId = event.tool_use_id;
   if (event.request_id !== undefined) providerData.requestId = event.request_id;
