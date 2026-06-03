@@ -18,6 +18,9 @@ export const wosmAliases = {
   "@wosm/codex": fileURLToPath(
     new URL("../../integrations/harness/codex/src/index.ts", import.meta.url),
   ),
+  "@wosm/cursor": fileURLToPath(
+    new URL("../../integrations/harness/cursor/src/index.ts", import.meta.url),
+  ),
   "@wosm/github-repository": fileURLToPath(
     new URL("../../integrations/repository/github/src/index.ts", import.meta.url),
   ),

@@ -87,20 +87,22 @@ describe("NewSessionBottomSheet", () => {
     expect(agentFrame).toContain("1-9/a-z:select   Esc:back");
   });
 
-  it("renders only configured harnesses in the agent picker, including Codex, Pi, and OpenCode", () => {
-    const configured = createConfiguredHarnessSnapshot(["codex", "pi", "opencode"]);
+  it("renders only configured harnesses in the agent picker, including Codex, Cursor, Pi, and OpenCode", () => {
+    const configured = createConfiguredHarnessSnapshot(["codex", "cursor", "pi", "opencode"]);
     const configuredFrame = renderAgentPickerFrame(configured);
 
     expect(configuredFrame).toContain("1 codex");
-    expect(configuredFrame).toContain("2 pi");
-    expect(configuredFrame).toContain("3 opencode");
+    expect(configuredFrame).toContain("2 cursor");
+    expect(configuredFrame).toContain("3 pi");
+    expect(configuredFrame).toContain("4 opencode");
 
     const codexOnly = createConfiguredHarnessSnapshot(["codex"], {
-      healthOnly: ["pi", "opencode"],
+      healthOnly: ["cursor", "pi", "opencode"],
     });
     const codexOnlyFrame = renderAgentPickerFrame(codexOnly);
 
     expect(codexOnlyFrame).toContain("1 codex");
+    expect(codexOnlyFrame).not.toContain("cursor");
     expect(codexOnlyFrame).not.toContain("pi");
     expect(codexOnlyFrame).not.toContain("opencode");
   });

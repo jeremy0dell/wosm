@@ -66,4 +66,4 @@ spool/hooks/
 ## Detailed References
 
 - Use `docs/diagnostics.md` for full doctor, debug bundle, redaction, retention, hook setup, and injected-failure details.
-- Use `docs/manual-smoke.md` for runnable smoke loops, real Worktrunk/Codex lanes, popup behavior, and cleanup smoke.
+- Use `docs/manual-smoke.md` for runnable smoke loops, real Worktrunk and harness lanes, popup behavior, and cleanup smoke.

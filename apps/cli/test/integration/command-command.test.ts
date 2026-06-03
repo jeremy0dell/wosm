@@ -35,6 +35,33 @@ describe("CLI command dispatch/get", () => {
     expect(dispatched).toEqual([command]);
   });
 
+  it("dispatches Cursor session.create JSON from stdin without rewriting the payload", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const command = cursorCreateCommand();
+    const dispatched: WosmCommand[] = [];
+
+    const result = await runCli(["--config", configPath, "command", "dispatch", "--stdin"], {
+      stdin: JSON.stringify(command),
+      observerDeps: runningObserverDeps({
+        socketPath: fixture.socketPath,
+        dispatch: async (input) => {
+          dispatched.push(input);
+          return receipt("cmd_cursor");
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      code: 0,
+      output: {
+        status: "accepted",
+        receipt: receipt("cmd_cursor"),
+      },
+    });
+    expect(dispatched).toEqual([command]);
+  });
+
   it("waits for the final command record when --wait is provided", async () => {
     const fixture = await createTempState();
     const command = reconcileCommand("cli-command-wait");
@@ -184,6 +211,26 @@ function reconcileCommand(reason: string): WosmCommand {
   return {
     type: "observer.reconcile",
     payload: { reason },
+  };
+}
+
+function cursorCreateCommand(): WosmCommand {
+  return {
+    type: "session.create",
+    payload: {
+      projectId: "web",
+      branch: "cursor-cli",
+      harness: {
+        provider: "cursor",
+        mode: "interactive",
+      },
+      terminal: {
+        provider: "tmux",
+        layout: "agent-build-shell",
+        focus: false,
+      },
+      initialPrompt: "Review the Cursor CLI dispatch path.",
+    },
   };
 }
 
