@@ -16,6 +16,7 @@ const retainedFieldNames = [
   "workspace_roots",
   "model",
   "cursor_version",
+  "status",
   "tool_name",
   "tool_use_id",
   "request_id",
