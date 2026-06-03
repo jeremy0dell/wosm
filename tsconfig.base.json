@@ -22,6 +22,7 @@
       "@wosm/config": ["packages/config/src/index.ts"],
       "@wosm/contracts": ["packages/contracts/src/index.ts"],
       "@wosm/codex": ["integrations/harness/codex/src/index.ts"],
+      "@wosm/cursor": ["integrations/harness/cursor/src/index.ts"],
       "@wosm/github-repository": ["integrations/repository/github/src/index.ts"],
       "@wosm/opencode": ["integrations/harness/opencode/src/index.ts"],
       "@wosm/observability": ["packages/observability/src/index.ts"],

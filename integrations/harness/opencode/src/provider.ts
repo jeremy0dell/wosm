@@ -15,6 +15,7 @@ import type {
   ProviderHealth,
   RawHarnessEvent,
 } from "@wosm/contracts";
+import { discoverTerminalBoundHarnessRuns } from "@wosm/contracts";
 import {
   type ExternalCommandRunner,
   runExternalCommand,
@@ -24,7 +25,6 @@ import {
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { classifyOpenCodeRunStatus } from "./classify.js";
-import { discoverOpenCodeRuns } from "./discovery.js";
 import { openCodeProviderErrorFromUnknown } from "./errors.js";
 import { normalizeOpenCodeRawEvent } from "./events.js";
 import { buildOpenCodeLaunchPlan, type OpenCodeLaunchOptions } from "./launch.js";
@@ -199,7 +199,11 @@ export class OpenCodeHarnessProvider implements HarnessProvider {
   }
 
   async discoverRuns(context: HarnessDiscoveryContext): Promise<HarnessRunObservation[]> {
-    return discoverOpenCodeRuns(context);
+    return discoverTerminalBoundHarnessRuns(context, {
+      harnessProvider: this.id,
+      displayName: "OpenCode",
+      role: "main-agent",
+    });
   }
 
   async classifyRun(

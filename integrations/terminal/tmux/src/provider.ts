@@ -14,12 +14,10 @@ import type {
   TerminalTargetObservation,
 } from "@wosm/contracts";
 import {
-  asRecord,
   type ExternalCommandRunner,
   pathIsSame,
   pathIsSameOrInside,
   type RuntimeClock,
-  stringField,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
@@ -232,6 +230,11 @@ export class TmuxProvider implements TerminalProvider {
         projectId: request.project.id,
         worktreeId: request.worktree.id,
         ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
+        harnessBinding: {
+          role: "main-agent",
+          harnessProvider: request.harness,
+          worktreePath: request.worktree.path,
+        },
         providerData: {
           sessionName,
           windowName,
@@ -396,7 +399,7 @@ export class TmuxProvider implements TerminalProvider {
       capturedAt: toIsoTimestamp(this.#clock.now()),
       text: output.stdout,
       providerData: {
-        sessionId: target.sessionId,
+        sessionName: target.sessionId,
         windowId: target.windowId,
         paneId: target.paneId,
       },
@@ -611,14 +614,13 @@ function targetMatchesWorkspace(
   target: TerminalTargetObservation,
   request: OpenWorkspaceRequest,
 ): boolean {
-  const providerData = asRecord(target.providerData);
-  if (stringField(providerData, "role") !== "main-agent") {
+  if (target.harnessBinding?.role !== "main-agent") {
     return false;
   }
   if (target.projectId !== request.project.id) {
     return false;
   }
-  const boundPath = stringField(providerData, "worktreePath");
+  const boundPath = target.harnessBinding.worktreePath;
   if (boundPath !== undefined) {
     return pathIsSame(boundPath, request.worktree.path);
   }

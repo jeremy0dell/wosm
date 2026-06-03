@@ -16,6 +16,7 @@ import type {
   WorktreeObservation,
   WorktreeProvider,
 } from "@wosm/contracts";
+import { CursorHarnessProvider } from "@wosm/cursor";
 import { GithubRepositoryProvider } from "@wosm/github-repository";
 import { OpenCodeHarnessProvider } from "@wosm/opencode";
 import { PiHarnessProvider } from "@wosm/pi";
@@ -138,6 +139,14 @@ function createHarnessProvider(
     options.hookSpoolDir = observerPaths.hookSpoolDir;
     options.autoStartFromHooks = config.observer?.autoStartFromHooks !== false;
     return new CodexHarnessProvider(options);
+  }
+
+  if (id === "cursor") {
+    const options: ConstructorParameters<typeof CursorHarnessProvider>[0] = {};
+    if (providerConfig?.command !== undefined) {
+      options.command = providerConfig.command;
+    }
+    return new CursorHarnessProvider(options);
   }
 
   if (id === "opencode") {

@@ -8,6 +8,7 @@
       "@wosm/codex": ["../../integrations/harness/codex/dist/index.d.ts"],
       "@wosm/config": ["../config/dist/index.d.ts"],
       "@wosm/contracts": ["../contracts/dist/index.d.ts"],
+      "@wosm/cursor": ["../../integrations/harness/cursor/dist/index.d.ts"],
       "@wosm/observability": ["../observability/dist/index.d.ts"],
       "@wosm/pi": ["../../integrations/harness/pi/dist/index.d.ts"],
       "@wosm/protocol": ["../protocol/dist/index.d.ts"],

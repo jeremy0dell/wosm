@@ -20,18 +20,13 @@ import {
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
-import { classifyPiRunStatus } from "./classify.js";
-import { piProviderErrorFromUnknown } from "./errors.js";
-import { normalizePiRawEvent } from "./event/mapping.js";
-import { buildPiLaunchPlan } from "./launch.js";
+import { classifyCursorRunStatus } from "./classify.js";
+import { cursorProviderErrorFromUnknown } from "./errors.js";
+import { normalizeCursorRawEvent } from "./events.js";
+import { buildCursorLaunchPlan, type CursorLaunchOptions } from "./launch.js";
 
-export type PiHarnessProviderOptions = {
+export type CursorHarnessProviderOptions = {
   command?: string;
-  extensionPath?: string;
-  configPath?: string;
-  observerSocketPath?: string;
-  stateDir?: string;
-  hookSpoolDir?: string;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
@@ -49,12 +44,12 @@ const capabilities: HarnessCapabilities = {
   canExposeApprovalState: false,
 };
 
-export class PiHarnessProvider implements HarnessProvider {
-  readonly id = "pi";
+export class CursorHarnessProvider implements HarnessProvider {
+  readonly id = "cursor";
 
-  readonly #options: PiHarnessProviderOptions;
+  readonly #options: CursorHarnessProviderOptions;
 
-  constructor(options: PiHarnessProviderOptions = {}) {
+  constructor(options: CursorHarnessProviderOptions = {}) {
     this.#options = options;
   }
 
@@ -81,7 +76,8 @@ export class PiHarnessProvider implements HarnessProvider {
         lastCheckedAt: checkedAt,
         capabilities,
         diagnostics: {
-          command: "pi --version succeeded",
+          command: "agent --version succeeded",
+          observation: "hooks",
         },
       };
     } catch (error) {
@@ -90,10 +86,10 @@ export class PiHarnessProvider implements HarnessProvider {
         providerType: "harness",
         status: "unavailable",
         lastCheckedAt: checkedAt,
-        lastError: piProviderErrorFromUnknown(error, {
-          code: "HARNESS_PI_UNAVAILABLE",
-          message: "Pi is not available.",
-          hint: "Install Pi or configure [harness.pi].command.",
+        lastError: cursorProviderErrorFromUnknown(error, {
+          code: "HARNESS_CURSOR_UNAVAILABLE",
+          message: "Cursor Agent is not available.",
+          hint: "Install Cursor Agent or configure [harness.cursor].command.",
         }),
         capabilities,
       };
@@ -101,31 +97,16 @@ export class PiHarnessProvider implements HarnessProvider {
   }
 
   async buildLaunch(request: BuildHarnessLaunchRequest): Promise<HarnessLaunchPlan> {
-    const options: Parameters<typeof buildPiLaunchPlan>[1] = {
+    const options: CursorLaunchOptions = {
       command: command(this.#options),
     };
-    if (this.#options.extensionPath !== undefined) {
-      options.extensionPath = this.#options.extensionPath;
-    }
-    if (this.#options.configPath !== undefined) {
-      options.configPath = this.#options.configPath;
-    }
-    if (this.#options.observerSocketPath !== undefined) {
-      options.observerSocketPath = this.#options.observerSocketPath;
-    }
-    if (this.#options.stateDir !== undefined) {
-      options.stateDir = this.#options.stateDir;
-    }
-    if (this.#options.hookSpoolDir !== undefined) {
-      options.hookSpoolDir = this.#options.hookSpoolDir;
-    }
-    return buildPiLaunchPlan(request, options);
+    return buildCursorLaunchPlan(request, options);
   }
 
   async discoverRuns(context: HarnessDiscoveryContext): Promise<HarnessRunObservation[]> {
     return discoverTerminalBoundHarnessRuns(context, {
       harnessProvider: this.id,
-      displayName: "Pi",
+      displayName: "Cursor",
       role: "main-agent",
     });
   }
@@ -134,7 +115,7 @@ export class PiHarnessProvider implements HarnessProvider {
     run: HarnessRunObservation,
     _context: HarnessClassificationContext,
   ): Promise<HarnessStatusObservation> {
-    return classifyPiRunStatus(run);
+    return classifyCursorRunStatus(run);
   }
 
   async ingestEvent(
@@ -143,15 +124,15 @@ export class PiHarnessProvider implements HarnessProvider {
   ): Promise<HarnessEventObservation[]> {
     const result = await runRuntimeBoundary(
       {
-        operation: "provider.pi.ingestEvent",
+        operation: "provider.cursor.ingestEvent",
         error: {
           tag: "HarnessProviderError",
-          code: "HARNESS_PI_EVENT_INGEST_FAILED",
-          message: "The Pi harness provider failed to ingest an event.",
+          code: "HARNESS_CURSOR_EVENT_INGEST_FAILED",
+          message: "The Cursor harness provider failed to ingest an event.",
           provider: this.id,
         },
       },
-      async () => normalizePiRawEvent(event, context),
+      async () => normalizeCursorRawEvent(event, context),
     );
     if (!result.ok) {
       throw result.error;
@@ -160,11 +141,11 @@ export class PiHarnessProvider implements HarnessProvider {
   }
 }
 
-function command(options: PiHarnessProviderOptions): string {
-  return options.command ?? process.env.WOSM_PI_BIN ?? "pi";
+function command(options: CursorHarnessProviderOptions): string {
+  return options.command ?? process.env.WOSM_CURSOR_AGENT_BIN ?? "agent";
 }
 
-function now(options: PiHarnessProviderOptions): string {
+function now(options: CursorHarnessProviderOptions): string {
   const value = options.now?.() ?? systemClock.now();
   return toIsoTimestamp(value instanceof Date ? value : new Date(value));
 }

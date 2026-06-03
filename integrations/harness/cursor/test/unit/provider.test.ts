@@ -5,13 +5,13 @@ import type {
 } from "@wosm/contracts";
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
-import { PiHarnessProvider } from "../../src/provider";
+import { CursorHarnessProvider } from "../../src/provider";
 
-const now = "2026-05-27T12:00:00.000Z";
+const now = "2026-06-03T12:00:00.000Z";
 
-describe("PiHarnessProvider", () => {
-  it("declares interactive Pi v1 capabilities", () => {
-    const provider = new PiHarnessProvider();
+describe("CursorHarnessProvider", () => {
+  it("declares hook-only Cursor capabilities", () => {
+    const provider = new CursorHarnessProvider();
 
     expect(provider.capabilities()).toEqual({
       canLaunch: true,
@@ -26,86 +26,59 @@ describe("PiHarnessProvider", () => {
     });
   });
 
-  it("checks pi --version for provider health without requiring auth", async () => {
+  it("checks agent --version for provider health", async () => {
     const calls: ExternalCommandInput[] = [];
-    const provider = new PiHarnessProvider({
-      command: "pi-test",
+    const provider = new CursorHarnessProvider({
+      command: "agent-test",
       now: () => new Date(now),
       runner: async (input) => {
         calls.push(input);
-        return result(input, "pi 1.2.3\n");
+        return result(input, "2026.06.02-8c11d9f\n");
       },
     });
 
     await expect(provider.health()).resolves.toMatchObject({
-      providerId: "pi",
+      providerId: "cursor",
       providerType: "harness",
       status: "healthy",
       lastCheckedAt: now,
       diagnostics: {
-        command: "pi --version succeeded",
+        command: "agent --version succeeded",
+        observation: "hooks",
       },
     });
     expect(calls.map((call) => call.args)).toEqual([["--version"]]);
   });
 
-  it("falls back to WOSM_PI_BIN when no command is configured", async () => {
-    const previous = process.env.WOSM_PI_BIN;
-    process.env.WOSM_PI_BIN = "pi-from-env";
-    try {
-      const provider = new PiHarnessProvider({ now: () => new Date(now) });
-
-      await expect(provider.buildLaunch(request())).resolves.toMatchObject({
-        command: "pi-from-env",
-      });
-    } finally {
-      if (previous === undefined) {
-        delete process.env.WOSM_PI_BIN;
-      } else {
-        process.env.WOSM_PI_BIN = previous;
-      }
-    }
-  });
-
-  it("maps health failures to typed harness provider health", async () => {
-    const provider = new PiHarnessProvider({
-      command: "missing-pi",
-      now: () => new Date(now),
-      runner: async () => {
-        throw Object.assign(new Error("not found"), {
-          code: "ENOENT",
-          stderr: "missing-pi: command not found",
-        });
-      },
-    });
-
-    await expect(provider.health()).resolves.toMatchObject({
-      providerId: "pi",
-      providerType: "harness",
-      status: "unavailable",
-      lastError: {
-        tag: "HarnessProviderError",
-        code: "HARNESS_PI_UNAVAILABLE",
-        provider: "pi",
-      },
-    });
-  });
-
-  it("applies provider launch defaults and discovers terminal-bound runs", async () => {
-    const provider = new PiHarnessProvider({
-      command: "pi-test",
-      extensionPath: "/tmp/wosm/piExtension.js",
-      configPath: "/tmp/wosm/config.toml",
-      now: () => new Date(now),
+  it("launches interactive Cursor agent with WOSM correlation env", async () => {
+    const provider = new CursorHarnessProvider({
+      command: "agent-test",
     });
 
     await expect(provider.buildLaunch(request())).resolves.toMatchObject({
-      command: "pi-test",
-      args: ["--extension", "/tmp/wosm/piExtension.js"],
+      provider: "cursor",
+      command: "agent-test",
+      args: ["--workspace", "/tmp/wosm/web/task"],
+      cwd: "/tmp/wosm/web/task",
       env: {
-        WOSM_CONFIG_PATH: "/tmp/wosm/config.toml",
+        WOSM_HARNESS_PROVIDER: "cursor",
+        WOSM_PROJECT_ID: "web",
+        WOSM_WORKTREE_ID: "wt_web_task",
+        WOSM_WORKTREE_PATH: "/tmp/wosm/web/task",
+        WOSM_SESSION_ID: "ses_web_task",
+        WOSM_TERMINAL_PROVIDER: "tmux",
+        WOSM_TERMINAL_TARGET_ID: "tmux:wosm:@1:%2",
+      },
+      providerData: {
+        interactive: true,
+        observation: "hooks",
+        terminalTargetId: "tmux:wosm:@1:%2",
       },
     });
+  });
+
+  it("discovers terminal-bound Cursor runs", async () => {
+    const provider = new CursorHarnessProvider();
 
     await expect(
       provider.discoverRuns({
@@ -126,16 +99,16 @@ describe("PiHarnessProvider", () => {
             observedAt: now,
             harnessBinding: {
               role: "main-agent",
-              harnessProvider: "pi",
-              currentCommand: "pi",
+              harnessProvider: "cursor",
+              currentCommand: "agent",
             },
           },
         ],
       }),
     ).resolves.toEqual([
       expect.objectContaining({
-        id: "pi:tmux:wosm:@1:%2",
-        provider: "pi",
+        id: "cursor:tmux:wosm:@1:%2",
+        provider: "cursor",
         worktreeId: "wt_web_task",
         state: "unknown",
         confidence: "low",
@@ -143,8 +116,8 @@ describe("PiHarnessProvider", () => {
     ]);
   });
 
-  it("classifies and ingests Pi observations through provider-local parsing", async () => {
-    const provider = new PiHarnessProvider({ now: () => new Date(now) });
+  it("classifies and ingests Cursor observations through provider-local parsing", async () => {
+    const provider = new CursorHarnessProvider({ now: () => new Date(now) });
 
     await expect(
       provider.classifyRun(run(), {
@@ -161,12 +134,11 @@ describe("PiHarnessProvider", () => {
 
     await expect(provider.ingestEvent?.(event(), eventContext())).resolves.toEqual([
       expect.objectContaining({
-        provider: "pi",
+        provider: "cursor",
         worktreeId: "wt_web_task",
-        rawEventType: "agent_start",
+        rawEventType: "sessionStart",
         status: expect.objectContaining({
-          value: "working",
-          source: "harness_event",
+          value: "starting",
         }),
       }),
     ]);
@@ -186,7 +158,7 @@ function result(input: ExternalCommandInput, stdout: string): ExternalCommandRes
 function request(): BuildHarnessLaunchRequest {
   const target = eventContext().terminalTargets[0];
   if (target === undefined) {
-    throw new Error("Pi provider fixture is missing a terminal target.");
+    throw new Error("Cursor provider fixture is missing a terminal target.");
   }
   return {
     project: {
@@ -194,7 +166,7 @@ function request(): BuildHarnessLaunchRequest {
       label: "web",
       root: "/tmp/wosm/web",
       defaults: {
-        harness: "pi",
+        harness: "cursor",
         terminal: "tmux",
         layout: "agent-shell",
       },
@@ -220,30 +192,26 @@ function request(): BuildHarnessLaunchRequest {
 
 function run(): HarnessRunObservation {
   return {
-    id: "pi:tmux:wosm:@1:%2",
-    provider: "pi",
+    id: "cursor:tmux:wosm:@1:%2",
+    provider: "cursor",
     projectId: "web",
     worktreeId: "wt_web_task",
     sessionId: "ses_web_task",
     state: "unknown",
     confidence: "low",
-    reason: "terminal target is bound to Pi; no reliable lifecycle signal yet.",
+    reason: "terminal target is bound to Cursor; no reliable lifecycle signal yet.",
     observedAt: now,
   };
 }
 
 function event(): RawHarnessEvent {
   return {
-    provider: "pi",
+    provider: "cursor",
     observedAt: now,
     event: {
-      event_type: "agent_start",
-      cwd: "/tmp/wosm/web/task",
-      pi_session_id: "pi_session_123",
-      wosm_project_id: "web",
-      wosm_worktree_id: "wt_web_task",
-      wosm_session_id: "ses_web_task",
-      wosm_terminal_target_id: "tmux:wosm:@1:%2",
+      hook_event_name: "sessionStart",
+      session_id: "cursor_session_123",
+      workspace_roots: ["/tmp/wosm/web/task"],
     },
   };
 }
@@ -277,7 +245,7 @@ function eventContext() {
         observedAt: now,
         harnessBinding: {
           role: "main-agent",
-          harnessProvider: "pi",
+          harnessProvider: "cursor",
         },
       },
     ],
