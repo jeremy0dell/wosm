@@ -12,6 +12,8 @@ When finishing a change and summarizing it, include a minimal line or section na
 
 PR titles should be semantic and reviewer-oriented, using a type/domain shape like `refactor(protocol): centralize observer command completion waits`; do not add agent tags.
 
+WOSM is terminal/TUI-first. Ignore generic web, frontend, site, image, and browser guidance unless the task explicitly targets a web frontend or browser-rendered UI.
+
 ## Optional Object Construction
 
 `exactOptionalPropertyTypes` is intentional. Preserve the difference between absent optional fields and fields set to `undefined`.
