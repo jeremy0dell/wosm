@@ -24,7 +24,7 @@ import { z } from "zod";
 import { resolveObserverPaths } from "../paths.js";
 
 export type DebugTraceCommandOptions = {
-  config?: WosmConfig | undefined;
+  config?: WosmConfig;
 };
 
 export type DebugTraceResult = {

@@ -3,6 +3,7 @@ export * from "./concurrency.js";
 export * from "./effect.js";
 export * from "./errors.js";
 export * from "./externalCommand.js";
+export * from "./files.js";
 export * from "./names.js";
 export * from "./objects.js";
 export * from "./paths.js";

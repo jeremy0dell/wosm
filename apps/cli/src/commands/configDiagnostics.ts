@@ -14,7 +14,7 @@ import { runRuntimeBoundary, systemClock, toIsoTimestamp } from "@wosm/runtime";
 export type InvalidConfigDiagnosticsInput = {
   error: ConfigError;
   configPath: string;
-  now?: Date | undefined;
+  now?: Date;
 };
 
 export type InvalidConfigDebugBundleResult = {

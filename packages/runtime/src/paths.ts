@@ -1,3 +1,6 @@
+import { homedir } from "node:os";
+import { isAbsolute, join, resolve } from "node:path";
+
 export function pathIsSame(candidate: string, root: string): boolean {
   return normalizeLocalPath(candidate) === normalizeLocalPath(root);
 }
@@ -20,4 +23,21 @@ export function normalizeLocalPath(value: string): string {
   return withoutTrailingSlash.startsWith("/private/var/")
     ? `/var/${withoutTrailingSlash.slice("/private/var/".length)}`
     : withoutTrailingSlash;
+}
+
+export function resolveLocalPath(
+  input: string,
+  homeDir = homedir(),
+  baseDir = process.cwd(),
+): string {
+  const expanded =
+    input === "~" ? homeDir : input.startsWith("~/") ? join(homeDir, input.slice(2)) : input;
+  return isAbsolute(expanded) ? resolve(expanded) : resolve(baseDir, expanded);
+}
+
+export function defaultWosmStateDir(env = process.env, homeDir = homedir()): string {
+  if (env.XDG_STATE_HOME !== undefined && env.XDG_STATE_HOME.length > 0) {
+    return join(env.XDG_STATE_HOME, "wosm");
+  }
+  return join(homeDir, ".local", "state", "wosm");
 }

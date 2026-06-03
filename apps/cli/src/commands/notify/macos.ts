@@ -9,7 +9,7 @@ type MacNotificationInput = {
 
 type MacNotificationSoundInput = {
   kind: "finished" | "needs_attention";
-  commandRunner?: ExternalCommandRunner | undefined;
+  commandRunner?: ExternalCommandRunner;
 };
 
 const finishedSoundPath = "/System/Library/Sounds/Glass.aiff";

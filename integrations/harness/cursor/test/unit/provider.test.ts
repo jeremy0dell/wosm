@@ -1,3 +1,6 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   BuildHarnessLaunchRequest,
   HarnessRunObservation,
@@ -5,6 +8,7 @@ import type {
 } from "@wosm/contracts";
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
+import { installCursorHooks } from "../../src/hooks";
 import { CursorHarnessProvider } from "../../src/provider";
 
 const now = "2026-06-03T12:00:00.000Z";
@@ -48,6 +52,51 @@ describe("CursorHarnessProvider", () => {
       },
     });
     expect(calls.map((call) => call.args)).toEqual([["--version"]]);
+  });
+
+  it("uses observer hook paths when checking installed hook diagnostics", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-cursor-provider-"));
+    const hookScriptPath = join(root, "state", "hooks", "wosm-cursor-hook.sh");
+    const wosmConfigPath = join(root, "wosm.config.toml");
+    const observerSocketPath = join(root, "run", "observer.sock");
+    const stateDir = join(root, "state");
+    const hookSpoolDir = join(stateDir, "spool", "hooks");
+
+    await installCursorHooks({
+      hookScriptPath,
+      wosmConfigPath,
+      observerSocketPath,
+      stateDir,
+      hookSpoolDir,
+      autoStartFromHooks: false,
+      homeDir: root,
+    });
+
+    const previousHome = process.env.HOME;
+    process.env.HOME = root;
+    try {
+      const provider = new CursorHarnessProvider({
+        installHooks: true,
+        configPath: wosmConfigPath,
+        observerSocketPath,
+        stateDir,
+        hookSpoolDir,
+        autoStartFromHooks: false,
+      });
+
+      await expect(provider.doctorChecks()).resolves.toContainEqual(
+        expect.objectContaining({
+          name: "cursor-hooks",
+          status: "ok",
+        }),
+      );
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+    }
   });
 
   it("launches interactive Cursor agent with WOSM correlation env", async () => {

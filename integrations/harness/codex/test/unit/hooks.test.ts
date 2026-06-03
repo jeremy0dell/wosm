@@ -277,7 +277,7 @@ describe("Codex hook setup", () => {
 async function runHookScript(
   scriptPath: string,
   stdin: string,
-  env: Record<string, string | undefined>,
+  env: NodeJS.ProcessEnv,
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   const childEnv: NodeJS.ProcessEnv = {};
   if (process.env.PATH !== undefined) {

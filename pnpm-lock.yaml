@@ -50,6 +50,9 @@ importers:
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@wosm/cursor':
+        specifier: workspace:*
+        version: link:../../integrations/harness/cursor
       '@wosm/observability':
         specifier: workspace:*
         version: link:../../packages/observability

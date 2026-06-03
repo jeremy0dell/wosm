@@ -42,6 +42,17 @@ export type ExternalCommandInput = {
   allowedExitCodes?: number[];
 };
 
+type ExternalCommandErrorLike = {
+  code?: unknown;
+  exitCode?: unknown;
+  name?: unknown;
+  signal?: unknown;
+  stderr?: unknown;
+  stderrSnippet?: unknown;
+  stdout?: unknown;
+  stdoutSnippet?: unknown;
+};
+
 export async function runExternalCommand(
   input: ExternalCommandInput,
   runner: ExternalCommandRunner = nodeExternalCommandRunner,
@@ -171,7 +182,7 @@ export function externalCommandErrorFromUnknown(
 ): ExternalCommandError {
   const fallback = externalCommandFallback("EXTERNAL_COMMAND_FAILED", "External command failed.");
   const safeError = safeErrorFromUnknown(error, fallback);
-  const cause = isRecord(error) ? error : {};
+  const cause = externalCommandErrorLike(error);
   const normalized: ExternalCommandError = {
     tag: "ExternalCommandError",
     code: externalCommandCode(error, cause, safeError),
@@ -190,7 +201,7 @@ export function externalCommandErrorFromUnknown(
     normalized.exitCode = exitCode;
   }
 
-  const signal = stringField(cause, "signal");
+  const signal = externalCommandStringValue(cause, "signal");
   if (signal !== undefined) {
     normalized.signal = signal;
   }
@@ -220,13 +231,13 @@ function externalCommandFallback(code: string, message: string): RuntimeSafeErro
 
 function externalCommandCode(
   error: unknown,
-  cause: Record<string, unknown>,
+  cause: ExternalCommandErrorLike,
   safeError: RuntimeSafeError,
 ): string {
   if (isAbortLikeError(error)) {
     return "EXTERNAL_COMMAND_ABORTED";
   }
-  return stringField(cause, "code") ?? safeError.code;
+  return externalCommandStringValue(cause, "code") ?? safeError.code;
 }
 
 function externalCommandMessage(error: unknown, safeError: RuntimeSafeError): string {
@@ -251,24 +262,28 @@ function formatCommandForError(input: Pick<ExternalCommandInput, "command" | "ar
 }
 
 function numericField(
-  record: Record<string, unknown>,
+  record: ExternalCommandErrorLike,
   key: "exitCode" | "code",
 ): number | undefined {
   const value = record[key];
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function stringField(record: Record<string, unknown>, key: string): string | undefined {
+function externalCommandStringValue(
+  record: ExternalCommandErrorLike,
+  key: keyof ExternalCommandErrorLike,
+): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
 }
 
 function outputSnippet(
-  cause: Record<string, unknown>,
+  cause: ExternalCommandErrorLike,
   rawKey: "stdout" | "stderr",
   snippetKey: "stdoutSnippet" | "stderrSnippet",
 ): string | undefined {
-  const value = stringField(cause, rawKey) ?? stringField(cause, snippetKey);
+  const value =
+    externalCommandStringValue(cause, rawKey) ?? externalCommandStringValue(cause, snippetKey);
   if (value === undefined) {
     return undefined;
   }
@@ -283,11 +298,9 @@ function allowedExitCodeResultFromUnknown(
   if (isAbortLikeError(error)) {
     return undefined;
   }
-  if (!isRecord(error)) {
-    return undefined;
-  }
+  const cause = externalCommandErrorLike(error);
 
-  const exitCode = numericField(error, "exitCode") ?? numericField(error, "code");
+  const exitCode = numericField(cause, "exitCode") ?? numericField(cause, "code");
   if (exitCode === undefined || input.allowedExitCodes?.includes(exitCode) !== true) {
     return undefined;
   }
@@ -295,8 +308,8 @@ function allowedExitCodeResultFromUnknown(
   return {
     command: input.command,
     args: input.args ?? [],
-    stdout: stringField(error, "stdout") ?? "",
-    stderr: stringField(error, "stderr") ?? "",
+    stdout: externalCommandStringValue(cause, "stdout") ?? "",
+    stderr: externalCommandStringValue(cause, "stderr") ?? "",
     exitCode,
   };
 }
@@ -392,10 +405,8 @@ function isAbortLikeError(error: unknown): boolean {
   if (isSafeError(error)) {
     return error.tag === "CancellationError" || error.code === "EXTERNAL_COMMAND_ABORTED";
   }
-  if (!isRecord(error)) {
-    return false;
-  }
-  return error.name === "AbortError" || error.code === "ABORT_ERR";
+  const cause = externalCommandErrorLike(error);
+  return cause.name === "AbortError" || cause.code === "ABORT_ERR";
 }
 
 export function redactCommandOutput(value: string): string {
@@ -411,6 +422,6 @@ export function redactCommandOutput(value: string): string {
     );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+function externalCommandErrorLike(error: unknown): ExternalCommandErrorLike {
+  return error === null || error === undefined ? {} : (Object(error) as ExternalCommandErrorLike);
 }

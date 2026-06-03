@@ -15,9 +15,9 @@ import {
 import { readStdinIfAvailable } from "./stdin.js";
 
 export type ProviderIngressCommandOptions = {
-  stdin?: string | undefined;
-  env?: Record<string, string | undefined> | undefined;
-  observerEntryPath?: string | undefined;
+  stdin?: string;
+  env?: NodeJS.ProcessEnv;
+  observerEntryPath?: string;
 };
 
 export type ProviderIngressMainResult = {
@@ -55,14 +55,14 @@ export async function runProviderIngressCommand(
     if (!payload.ok) {
       return payload.receipt;
     }
-    return sendCodexHookPayload(
-      {
-        ...senderOptions,
-        payload: payload.value,
-        env: options.env,
-      },
-      deps,
-    );
+    const hookInput: Parameters<typeof sendCodexHookPayload>[0] = {
+      ...senderOptions,
+      payload: payload.value,
+    };
+    if (options.env !== undefined) {
+      hookInput.env = options.env;
+    }
+    return sendCodexHookPayload(hookInput, deps);
   }
 
   if (provider === "cursor") {
@@ -70,14 +70,14 @@ export async function runProviderIngressCommand(
     if (!payload.ok) {
       return payload.receipt;
     }
-    return sendCursorHookPayload(
-      {
-        ...senderOptions,
-        payload: payload.value,
-        env: options.env,
-      },
-      deps,
-    );
+    const hookInput: Parameters<typeof sendCursorHookPayload>[0] = {
+      ...senderOptions,
+      payload: payload.value,
+    };
+    if (options.env !== undefined) {
+      hookInput.env = options.env;
+    }
+    return sendCursorHookPayload(hookInput, deps);
   }
 
   if (provider === "pi") {
@@ -88,15 +88,15 @@ export async function runProviderIngressCommand(
     if (!payload.ok) {
       return payload.receipt;
     }
-    return sendPiHookPayload(
-      {
-        ...senderOptions,
-        eventType: event,
-        payload: payload.value,
-        env: options.env,
-      },
-      deps,
-    );
+    const hookInput: Parameters<typeof sendPiHookPayload>[0] = {
+      ...senderOptions,
+      eventType: event,
+      payload: payload.value,
+    };
+    if (options.env !== undefined) {
+      hookInput.env = options.env;
+    }
+    return sendPiHookPayload(hookInput, deps);
   }
 
   if (provider === "worktrunk") {
@@ -359,12 +359,13 @@ function formatProviderIngressError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  if (typeof error === "object" && error !== null) {
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return String(error);
+  try {
+    const serialized = JSON.stringify(error);
+    if (serialized !== undefined) {
+      return serialized;
     }
+  } catch {
+    // Fall through to String for values JSON cannot serialize.
   }
   return String(error);
 }

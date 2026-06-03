@@ -9,6 +9,7 @@ const ts = require("typescript");
 
 const root = process.cwd();
 const defaultTargets = [
+  "integrations/harness/cursor/src",
   "integrations/terminal/tmux/src/popup.ts",
   "integrations/terminal/tmux/src/popup",
 ];

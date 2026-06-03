@@ -6,7 +6,7 @@ export type TmuxPopupOptions = {
   command?: string;
   config?: TmuxConfig;
   enterWorkbench?: boolean;
-  env?: Record<string, string | undefined>;
+  env?: NodeJS.ProcessEnv;
   focusClientId?: string;
   preferRegisteredDevPopup?: boolean;
   registeredDevPopupRoot?: string;
@@ -39,7 +39,7 @@ export type BuildTmuxPopupArgsOptions = {
 
 export type TmuxCurrentClientInput = {
   command: string;
-  env: Record<string, string | undefined>;
+  env: NodeJS.ProcessEnv;
   runner?: ExternalCommandRunner;
   timeoutMs?: number;
 };
@@ -59,7 +59,7 @@ export type TmuxPopupCommandInputOptions = {
 
 export type TmuxPopupDismissOptions = {
   command?: string;
-  env?: Record<string, string | undefined>;
+  env?: NodeJS.ProcessEnv;
   focusClientId?: string;
   runner?: ExternalCommandRunner;
   timeoutMs?: number;
@@ -67,7 +67,7 @@ export type TmuxPopupDismissOptions = {
 
 export type TmuxPopupFocusOriginOptions = {
   command?: string;
-  env?: Record<string, string | undefined>;
+  env?: NodeJS.ProcessEnv;
   focusClientId?: string;
   runner?: ExternalCommandRunner;
   timeoutMs?: number;

@@ -1,5 +1,22 @@
 import type { HarnessRunObservation, HarnessStatusObservation } from "@wosm/contracts";
 
+function observation(
+  run: HarnessRunObservation,
+  status: HarnessStatusObservation["status"],
+): HarnessStatusObservation {
+  const output: HarnessStatusObservation = {
+    provider: "cursor",
+    runId: run.id,
+    status,
+    observedAt: status.updatedAt,
+  };
+  if (run.projectId !== undefined) output.projectId = run.projectId;
+  if (run.worktreeId !== undefined) output.worktreeId = run.worktreeId;
+  if (run.sessionId !== undefined) output.sessionId = run.sessionId;
+  if (run.providerData !== undefined) output.providerData = run.providerData;
+  return output;
+}
+
 export function classifyCursorRunStatus(run: HarnessRunObservation): HarnessStatusObservation {
   if (run.state === "needs_attention" && run.confidence === "high") {
     return observation(run, {
@@ -28,21 +45,4 @@ export function classifyCursorRunStatus(run: HarnessRunObservation): HarnessStat
     source: "harness_process",
     updatedAt: run.observedAt,
   });
-}
-
-function observation(
-  run: HarnessRunObservation,
-  status: HarnessStatusObservation["status"],
-): HarnessStatusObservation {
-  const output: HarnessStatusObservation = {
-    provider: "cursor",
-    runId: run.id,
-    status,
-    observedAt: status.updatedAt,
-  };
-  if (run.projectId !== undefined) output.projectId = run.projectId;
-  if (run.worktreeId !== undefined) output.worktreeId = run.worktreeId;
-  if (run.sessionId !== undefined) output.sessionId = run.sessionId;
-  if (run.providerData !== undefined) output.providerData = run.providerData;
-  return output;
 }

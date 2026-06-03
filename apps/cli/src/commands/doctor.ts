@@ -13,9 +13,9 @@ import {
 import { resolveObserverPaths } from "../paths.js";
 
 export type DoctorCommandOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  timeoutMs?: number | undefined;
+  config?: WosmConfig;
+  configPath?: string;
+  timeoutMs?: number;
 };
 
 export async function runDoctorCommand(

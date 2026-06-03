@@ -7,7 +7,7 @@ type WorktreeAgentStateChangedEvent = Extract<WosmEvent, { type: "worktree.agent
 export type BuildClickFocusShellCommandInput = {
   command: TerminalFocusCommand;
   cliCommandParts: string[];
-  configPath?: string | undefined;
+  configPath?: string;
 };
 
 export function buildFocusCommand(event: WorktreeAgentStateChangedEvent): TerminalFocusCommand {

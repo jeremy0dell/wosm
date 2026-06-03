@@ -3,10 +3,14 @@ import { runProviderIngressMain } from "./command.js";
 import { readStdinIfAvailable } from "./stdin.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runProviderIngressMain(process.argv.slice(2), {
-    stdin: await readStdinIfAvailable(),
+  const stdin = await readStdinIfAvailable();
+  const options: Parameters<typeof runProviderIngressMain>[1] = {
     env: process.env,
-  }).then((result) => {
+  };
+  if (stdin !== undefined) {
+    options.stdin = stdin;
+  }
+  runProviderIngressMain(process.argv.slice(2), options).then((result) => {
     if (result.stdout.length > 0) {
       process.stdout.write(result.stdout);
     }

@@ -9,10 +9,11 @@ import {
   planOpenCodePlugin,
   uninstallOpenCodePlugin,
 } from "@wosm/opencode";
+import type { CliEnv } from "../env.js";
 
 export type OpenCodeHooksCommandOptions = {
-  config?: WosmConfig | undefined;
-  env?: Record<string, string | undefined> | undefined;
+  config?: WosmConfig;
+  env?: CliEnv;
 };
 
 export type OpenCodeHooksCommandResult =

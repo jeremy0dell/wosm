@@ -21,9 +21,9 @@ export type ObserverCommandResult =
     };
 
 export type ObserverCommandOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  timeoutMs?: number | undefined;
+  config?: WosmConfig;
+  configPath?: string;
+  timeoutMs?: number;
 };
 
 export async function runObserverCommand(

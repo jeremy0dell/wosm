@@ -5,10 +5,10 @@ import { runExternalCommand, safeErrorFromUnknown } from "@wosm/runtime";
 import type { CliEnv } from "../env.js";
 
 export type EventHooksCommandOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  commandRunner?: ExternalCommandRunner | undefined;
-  env?: CliEnv | undefined;
+  config?: WosmConfig;
+  configPath?: string;
+  commandRunner?: ExternalCommandRunner;
+  env?: CliEnv;
 };
 
 export type EventHookPlanResult = {
@@ -99,13 +99,24 @@ async function doctorEventHooks(options: EventHooksCommandOptions): Promise<Even
       message: "Built-in turn completion notification event hook is not installed.",
     };
   }
-  const commandCheck = await checkBuiltInNotifyCommand({
+  const notifyCommandInput: {
+    command: string;
+    args: string[];
+    timeoutMs: number;
+    commandRunner?: ExternalCommandRunner;
+    env?: CliEnv;
+  } = {
     command: hook.command,
     args: hook.args ?? [],
     timeoutMs: hook.timeoutMs ?? 3000,
-    commandRunner: options.commandRunner,
-    env: options.env,
-  });
+  };
+  if (options.commandRunner !== undefined) {
+    notifyCommandInput.commandRunner = options.commandRunner;
+  }
+  if (options.env !== undefined) {
+    notifyCommandInput.env = options.env;
+  }
+  const commandCheck = await checkBuiltInNotifyCommand(notifyCommandInput);
   if (commandCheck.status === "warn") {
     return {
       category: "observer-event-hook",
@@ -131,8 +142,8 @@ async function checkBuiltInNotifyCommand(input: {
   command: string;
   args: string[];
   timeoutMs: number;
-  commandRunner?: ExternalCommandRunner | undefined;
-  env?: CliEnv | undefined;
+  commandRunner?: ExternalCommandRunner;
+  env?: CliEnv;
 }): Promise<EventHookCommandCheck> {
   if (input.command !== "wosm") {
     return checkCommandAvailable(input.command, input.args, input.env);
