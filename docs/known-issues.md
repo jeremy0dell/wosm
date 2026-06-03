@@ -12,6 +12,10 @@ These are accepted limitations and testing gaps for the current dogfood mileston
 - Worktrunk hook installation is explicit and reversible; it is not applied by `pnpm smoke:release`.
 - Cleanup and remove workflows should be tested only against disposable projects or isolated real-dogfood temp state.
 
+## UX TODOs
+
+- The TUI should show an explicit refresh-in-progress state while a manual `Z` refresh is reconciling observer state, so slow refreshes do not look like dropped input.
+
 ## Diagnostics Gaps
 
 - Diagnostic file retention is reported through `wosm doctor`, but log and debug-bundle cleanup is not currently wired to the retention policy.
