@@ -14,7 +14,7 @@ import { killTmuxSession } from "../../support/real-wosm/tmux";
 
 const describeReal = realDogfoodEnabled() ? describe : describe.skip;
 
-type HookReceipt = {
+type ProviderHookReceipt = {
   hookId: string;
   status: "ingested" | "spooled" | "rejected";
 };
@@ -145,7 +145,7 @@ async function runWorktrunkIngress(
     stdin: string;
     autoStart?: boolean;
   },
-): Promise<HookReceipt> {
+): Promise<ProviderHookReceipt> {
   const receipt = await runProviderIngressCommand(
     [
       "--socket",

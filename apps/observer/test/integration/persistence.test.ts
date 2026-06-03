@@ -147,6 +147,80 @@ describe("observer persistence", () => {
     reopened.close();
   });
 
+  it("normalizes legacy provider hook event rows while listing persisted events", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const insertEvent = sqlite.database.prepare(`
+      INSERT INTO events (id, type, source, command_id, trace_id, span_id, payload_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertEvent.run(
+      "evt_legacy_ingested",
+      "hook.ingested",
+      "hook",
+      null,
+      null,
+      null,
+      JSON.stringify({
+        type: "hook.ingested",
+        at: now,
+        hookId: "hook_legacy",
+        provider: "worktrunk",
+        event: "PostToolUse",
+      }),
+      now,
+    );
+    insertEvent.run(
+      "evt_legacy_spool_drained",
+      "hook.spoolDrained",
+      "hook-spool",
+      null,
+      null,
+      null,
+      JSON.stringify({
+        type: "hook.spoolDrained",
+        at: later,
+        drained: 1,
+        failed: 0,
+      }),
+      later,
+    );
+
+    const events = await persistence.listEvents();
+
+    expect(events.map((event) => event.type)).toEqual([
+      "providerHook.ingested",
+      "providerHook.spoolDrained",
+    ]);
+    expect(events.map((event) => event.event)).toEqual([
+      {
+        type: "providerHook.ingested",
+        at: now,
+        hookId: "hook_legacy",
+        provider: "worktrunk",
+        event: "PostToolUse",
+      },
+      {
+        type: "providerHook.spoolDrained",
+        at: later,
+        drained: 1,
+        failed: 0,
+      },
+    ]);
+    expect(await persistence.listEvents({ type: "providerHook.ingested" })).toEqual([
+      expect.objectContaining({
+        id: "evt_legacy_ingested",
+        type: "providerHook.ingested",
+      }),
+    ]);
+    sqlite.close();
+  });
+
   it("expires and prunes provider observations", async () => {
     const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
     const persistence = createObserverPersistence({

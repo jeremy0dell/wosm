@@ -29,9 +29,9 @@ export const WosmEventTypeSchema = z.enum([
   "command.succeeded",
   "command.failed",
   "provider.healthChanged",
-  "hook.ingested",
+  "providerHook.ingested",
   "harness.eventReported",
-  "hook.spoolDrained",
+  "providerHook.spoolDrained",
 ]);
 
 const DiagnosticEventFields = {
@@ -139,15 +139,16 @@ export const ProviderHealthChangedEventSchema = z
   })
   .strict();
 
-export const HookIngestedEventSchema = z
+export const ProviderHookIngestedEventSchema = z
   .object({
-    type: z.literal("hook.ingested"),
+    type: z.literal("providerHook.ingested"),
     at: TimestampSchema,
     hookId: nonEmptyStringSchema,
     provider: ProviderIdSchema,
     event: nonEmptyStringSchema,
   })
   .strict();
+export const HookIngestedEventSchema = ProviderHookIngestedEventSchema;
 
 export const HarnessEventReportedEventSchema = z
   .object({
@@ -159,14 +160,15 @@ export const HarnessEventReportedEventSchema = z
   })
   .strict();
 
-export const HookSpoolDrainedEventSchema = z
+export const ProviderHookSpoolDrainedEventSchema = z
   .object({
-    type: z.literal("hook.spoolDrained"),
+    type: z.literal("providerHook.spoolDrained"),
     at: TimestampSchema,
     drained: z.number().int().nonnegative(),
     failed: z.number().int().nonnegative(),
   })
   .strict();
+export const HookSpoolDrainedEventSchema = ProviderHookSpoolDrainedEventSchema;
 
 export const WosmEventSchema = z.discriminatedUnion("type", [
   ObserverStartedEventSchema,
@@ -184,9 +186,9 @@ export const WosmEventSchema = z.discriminatedUnion("type", [
   CommandSucceededEventSchema,
   CommandFailedEventSchema,
   ProviderHealthChangedEventSchema,
-  HookIngestedEventSchema,
+  ProviderHookIngestedEventSchema,
   HarnessEventReportedEventSchema,
-  HookSpoolDrainedEventSchema,
+  ProviderHookSpoolDrainedEventSchema,
 ]);
 
 export type WosmEvent = z.infer<typeof WosmEventSchema>;
@@ -221,9 +223,9 @@ export function wosmEventMetadata(event: WosmEvent): WosmEventMetadata {
       return metadata;
     }
     case "observer.started":
-    case "hook.ingested":
+    case "providerHook.ingested":
     case "harness.eventReported":
-    case "hook.spoolDrained":
+    case "providerHook.spoolDrained":
       return {
         timestamp: event.at,
       };

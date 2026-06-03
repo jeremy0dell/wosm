@@ -93,7 +93,7 @@
         "value": "working",
         "confidence": "high",
         "reason": "Harness reported active generation.",
-        "source": "harness_hook",
+        "source": "harness_event",
         "updatedAt": "2026-05-20T12:00:00.000Z"
       },
       "title": "web feature/auth",
@@ -108,7 +108,7 @@
         "value": "idle",
         "confidence": "high",
         "reason": "Harness reported the turn completed.",
-        "source": "harness_hook",
+        "source": "harness_event",
         "updatedAt": "2026-05-20T12:01:00.000Z"
       }
     }
@@ -169,8 +169,8 @@
       }
     }
   },
-  "hookIngested": {
-    "type": "hook.ingested",
+  "providerHookIngested": {
+    "type": "providerHook.ingested",
     "at": "2026-05-20T12:02:00.000Z",
     "hookId": "hook_worktrunk_1",
     "provider": "worktrunk",
@@ -183,8 +183,8 @@
     "provider": "codex",
     "eventType": "PreToolUse"
   },
-  "hookSpoolDrained": {
-    "type": "hook.spoolDrained",
+  "providerHookSpoolDrained": {
+    "type": "providerHook.spoolDrained",
     "at": "2026-05-20T12:04:00.000Z",
     "drained": 2,
     "failed": 0

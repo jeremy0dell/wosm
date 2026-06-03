@@ -255,7 +255,7 @@ function fakeSession(row: WorktreeRow): SessionView {
       value: row.agent.state,
       confidence: row.agent.confidence,
       reason: row.agent.reason,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: row.agent.updatedAt,
     },
     title: row.branch,

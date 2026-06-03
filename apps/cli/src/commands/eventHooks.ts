@@ -12,7 +12,7 @@ export type EventHooksCommandOptions = {
 };
 
 export type EventHookPlanResult = {
-  provider: "event";
+  category: "observer-event-hook";
   hookId: string;
   configPath: string;
   changed: boolean;
@@ -26,7 +26,7 @@ export type EventHookInstallResult = EventHookPlanResult & {
 };
 
 export type EventHookDoctorResult = {
-  provider: "event";
+  category: "observer-event-hook";
   status: "ok" | "warn";
   installed: boolean;
   hooks: string[];
@@ -64,7 +64,7 @@ async function planBuiltInEventHook(
   const installed = (options.config?.hooks?.event ?? []).some((hook) => hook.id === builtInHookId);
   if (installed && !flags.force) {
     return {
-      provider: "event",
+      category: "observer-event-hook",
       hookId: builtInHookId,
       configPath,
       changed: false,
@@ -75,7 +75,7 @@ async function planBuiltInEventHook(
   }
   const after = `${before.trimEnd()}\n\n${builtInEventHookToml(configPath)}\n`;
   return {
-    provider: "event",
+    category: "observer-event-hook",
     hookId: builtInHookId,
     configPath,
     changed: after !== before,
@@ -92,7 +92,7 @@ async function doctorEventHooks(options: EventHooksCommandOptions): Promise<Even
   const hook = hooks.find((candidate) => candidate.id === builtInHookId);
   if (hook === undefined) {
     return {
-      provider: "event",
+      category: "observer-event-hook",
       status: "warn",
       installed: false,
       hooks: ids,
@@ -108,7 +108,7 @@ async function doctorEventHooks(options: EventHooksCommandOptions): Promise<Even
   });
   if (commandCheck.status === "warn") {
     return {
-      provider: "event",
+      category: "observer-event-hook",
       status: "warn",
       installed: true,
       hooks: ids,
@@ -118,7 +118,7 @@ async function doctorEventHooks(options: EventHooksCommandOptions): Promise<Even
     };
   }
   return {
-    provider: "event",
+    category: "observer-event-hook",
     status: "ok",
     installed: true,
     hooks: ids,
@@ -289,5 +289,7 @@ export async function runEventHooksCommand(
     }
     return { ...plan, installed: true };
   }
-  throw new Error("Usage: wosm hooks plan|install event notify-turn-completion [--yes]");
+  throw new Error(
+    "Usage: wosm event-hooks plan|install notify-turn-completion [--yes] or wosm event-hooks doctor",
+  );
 }

@@ -246,7 +246,7 @@ export function statusFromCodexHookEvent(
       value: "starting",
       confidence: "high",
       reason: `Codex session started from ${event.source}.`,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -255,7 +255,7 @@ export function statusFromCodexHookEvent(
       value: "needs_attention",
       confidence: "high",
       reason: `Codex requested permission for ${event.tool_name}.`,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -264,7 +264,7 @@ export function statusFromCodexHookEvent(
       value: "idle",
       confidence: "high",
       reason: "Codex turn completed.",
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -273,7 +273,7 @@ export function statusFromCodexHookEvent(
       value: "working",
       confidence: "medium",
       reason: `Codex subagent ${event.agent_type} stopped.`,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -282,7 +282,7 @@ export function statusFromCodexHookEvent(
       value: "working",
       confidence: "medium",
       reason: `Codex completed ${event.tool_name}.`,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -291,7 +291,7 @@ export function statusFromCodexHookEvent(
       value: "working",
       confidence: "medium",
       reason: `Codex is about to compact the conversation (${event.trigger}).`,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -300,7 +300,7 @@ export function statusFromCodexHookEvent(
       value: "working",
       confidence: "medium",
       reason: `Codex compacted the conversation (${event.trigger}).`,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -309,7 +309,7 @@ export function statusFromCodexHookEvent(
       value: "working",
       confidence: "medium",
       reason: `Codex started subagent ${event.agent_type}.`,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -318,7 +318,7 @@ export function statusFromCodexHookEvent(
       value: "working",
       confidence: "medium",
       reason: `Codex is about to use ${event.tool_name}.`,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: observedAt,
     };
   }
@@ -326,7 +326,7 @@ export function statusFromCodexHookEvent(
     value: "working",
     confidence: "medium",
     reason: "Codex received a user prompt.",
-    source: "harness_hook",
+    source: "harness_event",
     updatedAt: observedAt,
   };
 }

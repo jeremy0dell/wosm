@@ -202,7 +202,7 @@ function sessionForRow(candidate: WorktreeRow): SessionView {
       value: candidate.agent.state,
       confidence: candidate.agent.confidence,
       reason: candidate.agent.reason,
-      source: "harness_hook",
+      source: "harness_event",
       updatedAt: fixtureNow,
     },
     title: candidate.branch,

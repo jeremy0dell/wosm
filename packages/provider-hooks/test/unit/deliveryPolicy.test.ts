@@ -1,10 +1,10 @@
 import { mkdir, utimes } from "node:fs/promises";
 import { join } from "node:path";
 import type {
-  HookPayloadSummary,
-  HookReceipt,
   ObserverHealth,
   ProviderHookEvent,
+  ProviderHookPayloadSummary,
+  ProviderHookReceipt,
   SafeError,
 } from "@wosm/contracts";
 import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
@@ -147,7 +147,7 @@ function deliveryInput(
   };
 }
 
-const emptyPayloadSummary: HookPayloadSummary = {
+const emptyPayloadSummary: ProviderHookPayloadSummary = {
   present: false,
   originalBytes: null,
   compactedBytes: null,
@@ -166,7 +166,7 @@ function hookEvent(hookId: string): ProviderHookEvent {
   };
 }
 
-function ingestedReceipt(event: ProviderHookEvent): HookReceipt {
+function ingestedReceipt(event: ProviderHookEvent): ProviderHookReceipt {
   return {
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: event.hookId ?? "hook_test",
@@ -179,8 +179,11 @@ function ingestedReceipt(event: ProviderHookEvent): HookReceipt {
   };
 }
 
-function spooledReceipt(event: ProviderHookEvent, error: SafeError | undefined): HookReceipt {
-  const receipt: HookReceipt = {
+function spooledReceipt(
+  event: ProviderHookEvent,
+  error: SafeError | undefined,
+): ProviderHookReceipt {
+  const receipt: ProviderHookReceipt = {
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: event.hookId ?? "hook_test",
     provider: event.provider,

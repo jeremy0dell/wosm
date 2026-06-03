@@ -298,7 +298,7 @@ function sendHookEvent(event, socketPath) {
         schemaVersion,
         jsonrpc: "2.0",
         id,
-        method: "observer.ingestHookEvent",
+        method: "observer.ingestProviderHookEvent",
         params: { event },
       }) + "\\n");
     });

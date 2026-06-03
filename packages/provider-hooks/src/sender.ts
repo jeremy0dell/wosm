@@ -4,14 +4,14 @@ import type { ObserverPaths } from "@wosm/config";
 import type {
   HarnessEventReport,
   HarnessEventReportReceipt,
-  HookPayloadSummary,
-  HookReceipt,
   ProviderHookEvent,
+  ProviderHookPayloadSummary,
+  ProviderHookReceipt,
   SafeError,
 } from "@wosm/contracts";
 import {
-  HookReceiptSchema,
   ProviderHookEventSchema,
+  ProviderHookReceiptSchema,
   parseWosmHookIdentityPayload,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
@@ -28,7 +28,7 @@ import {
 import { normalizeWorktrunkLifecycleEvent } from "@wosm/worktrunk";
 import { deliverProviderHookWithSpooling, type ProviderDeliveryAttempt } from "./deliveryPolicy.js";
 import type { ProviderHookObserverStartupDeps } from "./observerStartup.js";
-import { writeHarnessEventReportSpoolRecord, writeHookSpoolRecord } from "./spool.js";
+import { writeHarnessEventReportSpoolRecord, writeProviderHookSpoolRecord } from "./spool.js";
 
 export type ProviderHookSenderOptions = {
   paths: ObserverPaths;
@@ -50,7 +50,7 @@ export type ProviderHookSenderDeps = ProviderHookObserverStartupDeps & {
     options: ProviderHookClientFactoryOptions,
   ) => ReturnType<typeof createObserverClient>;
   clock?: RuntimeClock;
-  writeSpool?: typeof writeHookSpoolRecord;
+  writeSpool?: typeof writeProviderHookSpoolRecord;
   writeReportSpool?: typeof writeHarnessEventReportSpoolRecord;
   hookId?: () => string;
   logger?: JsonlLogger;
@@ -80,7 +80,7 @@ const defaultDeliveryTimeoutMs = 2000;
 export async function sendWorktrunkHookEvent(
   input: ProviderHookSenderOptions & { event: string; payload?: unknown },
   deps: ProviderHookSenderDeps = {},
-): Promise<HookReceipt> {
+): Promise<ProviderHookReceipt> {
   return sendProviderHookEvent(
     {
       ...input,
@@ -95,7 +95,7 @@ export async function sendWorktrunkHookEvent(
 export async function sendProviderHookEvent(
   input: SendProviderHookEventInput,
   deps: ProviderHookSenderDeps = {},
-): Promise<HookReceipt> {
+): Promise<ProviderHookReceipt> {
   const clock = deps.clock ?? systemClock;
   const event = ProviderHookEventSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
@@ -134,12 +134,12 @@ export async function sendProviderHookEvent(
 export async function sendCodexHookPayload(
   input: SendCodexHookInput,
   deps: ProviderHookSenderDeps = {},
-): Promise<HookReceipt> {
+): Promise<ProviderHookReceipt> {
   const clock = deps.clock ?? systemClock;
   const enrichedPayload = enrichWosmEnv(input.payload, input.env ?? process.env);
   const eventName = stringField(enrichedPayload, "hook_event_name") ?? "unknown";
   if (!hasWosmOwnership(enrichedPayload)) {
-    return ignoredHookReceipt({
+    return ignoredProviderHookReceipt({
       provider: "codex",
       event: eventName,
       clock,
@@ -155,11 +155,11 @@ export async function sendCodexHookPayload(
       payload: compaction.payload,
       diagnostics: diagnosticsFromCompaction(compaction),
     });
-    return hookReceiptFromReportReceipt(
+    return providerHookReceiptFromHarnessReportReceipt(
       await sendHarnessEventReport(input, report, compactionSummary(compaction), deps),
     );
   } catch (error) {
-    return rejectedHookReceipt({
+    return rejectedProviderHookReceipt({
       provider: "codex",
       event: eventName,
       clock,
@@ -172,11 +172,11 @@ export async function sendCodexHookPayload(
 export async function sendPiHookPayload(
   input: SendPiHookInput,
   deps: ProviderHookSenderDeps = {},
-): Promise<HookReceipt> {
+): Promise<ProviderHookReceipt> {
   const clock = deps.clock ?? systemClock;
   const enrichedPayload = enrichWosmEnv(input.payload, input.env ?? process.env);
   if (!hasWosmOwnership(enrichedPayload)) {
-    return ignoredHookReceipt({
+    return ignoredProviderHookReceipt({
       provider: "pi",
       event: input.eventType,
       clock,
@@ -193,11 +193,11 @@ export async function sendPiHookPayload(
       payload: compaction.payload,
       diagnostics: diagnosticsFromCompaction(compaction),
     });
-    return hookReceiptFromReportReceipt(
+    return providerHookReceiptFromHarnessReportReceipt(
       await sendHarnessEventReport(input, report, compactionSummary(compaction), deps),
     );
   } catch (error) {
-    return rejectedHookReceipt({
+    return rejectedProviderHookReceipt({
       provider: "pi",
       event: input.eventType,
       clock,
@@ -210,7 +210,7 @@ export async function sendPiHookPayload(
 export async function sendHarnessEventReport(
   options: ProviderHookSenderOptions,
   report: HarnessEventReport,
-  payloadSummary: HookPayloadSummary,
+  payloadSummary: ProviderHookPayloadSummary,
   deps: ProviderHookSenderDeps = {},
 ): Promise<HarnessEventReportReceipt> {
   const syntheticEvent = ProviderHookEventSchema.parse({
@@ -240,13 +240,13 @@ export async function sendHarnessEventReport(
         deps,
       ),
     spoolReceipt: async (error) =>
-      hookReceiptFromReportReceipt(
+      providerHookReceiptFromHarnessReportReceipt(
         await spoolHarnessEventReport(options.paths, report, error, deps),
       ),
     recordReceipt: ({ paths, event, payloadSummary, receipt }) =>
       logAndReturn(paths, event, receipt, payloadSummary, deps),
   });
-  return reportReceiptFromHookReceipt(report, receipt);
+  return harnessReportReceiptFromProviderHookReceipt(report, receipt);
 }
 
 async function attemptHookDelivery(
@@ -277,7 +277,7 @@ async function attemptHarnessEventReportDelivery(
 ): Promise<ProviderDeliveryAttempt> {
   const delivery = await deliverHarnessEventReport(paths, report, timeoutMs, deps);
   if (delivery.ok && delivery.value.status === "accepted") {
-    return { receipt: hookReceiptFromReportReceipt(delivery.value) };
+    return { receipt: providerHookReceiptFromHarnessReportReceipt(delivery.value) };
   }
   if (delivery.ok) {
     const attempt: ProviderDeliveryAttempt = {};
@@ -315,7 +315,7 @@ async function deliverHook(
     },
     async () => {
       const client = observerClient(paths.socketPath, timeoutMs, deps);
-      const receipt = await client.ingestHookEvent(event);
+      const receipt = await client.ingestProviderHookEvent(event);
       if (receipt.status !== "ingested") {
         throw (
           receipt.error ??
@@ -380,8 +380,8 @@ async function spool(
   event: ProviderHookEvent,
   error: SafeError | undefined,
   deps: ProviderHookSenderDeps,
-): Promise<HookReceipt> {
-  return (deps.writeSpool ?? writeHookSpoolRecord)({
+): Promise<ProviderHookReceipt> {
+  return (deps.writeSpool ?? writeProviderHookSpoolRecord)({
     spoolDir: paths.hookSpoolDir,
     event,
     ...(error === undefined ? {} : { error }),
@@ -406,10 +406,10 @@ async function spoolHarnessEventReport(
 async function logAndReturn(
   paths: ObserverPaths,
   event: ProviderHookEvent,
-  receipt: HookReceipt,
-  payloadSummary: HookPayloadSummary,
+  receipt: ProviderHookReceipt,
+  payloadSummary: ProviderHookPayloadSummary,
   deps: ProviderHookSenderDeps,
-): Promise<HookReceipt> {
+): Promise<ProviderHookReceipt> {
   const logger =
     deps.logger ??
     createJsonlLogger({
@@ -444,9 +444,11 @@ async function logAndReturn(
   return receipt;
 }
 
-function hookReceiptFromReportReceipt(receipt: HarnessEventReportReceipt): HookReceipt {
+function providerHookReceiptFromHarnessReportReceipt(
+  receipt: HarnessEventReportReceipt,
+): ProviderHookReceipt {
   const status = receipt.status === "accepted" ? "ingested" : receipt.status;
-  const hookReceipt: HookReceipt = {
+  const hookReceipt: ProviderHookReceipt = {
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: receipt.reportId,
     provider: receipt.provider,
@@ -467,12 +469,12 @@ function hookReceiptFromReportReceipt(receipt: HarnessEventReportReceipt): HookR
   if (receipt.error !== undefined) {
     hookReceipt.error = receipt.error;
   }
-  return HookReceiptSchema.parse(hookReceipt);
+  return ProviderHookReceiptSchema.parse(hookReceipt);
 }
 
-function reportReceiptFromHookReceipt(
+function harnessReportReceiptFromProviderHookReceipt(
   report: HarnessEventReport,
-  receipt: HookReceipt,
+  receipt: ProviderHookReceipt,
 ): HarnessEventReportReceipt {
   return {
     schemaVersion: WOSM_SCHEMA_VERSION,
@@ -494,13 +496,13 @@ function reportReceiptFromHookReceipt(
   };
 }
 
-function ignoredHookReceipt(input: {
+function ignoredProviderHookReceipt(input: {
   provider: string;
   event: string;
   clock: RuntimeClock;
   hookId?: (() => string) | undefined;
-}): HookReceipt {
-  return HookReceiptSchema.parse({
+}): ProviderHookReceipt {
+  return ProviderHookReceiptSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: input.hookId?.() ?? defaultHookId(),
     provider: input.provider,
@@ -511,14 +513,14 @@ function ignoredHookReceipt(input: {
   });
 }
 
-function rejectedHookReceipt(input: {
+function rejectedProviderHookReceipt(input: {
   provider: string;
   event: string;
   clock: RuntimeClock;
   error: unknown;
   hookId?: (() => string) | undefined;
-}): HookReceipt {
-  return HookReceiptSchema.parse({
+}): ProviderHookReceipt {
+  return ProviderHookReceiptSchema.parse({
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: input.hookId?.() ?? defaultHookId(),
     provider: input.provider,
@@ -535,7 +537,7 @@ function rejectedHookReceipt(input: {
   });
 }
 
-function payloadSummaryFor(payload: unknown): HookPayloadSummary {
+function payloadSummaryFor(payload: unknown): ProviderHookPayloadSummary {
   if (payload === undefined) {
     return {
       present: false,
@@ -560,7 +562,7 @@ function compactionSummary(compaction: {
   compactedByteCount: number | null;
   compacted: boolean;
   omittedFieldNames: string[];
-}): HookPayloadSummary {
+}): ProviderHookPayloadSummary {
   return {
     present: true,
     originalBytes: compaction.originalByteCount,

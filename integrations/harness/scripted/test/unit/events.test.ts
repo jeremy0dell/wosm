@@ -30,7 +30,7 @@ describe("scripted harness events", () => {
           value: "needs_attention",
           confidence: "high",
           reason: "Approval requested.",
-          source: "harness_hook",
+          source: "harness_event",
           updatedAt: observedAt,
         },
       }),

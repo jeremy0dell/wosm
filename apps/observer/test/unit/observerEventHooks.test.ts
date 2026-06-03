@@ -1,13 +1,16 @@
 import type {
-  EventHookConfig,
-  EventHookInvocation,
+  ObserverEventHookConfig,
+  ObserverEventHookInvocation,
   WosmEvent,
   WosmSnapshot,
 } from "@wosm/contracts";
-import { EventHookInvocationSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { ObserverEventHookInvocationSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { createFakeExternalCommandRunner, type ExternalCommandInput } from "@wosm/runtime";
 import { describe, expect, it } from "vitest";
-import { createEventHookRuntime, eventHookMatches } from "../../src/hooks/eventHooks";
+import {
+  createObserverEventHookRuntime,
+  observerEventHookMatches,
+} from "../../src/hooks/observerEventHooks";
 import { agentStateChangedEventsFromReconcile } from "../../src/runtime/api";
 import { createObserverEventBus } from "../../src/runtime/eventBus";
 
@@ -15,15 +18,15 @@ describe("observer event hooks", () => {
   it("matches event type and agent state filters", () => {
     const hook = notifyIdleHook();
 
-    expect(eventHookMatches(hook, agentEvent("idle"))).toBe(true);
-    expect(eventHookMatches(hook, agentEvent("working"))).toBe(false);
-    expect(eventHookMatches(hook, { type: "observer.started", at: now })).toBe(false);
+    expect(observerEventHookMatches(hook, agentEvent("idle"))).toBe(true);
+    expect(observerEventHookMatches(hook, agentEvent("working"))).toBe(false);
+    expect(observerEventHookMatches(hook, { type: "observer.started", at: now })).toBe(false);
   });
 
   it("runs matching hooks with invocation JSON on stdin", async () => {
     const eventBus = createObserverEventBus();
     const calls: ExternalCommandInput[] = [];
-    const runtime = createEventHookRuntime({
+    const runtime = createObserverEventHookRuntime({
       hooks: [notifyIdleHook()],
       eventBus,
       commandRunner: createFakeExternalCommandRunner((input) => {
@@ -64,7 +67,7 @@ describe("observer event hooks", () => {
   it("isolates hook command failures from event publication", async () => {
     const eventBus = createObserverEventBus();
     let calls = 0;
-    const runtime = createEventHookRuntime({
+    const runtime = createObserverEventHookRuntime({
       hooks: [notifyIdleHook()],
       eventBus,
       commandRunner: createFakeExternalCommandRunner(() => {
@@ -109,7 +112,7 @@ describe("observer event hooks", () => {
 
 const now = "2026-06-01T12:00:00.000Z";
 
-function notifyIdleHook(): EventHookConfig {
+function notifyIdleHook(): ObserverEventHookConfig {
   return {
     id: "notify-agent-idle",
     events: ["worktree.agentStateChanged"],
@@ -194,11 +197,11 @@ function row(
   };
 }
 
-function parseInvocation(source: string | undefined): EventHookInvocation {
+function parseInvocation(source: string | undefined): ObserverEventHookInvocation {
   if (source === undefined) {
     throw new Error("Expected invocation stdin.");
   }
-  return EventHookInvocationSchema.parse(JSON.parse(source));
+  return ObserverEventHookInvocationSchema.parse(JSON.parse(source));
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {

@@ -47,7 +47,7 @@ describe("live harness status projection", () => {
         type: "session.updated",
         sessionId: "ses_web_task",
         patch: expect.objectContaining({
-          status: expect.objectContaining({ value: "working", source: "harness_hook" }),
+          status: expect.objectContaining({ value: "working", source: "harness_event" }),
         }),
       }),
     ]);
@@ -262,7 +262,7 @@ function status(
     value,
     confidence,
     reason,
-    source: "harness_hook",
+    source: "harness_event",
     updatedAt,
   };
 }

@@ -30,7 +30,7 @@
   "eventEnvelope": {
     "schemaVersion": "0.3.0",
     "event": {
-      "type": "hook.ingested",
+      "type": "providerHook.ingested",
       "at": "2026-05-20T12:02:00.000Z",
       "hookId": "hook_1",
       "provider": "worktrunk",

@@ -194,7 +194,7 @@ Add a provider-neutral scope decision before delivery, auto-start, or spooling.
 Possible shape:
 
 ```ts
-type HookScopeDecision =
+type ProviderHookScopeDecision =
   | { action: "accept"; reason: "wosm-env" | "known-worktree" }
   | { action: "ignore"; reason: "missing-wosm-env" | "outside-known-worktree" };
 ```
