@@ -40,7 +40,7 @@ export function cursorProviderErrorFromUnknown(
   fallback: {
     code: CursorHarnessErrorCode;
     message: string;
-    hint?: string | undefined;
+    hint?: string;
   },
 ): CursorHarnessProviderError {
   if (error instanceof CursorHarnessProviderError) {

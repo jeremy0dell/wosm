@@ -26,7 +26,7 @@ type HookCommandInput = {
 };
 
 export type PiExtensionDeps = {
-  env?: Record<string, string | undefined>;
+  env?: NodeJS.ProcessEnv;
   pid?: number;
   now?: () => Date;
   sendReport?: (input: HookCommandInput) => Promise<void>;
@@ -215,7 +215,7 @@ async function spoolReport(
   };
 }
 
-function observerSocketPath(env: Record<string, string | undefined>): string {
+function observerSocketPath(env: NodeJS.ProcessEnv): string {
   if (env.WOSM_OBSERVER_SOCKET_PATH !== undefined && env.WOSM_OBSERVER_SOCKET_PATH.length > 0) {
     return env.WOSM_OBSERVER_SOCKET_PATH;
   }
@@ -225,14 +225,14 @@ function observerSocketPath(env: Record<string, string | undefined>): string {
   return join(observerStateDir(env), "run", "observer.sock");
 }
 
-function hookSpoolDir(env: Record<string, string | undefined>): string {
+function hookSpoolDir(env: NodeJS.ProcessEnv): string {
   if (env.WOSM_HOOK_SPOOL_DIR !== undefined && env.WOSM_HOOK_SPOOL_DIR.length > 0) {
     return env.WOSM_HOOK_SPOOL_DIR;
   }
   return join(observerStateDir(env), "spool", "hooks");
 }
 
-function observerStateDir(env: Record<string, string | undefined>): string {
+function observerStateDir(env: NodeJS.ProcessEnv): string {
   if (env.WOSM_OBSERVER_STATE_DIR !== undefined && env.WOSM_OBSERVER_STATE_DIR.length > 0) {
     return env.WOSM_OBSERVER_STATE_DIR;
   }

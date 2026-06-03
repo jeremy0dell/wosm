@@ -10,8 +10,10 @@ import type {
   SafeError,
 } from "@wosm/contracts";
 import {
+  enrichWosmHookIdentityPayload,
   ProviderHookEventSchema,
   ProviderHookReceiptSchema,
+  parseProviderHookEventName,
   parseWosmHookIdentityPayload,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
@@ -36,12 +38,12 @@ import { writeHarnessEventReportSpoolRecord, writeProviderHookSpoolRecord } from
 
 export type ProviderHookSenderOptions = {
   paths: ObserverPaths;
-  configPath?: string | undefined;
-  observerEntryPath?: string | undefined;
-  autoStart?: boolean | undefined;
-  deliveryTimeoutMs?: number | undefined;
-  startupTimeoutMs?: number | undefined;
-  rateLimitMs?: number | undefined;
+  configPath?: string;
+  observerEntryPath?: string;
+  autoStart?: boolean;
+  deliveryTimeoutMs?: number;
+  startupTimeoutMs?: number;
+  rateLimitMs?: number;
 };
 
 type ProviderHookClientFactoryOptions = {
@@ -69,18 +71,18 @@ export type SendProviderHookEventInput = ProviderHookSenderOptions & {
 
 export type SendCodexHookInput = ProviderHookSenderOptions & {
   payload: unknown;
-  env?: Record<string, string | undefined> | undefined;
+  env?: NodeJS.ProcessEnv;
 };
 
 export type SendCursorHookInput = ProviderHookSenderOptions & {
   payload: unknown;
-  env?: Record<string, string | undefined> | undefined;
+  env?: NodeJS.ProcessEnv;
 };
 
 export type SendPiHookInput = ProviderHookSenderOptions & {
   eventType: string;
   payload: unknown;
-  env?: Record<string, string | undefined> | undefined;
+  env?: NodeJS.ProcessEnv;
 };
 
 const defaultHookId = () => `hook_${Date.now()}_${randomUUID()}`;
@@ -117,15 +119,13 @@ export async function sendProviderHookEvent(
   });
   const payloadSummary = payloadSummaryFor(input.payload);
 
-  return deliverProviderHookWithSpooling({
+  const deliveryInput: Parameters<typeof deliverProviderHookWithSpooling>[0] = {
     paths: input.paths,
     event,
     payloadSummary,
     autoStart: input.autoStart ?? true,
     startupTimeoutMs: input.startupTimeoutMs ?? 1500,
     rateLimitMs: input.rateLimitMs ?? 2000,
-    configPath: input.configPath,
-    observerEntryPath: input.observerEntryPath,
     deps,
     deliver: () =>
       attemptHookDelivery(
@@ -137,7 +137,14 @@ export async function sendProviderHookEvent(
     spoolReceipt: (error) => spool(input.paths, event, error, deps),
     recordReceipt: ({ paths, event, payloadSummary, receipt }) =>
       logAndReturn(paths, event, receipt, payloadSummary, deps),
-  });
+  };
+  if (input.configPath !== undefined) {
+    deliveryInput.configPath = input.configPath;
+  }
+  if (input.observerEntryPath !== undefined) {
+    deliveryInput.observerEntryPath = input.observerEntryPath;
+  }
+  return deliverProviderHookWithSpooling(deliveryInput);
 }
 
 export async function sendCodexHookPayload(
@@ -145,8 +152,11 @@ export async function sendCodexHookPayload(
   deps: ProviderHookSenderDeps = {},
 ): Promise<ProviderHookReceipt> {
   const clock = deps.clock ?? systemClock;
-  const enrichedPayload = enrichWosmEnv(input.payload, input.env ?? process.env);
-  const eventName = stringField(enrichedPayload, "hook_event_name") ?? "unknown";
+  const enrichedPayload = enrichWosmHookIdentityPayload({
+    payload: input.payload,
+    env: input.env ?? process.env,
+  });
+  const eventName = parseProviderHookEventName(enrichedPayload) ?? "unknown";
   if (!hasWosmOwnership(enrichedPayload)) {
     return ignoredProviderHookReceipt({
       provider: "codex",
@@ -183,8 +193,11 @@ export async function sendCursorHookPayload(
   deps: ProviderHookSenderDeps = {},
 ): Promise<ProviderHookReceipt> {
   const clock = deps.clock ?? systemClock;
-  const enrichedPayload = enrichWosmEnv(input.payload, input.env ?? process.env);
-  const eventName = stringField(enrichedPayload, "hook_event_name") ?? "unknown";
+  const enrichedPayload = enrichWosmHookIdentityPayload({
+    payload: input.payload,
+    env: input.env ?? process.env,
+  });
+  const eventName = parseProviderHookEventName(enrichedPayload) ?? "unknown";
   if (!hasWosmOwnership(enrichedPayload)) {
     return ignoredProviderHookReceipt({
       provider: "cursor",
@@ -221,7 +234,10 @@ export async function sendPiHookPayload(
   deps: ProviderHookSenderDeps = {},
 ): Promise<ProviderHookReceipt> {
   const clock = deps.clock ?? systemClock;
-  const enrichedPayload = enrichWosmEnv(input.payload, input.env ?? process.env);
+  const enrichedPayload = enrichWosmHookIdentityPayload({
+    payload: input.payload,
+    env: input.env ?? process.env,
+  });
   if (!hasWosmOwnership(enrichedPayload)) {
     return ignoredProviderHookReceipt({
       provider: "pi",
@@ -269,15 +285,13 @@ export async function sendHarnessEventReport(
     receivedAt: report.observedAt,
     ...(report.providerData === undefined ? {} : { payload: report.providerData }),
   });
-  const receipt = await deliverProviderHookWithSpooling({
+  const deliveryInput: Parameters<typeof deliverProviderHookWithSpooling>[0] = {
     paths: options.paths,
     event: syntheticEvent,
     payloadSummary,
     autoStart: options.autoStart ?? true,
     startupTimeoutMs: options.startupTimeoutMs ?? 1500,
     rateLimitMs: options.rateLimitMs ?? 2000,
-    configPath: options.configPath,
-    observerEntryPath: options.observerEntryPath,
     deps,
     deliver: () =>
       attemptHarnessEventReportDelivery(
@@ -292,7 +306,14 @@ export async function sendHarnessEventReport(
       ),
     recordReceipt: ({ paths, event, payloadSummary, receipt }) =>
       logAndReturn(paths, event, receipt, payloadSummary, deps),
-  });
+  };
+  if (options.configPath !== undefined) {
+    deliveryInput.configPath = options.configPath;
+  }
+  if (options.observerEntryPath !== undefined) {
+    deliveryInput.observerEntryPath = options.observerEntryPath;
+  }
+  const receipt = await deliverProviderHookWithSpooling(deliveryInput);
   return harnessReportReceiptFromProviderHookReceipt(report, receipt);
 }
 
@@ -634,46 +655,9 @@ function diagnosticsFromCompaction(compaction: {
   };
 }
 
-function enrichWosmEnv(payload: unknown, env: Record<string, string | undefined>): unknown {
-  if (!isRecord(payload)) {
-    return payload;
-  }
-
-  const next: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(payload)) {
-    next[key] = value;
-  }
-  assignEnvField(next, "wosm_project_id", env.WOSM_PROJECT_ID);
-  assignEnvField(next, "wosm_worktree_id", env.WOSM_WORKTREE_ID);
-  assignEnvField(next, "wosm_worktree_path", env.WOSM_WORKTREE_PATH);
-  assignEnvField(next, "wosm_session_id", env.WOSM_SESSION_ID);
-  assignEnvField(next, "wosm_terminal_provider", env.WOSM_TERMINAL_PROVIDER);
-  assignEnvField(next, "wosm_terminal_target_id", env.WOSM_TERMINAL_TARGET_ID);
-  return next;
-}
-
 function hasWosmOwnership(payload: unknown): boolean {
   const identity = parseWosmHookIdentityPayload(payload);
   return identity?.wosm_session_id !== undefined && identity.wosm_worktree_id !== undefined;
-}
-
-function assignEnvField(
-  target: Record<string, unknown>,
-  key: string,
-  value: string | undefined,
-): void {
-  if (target[key] !== undefined || value === undefined || value.length === 0) {
-    return;
-  }
-  target[key] = value;
-}
-
-function stringField(value: unknown, key: string): string | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-  const candidate = value[key];
-  return typeof candidate === "string" && candidate.length > 0 ? candidate : undefined;
 }
 
 function jsonByteCount(value: unknown): number | null {
@@ -686,10 +670,6 @@ function jsonByteCount(value: unknown): number | null {
   } catch {
     return null;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function observerClient(

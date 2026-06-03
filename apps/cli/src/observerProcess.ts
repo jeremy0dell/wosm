@@ -42,10 +42,10 @@ export type ChildProcessLike = Pick<ChildProcess, "pid" | "unref"> & {
 };
 
 export type ObserverProcessOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  paths?: ObserverPaths | undefined;
-  timeoutMs?: number | undefined;
+  config?: WosmConfig;
+  configPath?: string;
+  paths?: ObserverPaths;
+  timeoutMs?: number;
 };
 
 export async function getObserverStatus(

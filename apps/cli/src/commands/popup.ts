@@ -25,17 +25,17 @@ export type PopupCommandDeps = Partial<
 };
 
 export type PopupCommandOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  timeoutMs?: number | undefined;
-  runner?: TmuxPopupOptions["runner"] | undefined;
-  enterWorkbench?: TmuxPopupOptions["enterWorkbench"] | undefined;
-  env?: TmuxPopupOptions["env"] | undefined;
-  observer?: ObserverProcessDeps | undefined;
-  preferRegisteredDevPopup?: TmuxPopupOptions["preferRegisteredDevPopup"] | undefined;
-  registeredDevPopupRoot?: TmuxPopupOptions["registeredDevPopupRoot"] | undefined;
-  tuiCommand?: TmuxPopupOptions["tuiCommand"] | undefined;
-  uiSessionName?: TmuxPopupOptions["uiSessionName"] | undefined;
+  config?: WosmConfig;
+  configPath?: string;
+  timeoutMs?: number;
+  runner?: TmuxPopupOptions["runner"];
+  enterWorkbench?: TmuxPopupOptions["enterWorkbench"];
+  env?: TmuxPopupOptions["env"];
+  observer?: ObserverProcessDeps;
+  preferRegisteredDevPopup?: TmuxPopupOptions["preferRegisteredDevPopup"];
+  registeredDevPopupRoot?: TmuxPopupOptions["registeredDevPopupRoot"];
+  tuiCommand?: TmuxPopupOptions["tuiCommand"];
+  uiSessionName?: TmuxPopupOptions["uiSessionName"];
 };
 
 export type PopupCommandUnavailableResult = {

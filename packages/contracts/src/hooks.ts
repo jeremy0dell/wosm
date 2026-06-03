@@ -144,6 +144,19 @@ export function parseWosmHookIdentityPayload(
   return result.success ? result.data : undefined;
 }
 
+export const ProviderHookEventNamePayloadSchema = z
+  .object({
+    hook_event_name: nonEmptyStringSchema.optional(),
+  })
+  .passthrough();
+
+export type ProviderHookEventNamePayload = z.infer<typeof ProviderHookEventNamePayloadSchema>;
+
+export function parseProviderHookEventName(payload: unknown): string | undefined {
+  const result = ProviderHookEventNamePayloadSchema.safeParse(payload);
+  return result.success ? result.data.hook_event_name : undefined;
+}
+
 export type ProviderHookScopeDecision =
   | {
       action: "accept";
@@ -159,6 +172,29 @@ export type ProviderHookPayloadEnrichmentInput = {
   payload: unknown;
   env: Record<string, string | undefined>;
 };
+
+export function enrichWosmHookIdentityPayload(input: ProviderHookPayloadEnrichmentInput): unknown {
+  const parsed = WosmHookIdentityPayloadSchema.safeParse(input.payload);
+  if (!parsed.success) {
+    return input.payload;
+  }
+
+  const payload: Record<string, unknown> = { ...parsed.data };
+  const fields = [
+    ["wosm_project_id", input.env.WOSM_PROJECT_ID],
+    ["wosm_worktree_id", input.env.WOSM_WORKTREE_ID],
+    ["wosm_worktree_path", input.env.WOSM_WORKTREE_PATH],
+    ["wosm_session_id", input.env.WOSM_SESSION_ID],
+    ["wosm_terminal_provider", input.env.WOSM_TERMINAL_PROVIDER],
+    ["wosm_terminal_target_id", input.env.WOSM_TERMINAL_TARGET_ID],
+  ] as const;
+  for (const [key, value] of fields) {
+    if (payload[key] === undefined && value !== undefined && value.length > 0) {
+      payload[key] = value;
+    }
+  }
+  return payload;
+}
 
 export type ProviderHookPayloadCompactionResult = {
   event: ProviderHookEvent;

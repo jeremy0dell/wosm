@@ -10,9 +10,9 @@ import {
 import { resolveObserverPaths } from "../paths.js";
 
 export type ReconcileCommandOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  timeoutMs?: number | undefined;
+  config?: WosmConfig;
+  configPath?: string;
+  timeoutMs?: number;
 };
 
 export async function runReconcileCommand(

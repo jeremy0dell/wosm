@@ -29,6 +29,22 @@ const retainedFieldNames = [
   "wosm_terminal_target_id",
 ] as const;
 
+function jsonByteCount(value: unknown): number | null {
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) {
+      return null;
+    }
+    return Buffer.byteLength(serialized, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function compactCursorProviderHookPayload(
   payload: unknown,
 ): CursorProviderHookPayloadCompactionResult {
@@ -65,20 +81,4 @@ export function compactCursorProviderHookPayload(
     compactedByteCount: jsonByteCount(output),
     omittedFieldNames: [...omittedFieldNames].sort(),
   };
-}
-
-function jsonByteCount(value: unknown): number | null {
-  try {
-    const serialized = JSON.stringify(value);
-    if (serialized === undefined) {
-      return null;
-    }
-    return Buffer.byteLength(serialized, "utf8");
-  } catch {
-    return null;
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

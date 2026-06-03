@@ -44,10 +44,10 @@ export type ChildProcessLike = Pick<ChildProcess, "pid" | "unref"> & {
 };
 
 export type ProviderHookObserverStartupOptions = {
-  configPath?: string | undefined;
-  observerEntryPath?: string | undefined;
+  configPath?: string;
+  observerEntryPath?: string;
   paths: ObserverPaths;
-  timeoutMs?: number | undefined;
+  timeoutMs?: number;
 };
 
 export async function getProviderHookObserverStatus(

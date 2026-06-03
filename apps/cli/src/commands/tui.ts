@@ -5,6 +5,7 @@ import { dismissTmuxPopup, resolveTmuxPopupFocusOrigin } from "@wosm/tmux";
 import { type RunTuiOptions, runTui, type TuiRunResult } from "@wosm/tui";
 import { createFakeDashboardSnapshot, createFakeTuiObserverService } from "@wosm/tui/dev";
 import { parsePositiveIntegerOption } from "../args.js";
+import type { CliEnv } from "../env.js";
 import {
   type ObserverProcessDeps,
   type ObserverStatus,
@@ -15,7 +16,7 @@ import { type ObserverPaths, resolveObserverPaths } from "../paths.js";
 export type TuiCommandDeps = {
   observer?: ObserverProcessDeps;
   runTui?: (options: RunTuiOptions) => Promise<TuiRunResult>;
-  env?: Record<string, string | undefined>;
+  env?: CliEnv;
   popupLifecycle?: {
     resolveFocusOrigin?: RunTuiOptions["resolveFocusOrigin"];
     onFocusSuccess?: RunTuiOptions["onFocusSuccess"];
@@ -24,9 +25,9 @@ export type TuiCommandDeps = {
 };
 
 export type TuiCommandOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  timeoutMs?: number | undefined;
+  config?: WosmConfig;
+  configPath?: string;
+  timeoutMs?: number;
 };
 
 export type TuiCommandResult =
@@ -76,11 +77,19 @@ export async function runTuiCommand(
     };
   }
 
-  const startupReconcile = {
+  const startupReconcile: {
+    paths: ObserverPaths;
+    deps?: ObserverProcessDeps;
+    timeoutMs?: number;
+  } = {
     paths: observer.paths,
-    deps: deps.observer,
-    timeoutMs: parsed.timeoutMs,
   };
+  if (deps.observer !== undefined) {
+    startupReconcile.deps = deps.observer;
+  }
+  if (parsed.timeoutMs !== undefined) {
+    startupReconcile.timeoutMs = parsed.timeoutMs;
+  }
   if (parsed.popupMode) {
     scheduleReconcileBeforeTui(startupReconcile);
   } else {
@@ -126,8 +135,8 @@ function applyPopupOptions(
 
 function scheduleReconcileBeforeTui(input: {
   paths: ObserverPaths;
-  deps?: ObserverProcessDeps | undefined;
-  timeoutMs?: number | undefined;
+  deps?: ObserverProcessDeps;
+  timeoutMs?: number;
 }): void {
   const timer = setTimeout(() => {
     void reconcileBeforeTui(input).catch(() => undefined);
@@ -139,8 +148,8 @@ function scheduleReconcileBeforeTui(input: {
 
 async function reconcileBeforeTui(input: {
   paths: ObserverPaths;
-  deps?: ObserverProcessDeps | undefined;
-  timeoutMs?: number | undefined;
+  deps?: ObserverProcessDeps;
+  timeoutMs?: number;
 }): Promise<void> {
   const client =
     input.deps?.clientFactory?.(input.paths.socketPath) ??
@@ -197,9 +206,7 @@ function parseTuiArgs(args: string[], timeoutMs: number | undefined): ParsedTuiA
   return result;
 }
 
-function focusOriginFromEnv(
-  env: Record<string, string | undefined>,
-): TerminalFocusOrigin | undefined {
+function focusOriginFromEnv(env: CliEnv): TerminalFocusOrigin | undefined {
   const provider = env.WOSM_FOCUS_PROVIDER;
   if (provider === undefined || provider.length === 0) {
     return undefined;

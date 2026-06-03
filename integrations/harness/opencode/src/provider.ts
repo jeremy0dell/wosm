@@ -41,7 +41,7 @@ export type OpenCodeHarnessProviderOptions = {
   observerSocketPath?: string;
   stateDir?: string;
   hookSpoolDir?: string;
-  env?: Record<string, string | undefined>;
+  env?: NodeJS.ProcessEnv;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;

@@ -1,4 +1,5 @@
 import { parse, stringify } from "smol-toml";
+import { z } from "zod";
 import {
   CODEX_HOOK_EVENT_NAMES,
   type CodexHookEventName,
@@ -6,6 +7,9 @@ import {
   GENERATED_HOOK_STATUS_MESSAGE,
 } from "./hookConstants.js";
 import { CodexHookSetupError } from "./hookErrors.js";
+
+const tomlRecordSchema = z.record(z.string(), z.unknown());
+type TomlRecord = z.infer<typeof tomlRecordSchema>;
 
 export function parseTomlDocument(source: string): Record<string, unknown> {
   if (source.trim().length === 0) {
@@ -30,7 +34,8 @@ export function installCodexHookCommands(
   commands: Record<CodexHookEventName, string>,
 ): Record<string, unknown> {
   const next = cloneRecord(document);
-  const hooks = isRecord(next.hooks) ? cloneRecord(next.hooks) : {};
+  const hooksRecord = recordValue(next.hooks);
+  const hooks = hooksRecord === undefined ? {} : cloneRecord(hooksRecord);
   for (const eventName of CODEX_HOOK_EVENT_NAMES) {
     hooks[eventName] = withGeneratedHookEntry(hooks[eventName], eventName, commands[eventName]);
   }
@@ -43,10 +48,11 @@ export function removeGeneratedCodexHookCommands(
   commands: Record<CodexHookEventName, string>,
 ): Record<string, unknown> {
   const next = cloneRecord(document);
-  if (!isRecord(next.hooks)) {
+  const hooksRecord = recordValue(next.hooks);
+  if (hooksRecord === undefined) {
     return next;
   }
-  const hooks = cloneRecord(next.hooks);
+  const hooks = cloneRecord(hooksRecord);
   for (const eventName of CODEX_HOOK_EVENT_NAMES) {
     const value = withoutGeneratedHookEntry(hooks[eventName], commands[eventName]);
     if (value === undefined) {
@@ -76,10 +82,11 @@ export function documentContainsCommand(
   document: Record<string, unknown>,
   command: string,
 ): boolean {
-  if (!isRecord(document.hooks)) {
+  const hooks = recordValue(document.hooks);
+  if (hooks === undefined) {
     return false;
   }
-  return Object.values(document.hooks).some((value) =>
+  return Object.values(hooks).some((value) =>
     hookEntries(value).some((entry) => hookEntryContainsCommand(entry, command)),
   );
 }
@@ -88,10 +95,10 @@ export function generatedWosmHookEvents(
   document: Record<string, unknown>,
   commands: Record<CodexHookEventName, string>,
 ): CodexHookEventName[] {
-  if (!isRecord(document.hooks)) {
+  const hooks = recordValue(document.hooks);
+  if (hooks === undefined) {
     return [];
   }
-  const hooks = document.hooks;
   return CODEX_HOOK_EVENT_NAMES.filter((eventName) =>
     hookEntries(hooks[eventName]).some((entry) =>
       hookEntryContainsGeneratedWosmHook(entry, commands[eventName]),
@@ -163,20 +170,23 @@ function hookContainsCommand(
   eventName: CodexHookEventName,
   command: string,
 ): boolean {
-  if (!isRecord(document.hooks)) {
+  const hooks = recordValue(document.hooks);
+  if (hooks === undefined) {
     return false;
   }
-  return hookEntries(document.hooks[eventName]).some((entry) =>
-    hookEntryContainsCommand(entry, command),
-  );
+  return hookEntries(hooks[eventName]).some((entry) => hookEntryContainsCommand(entry, command));
 }
 
 function hookEntries(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(value)) {
-    return value.filter(isRecord);
+    return value.flatMap((entry) => {
+      const parsed = recordValue(entry);
+      return parsed === undefined ? [] : [parsed];
+    });
   }
-  if (isRecord(value)) {
-    return [value];
+  const parsed = recordValue(value);
+  if (parsed !== undefined) {
+    return [parsed];
   }
   return [];
 }
@@ -186,7 +196,7 @@ function hookEntryContainsCommand(entry: Record<string, unknown>, command: strin
   if (!Array.isArray(hooks)) {
     return false;
   }
-  return hooks.some((hook) => isRecord(hook) && hook.command === command);
+  return hooks.some((hook) => recordValue(hook)?.command === command);
 }
 
 function hookEntryContainsGeneratedWosmHook(
@@ -201,16 +211,17 @@ function hookEntryContainsGeneratedWosmHook(
 }
 
 function isGeneratedWosmHook(hook: unknown, command: string): boolean {
-  if (!isRecord(hook) || typeof hook.command !== "string") {
+  const hookRecord = recordValue(hook);
+  if (hookRecord === undefined || typeof hookRecord.command !== "string") {
     return false;
   }
-  if (hook.command === command) {
+  if (hookRecord.command === command) {
     return true;
   }
   return (
-    hook.type === "command" &&
-    hook.statusMessage === GENERATED_HOOK_STATUS_MESSAGE &&
-    commandLooksLikeGeneratedHookScript(hook.command)
+    hookRecord.type === "command" &&
+    hookRecord.statusMessage === GENERATED_HOOK_STATUS_MESSAGE &&
+    commandLooksLikeGeneratedHookScript(hookRecord.command)
   );
 }
 
@@ -246,8 +257,9 @@ function onlyGeneratedMatcherKeys(entry: Record<string, unknown>): boolean {
   return Object.keys(entry).every((key) => key === "matcher");
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function recordValue(value: unknown): TomlRecord | undefined {
+  const parsed = tomlRecordSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function cloneRecord(source: Record<string, unknown>): Record<string, unknown> {

@@ -1,8 +1,8 @@
 export type ReadStdinOptions = {
   stdin?: AsyncIterable<Buffer | string> & {
-    isTTY?: boolean | undefined;
+    isTTY?: boolean;
   };
-  maxBytes?: number | undefined;
+  maxBytes?: number;
 };
 
 export const defaultStdinMaxBytes = 8 * 1024 * 1024;
