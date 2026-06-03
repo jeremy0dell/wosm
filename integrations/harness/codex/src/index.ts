@@ -1,6 +1,5 @@
 export * from "./classify.js";
 export * from "./compaction.js";
-export * from "./discovery.js";
 export * from "./errors.js";
 export * from "./events.js";
 export * from "./hookAdapter.js";

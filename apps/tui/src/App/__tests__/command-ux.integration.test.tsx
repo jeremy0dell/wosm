@@ -204,6 +204,32 @@ describe("TUI command UX", () => {
     instance.unmount();
   });
 
+  it("dispatches session.create with Cursor when selected from the agent picker", async () => {
+    const snapshot = createCursorHarnessSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("N");
+    await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
+    instance.stdin.write("A");
+    await waitFor(() => instance.lastFrame()?.includes("Choose Agent") === true);
+    instance.stdin.write("2");
+    await waitFor(() => instance.lastFrame()?.includes("Agent     cursor healthy") === true);
+    instance.stdin.write("\r");
+
+    await waitFor(() => service.dispatched.length === 1);
+    expect(service.dispatched[0]).toMatchObject({
+      type: "session.create",
+      payload: {
+        harness: {
+          provider: "cursor",
+          mode: "interactive",
+        },
+      },
+    });
+    instance.unmount();
+  });
+
   it("dispatches popup session.create with focus origin without dismissing the popup", async () => {
     const snapshot = createDashboardSnapshot();
     const service = new FakeTuiObserverService(snapshot);
@@ -814,6 +840,32 @@ describe("TUI command UX", () => {
 
 function countOccurrences(value: string, search: string): number {
   return value.split(search).length - 1;
+}
+
+function createCursorHarnessSnapshot(): WosmSnapshot {
+  const snapshot = createDashboardSnapshot();
+  return {
+    ...snapshot,
+    harnesses: [
+      { id: "codex", label: "codex" },
+      { id: "cursor", label: "cursor" },
+    ],
+    providerHealth: {
+      ...snapshot.providerHealth,
+      codex: {
+        providerId: "codex",
+        providerType: "harness",
+        status: "healthy",
+        lastCheckedAt: snapshot.generatedAt,
+      },
+      cursor: {
+        providerId: "cursor",
+        providerType: "harness",
+        status: "healthy",
+        lastCheckedAt: snapshot.generatedAt,
+      },
+    },
+  };
 }
 
 function startedAgentSnapshot(snapshot: WosmSnapshot): WosmSnapshot {

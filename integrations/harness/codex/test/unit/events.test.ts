@@ -557,9 +557,9 @@ function context() {
         confidence: "high" as const,
         reason: "tmux pane has wosm identity binding.",
         observedAt: now,
-        providerData: {
-          harness: "codex",
+        harnessBinding: {
           role: "main-agent",
+          harnessProvider: "codex",
         },
       },
     ],

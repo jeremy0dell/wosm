@@ -497,9 +497,9 @@ describe("observer provider hook ingress", () => {
       sessionId: "ses_web_feature_auth",
       harnessRunId: "run_hook_1",
       now,
-      providerData: {
-        harness: "fake-harness",
+      harnessBinding: {
         role: "main-agent",
+        harnessProvider: "fake-harness",
       },
     });
     await persistence.persistReconcileResult({

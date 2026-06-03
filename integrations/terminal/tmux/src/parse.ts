@@ -58,29 +58,25 @@ function parseTmuxTargetLine(
   ] = line.split("\t");
   const [worktreePath = "", role = "", harness = ""] =
     identityFields.length >= 3 ? identityFields : ["", ...identityFields];
-  const hasBinding = projectId.length > 0 && worktreeId.length > 0 && role === "main-agent";
+  const hasBinding =
+    projectId.length > 0 && worktreeId.length > 0 && role === "main-agent" && harness.length > 0;
   const isDead = paneDead === "1";
   const parsedPid = parsePositiveInteger(pid);
   const providerData: Record<string, unknown> = {
-    sessionId,
+    sessionName: sessionId,
     windowId,
     paneId,
-    role,
-    harness,
+    paneTarget: paneId,
     attached: attached === "1",
     dead: isDead,
   };
+  if (title.length > 0) {
+    providerData.windowName = title;
+  }
   if (paneDeadStatus.length > 0) {
     providerData.deadStatus = paneDeadStatus;
   }
-  if (currentCommand.length > 0) {
-    providerData.currentCommand = currentCommand;
-  }
-  if (worktreePath.length > 0) {
-    providerData.worktreePath = worktreePath;
-  }
-
-  return {
+  const target: TerminalTargetObservation = {
     id: buildTmuxTargetId({ sessionId, windowId, paneId }),
     provider: "tmux",
     ...(projectId.length === 0 ? {} : { projectId }),
@@ -95,6 +91,19 @@ function parseTmuxTargetLine(
     observedAt: options.observedAt,
     providerData,
   };
+  if (hasBinding) {
+    target.harnessBinding = {
+      role,
+      harnessProvider: harness,
+    };
+    if (worktreePath.length > 0) {
+      target.harnessBinding.worktreePath = worktreePath;
+    }
+    if (currentCommand.length > 0) {
+      target.harnessBinding.currentCommand = currentCommand;
+    }
+  }
+  return target;
 }
 
 function targetReason(input: { hasBinding: boolean; isDead: boolean }): string {

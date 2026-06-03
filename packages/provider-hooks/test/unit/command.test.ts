@@ -126,6 +126,74 @@ describe("provider hook ingress command", () => {
     expect(JSON.stringify(observedReport)).not.toContain("pnpm test");
   });
 
+  it("delivers compact Cursor payloads through observer.harnessEvent.report", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let observedReport: HarnessEventReport | undefined;
+
+    const receipt = await runProviderIngressCommand(
+      [
+        "--socket",
+        fixture.socketPath,
+        "--state-dir",
+        fixture.stateDir,
+        "--config",
+        configPath,
+        "cursor",
+      ],
+      {
+        stdin: JSON.stringify(cursorPayload()),
+        env: wosmEnv(),
+      },
+      {
+        clock: { now: () => new Date(now) },
+        hookId: () => "report_cursor_1",
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => {
+              observedReport = report;
+              return {
+                schemaVersion: "0.3.0",
+                reportId: report.reportId,
+                provider: report.provider,
+                eventType: report.eventType,
+                accepted: true,
+                status: "accepted",
+                receivedAt: report.observedAt,
+                projected: false,
+                scheduledReconcile: true,
+              };
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt.status).toBe("ingested");
+    expect(observedReport).toMatchObject({
+      provider: "cursor",
+      eventType: "beforeShellExecution",
+      correlation: {
+        harnessRunId: "cursor:tmux:wosm:@1:%2",
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        terminalTargetId: "tmux:wosm:@1:%2",
+        nativeSessionId: "cursor_session_1",
+        cwd: "/tmp/wosm/web/task",
+      },
+      diagnostics: {
+        compacted: true,
+        omittedFieldNames: ["command", "tool_input", "user_email"],
+      },
+      providerData: {
+        hookEventName: "beforeShellExecution",
+        toolName: "shell",
+      },
+    });
+    expect(JSON.stringify(observedReport)).not.toContain("pnpm test");
+    expect(JSON.stringify(observedReport)).not.toContain("person@example.com");
+  });
+
   it("passes the delivery timeout to the observer protocol client", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);
@@ -259,6 +327,21 @@ function codexPayload() {
     tool_name: "Bash",
     tool_input: { command: "pnpm test" },
     tool_use_id: "call_test",
+  };
+}
+
+function cursorPayload() {
+  return {
+    hook_event_name: "beforeShellExecution",
+    session_id: "cursor_session_1",
+    conversation_id: "conversation_1",
+    workspace_roots: ["/tmp/wosm/web/task"],
+    model: "cursor-model",
+    cursor_version: "2026.06.02-8c11d9f",
+    tool_name: "shell",
+    command: "pnpm test",
+    tool_input: { command: "pnpm test" },
+    user_email: "person@example.com",
   };
 }
 

@@ -124,9 +124,9 @@ describe("PiHarnessProvider", () => {
             confidence: "high",
             reason: "tmux pane has wosm identity binding.",
             observedAt: now,
-            providerData: {
+            harnessBinding: {
               role: "main-agent",
-              harness: "pi",
+              harnessProvider: "pi",
               currentCommand: "pi",
             },
           },
@@ -275,9 +275,9 @@ function eventContext() {
         confidence: "high" as const,
         reason: "tmux pane has wosm identity binding.",
         observedAt: now,
-        providerData: {
+        harnessBinding: {
           role: "main-agent",
-          harness: "pi",
+          harnessProvider: "pi",
         },
       },
     ],

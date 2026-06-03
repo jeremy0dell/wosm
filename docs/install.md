@@ -8,7 +8,7 @@ This setup path is for a local development checkout. wosm remains a private work
 - pnpm 11
 - Worktrunk `wt` for real Worktrunk workflows
 - tmux for the reference terminal provider and popup dogfood path
-- Codex, Pi, or OpenCode only when running those real harness providers
+- Codex, Cursor, Pi, or OpenCode only when running those real harness providers
 
 ## Fresh Checkout
 

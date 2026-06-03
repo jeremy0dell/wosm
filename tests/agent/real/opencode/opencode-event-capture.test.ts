@@ -97,9 +97,9 @@ describeRealOpenCode("real OpenCode event capture", () => {
             worktreeId: "wt_real_opencode",
             sessionId: "ses_real_opencode",
             now,
-            providerData: {
+            harnessBinding: {
               role: "main-agent",
-              harness: "opencode",
+              harnessProvider: "opencode",
               currentCommand: "opencode",
             },
           }),

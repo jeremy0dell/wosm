@@ -15,6 +15,7 @@ import type {
   ProviderHealth,
   RawHarnessEvent,
 } from "@wosm/contracts";
+import { discoverTerminalBoundHarnessRuns } from "@wosm/contracts";
 import {
   type ExternalCommandRunner,
   runExternalCommand,
@@ -24,7 +25,6 @@ import {
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { classifyCodexRunStatus } from "./classify.js";
-import { discoverCodexRuns } from "./discovery.js";
 import { codexProviderErrorFromUnknown } from "./errors.js";
 import { normalizeCodexRawEvent } from "./events.js";
 import { doctorCodexHooks } from "./hooks.js";
@@ -200,7 +200,11 @@ export class CodexHarnessProvider implements HarnessProvider {
   }
 
   async discoverRuns(context: HarnessDiscoveryContext): Promise<HarnessRunObservation[]> {
-    return discoverCodexRuns(context);
+    return discoverTerminalBoundHarnessRuns(context, {
+      harnessProvider: this.id,
+      displayName: "Codex",
+      role: "main-agent",
+    });
   }
 
   async classifyRun(

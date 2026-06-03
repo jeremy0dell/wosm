@@ -119,9 +119,9 @@ describe("CodexHarnessProvider", () => {
             confidence: "high",
             reason: "tmux pane has wosm identity binding.",
             observedAt: now,
-            providerData: {
+            harnessBinding: {
               role: "main-agent",
-              harness: "codex",
+              harnessProvider: "codex",
               currentCommand: "codex",
             },
           },
@@ -327,9 +327,9 @@ function eventContext() {
         confidence: "high" as const,
         reason: "tmux pane has wosm identity binding.",
         observedAt: now,
-        providerData: {
+        harnessBinding: {
           role: "main-agent",
-          harness: "codex",
+          harnessProvider: "codex",
         },
       },
     ],

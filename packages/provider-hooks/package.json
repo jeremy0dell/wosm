@@ -20,6 +20,7 @@
     "@wosm/codex": "workspace:*",
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
+    "@wosm/cursor": "workspace:*",
     "@wosm/observability": "workspace:*",
     "@wosm/pi": "workspace:*",
     "@wosm/protocol": "workspace:*",
