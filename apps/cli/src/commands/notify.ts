@@ -12,14 +12,14 @@ import {
 import { playMacNotificationSound, showMacNotification } from "./notify/macos.js";
 
 export type NotifyCommandOptions = {
-  stdin?: string | undefined;
-  platform?: NodeJS.Platform | undefined;
-  configPath?: string | undefined;
+  stdin?: string;
+  platform?: NodeJS.Platform;
+  configPath?: string;
 };
 
 export type NotifyCommandDeps = {
   commandRunner?: ExternalCommandRunner;
-  cliCommandParts?: string[] | undefined;
+  cliCommandParts?: string[];
   platform?: NodeJS.Platform;
 };
 
@@ -103,16 +103,22 @@ export async function runNotifyCommand(
   }
 
   const focusCommand = buildFocusCommand(notifiable.event);
-  const clickAction = buildClickFocusShellCommand({
+  const clickActionInput: Parameters<typeof buildClickFocusShellCommand>[0] = {
     command: focusCommand,
     cliCommandParts: deps.cliCommandParts ?? defaultCliCommandParts(),
-    configPath: options.configPath,
-  });
+  };
+  if (options.configPath !== undefined) {
+    clickActionInput.configPath = options.configPath;
+  }
+  const clickAction = buildClickFocusShellCommand(clickActionInput);
   const group = `wosm:${notificationSubject(notifiable.event, notifiable.agent)}`;
-  const soundPromise = playMacNotificationSound({
+  const soundInput: Parameters<typeof playMacNotificationSound>[0] = {
     kind: notifiable.kind,
-    commandRunner: deps.commandRunner,
-  });
+  };
+  if (deps.commandRunner !== undefined) {
+    soundInput.commandRunner = deps.commandRunner;
+  }
+  const soundPromise = playMacNotificationSound(soundInput);
   const notifier = await showMacNotification(
     {
       title,

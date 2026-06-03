@@ -11,8 +11,8 @@ import {
 } from "@wosm/worktrunk";
 
 export type WorktrunkHooksCommandOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
+  config?: WosmConfig;
+  configPath?: string;
 };
 
 export type WorktrunkHooksCommandResult =

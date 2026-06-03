@@ -1,15 +1,15 @@
 import { chmod, copyFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { pathExists, readTextFileIfPresent, removeFileIfPresent } from "@wosm/runtime";
-import { CodexHookSetupError } from "./hookErrors.js";
+import { CursorHookSetupError } from "./hookErrors.js";
 
 export async function readOptionalFile(path: string): Promise<string> {
   try {
     return (await readTextFileIfPresent(path)) ?? "";
   } catch (cause) {
-    throw new CodexHookSetupError(
-      "CODEX_HOOK_CONFIG_UNREADABLE",
-      "Codex hook config could not be read.",
+    throw new CursorHookSetupError(
+      "CURSOR_HOOK_CONFIG_UNREADABLE",
+      "Cursor hook config could not be read.",
       { cause },
     );
   }
@@ -20,9 +20,9 @@ export async function writeHookConfig(path: string, contents: string): Promise<v
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     await writeFile(path, contents, { mode: 0o600 });
   } catch (cause) {
-    throw new CodexHookSetupError(
-      "CODEX_HOOK_WRITE_FAILED",
-      "Codex hook config could not be written.",
+    throw new CursorHookSetupError(
+      "CURSOR_HOOK_WRITE_FAILED",
+      "Cursor hook config could not be written.",
       { cause },
     );
   }
@@ -34,9 +34,9 @@ export async function writeHookScript(path: string, contents: string): Promise<v
     await writeFile(path, contents, { mode: 0o700 });
     await chmod(path, 0o700);
   } catch (cause) {
-    throw new CodexHookSetupError(
-      "CODEX_HOOK_WRITE_FAILED",
-      "Codex hook script could not be written.",
+    throw new CursorHookSetupError(
+      "CURSOR_HOOK_WRITE_FAILED",
+      "Cursor hook script could not be written.",
       { cause },
     );
   }
@@ -46,9 +46,9 @@ export async function removeHookScriptIfPresent(path: string): Promise<boolean> 
   try {
     return await removeFileIfPresent(path);
   } catch (cause) {
-    throw new CodexHookSetupError(
-      "CODEX_HOOK_WRITE_FAILED",
-      "Codex hook script could not be removed.",
+    throw new CursorHookSetupError(
+      "CURSOR_HOOK_WRITE_FAILED",
+      "Cursor hook script could not be removed.",
       { cause },
     );
   }
@@ -60,9 +60,9 @@ export async function backupIfPresent(path: string): Promise<string | undefined>
       return undefined;
     }
   } catch (cause) {
-    throw new CodexHookSetupError(
-      "CODEX_HOOK_CONFIG_UNREADABLE",
-      "Codex hook config metadata could not be read.",
+    throw new CursorHookSetupError(
+      "CURSOR_HOOK_CONFIG_UNREADABLE",
+      "Cursor hook config metadata could not be read.",
       { cause },
     );
   }
@@ -70,9 +70,9 @@ export async function backupIfPresent(path: string): Promise<string | undefined>
   try {
     await copyFile(path, backupPath);
   } catch (cause) {
-    throw new CodexHookSetupError(
-      "CODEX_HOOK_WRITE_FAILED",
-      "Codex hook config backup could not be written.",
+    throw new CursorHookSetupError(
+      "CURSOR_HOOK_WRITE_FAILED",
+      "Cursor hook config backup could not be written.",
       { cause },
     );
   }

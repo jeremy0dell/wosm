@@ -13,7 +13,7 @@ export type OpenCodePluginPlanOptions = {
   observerSocketPath?: string;
   stateDir?: string;
   hookSpoolDir?: string;
-  env?: Record<string, string | undefined>;
+  env?: NodeJS.ProcessEnv;
   homeDir?: string;
 };
 

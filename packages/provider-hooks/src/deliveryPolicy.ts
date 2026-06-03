@@ -36,12 +36,12 @@ export async function deliverProviderHookWithSpooling(input: {
   autoStart: boolean;
   startupTimeoutMs: number;
   rateLimitMs: number;
-  configPath?: string | undefined;
-  observerEntryPath?: string | undefined;
+  configPath?: string;
+  observerEntryPath?: string;
   deps: ProviderHookObserverStartupDeps;
   deliver: () => Promise<ProviderDeliveryAttempt>;
   spoolReceipt: (error: SafeError | undefined) => Promise<ProviderHookReceipt>;
-  recordReceipt?: ReceiptRecorder | undefined;
+  recordReceipt?: ReceiptRecorder;
 }): Promise<ProviderHookReceipt> {
   const firstDelivery = await input.deliver();
   if (firstDelivery.receipt !== undefined) {
@@ -49,14 +49,19 @@ export async function deliverProviderHookWithSpooling(input: {
   }
 
   if (input.autoStart) {
-    const startResult = await maybeStartObserver({
+    const startupInput: Parameters<typeof maybeStartObserver>[0] = {
       paths: input.paths,
-      configPath: input.configPath,
-      observerEntryPath: input.observerEntryPath,
       timeoutMs: input.startupTimeoutMs,
       rateLimitMs: input.rateLimitMs,
       deps: input.deps,
-    });
+    };
+    if (input.configPath !== undefined) {
+      startupInput.configPath = input.configPath;
+    }
+    if (input.observerEntryPath !== undefined) {
+      startupInput.observerEntryPath = input.observerEntryPath;
+    }
+    const startResult = await maybeStartObserver(startupInput);
     if (startResult.ok) {
       const retryDelivery = await input.deliver();
       if (retryDelivery.receipt !== undefined) {
@@ -75,7 +80,7 @@ async function recordReceipt(
     paths: ObserverPaths;
     event: ProviderHookEvent;
     payloadSummary: ProviderHookPayloadSummary;
-    recordReceipt?: ReceiptRecorder | undefined;
+    recordReceipt?: ReceiptRecorder;
   },
   receipt: ProviderHookReceipt,
 ): Promise<ProviderHookReceipt> {
@@ -92,8 +97,8 @@ async function recordReceipt(
 
 async function maybeStartObserver(input: {
   paths: ObserverPaths;
-  configPath?: string | undefined;
-  observerEntryPath?: string | undefined;
+  configPath?: string;
+  observerEntryPath?: string;
   timeoutMs: number;
   rateLimitMs: number;
   deps: ProviderHookObserverStartupDeps;
@@ -116,15 +121,17 @@ async function maybeStartObserver(input: {
   }
 
   try {
-    const started = await startProviderHookObserver(
-      {
-        configPath: input.configPath,
-        paths: input.paths,
-        timeoutMs: input.timeoutMs,
-        observerEntryPath: input.observerEntryPath,
-      },
-      input.deps,
-    );
+    const startupOptions: Parameters<typeof startProviderHookObserver>[0] = {
+      paths: input.paths,
+      timeoutMs: input.timeoutMs,
+    };
+    if (input.configPath !== undefined) {
+      startupOptions.configPath = input.configPath;
+    }
+    if (input.observerEntryPath !== undefined) {
+      startupOptions.observerEntryPath = input.observerEntryPath;
+    }
+    const started = await startProviderHookObserver(startupOptions, input.deps);
     if (started.status === "running") {
       return { ok: true as const };
     }

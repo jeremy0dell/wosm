@@ -14,7 +14,7 @@ export type RunWosmOptions = {
   stdin?: string;
   timeoutMs?: number;
   cwd?: string;
-  env?: Record<string, string | undefined>;
+  env?: NodeJS.ProcessEnv;
 };
 
 export class CleanupStack {

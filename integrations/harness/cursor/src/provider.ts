@@ -9,6 +9,8 @@ import type {
   HarnessProvider,
   HarnessRunObservation,
   HarnessStatusObservation,
+  ProviderDoctorCheck,
+  ProviderDoctorContext,
   ProviderHealth,
   RawHarnessEvent,
 } from "@wosm/contracts";
@@ -17,16 +19,24 @@ import {
   type ExternalCommandRunner,
   runExternalCommand,
   runRuntimeBoundary,
+  safeErrorFromUnknown,
   systemClock,
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { classifyCursorRunStatus } from "./classify.js";
 import { cursorProviderErrorFromUnknown } from "./errors.js";
 import { normalizeCursorRawEvent } from "./events.js";
+import { doctorCursorHooks } from "./hooks.js";
 import { buildCursorLaunchPlan, type CursorLaunchOptions } from "./launch.js";
 
 export type CursorHarnessProviderOptions = {
   command?: string;
+  installHooks?: boolean;
+  configPath?: string;
+  observerSocketPath?: string;
+  stateDir?: string;
+  hookSpoolDir?: string;
+  autoStartFromHooks?: boolean;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
@@ -44,6 +54,10 @@ const capabilities: HarnessCapabilities = {
   canExposeApprovalState: false,
 };
 
+function command(options: CursorHarnessProviderOptions): string {
+  return options.command ?? process.env.WOSM_CURSOR_AGENT_BIN ?? "agent";
+}
+
 export class CursorHarnessProvider implements HarnessProvider {
   readonly id = "cursor";
 
@@ -58,7 +72,7 @@ export class CursorHarnessProvider implements HarnessProvider {
   }
 
   async health(): Promise<ProviderHealth> {
-    const checkedAt = now(this.#options);
+    const checkedAt = toIsoTimestamp(this.#options.now?.() ?? systemClock.now());
     try {
       await runExternalCommand(
         {
@@ -93,6 +107,53 @@ export class CursorHarnessProvider implements HarnessProvider {
         }),
         capabilities,
       };
+    }
+  }
+
+  async doctorChecks(context?: ProviderDoctorContext): Promise<ProviderDoctorCheck[]> {
+    try {
+      const hookOptions: Parameters<typeof doctorCursorHooks>[0] = {
+        enabled: this.#options.installHooks === true,
+      };
+      if (this.#options.observerSocketPath !== undefined) {
+        hookOptions.observerSocketPath = this.#options.observerSocketPath;
+      }
+      if (this.#options.stateDir !== undefined) {
+        hookOptions.stateDir = this.#options.stateDir;
+      }
+      if (this.#options.hookSpoolDir !== undefined) {
+        hookOptions.hookSpoolDir = this.#options.hookSpoolDir;
+      }
+      if (this.#options.autoStartFromHooks !== undefined) {
+        hookOptions.autoStartFromHooks = this.#options.autoStartFromHooks;
+      }
+      if (context?.wosmConfigPath !== undefined) {
+        hookOptions.wosmConfigPath = context.wosmConfigPath;
+      } else if (this.#options.configPath !== undefined) {
+        hookOptions.wosmConfigPath = this.#options.configPath;
+      }
+      const hookResult = await doctorCursorHooks(hookOptions);
+      return [
+        {
+          name: "cursor-hooks",
+          status: hookResult.status,
+          message: `${hookResult.message} Hooks: ${hookResult.hooksPath}. Script: ${hookResult.hookScriptPath}.`,
+        },
+      ];
+    } catch (cause) {
+      return [
+        {
+          name: "cursor-hooks",
+          status: "error",
+          message: "Cursor hook diagnostics failed.",
+          error: safeErrorFromUnknown(cause, {
+            tag: "CursorHookSetupError",
+            code: "CURSOR_HOOK_DIAGNOSTIC_FAILED",
+            message: "Cursor hook diagnostics failed.",
+            provider: this.id,
+          }),
+        },
+      ];
     }
   }
 
@@ -139,13 +200,4 @@ export class CursorHarnessProvider implements HarnessProvider {
     }
     return result.value;
   }
-}
-
-function command(options: CursorHarnessProviderOptions): string {
-  return options.command ?? process.env.WOSM_CURSOR_AGENT_BIN ?? "agent";
-}
-
-function now(options: CursorHarnessProviderOptions): string {
-  const value = options.now?.() ?? systemClock.now();
-  return toIsoTimestamp(value instanceof Date ? value : new Date(value));
 }

@@ -24,6 +24,7 @@
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
     "@wosm/codex": "workspace:*",
+    "@wosm/cursor": "workspace:*",
     "@wosm/opencode": "workspace:*",
     "@wosm/observability": "workspace:*",
     "@wosm/observer": "workspace:*",

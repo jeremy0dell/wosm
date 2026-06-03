@@ -3,21 +3,32 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
 import { parseRequiredOptionValue } from "./args.js";
+import type { CodexHooksCommandOptions } from "./commands/codexHooks.js";
 import { runCodexHooksCommand } from "./commands/codexHooks.js";
+import type { CommandCommandOptions } from "./commands/command.js";
 import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
 import {
   isConfigError,
   runInvalidConfigDebugBundle,
   runInvalidConfigDoctor,
 } from "./commands/configDiagnostics.js";
+import type { CursorHooksCommandOptions } from "./commands/cursorHooks.js";
+import { runCursorHooksCommand } from "./commands/cursorHooks.js";
 import { runDebugBundleCommand } from "./commands/debugBundle.js";
 import { runDebugTraceCommand } from "./commands/debugTrace.js";
 import { runDoctorCommand } from "./commands/doctor.js";
+import type { EventHooksCommandOptions } from "./commands/eventHooks.js";
 import { runEventHooksCommand } from "./commands/eventHooks.js";
+import type { NotifyCommandOptions } from "./commands/notify.js";
 import { type NotifyCommandDeps, runNotifyCommand } from "./commands/notify.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
+import type { OpenCodeHooksCommandOptions } from "./commands/opencodeHooks.js";
 import { runOpenCodeHooksCommand } from "./commands/opencodeHooks.js";
-import { type PopupCommandDeps, runPopupCommand } from "./commands/popup.js";
+import {
+  type PopupCommandDeps,
+  type PopupCommandOptions,
+  runPopupCommand,
+} from "./commands/popup.js";
 import { runReconcileCommand } from "./commands/reconcile.js";
 import { runSnapshotCommand } from "./commands/snapshot.js";
 import { runTuiCommand, type TuiCommandDeps } from "./commands/tui.js";
@@ -32,12 +43,12 @@ export type CliRunResult = {
 };
 
 export type CliRunOptions = {
-  stdin?: string | undefined;
-  env?: CliEnv | undefined;
-  observerDeps?: ObserverProcessDeps | undefined;
-  popupDeps?: PopupCommandDeps | undefined;
-  tuiDeps?: TuiCommandDeps | undefined;
-  notifyDeps?: NotifyCommandDeps | undefined;
+  stdin?: string;
+  env?: CliEnv;
+  observerDeps?: ObserverProcessDeps;
+  popupDeps?: PopupCommandDeps;
+  tuiDeps?: TuiCommandDeps;
+  notifyDeps?: NotifyCommandDeps;
 };
 
 const configBackedCommands = [
@@ -92,7 +103,7 @@ export async function runCli(
   if (command === "observer") {
     const result = await runObserverCommand(
       commandArgs,
-      { config, configPath: resolvedConfigPath },
+      loadedCommandOptions(config, resolvedConfigPath),
       options.observerDeps,
     );
     return { code: 0, output: observerCommandSummary(result) };
@@ -101,7 +112,7 @@ export async function runCli(
   if (command === "doctor") {
     const result = await runDoctorCommand(
       commandArgs,
-      { config, configPath: resolvedConfigPath },
+      loadedCommandOptions(config, resolvedConfigPath),
       options.observerDeps,
     );
     return { code: result.status === "unavailable" ? 1 : 0, output: result };
@@ -110,31 +121,39 @@ export async function runCli(
   if (command === "debug" && commandArgs[0] === "bundle") {
     const result = await runDebugBundleCommand(
       commandArgs.slice(1),
-      { config, configPath: resolvedConfigPath },
+      loadedCommandOptions(config, resolvedConfigPath),
       options.observerDeps,
     );
     return { code: 0, output: result };
   }
 
   if (command === "debug" && commandArgs[0] === "trace") {
-    const result = await runDebugTraceCommand(commandArgs.slice(1), {
-      config,
-    });
+    const result = await runDebugTraceCommand(commandArgs.slice(1), loadedCommandOptions(config));
     return { code: result.matched ? 0 : 1, output: result };
   }
 
   if (command === "notify") {
     const stdin = options.stdin ?? (await readStdinIfAvailable());
-    const result = await runNotifyCommand(commandArgs, { stdin, configPath }, options.notifyDeps);
+    const notifyOptions: NotifyCommandOptions = {};
+    if (stdin !== undefined) {
+      notifyOptions.stdin = stdin;
+    }
+    if (configPath !== undefined) {
+      notifyOptions.configPath = configPath;
+    }
+    const result = await runNotifyCommand(commandArgs, notifyOptions, options.notifyDeps);
     return { code: 0, output: result };
   }
 
   if (command === "event-hooks") {
-    const result = await runEventHooksCommand(commandArgs, {
+    const eventHookOptions: EventHooksCommandOptions = loadedCommandOptions(
       config,
-      configPath: resolvedConfigPath,
-      env: options.env,
-    });
+      resolvedConfigPath,
+    );
+    if (options.env !== undefined) {
+      eventHookOptions.env = options.env;
+    }
+    const result = await runEventHooksCommand(commandArgs, eventHookOptions);
     return { code: hookCommandExitCode(result), output: result };
   }
 
@@ -142,11 +161,11 @@ export async function runCli(
     const stdin = commandArgs.includes("--stdin")
       ? (options.stdin ?? (await readStdinIfAvailable()))
       : options.stdin;
-    const result = await runCommandCommand(
-      commandArgs,
-      { config, configPath: resolvedConfigPath, stdin },
-      options.observerDeps,
-    );
+    const commandOptions: CommandCommandOptions = loadedCommandOptions(config, resolvedConfigPath);
+    if (stdin !== undefined) {
+      commandOptions.stdin = stdin;
+    }
+    const result = await runCommandCommand(commandArgs, commandOptions, options.observerDeps);
     return { code: commandCommandExitCode(result), output: result };
   }
 
@@ -172,19 +191,17 @@ export async function runCli(
     if (options.observerDeps !== undefined) {
       popupDeps.observer = options.observerDeps;
     }
-    const result = await runPopupCommand(
-      args.slice(1),
-      {
-        config,
-        configPath: resolvedConfigPath,
-        tuiCommand,
-        ...(popupEnv === undefined ? {} : { env: popupEnv }),
-        preferRegisteredDevPopup,
-        ...(uiSessionName === undefined ? {} : { uiSessionName }),
-        registeredDevPopupRoot: repoRootFromCliModule(),
-      },
-      popupDeps,
-    );
+    const popupOptions: PopupCommandOptions = loadedCommandOptions(config, resolvedConfigPath);
+    popupOptions.tuiCommand = tuiCommand;
+    if (popupEnv !== undefined) {
+      popupOptions.env = popupEnv;
+    }
+    popupOptions.preferRegisteredDevPopup = preferRegisteredDevPopup;
+    if (uiSessionName !== undefined) {
+      popupOptions.uiSessionName = uiSessionName;
+    }
+    popupOptions.registeredDevPopupRoot = repoRootFromCliModule();
+    const result = await runPopupCommand(args.slice(1), popupOptions, popupDeps);
     return { code: "code" in result ? result.code : 0, output: result };
   }
 
@@ -199,7 +216,7 @@ export async function runCli(
     if (tuiEnv !== undefined) tuiDeps.env = tuiEnv;
     const result = await runTuiCommand(
       commandArgs,
-      { config, configPath: resolvedConfigPath },
+      loadedCommandOptions(config, resolvedConfigPath),
       tuiDeps,
     );
     return { code: result.code, output: result };
@@ -208,7 +225,7 @@ export async function runCli(
   if (command === "snapshot") {
     const result = await runSnapshotCommand(
       commandArgs,
-      { config, configPath: resolvedConfigPath },
+      loadedCommandOptions(config, resolvedConfigPath),
       options.observerDeps,
     );
     return { code: 0, output: result };
@@ -217,17 +234,17 @@ export async function runCli(
   if (command === "reconcile") {
     const result = await runReconcileCommand(
       commandArgs,
-      { config, configPath: resolvedConfigPath },
+      loadedCommandOptions(config, resolvedConfigPath),
       options.observerDeps,
     );
     return { code: 0, output: result };
   }
 
   if (command === "worktrunk" && commandArgs[0] === "hooks") {
-    const result = await runWorktrunkHooksCommand(commandArgs.slice(1), {
-      config,
-      configPath: resolvedConfigPath,
-    });
+    const result = await runWorktrunkHooksCommand(
+      commandArgs.slice(1),
+      loadedCommandOptions(config, resolvedConfigPath),
+    );
     return { code: hookCommandExitCode(result), output: result };
   }
 
@@ -241,33 +258,51 @@ export async function runCli(
     const hookArgs = [hookAction, ...commandArgs.slice(2)];
     switch (hookTarget) {
       case "worktrunk": {
-        const result = await runWorktrunkHooksCommand(hookArgs, {
-          config,
-          configPath: resolvedConfigPath,
-        });
+        const result = await runWorktrunkHooksCommand(
+          hookArgs,
+          loadedCommandOptions(config, resolvedConfigPath),
+        );
         return { code: hookCommandExitCode(result), output: result };
       }
       case "codex": {
-        const result = await runCodexHooksCommand(hookArgs, {
+        const codexOptions: CodexHooksCommandOptions = loadedCommandOptions(
           config,
-          configPath: resolvedConfigPath,
-          env: options.env,
-        });
+          resolvedConfigPath,
+        );
+        if (options.env !== undefined) {
+          codexOptions.env = options.env;
+        }
+        const result = await runCodexHooksCommand(hookArgs, codexOptions);
+        return { code: hookCommandExitCode(result), output: result };
+      }
+      case "cursor": {
+        const cursorOptions: CursorHooksCommandOptions = loadedCommandOptions(
+          config,
+          resolvedConfigPath,
+        );
+        if (options.env !== undefined) {
+          cursorOptions.env = options.env;
+        }
+        const result = await runCursorHooksCommand(hookArgs, cursorOptions);
         return { code: hookCommandExitCode(result), output: result };
       }
       case "opencode": {
-        const result = await runOpenCodeHooksCommand(hookArgs, {
-          config,
-          env: options.env,
-        });
+        const openCodeOptions: OpenCodeHooksCommandOptions = loadedCommandOptions(config);
+        if (options.env !== undefined) {
+          openCodeOptions.env = options.env;
+        }
+        const result = await runOpenCodeHooksCommand(hookArgs, openCodeOptions);
         return { code: hookCommandExitCode(result), output: result };
       }
       case "event": {
-        const result = await runEventHooksCommand(hookArgs, {
+        const eventHookOptions: EventHooksCommandOptions = loadedCommandOptions(
           config,
-          configPath: resolvedConfigPath,
-          env: options.env,
-        });
+          resolvedConfigPath,
+        );
+        if (options.env !== undefined) {
+          eventHookOptions.env = options.env;
+        }
+        const result = await runEventHooksCommand(hookArgs, eventHookOptions);
         return { code: hookCommandExitCode(result), output: result };
       }
       default:
@@ -276,6 +311,25 @@ export async function runCli(
   }
 
   throw new Error(`Unknown command: ${command ?? ""}`);
+}
+
+type LoadedCommandOptions = {
+  config?: NonNullable<Awaited<ReturnType<typeof loadConfig>>["config"]>;
+  configPath?: string;
+};
+
+function loadedCommandOptions(
+  config: Awaited<ReturnType<typeof loadConfig>>["config"] | undefined,
+  configPath?: string,
+): LoadedCommandOptions {
+  const options: LoadedCommandOptions = {};
+  if (config !== undefined) {
+    options.config = config;
+  }
+  if (configPath !== undefined) {
+    options.configPath = configPath;
+  }
+  return options;
 }
 
 function defaultCommand(env: CliEnv): "popup" | "tui" {

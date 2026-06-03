@@ -17,6 +17,21 @@ import { z } from "zod";
 import { compactCursorProviderHookPayload } from "./compaction.js";
 import { cursorHarnessError } from "./errors.js";
 
+export type CursorProviderHookPayloadReportInput = {
+  reportId: string;
+  observedAt: string;
+  payload: unknown;
+  diagnostics?: {
+    payloadBytes?: number | null;
+    compactedBytes?: number | null;
+    compacted?: boolean;
+    truncated?: boolean;
+    omittedFieldNames?: string[];
+  };
+};
+
+export type CursorProviderHookPayload = z.infer<typeof CursorProviderHookPayloadSchema>;
+
 const nonEmptyStringSchema = z.string().min(1);
 const nullableStringSchema = z.string().nullable();
 const cursorStopStatusSchema = z.enum(["completed", "aborted", "error"]);
@@ -45,173 +60,6 @@ export const CursorProviderHookPayloadSchema = z
     wosm_terminal_target_id: nonEmptyStringSchema.optional(),
   })
   .strict();
-
-export type CursorProviderHookPayload = z.infer<typeof CursorProviderHookPayloadSchema>;
-
-export type CursorProviderHookPayloadReportInput = {
-  reportId: string;
-  observedAt: string;
-  payload: unknown;
-  diagnostics?: {
-    payloadBytes?: number | null;
-    compactedBytes?: number | null;
-    compacted?: boolean;
-    truncated?: boolean;
-    omittedFieldNames?: string[];
-  };
-};
-
-export function parseCursorProviderHookPayload(input: unknown): CursorProviderHookPayload {
-  const compacted = compactCursorProviderHookPayload(input);
-  const result = CursorProviderHookPayloadSchema.safeParse(compacted.payload);
-  if (!result.success) {
-    throw cursorHarnessError(
-      "HARNESS_CURSOR_EVENT_INVALID",
-      "Cursor hook event did not match a supported strict schema.",
-      result.error,
-    );
-  }
-  return result.data;
-}
-
-export function normalizeCursorRawEvent(
-  raw: RawHarnessEvent,
-  context: HarnessEventContext,
-): HarnessEventObservation[] {
-  const event = parseCursorProviderHookPayload(raw.event);
-  const observedAt = raw.observedAt ?? new Date().toISOString();
-  const correlation = correlateCursorEvent(event, context);
-  const observation: HarnessEventObservation = {
-    provider: "cursor",
-    rawEventType: event.hook_event_name,
-    status: statusFromCursorProviderHookPayload(event, observedAt),
-    observedAt,
-    providerData: providerDataFromCursorEvent(event),
-  };
-  if (correlation.projectId !== undefined) observation.projectId = correlation.projectId;
-  if (correlation.sessionId !== undefined) observation.sessionId = correlation.sessionId;
-  if (correlation.worktreeId !== undefined) observation.worktreeId = correlation.worktreeId;
-  if (correlation.terminalTargetId !== undefined) {
-    observation.terminalTargetId = correlation.terminalTargetId;
-  }
-  if (correlation.harnessRunId !== undefined) observation.harnessRunId = correlation.harnessRunId;
-  if (correlation.nativeSessionId !== undefined) {
-    observation.nativeSessionId = correlation.nativeSessionId;
-  }
-  if (correlation.cwd !== undefined) observation.cwd = correlation.cwd;
-  return [observation];
-}
-
-export function cursorProviderHookPayloadToHarnessEventReport(
-  input: CursorProviderHookPayloadReportInput,
-): HarnessEventReport {
-  const event = parseCursorProviderHookPayload(input.payload);
-  const report: HarnessEventReport = {
-    schemaVersion: WOSM_SCHEMA_VERSION,
-    reportId: input.reportId,
-    provider: "cursor",
-    kind: "harness",
-    eventType: event.hook_event_name,
-    observedAt: input.observedAt,
-    status: statusFromCursorProviderHookPayload(event, input.observedAt),
-    providerData: providerDataFromCursorEvent(event),
-  };
-  const correlation = reportCorrelationFromCursorEvent(event);
-  if (correlation !== undefined) {
-    report.correlation = correlation;
-  }
-  const diagnostics = reportDiagnosticsFromCursorEvent(event, input.diagnostics);
-  if (diagnostics !== undefined) {
-    report.diagnostics = diagnostics;
-  }
-  const coalesceKey = reportCoalesceKeyFromCursorEvent(event);
-  if (coalesceKey !== undefined) {
-    report.coalesceKey = coalesceKey;
-  }
-  return HarnessEventReportSchema.parse(report);
-}
-
-export function statusFromCursorProviderHookPayload(
-  event: CursorProviderHookPayload,
-  observedAt: string,
-): ObservedStatus {
-  const eventName = event.hook_event_name;
-  if (eventName === "sessionStart") {
-    return {
-      value: "starting",
-      confidence: "high",
-      reason: "Cursor session started.",
-      source: "harness_event",
-      updatedAt: observedAt,
-    };
-  }
-  if (eventName === "sessionEnd") {
-    return {
-      value: "exited",
-      confidence: "high",
-      reason: "Cursor session ended.",
-      source: "harness_event",
-      updatedAt: observedAt,
-    };
-  }
-  if (eventName === "stop") {
-    return statusFromCursorStopEvent(event, observedAt);
-  }
-  if (
-    eventName === "beforeShellExecution" ||
-    eventName === "preToolUse" ||
-    eventName === "beforeMCPExecution" ||
-    eventName === "beforeReadFile" ||
-    eventName === "beforeTabFileRead"
-  ) {
-    return {
-      value: "working",
-      confidence: "medium",
-      reason: cursorWorkingReason(event, "is about to use"),
-      source: "harness_event",
-      updatedAt: observedAt,
-    };
-  }
-  if (
-    eventName === "afterShellExecution" ||
-    eventName === "afterMCPExecution" ||
-    eventName === "afterFileEdit" ||
-    eventName === "afterTabFileEdit" ||
-    eventName === "postToolUse" ||
-    eventName === "postToolUseFailure"
-  ) {
-    return {
-      value: "working",
-      confidence: "medium",
-      reason: cursorWorkingReason(event, "completed"),
-      source: "harness_event",
-      updatedAt: observedAt,
-    };
-  }
-  if (
-    eventName === "beforeSubmitPrompt" ||
-    eventName === "afterAgentResponse" ||
-    eventName === "afterAgentThought" ||
-    eventName === "preCompact" ||
-    eventName === "subagentStart" ||
-    eventName === "subagentStop"
-  ) {
-    return {
-      value: "working",
-      confidence: "medium",
-      reason: `Cursor emitted ${eventName}.`,
-      source: "harness_event",
-      updatedAt: observedAt,
-    };
-  }
-  return {
-    value: "working",
-    confidence: "low",
-    reason: `Cursor emitted ${eventName}.`,
-    source: "harness_event",
-    updatedAt: observedAt,
-  };
-}
 
 function cursorWorkingReason(event: CursorProviderHookPayload, verb: string): string {
   return event.tool_name === undefined
@@ -458,4 +306,156 @@ function worktreeForCwd(
     return undefined;
   }
   return worktrees.find((worktree) => observedPathIsSameOrInside(cwd, worktree.path));
+}
+
+export function parseCursorProviderHookPayload(input: unknown): CursorProviderHookPayload {
+  const compacted = compactCursorProviderHookPayload(input);
+  const result = CursorProviderHookPayloadSchema.safeParse(compacted.payload);
+  if (!result.success) {
+    throw cursorHarnessError(
+      "HARNESS_CURSOR_EVENT_INVALID",
+      "Cursor hook event did not match a supported strict schema.",
+      result.error,
+    );
+  }
+  return result.data;
+}
+
+export function normalizeCursorRawEvent(
+  raw: RawHarnessEvent,
+  context: HarnessEventContext,
+): HarnessEventObservation[] {
+  const event = parseCursorProviderHookPayload(raw.event);
+  const observedAt = raw.observedAt ?? new Date().toISOString();
+  const correlation = correlateCursorEvent(event, context);
+  const observation: HarnessEventObservation = {
+    provider: "cursor",
+    rawEventType: event.hook_event_name,
+    status: statusFromCursorProviderHookPayload(event, observedAt),
+    observedAt,
+    providerData: providerDataFromCursorEvent(event),
+  };
+  if (correlation.projectId !== undefined) observation.projectId = correlation.projectId;
+  if (correlation.sessionId !== undefined) observation.sessionId = correlation.sessionId;
+  if (correlation.worktreeId !== undefined) observation.worktreeId = correlation.worktreeId;
+  if (correlation.terminalTargetId !== undefined) {
+    observation.terminalTargetId = correlation.terminalTargetId;
+  }
+  if (correlation.harnessRunId !== undefined) observation.harnessRunId = correlation.harnessRunId;
+  if (correlation.nativeSessionId !== undefined) {
+    observation.nativeSessionId = correlation.nativeSessionId;
+  }
+  if (correlation.cwd !== undefined) observation.cwd = correlation.cwd;
+  return [observation];
+}
+
+export function cursorProviderHookPayloadToHarnessEventReport(
+  input: CursorProviderHookPayloadReportInput,
+): HarnessEventReport {
+  const event = parseCursorProviderHookPayload(input.payload);
+  const report: HarnessEventReport = {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    reportId: input.reportId,
+    provider: "cursor",
+    kind: "harness",
+    eventType: event.hook_event_name,
+    observedAt: input.observedAt,
+    status: statusFromCursorProviderHookPayload(event, input.observedAt),
+    providerData: providerDataFromCursorEvent(event),
+  };
+  const correlation = reportCorrelationFromCursorEvent(event);
+  if (correlation !== undefined) {
+    report.correlation = correlation;
+  }
+  const diagnostics = reportDiagnosticsFromCursorEvent(event, input.diagnostics);
+  if (diagnostics !== undefined) {
+    report.diagnostics = diagnostics;
+  }
+  const coalesceKey = reportCoalesceKeyFromCursorEvent(event);
+  if (coalesceKey !== undefined) {
+    report.coalesceKey = coalesceKey;
+  }
+  return HarnessEventReportSchema.parse(report);
+}
+
+export function statusFromCursorProviderHookPayload(
+  event: CursorProviderHookPayload,
+  observedAt: string,
+): ObservedStatus {
+  const eventName = event.hook_event_name;
+  if (eventName === "sessionStart") {
+    return {
+      value: "starting",
+      confidence: "high",
+      reason: "Cursor session started.",
+      source: "harness_event",
+      updatedAt: observedAt,
+    };
+  }
+  if (eventName === "sessionEnd") {
+    return {
+      value: "exited",
+      confidence: "high",
+      reason: "Cursor session ended.",
+      source: "harness_event",
+      updatedAt: observedAt,
+    };
+  }
+  if (eventName === "stop") {
+    return statusFromCursorStopEvent(event, observedAt);
+  }
+  if (
+    eventName === "beforeShellExecution" ||
+    eventName === "preToolUse" ||
+    eventName === "beforeMCPExecution" ||
+    eventName === "beforeReadFile" ||
+    eventName === "beforeTabFileRead"
+  ) {
+    return {
+      value: "working",
+      confidence: "medium",
+      reason: cursorWorkingReason(event, "is about to use"),
+      source: "harness_event",
+      updatedAt: observedAt,
+    };
+  }
+  if (
+    eventName === "afterShellExecution" ||
+    eventName === "afterMCPExecution" ||
+    eventName === "afterFileEdit" ||
+    eventName === "afterTabFileEdit" ||
+    eventName === "postToolUse" ||
+    eventName === "postToolUseFailure"
+  ) {
+    return {
+      value: "working",
+      confidence: "medium",
+      reason: cursorWorkingReason(event, "completed"),
+      source: "harness_event",
+      updatedAt: observedAt,
+    };
+  }
+  if (
+    eventName === "beforeSubmitPrompt" ||
+    eventName === "afterAgentResponse" ||
+    eventName === "afterAgentThought" ||
+    eventName === "preCompact" ||
+    eventName === "subagentStart" ||
+    eventName === "subagentStop"
+  ) {
+    return {
+      value: "working",
+      confidence: "medium",
+      reason: `Cursor emitted ${eventName}.`,
+      source: "harness_event",
+      updatedAt: observedAt,
+    };
+  }
+  return {
+    value: "working",
+    confidence: "low",
+    reason: `Cursor emitted ${eventName}.`,
+    source: "harness_event",
+    updatedAt: observedAt,
+  };
 }

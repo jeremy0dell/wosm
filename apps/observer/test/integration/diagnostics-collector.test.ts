@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
+import { CursorHarnessProvider } from "@wosm/cursor";
 import { FakeHarnessProvider, FakeTerminalProvider, FakeWorktreeProvider } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
 import {
@@ -73,6 +74,72 @@ describe("observer diagnostics collector", () => {
       },
     });
     sqlite.close();
+  });
+
+  it("includes Cursor hook diagnostics in doctor data", async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), "wosm-observer-cursor-diag-"));
+    const clock = { now: () => new Date(now) };
+    const sqlite = openObserverSqlite({
+      path: join(stateDir, "observer.sqlite"),
+      clock,
+    });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock,
+      idFactory: ids(),
+    });
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({ now }),
+      terminal: new FakeTerminalProvider({ now }),
+      harnesses: [
+        new CursorHarnessProvider({
+          command: "agent-test",
+          installHooks: false,
+          runner: async (input) => ({
+            command: input.command,
+            args: input.args ?? [],
+            stdout: "2026.06.02-8c11d9f\n",
+            stderr: "",
+            exitCode: 0,
+          }),
+        }),
+      ],
+    });
+    const core = createObserverCore({
+      config,
+      providers,
+      persistence,
+      sqlite,
+      clock,
+    });
+    const previousHome = process.env.HOME;
+    process.env.HOME = stateDir;
+    try {
+      const report = await runDoctor({
+        config,
+        core,
+        persistence,
+        providers,
+        paths: { stateDir },
+        clock,
+      });
+
+      expect(report.checks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "cursor-hooks",
+            status: "ok",
+          }),
+        ]),
+      );
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+      sqlite.close();
+    }
   });
 
   it("filters command-specific diagnostics and prioritizes matching logs", async () => {

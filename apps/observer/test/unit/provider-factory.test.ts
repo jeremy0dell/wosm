@@ -1,4 +1,8 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
+import { installCursorHooks } from "@wosm/cursor";
 import { describe, expect, it } from "vitest";
 import { createProviderRegistry } from "../../src/providers/factory";
 
@@ -211,6 +215,64 @@ describe("provider factory", () => {
         WOSM_HARNESS_PROVIDER: "cursor",
       },
     });
+  });
+
+  it("passes Cursor hook config and observer paths into the Cursor harness provider", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-cursor-factory-"));
+    const stateDir = join(root, "state");
+    const observerSocketPath = join(root, "run", "observer.sock");
+    const hookSpoolDir = join(stateDir, "spool", "hooks");
+    const hookScriptPath = join(stateDir, "hooks", "wosm-cursor-hook.sh");
+    const configPath = join(root, "wosm.config.toml");
+
+    await installCursorHooks({
+      hookScriptPath,
+      wosmConfigPath: configPath,
+      observerSocketPath,
+      stateDir,
+      hookSpoolDir,
+      autoStartFromHooks: false,
+      homeDir: root,
+    });
+
+    const previousHome = process.env.HOME;
+    process.env.HOME = root;
+    try {
+      const registry = createProviderRegistry(
+        {
+          ...config,
+          observer: {
+            stateDir,
+            socketPath: observerSocketPath,
+            autoStartFromHooks: false,
+          },
+          defaults: {
+            ...config.defaults,
+            harness: "cursor",
+          },
+          harness: {
+            cursor: {
+              installHooks: true,
+            },
+          },
+        },
+        { configPath },
+      );
+      const provider = registry.harnesses.get("cursor");
+
+      await expect(provider?.doctorChecks?.()).resolves.toContainEqual(
+        expect.objectContaining({
+          name: "cursor-hooks",
+          status: "ok",
+        }),
+      );
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+    }
   });
 
   it("passes Codex config defaults into the Codex harness provider", async () => {

@@ -12,10 +12,10 @@ import {
 import { resolveObserverPaths } from "../paths.js";
 
 export type CommandCommandOptions = {
-  config?: WosmConfig | undefined;
-  configPath?: string | undefined;
-  stdin?: string | undefined;
-  timeoutMs?: number | undefined;
+  config?: WosmConfig;
+  configPath?: string;
+  stdin?: string;
+  timeoutMs?: number;
 };
 
 export type CommandDispatchAcceptedResult = {
