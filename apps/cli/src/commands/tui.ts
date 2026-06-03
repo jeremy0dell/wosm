@@ -53,6 +53,7 @@ export async function runTuiCommand(
       initialSnapshot: snapshot,
       service: createFakeTuiObserverService(snapshot),
     };
+    applyTuiConfig(options, runOptions);
     applyPopupOptions(parsed, runOptions, deps);
     return (deps.runTui ?? runTui)(runOptions);
   }
@@ -86,8 +87,15 @@ export async function runTuiCommand(
     await reconcileBeforeTui(startupReconcile);
   }
   const runOptions: RunTuiOptions = { socketPath: observer.paths.socketPath };
+  applyTuiConfig(options, runOptions);
   applyPopupOptions(parsed, runOptions, deps);
   return (deps.runTui ?? runTui)(runOptions);
+}
+
+function applyTuiConfig(options: TuiCommandOptions, runOptions: RunTuiOptions): void {
+  if (options.config?.tui !== undefined) {
+    runOptions.tuiConfig = options.config.tui;
+  }
 }
 
 function applyPopupOptions(

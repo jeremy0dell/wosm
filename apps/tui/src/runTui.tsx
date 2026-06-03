@@ -5,11 +5,14 @@ import { App } from "./App/App.js";
 import { createTuiObserverService } from "./services/observerService.js";
 import type { TuiObserverService, TuiRunResult } from "./services/types.js";
 import { resolveTuiModeFromEnv, TuiModeProvider } from "./tuiMode.js";
+import type { TopRowWidgetRuntimeDeps, TuiConfig } from "./widgets/types.js";
 
 export type RunTuiOptions = {
   socketPath?: string;
   service?: TuiObserverService;
   initialSnapshot?: WosmSnapshot;
+  tuiConfig?: TuiConfig;
+  topRowWidgetDeps?: TopRowWidgetRuntimeDeps;
   exitOnFocusSuccess?: boolean;
   focusOrigin?: TerminalFocusOrigin;
   resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
@@ -69,6 +72,10 @@ function buildAppProps(
   const appProps: ComponentProps<typeof App> = {
     service,
     ...(options.initialSnapshot === undefined ? {} : { initialSnapshot: options.initialSnapshot }),
+    ...(options.tuiConfig === undefined ? {} : { tuiConfig: options.tuiConfig }),
+    ...(options.topRowWidgetDeps === undefined
+      ? {}
+      : { topRowWidgetDeps: options.topRowWidgetDeps }),
     exitOnFocusSuccess: options.exitOnFocusSuccess === true,
     persistentPopup: options.persistentPopup === true,
     onExit,

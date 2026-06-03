@@ -3,19 +3,26 @@ import { Box, Text, useInput, useWindowSize } from "ink";
 import { type ReactNode, useEffect } from "react";
 import { useStore } from "zustand/react";
 import { CommandPrompt } from "../components/CommandPrompt/CommandPrompt.js";
-import { Dashboard } from "../components/Dashboard/Dashboard.js";
+import { Dashboard, DashboardHeader } from "../components/Dashboard/Dashboard.js";
 import { OverlayHost } from "../components/OverlayHost/OverlayHost.js";
 import { ToastStack } from "../components/ToastStack/ToastStack.js";
 import { TuiFrame } from "../components/TuiFrame/TuiFrame.js";
 import { TuiShell } from "../components/TuiShell/TuiShell.js";
 import type { TuiObserverService } from "../services/types.js";
 import { normalizeTuiKey } from "../state/keys.js";
+import { useTuiMode } from "../tuiMode.js";
+import type { TopRowWidgetRuntimeDeps, TuiConfig, TuiWidgetConfig } from "../widgets/types.js";
+import { useTopRowWidgets } from "../widgets/useTopRowWidgets.js";
 import { parseSgrMouseScroll, useMouseWheelInput } from "./useMouseWheelInput.js";
 import { useTuiAppStore } from "./useTuiAppStore.js";
+
+const EMPTY_WIDGETS: readonly TuiWidgetConfig[] = [];
 
 export type AppProps = {
   service: TuiObserverService;
   initialSnapshot?: WosmSnapshot;
+  tuiConfig?: TuiConfig;
+  topRowWidgetDeps?: TopRowWidgetRuntimeDeps;
   exitOnFocusSuccess?: boolean;
   focusOrigin?: TerminalFocusOrigin;
   resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;
@@ -28,6 +35,8 @@ export type AppProps = {
 export function App({
   service,
   initialSnapshot,
+  tuiConfig,
+  topRowWidgetDeps,
   exitOnFocusSuccess = false,
   focusOrigin,
   resolveFocusOrigin,
@@ -37,6 +46,9 @@ export function App({
   onExit,
 }: AppProps) {
   const { columns, rows } = useWindowSize();
+  const mode = useTuiMode();
+  const productLabel = mode === "dev" ? "wosm dev" : "wosm";
+  const contentColumns = Math.max(1, columns - 1);
   const store = useTuiAppStore({
     service,
     initialSnapshot,
@@ -57,6 +69,7 @@ export function App({
   const terminalRows = useStore(store, (state) => state.terminalRows);
   const localRows = useStore(store, (state) => state.localRows);
   const toasts = useStore(store, (state) => state.toasts);
+  const topRowWidgets = useTopRowWidgets(tuiConfig?.widgets ?? EMPTY_WIDGETS, topRowWidgetDeps);
 
   useEffect(() => store.getState().start(), [store]);
   useEffect(() => {
@@ -77,7 +90,11 @@ export function App({
     return (
       <TuiFrame columns={columns} rows={rows}>
         <Box flexDirection="column" flexGrow={1} overflow="hidden">
-          <Text>wosm</Text>
+          <DashboardHeader
+            productLabel={productLabel}
+            columns={contentColumns}
+            widgets={topRowWidgets}
+          />
           <Text color="gray">Loading observer snapshot...</Text>
           <ToastStack toasts={toasts} />
         </Box>
@@ -93,6 +110,7 @@ export function App({
           snapshot={snapshot}
           screen={screen}
           viewState={{ searchQuery, collapsedProjectIds, scrollOffset, terminalRows, localRows }}
+          topRowWidgets={topRowWidgets}
           quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
         />
         <FixedStatusLayer>
