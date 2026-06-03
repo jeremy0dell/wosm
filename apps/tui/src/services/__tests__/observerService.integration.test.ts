@@ -104,6 +104,40 @@ describe("TUI observer service", () => {
     }
   });
 
+  it("uses a separate timeout for observer reconciles", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const snapshot = createCommandSnapshot("idle");
+    const server = await startProtocolServer({
+      socketPath,
+      api: fakeApi({
+        snapshot,
+        reconcile: async (): Promise<ReconcileReceipt> => {
+          await delay(25);
+          return {
+            schemaVersion: WOSM_SCHEMA_VERSION,
+            reason: "slow-refresh",
+            reconciledAt: fixtureNow,
+            snapshot,
+          };
+        },
+      }),
+    });
+    const service = createTuiObserverService({
+      socketPath,
+      timeoutMs: 10,
+      reconcileTimeoutMs: 100,
+      requestId: ids("reconcile-timeout"),
+    });
+
+    try {
+      await expect(service.reconcile("slow-refresh")).resolves.toMatchObject({
+        counts: { worktrees: 1 },
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("returns the underlying subscription iterator for cleanup", async () => {
     let returned = false;
     const service = createTuiObserverService({
@@ -456,4 +490,8 @@ function commandRecord(commandId: CommandId, status: CommandRecord["status"]): C
 function ids(prefix: string): () => string {
   let id = 0;
   return () => `${prefix}_${++id}`;
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

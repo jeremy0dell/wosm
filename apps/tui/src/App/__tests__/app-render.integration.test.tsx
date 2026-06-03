@@ -78,7 +78,7 @@ describe("TUI app rendering", () => {
     expect(lines.at(-3)?.trim()).toBe("");
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain(
-      "N:new R:rename 1-9/a-z:open X:remove /:search C:collapse H:help Q:quit",
+      "N:new R:rename Z:refresh 1-9/a-z:open X:remove /:search C:collapse H:help Q:quit",
     );
     expect(lines.slice(0, -1).join("\n")).not.toContain("N:new 1-9/a-z");
   });

@@ -13,20 +13,25 @@ import type { TuiCommandCompletion, TuiObserverService } from "./types.js";
 export type CreateTuiObserverServiceOptions = {
   socketPath?: string;
   timeoutMs?: number;
+  reconcileTimeoutMs?: number;
   commandWaitTimeoutMs?: number;
   requestId?: () => string;
   client?: ObserverClient;
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
+const DEFAULT_RECONCILE_TIMEOUT_MS = 30_000;
 const DEFAULT_COMMAND_WAIT_TIMEOUT_MS = 35_000;
 
 export function createTuiObserverService(
   options: CreateTuiObserverServiceOptions,
 ): TuiObserverService {
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const reconcileTimeoutMs =
+    options.reconcileTimeoutMs ?? options.timeoutMs ?? DEFAULT_RECONCILE_TIMEOUT_MS;
   const commandWaitTimeoutMs = options.commandWaitTimeoutMs ?? DEFAULT_COMMAND_WAIT_TIMEOUT_MS;
   const client = options.client ?? createClient(options, timeoutMs);
+  const reconcileClient = options.client ?? createClient(options, reconcileTimeoutMs);
 
   return {
     loadSnapshot: () => loadSnapshot(client, timeoutMs),
@@ -34,7 +39,7 @@ export function createTuiObserverService(
     dispatch: (command: WosmCommand) => dispatchCommand(client, command, timeoutMs),
     waitForCommandCompletion: (commandId: CommandId) =>
       waitForCommandCompletion(client, commandId, commandWaitTimeoutMs),
-    reconcile: (reason?: string) => requestReconcile(client, reason, timeoutMs),
+    reconcile: (reason?: string) => requestReconcile(reconcileClient, reason, reconcileTimeoutMs),
   };
 }
 

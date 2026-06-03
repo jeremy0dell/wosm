@@ -243,8 +243,8 @@ function EmptyProjectRow({ project }: { project: ProjectView }) {
 }
 
 function DashboardFooter({ columns, quitHint }: { columns: number; quitHint: string }) {
-  const full = `N:new R:rename 1-9/a-z:open X:remove /:search C:collapse H:help ${quitHint}`;
-  const compactClose = `Q/esc:close N:new R:rename 1-9/a-z:open X:remove /:search H:help`;
+  const full = `N:new R:rename Z:refresh 1-9/a-z:open X:remove /:search C:collapse H:help ${quitHint}`;
+  const compactClose = `Q/esc:close N:new Z:refresh 1-9/a-z:open X:remove /:search H:help`;
   const label = quitHint === "Q/esc:close" && full.length > columns ? compactClose : full;
   return (
     <Box flexShrink={0}>
