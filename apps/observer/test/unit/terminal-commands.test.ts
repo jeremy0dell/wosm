@@ -32,7 +32,7 @@ describe("observer terminal commands", () => {
           sessionId: "ses_web_feature",
           now,
           providerData: {
-            sessionId: "wosm",
+            sessionName: "wosm",
             windowId: "@1",
             paneId: "%2",
           },

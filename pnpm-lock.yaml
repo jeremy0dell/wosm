@@ -89,6 +89,9 @@ importers:
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@wosm/cursor':
+        specifier: workspace:*
+        version: link:../../integrations/harness/cursor
       '@wosm/github-repository':
         specifier: workspace:*
         version: link:../../integrations/repository/github
@@ -164,6 +167,18 @@ importers:
       smol-toml:
         specifier: ^1.6.1
         version: 1.6.1
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
+
+  integrations/harness/cursor:
+    dependencies:
+      '@wosm/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@wosm/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime
       zod:
         specifier: ^4.1.12
         version: 4.4.3
@@ -308,6 +323,9 @@ importers:
       '@wosm/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@wosm/cursor':
+        specifier: workspace:*
+        version: link:../../integrations/harness/cursor
       '@wosm/observability':
         specifier: workspace:*
         version: link:../observability

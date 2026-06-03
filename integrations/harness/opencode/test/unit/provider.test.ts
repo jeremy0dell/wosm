@@ -335,9 +335,9 @@ function eventContext() {
         confidence: "high" as const,
         reason: "tmux pane has wosm identity binding.",
         observedAt: now,
-        providerData: {
+        harnessBinding: {
           role: "main-agent",
-          harness: "opencode",
+          harnessProvider: "opencode",
           currentCommand: "opencode",
         },
       },

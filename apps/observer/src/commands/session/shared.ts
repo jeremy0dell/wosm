@@ -138,6 +138,9 @@ export function terminalTargetObservationFromBinding(input: {
   if (input.binding.sessionId !== undefined) target.sessionId = input.binding.sessionId;
   if (input.binding.harnessRunId !== undefined) target.harnessRunId = input.binding.harnessRunId;
   if (input.worktree.path.length > 0) target.cwd = input.worktree.path;
+  if (input.binding.harnessBinding !== undefined) {
+    target.harnessBinding = input.binding.harnessBinding;
+  }
   if (input.binding.providerData !== undefined) target.providerData = input.binding.providerData;
   return target;
 }

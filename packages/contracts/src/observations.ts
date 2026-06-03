@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TerminalHarnessBindingSchema } from "./harnessTerminalBinding.js";
 import {
   HarnessRunIdSchema,
   ProjectIdSchema,
@@ -173,6 +174,7 @@ export const TerminalTargetObservationSchema = z
     confidence: ConfidenceSchema,
     reason: nonEmptyStringSchema,
     observedAt: TimestampSchema,
+    harnessBinding: TerminalHarnessBindingSchema.optional(),
     providerData: optionalProviderDataSchema,
   })
   .strict();
@@ -244,6 +246,7 @@ export const TerminalIdentityBindingSchema = z
     worktreeId: WorktreeIdSchema.optional(),
     sessionId: SessionIdSchema.optional(),
     harnessRunId: HarnessRunIdSchema.optional(),
+    harnessBinding: TerminalHarnessBindingSchema.optional(),
     providerData: optionalProviderDataSchema,
     confidence: ConfidenceSchema,
     reason: nonEmptyStringSchema,

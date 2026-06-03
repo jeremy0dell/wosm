@@ -145,7 +145,7 @@ describe("provider factory", () => {
     expect([...registry.harnesses.keys()]).toEqual(["codex", "opencode", "pi", "scripted"]);
   });
 
-  it("omits unconfigured built-in harnesses and shows configured Codex, Pi, and OpenCode", () => {
+  it("omits unconfigured built-in harnesses and shows configured Codex, Pi, OpenCode, and Cursor", () => {
     const codexOnly = createProviderRegistry(config);
 
     expect([...codexOnly.harnesses.keys()]).toEqual(["codex"]);
@@ -154,12 +154,63 @@ describe("provider factory", () => {
       ...config,
       harness: {
         codex: {},
+        cursor: {},
         pi: {},
         opencode: {},
       },
     });
 
-    expect([...allBuiltIns.harnesses.keys()]).toEqual(["codex", "pi", "opencode"]);
+    expect([...allBuiltIns.harnesses.keys()]).toEqual(["codex", "cursor", "pi", "opencode"]);
+  });
+
+  it("passes Cursor command config into the Cursor harness provider", async () => {
+    const registry = createProviderRegistry({
+      ...config,
+      defaults: {
+        ...config.defaults,
+        harness: "cursor",
+      },
+      harness: {
+        cursor: {
+          command: "agent-custom",
+        },
+      },
+    });
+    const provider = registry.harnesses.get("cursor");
+    const project = config.projects[0];
+    if (project === undefined) {
+      throw new Error("provider factory fixture is missing a project.");
+    }
+
+    await expect(
+      provider?.buildLaunch({
+        project: {
+          ...project,
+          defaults: {
+            ...project.defaults,
+            harness: "cursor",
+          },
+        },
+        worktree: {
+          id: "wt_web_task",
+          provider: "worktrunk",
+          projectId: "web",
+          branch: "task",
+          path: "/tmp/wosm/web/task",
+          state: "exists",
+          source: "worktrunk",
+          observedAt: now,
+        },
+        mode: "interactive",
+      }),
+    ).resolves.toMatchObject({
+      provider: "cursor",
+      command: "agent-custom",
+      args: ["--workspace", "/tmp/wosm/web/task"],
+      env: {
+        WOSM_HARNESS_PROVIDER: "cursor",
+      },
+    });
   });
 
   it("passes Codex config defaults into the Codex harness provider", async () => {

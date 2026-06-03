@@ -107,6 +107,12 @@
       "confidence": "high",
       "reason": "Identity binding matched wosm environment hints.",
       "observedAt": "2026-05-20T12:00:00.000Z",
+      "harnessBinding": {
+        "role": "main-agent",
+        "harnessProvider": "codex",
+        "worktreePath": "/tmp/wosm-fixtures/web/worktrees/feature-auth",
+        "currentCommand": "codex"
+      },
       "providerData": {
         "paneId": "%45"
       }
@@ -190,6 +196,11 @@
       "worktreeId": "wt_web_feature_auth",
       "sessionId": "ses_web_feature_auth",
       "harnessRunId": "run_web_feature_auth",
+      "harnessBinding": {
+        "role": "main-agent",
+        "harnessProvider": "codex",
+        "worktreePath": "/tmp/wosm-fixtures/web/worktrees/feature-auth"
+      },
       "providerData": {
         "paneId": "%45"
       },

@@ -1,46 +1,33 @@
 import { normalize as normalizePath } from "node:path";
 import { z } from "zod";
+import { ProviderIdSchema } from "./ids.js";
 import type {
   HarnessRunObservation,
   TerminalTargetObservation,
   WorktreeObservation,
 } from "./observations.js";
+import type { HarnessDiscoveryContext } from "./providers.js";
 
 const nonEmptyStringSchema = z.string().min(1);
 
-export const TerminalHarnessBindingProviderDataSchema = z
+export const TerminalHarnessBindingSchema = z
   .object({
-    sessionId: nonEmptyStringSchema.optional(),
-    windowId: nonEmptyStringSchema.optional(),
-    paneId: nonEmptyStringSchema.optional(),
-    role: nonEmptyStringSchema.optional(),
-    harness: nonEmptyStringSchema.optional(),
-    currentCommand: nonEmptyStringSchema.optional(),
-    attached: z.boolean().optional(),
-    dead: z.boolean().optional(),
-    deadStatus: nonEmptyStringSchema.optional(),
+    role: nonEmptyStringSchema,
+    harnessProvider: ProviderIdSchema,
     worktreePath: nonEmptyStringSchema.optional(),
+    currentCommand: nonEmptyStringSchema.optional(),
   })
   .strict();
 
-export type TerminalHarnessBindingProviderData = z.infer<
-  typeof TerminalHarnessBindingProviderDataSchema
->;
-
-export function parseTerminalHarnessBindingProviderData(
-  providerData: unknown,
-): TerminalHarnessBindingProviderData | undefined {
-  const result = TerminalHarnessBindingProviderDataSchema.safeParse(providerData);
-  return result.success ? result.data : undefined;
-}
+export type TerminalHarnessBinding = z.infer<typeof TerminalHarnessBindingSchema>;
 
 export function terminalTargetMatchesHarnessBinding(input: {
   target: TerminalTargetObservation;
   harnessProvider: string;
   role?: string | undefined;
-}): TerminalHarnessBindingProviderData | undefined {
-  const binding = parseTerminalHarnessBindingProviderData(input.target.providerData);
-  if (binding === undefined || binding.harness !== input.harnessProvider) {
+}): TerminalHarnessBinding | undefined {
+  const binding = input.target.harnessBinding;
+  if (binding === undefined || binding.harnessProvider !== input.harnessProvider) {
     return undefined;
   }
   if (input.role !== undefined && binding.role !== input.role) {
@@ -53,11 +40,20 @@ export function terminalTargetMatchesKnownWorktree(
   target: TerminalTargetObservation,
   worktrees: readonly WorktreeObservation[],
 ): boolean {
-  if (target.cwd === undefined || target.worktreeId === undefined) {
+  if (target.worktreeId === undefined) {
     return true;
   }
   const worktree = worktrees.find((candidate) => candidate.id === target.worktreeId);
   if (worktree === undefined) {
+    return true;
+  }
+  if (
+    target.harnessBinding?.worktreePath !== undefined &&
+    !sameObservedPath(target.harnessBinding.worktreePath, worktree.path)
+  ) {
+    return false;
+  }
+  if (target.cwd === undefined) {
     return true;
   }
   return observedPathIsSameOrInside(target.cwd, worktree.path);
@@ -131,6 +127,43 @@ export function terminalBoundHarnessRunObservation(input: {
     run.cwd = input.target.cwd;
   }
   return run;
+}
+
+export function discoverTerminalBoundHarnessRuns(
+  context: HarnessDiscoveryContext,
+  options: {
+    harnessProvider: string;
+    displayName: string;
+    role?: string | undefined;
+  },
+): HarnessRunObservation[] {
+  const runs: HarnessRunObservation[] = [];
+  for (const target of context.terminalTargets) {
+    const binding = terminalTargetMatchesHarnessBinding({
+      target,
+      harnessProvider: options.harnessProvider,
+      role: options.role,
+    });
+    if (binding === undefined) {
+      continue;
+    }
+    if (isDefinitelyShellCommand(binding.currentCommand)) {
+      continue;
+    }
+    if (!terminalTargetMatchesKnownWorktree(target, context.worktrees)) {
+      continue;
+    }
+
+    runs.push(
+      terminalBoundHarnessRunObservation({
+        harnessProvider: options.harnessProvider,
+        target,
+        currentCommand: binding.currentCommand,
+        reason: `terminal target is bound to ${options.displayName}; no reliable lifecycle signal yet.`,
+      }),
+    );
+  }
+  return runs;
 }
 
 export function observedPathIsSameOrInside(candidate: string, root: string): boolean {

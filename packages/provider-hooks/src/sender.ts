@@ -15,6 +15,10 @@ import {
   parseWosmHookIdentityPayload,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
+import {
+  compactCursorProviderHookPayload,
+  cursorProviderHookPayloadToHarnessEventReport,
+} from "@wosm/cursor";
 import { componentLogPath, createJsonlLogger, type JsonlLogger } from "@wosm/observability";
 import { compactPiHookPayload, piHookPayloadToHarnessEventReport } from "@wosm/pi";
 import { createObserverClient } from "@wosm/protocol";
@@ -64,6 +68,11 @@ export type SendProviderHookEventInput = ProviderHookSenderOptions & {
 };
 
 export type SendCodexHookInput = ProviderHookSenderOptions & {
+  payload: unknown;
+  env?: Record<string, string | undefined> | undefined;
+};
+
+export type SendCursorHookInput = ProviderHookSenderOptions & {
   payload: unknown;
   env?: Record<string, string | undefined> | undefined;
 };
@@ -161,6 +170,44 @@ export async function sendCodexHookPayload(
   } catch (error) {
     return rejectedProviderHookReceipt({
       provider: "codex",
+      event: eventName,
+      clock,
+      error,
+      hookId: deps.hookId,
+    });
+  }
+}
+
+export async function sendCursorHookPayload(
+  input: SendCursorHookInput,
+  deps: ProviderHookSenderDeps = {},
+): Promise<ProviderHookReceipt> {
+  const clock = deps.clock ?? systemClock;
+  const enrichedPayload = enrichWosmEnv(input.payload, input.env ?? process.env);
+  const eventName = stringField(enrichedPayload, "hook_event_name") ?? "unknown";
+  if (!hasWosmOwnership(enrichedPayload)) {
+    return ignoredProviderHookReceipt({
+      provider: "cursor",
+      event: eventName,
+      clock,
+      hookId: deps.hookId,
+    });
+  }
+
+  const compaction = compactCursorProviderHookPayload(enrichedPayload);
+  try {
+    const report = cursorProviderHookPayloadToHarnessEventReport({
+      reportId: deps.hookId?.() ?? defaultHookId(),
+      observedAt: toIsoTimestamp(clock.now()),
+      payload: compaction.payload,
+      diagnostics: diagnosticsFromCompaction(compaction),
+    });
+    return providerHookReceiptFromHarnessReportReceipt(
+      await sendHarnessEventReport(input, report, compactionSummary(compaction), deps),
+    );
+  } catch (error) {
+    return rejectedProviderHookReceipt({
+      provider: "cursor",
       event: eventName,
       clock,
       error,
