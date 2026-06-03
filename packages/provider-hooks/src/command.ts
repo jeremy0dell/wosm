@@ -8,6 +8,7 @@ import {
   type ProviderHookSenderDeps,
   type ProviderHookSenderOptions,
   sendCodexHookPayload,
+  sendCursorHookPayload,
   sendPiHookPayload,
   sendWorktrunkHookEvent,
 } from "./sender.js";
@@ -55,6 +56,21 @@ export async function runProviderIngressCommand(
       return payload.receipt;
     }
     return sendCodexHookPayload(
+      {
+        ...senderOptions,
+        payload: payload.value,
+        env: options.env,
+      },
+      deps,
+    );
+  }
+
+  if (provider === "cursor") {
+    const payload = parseJsonPayload(stdin, "cursor", event ?? "unknown", deps);
+    if (!payload.ok) {
+      return payload.receipt;
+    }
+    return sendCursorHookPayload(
       {
         ...senderOptions,
         payload: payload.value,

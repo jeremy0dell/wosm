@@ -26,6 +26,7 @@ import type {
   TerminalCapabilities,
   TerminalCapture,
   TerminalFocusContext,
+  TerminalHarnessBinding,
   TerminalLaunchProcessRequest,
   TerminalLaunchProcessResult,
   TerminalProvider,
@@ -120,6 +121,7 @@ export type CreateFakeTerminalTargetInput = {
   confidence?: Confidence;
   reason?: string;
   now?: FakeProviderClock;
+  harnessBinding?: TerminalHarnessBinding;
   providerData?: unknown;
 };
 
@@ -279,6 +281,7 @@ export function createFakeTerminalTarget(
     confidence: input.confidence ?? (state === "unknown" ? "low" : "high"),
     reason: input.reason ?? "Fake provider listed the terminal target.",
     observedAt: resolveNow(input.now),
+    ...(input.harnessBinding === undefined ? {} : { harnessBinding: input.harnessBinding }),
     ...compactProviderData(input.providerData),
   };
 }
@@ -461,6 +464,11 @@ export class FakeTerminalProvider implements TerminalProvider {
       worktreeId: request.worktree.id,
       ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
       ...(this.#now === undefined ? {} : { now: this.#now }),
+      harnessBinding: {
+        role: "main-agent",
+        harnessProvider: request.harness,
+        worktreePath: request.worktree.path,
+      },
     });
     this.#targets.push(target);
     return {
@@ -470,6 +478,11 @@ export class FakeTerminalProvider implements TerminalProvider {
         projectId: request.project.id,
         worktreeId: request.worktree.id,
         ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
+        harnessBinding: {
+          role: "main-agent",
+          harnessProvider: request.harness,
+          worktreePath: request.worktree.path,
+        },
         confidence: "high",
         reason: "Fake provider opened a workspace.",
       },

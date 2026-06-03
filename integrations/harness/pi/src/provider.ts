@@ -12,6 +12,7 @@ import type {
   ProviderHealth,
   RawHarnessEvent,
 } from "@wosm/contracts";
+import { discoverTerminalBoundHarnessRuns } from "@wosm/contracts";
 import {
   type ExternalCommandRunner,
   runExternalCommand,
@@ -20,7 +21,6 @@ import {
   toIsoTimestamp,
 } from "@wosm/runtime";
 import { classifyPiRunStatus } from "./classify.js";
-import { discoverPiRuns } from "./discovery.js";
 import { piProviderErrorFromUnknown } from "./errors.js";
 import { normalizePiRawEvent } from "./event/mapping.js";
 import { buildPiLaunchPlan } from "./launch.js";
@@ -123,7 +123,11 @@ export class PiHarnessProvider implements HarnessProvider {
   }
 
   async discoverRuns(context: HarnessDiscoveryContext): Promise<HarnessRunObservation[]> {
-    return discoverPiRuns(context);
+    return discoverTerminalBoundHarnessRuns(context, {
+      harnessProvider: this.id,
+      displayName: "Pi",
+      role: "main-agent",
+    });
   }
 
   async classifyRun(

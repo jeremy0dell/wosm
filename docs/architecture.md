@@ -29,7 +29,7 @@ The repo is organized around these boundaries:
 - `packages/runtime` owns shared runtime boundary helpers for timeouts, retry, cancellation, external commands, and typed error conversion.
 - `packages/provider-hooks` owns the tiny `wosm-ingress` sender, provider hook compaction/reporting, and offline spool writes for generated command hooks.
 - `packages/config`, `packages/observability`, and `packages/testing` are shared support packages.
-- `integrations/...` adapt external tools: Worktrunk, tmux, Codex, OpenCode, scripted harnesses, and GitHub repository metadata.
+- `integrations/...` adapt external tools: Worktrunk, tmux, Codex, Cursor, Pi, OpenCode, scripted harnesses, and GitHub repository metadata.
 
 ## Source Of Truth
 

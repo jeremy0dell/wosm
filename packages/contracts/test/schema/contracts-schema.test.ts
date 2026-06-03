@@ -37,7 +37,7 @@ import {
   RepositoryRemoteSchema,
   SafeErrorSchema,
   TerminalCapabilitiesSchema,
-  TerminalHarnessBindingProviderDataSchema,
+  TerminalHarnessBindingSchema,
   TerminalIdentityBindingSchema,
   TerminalTargetObservationSchema,
   WOSM_SCHEMA_VERSION,
@@ -815,28 +815,22 @@ describe("Phase 1 contract schemas", () => {
       "harness event status source",
     );
     expectParses(
-      TerminalHarnessBindingProviderDataSchema,
+      TerminalHarnessBindingSchema,
       {
-        sessionId: "wosm",
-        windowId: "@1",
-        paneId: "%2",
         role: "main-agent",
-        harness: "codex",
-        currentCommand: "codex",
+        harnessProvider: "codex",
         worktreePath: "/tmp/wosm/web/task",
+        currentCommand: "codex",
       },
-      "terminal harness binding provider data",
+      "terminal harness binding",
     );
     expectFails(
-      TerminalHarnessBindingProviderDataSchema,
+      TerminalHarnessBindingSchema,
       {
-        sessionId: "wosm",
-        windowId: "@1",
-        paneId: "%2",
         role: "main-agent",
-        harness: "codex",
-        currentCommand: "codex",
+        harnessProvider: "codex",
         worktreePath: "/tmp/wosm/web/task",
+        currentCommand: "codex",
         providerSpecificLeak: "not allowed",
       },
       "terminal harness binding rejects extra provider data",
@@ -1087,6 +1081,49 @@ describe("Phase 1 contract schemas", () => {
       "provider project config with provider-specific data",
     );
     expectParses(HarnessLaunchPlanSchema, observations.harnessLaunchPlan, "harness launch plan");
+    expectParses(
+      TerminalTargetObservationSchema,
+      {
+        id: "tmux:wosm:@1:%2",
+        provider: "tmux",
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        state: "open",
+        cwd: "/tmp/wosm/web/task",
+        confidence: "high",
+        reason: "tmux pane has wosm identity binding.",
+        observedAt: "2026-05-20T12:00:00.000Z",
+        harnessBinding: {
+          role: "main-agent",
+          harnessProvider: "codex",
+          worktreePath: "/tmp/wosm/web/task",
+          currentCommand: "codex",
+        },
+        providerData: {
+          paneId: "%2",
+        },
+      },
+      "terminal target observation with harness binding",
+    );
+    expectParses(
+      TerminalIdentityBindingSchema,
+      {
+        provider: "tmux",
+        targetId: "tmux:wosm:@1:%2",
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        harnessBinding: {
+          role: "main-agent",
+          harnessProvider: "codex",
+          worktreePath: "/tmp/wosm/web/task",
+        },
+        confidence: "high",
+        reason: "tmux workbench workspace is open and identity binding was written.",
+      },
+      "terminal identity binding with harness binding",
+    );
 
     for (const [index, observation] of (observations.worktreeObservations as unknown[]).entries()) {
       expectParses(WorktreeObservationSchema, observation, `worktree observation ${index}`);
