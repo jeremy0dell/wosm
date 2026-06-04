@@ -200,7 +200,7 @@ export async function runCli(
     if (uiSessionName !== undefined) {
       popupOptions.uiSessionName = uiSessionName;
     }
-    popupOptions.registeredDevPopupRoot = repoRootFromCliModule();
+    popupOptions.checkoutRoot = repoRootFromCliModule();
     const result = await runPopupCommand(args.slice(1), popupOptions, popupDeps);
     return { code: "code" in result ? result.code : 0, output: result };
   }

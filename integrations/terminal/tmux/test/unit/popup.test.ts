@@ -148,6 +148,7 @@ describe("tmux popup", () => {
 
     await expect(
       openTmuxPopup({
+        checkoutRoot: "/worktrees/current",
         runner: async (input) => {
           calls.push(input);
           if (input.args?.[0] === "display-message") {
@@ -180,7 +181,11 @@ describe("tmux popup", () => {
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
       persistentPopupMouseCall("_wosm-ui"),
-      ...fastPopupRegistrationCalls("_wosm-ui", "wosm tui --popup --persistent"),
+      ...fastPopupRegistrationCalls(
+        "_wosm-ui",
+        "wosm tui --popup --persistent",
+        "/worktrees/current",
+      ),
       [
         "display-popup",
         "-c",
@@ -414,7 +419,11 @@ describe("tmux popup", () => {
       ["has-session", "-t", "_wosm-ui"],
       ["show-options", "-t", "_wosm-ui", "-qv", "@wosm_popup_ui_signature"],
       persistentPopupMouseCall("_wosm-ui"),
-      ...fastPopupRegistrationCalls("_wosm-ui", "node current-wosm tui --popup --persistent"),
+      ...fastPopupRegistrationCalls(
+        "_wosm-ui",
+        "node current-wosm tui --popup --persistent",
+        "/current",
+      ),
       expect.arrayContaining(["display-popup", "-c", "client_1"]),
     ]);
   });
@@ -653,11 +662,19 @@ describe("tmux popup", () => {
   });
 });
 
-function fastPopupRegistrationCalls(sessionName: string, command: string): string[][] {
-  return [
+function fastPopupRegistrationCalls(
+  sessionName: string,
+  command: string,
+  root?: string,
+): string[][] {
+  const calls = [
     ["set-option", "-gq", "@wosm_popup_ui_session_name", sessionName],
     ["set-option", "-gq", "@wosm_popup_ui_expected_signature", `v1:${command}`],
   ];
+  if (root !== undefined) {
+    calls.push(["set-option", "-gq", "@wosm_popup_ui_root", root]);
+  }
+  return calls;
 }
 
 function persistentPopupMouseCall(sessionName: string): string[] {

@@ -11,6 +11,7 @@ import { type ObserverPaths, resolveObserverPaths } from "../paths.js";
 export type PopupCommandDeps = Partial<
   Pick<
     TmuxPopupOptions,
+    | "checkoutRoot"
     | "enterWorkbench"
     | "env"
     | "preferRegisteredDevPopup"
@@ -27,6 +28,7 @@ export type PopupCommandDeps = Partial<
 export type PopupCommandOptions = {
   config?: WosmConfig;
   configPath?: string;
+  checkoutRoot?: TmuxPopupOptions["checkoutRoot"];
   timeoutMs?: number;
   runner?: TmuxPopupOptions["runner"];
   enterWorkbench?: TmuxPopupOptions["enterWorkbench"];
@@ -62,6 +64,7 @@ export async function runPopupCommand(
   }
 
   const runner = options.runner ?? deps.runner;
+  const checkoutRoot = options.checkoutRoot ?? deps.checkoutRoot;
   const enterWorkbench = options.enterWorkbench ?? deps.enterWorkbench ?? false;
   const env = options.env ?? deps.env;
   const preferRegisteredDevPopup =
@@ -80,6 +83,7 @@ export async function runPopupCommand(
       : { config: options.config.terminal.tmux }),
     enterWorkbench,
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(checkoutRoot === undefined ? {} : { checkoutRoot }),
     ...(env === undefined ? {} : { env }),
     ...(preferRegisteredDevPopup === undefined ? {} : { preferRegisteredDevPopup }),
     ...(registeredDevPopupRoot === undefined ? {} : { registeredDevPopupRoot }),
