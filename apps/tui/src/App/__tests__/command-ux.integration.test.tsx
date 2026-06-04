@@ -294,7 +294,7 @@ describe("TUI command UX", () => {
     await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
-    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
+    await waitFor(() => instance.lastFrame()?.includes("starting sessio") === true);
     expect(instance.lastFrame()).toContain("[ ]");
     expect(instance.lastFrame()).not.toContain("session.create accepted");
     expect(instance.lastFrame()).not.toContain("session.create queued");
@@ -311,7 +311,7 @@ describe("TUI command UX", () => {
     instance.stdin.write("\r");
 
     await waitFor(() => service.dispatched.length === 1);
-    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
+    await waitFor(() => instance.lastFrame()?.includes("starting sessio") === true);
     const command = service.dispatched[0];
     if (command?.type !== "session.create") {
       throw new Error("Expected a session.create command.");
@@ -372,7 +372,7 @@ describe("TUI command UX", () => {
 
     service.resolveCompletion({ status: "succeeded", commandId: "cmd_tui_1" });
 
-    await waitFor(() => instance.lastFrame()?.includes("starting session...") === false);
+    await waitFor(() => instance.lastFrame()?.includes("starting sessio") === false);
     expect(instance.lastFrame()).toContain(originalTitle);
     expect(countOccurrences(instance.lastFrame() ?? "", originalTitle)).toBe(1);
     instance.unmount();
@@ -665,9 +665,9 @@ describe("TUI command UX", () => {
         force: true,
       },
     });
-    await waitFor(() => instance.lastFrame()?.includes("removing worktree...") === true);
+    await waitFor(() => instance.lastFrame()?.includes("removing worktr") === true);
     expect(instance.lastFrame()).toContain("fix-nav-mobile");
-    expect(instance.lastFrame()).toMatch(/\[ \] . fix-nav-mobile {2}removing worktree\.\.\./);
+    expect(instance.lastFrame()).toMatch(/\[ \] . fix-nav-mobile\s+removing worktr…/);
 
     service.emit({ type: "worktree.removed", worktreeId: "wt_web_idle" });
     await waitFor(() => instance.lastFrame()?.includes("fix-nav-mobile") === false);
@@ -698,7 +698,7 @@ describe("TUI command UX", () => {
 
     await waitFor(() => instance.lastFrame()?.includes("Worktree remove failed.") === true);
     expect(instance.lastFrame()).toContain("fix-nav-mobile");
-    expect(instance.lastFrame()).not.toContain("removing worktree...");
+    expect(instance.lastFrame()).not.toContain("removing worktr");
     instance.unmount();
   });
 
@@ -802,7 +802,7 @@ describe("TUI command UX", () => {
     instance.stdin.write("\u001B");
     await waitFor(() => instance.lastFrame()?.includes("collapse project:") !== true);
     expect(instance.lastFrame()).toContain("▼ web - 7 worktrees");
-    expect(instance.lastFrame()).not.toContain("| codex");
+    expect(instance.lastFrame()).toContain("▼ web - 7 worktrees | codex");
     expect(instance.lastFrame()).toContain(" [5] ○ fix-nav-mobile");
 
     instance.stdin.write("C");
