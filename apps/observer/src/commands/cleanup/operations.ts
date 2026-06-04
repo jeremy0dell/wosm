@@ -12,8 +12,13 @@ import type { ProviderRegistry } from "../../providers/registry.js";
 import { resolveHarnessProviderOrThrow } from "../providers.js";
 import type { CommandHandlerContext } from "../queue.js";
 import { runProviderMutation, throwIfAborted } from "../session/shared.js";
+import {
+  hasCloseableTerminalAttachment,
+  submitTerminalIntentOrThrow,
+  terminalCloseIntentForSession,
+  terminalCloseIntentForWorktree,
+} from "../terminalIntents.js";
 import { isRunningAgentState } from "./guards.js";
-import { terminalTargetIdForRow, terminalTargetIdForSession } from "./resolve.js";
 
 export type CleanupRuntime = {
   clock?: RuntimeClock | undefined;
@@ -28,6 +33,7 @@ export async function closeSessionResources(
     mode: "harness" | "terminal" | "all";
     force: boolean;
     context: CommandHandlerContext;
+    requireTerminalClose?: boolean | undefined;
   } & CleanupRuntime,
 ): Promise<void> {
   if (input.mode === "harness" || input.mode === "all") {
@@ -39,8 +45,10 @@ export async function closeSessionResources(
   throwIfAborted(input.context.signal);
 
   if (input.mode === "terminal" || input.mode === "all") {
-    const targetId = terminalTargetIdForSession(input.session) ?? terminalTargetIdForRow(input.row);
-    if (targetId === undefined) {
+    if (!hasCloseableTerminalAttachment({ session: input.session, row: input.row })) {
+      if (input.requireTerminalClose !== true) {
+        return;
+      }
       const error: SafeError = {
         tag: "TerminalProviderError",
         code: "TERMINAL_TARGET_MISSING",
@@ -52,11 +60,16 @@ export async function closeSessionResources(
       };
       throw error;
     }
-    await closeTerminalTarget({
-      terminal: input.providers.terminal,
-      targetId,
+    await submitTerminalIntentOrThrow({
+      providers: input.providers,
+      intent: terminalCloseIntentForSession({
+        providers: input.providers,
+        commandId: input.context.commandId,
+        session: input.session,
+        row: input.row,
+        force: input.force,
+      }),
       context: input.context,
-      clock: input.clock,
       commandTimeoutMs: input.commandTimeoutMs,
     });
   }
@@ -90,20 +103,24 @@ export async function stopHarnessForWorktree(
 
 export async function closeTerminalForWorktree(
   input: {
-    terminal: TerminalProvider;
+    providers: ProviderRegistry;
     row: WorktreeRow;
+    force: boolean;
     context: CommandHandlerContext;
   } & CleanupRuntime,
 ): Promise<void> {
-  const targetId = terminalTargetIdForRow(input.row);
-  if (targetId === undefined) {
+  if (!hasCloseableTerminalAttachment({ row: input.row })) {
     return;
   }
-  await closeTerminalTarget({
-    terminal: input.terminal,
-    targetId,
+  await submitTerminalIntentOrThrow({
+    providers: input.providers,
+    intent: terminalCloseIntentForWorktree({
+      providers: input.providers,
+      commandId: input.context.commandId,
+      row: input.row,
+      force: input.force,
+    }),
     context: input.context,
-    clock: input.clock,
     commandTimeoutMs: input.commandTimeoutMs,
   });
 }
@@ -292,14 +309,12 @@ function canUseTerminalCloseFallbackForSession(input: {
   if (!input.force) {
     return false;
   }
-  return (
-    (terminalTargetIdForSession(input.session) ?? terminalTargetIdForRow(input.row)) !== undefined
-  );
+  return hasCloseableTerminalAttachment({ session: input.session, row: input.row });
 }
 
 export function canUseTerminalCloseFallbackForWorktree(row: WorktreeRow, force: boolean): boolean {
   if (!force) {
     return false;
   }
-  return terminalTargetIdForRow(row) !== undefined;
+  return hasCloseableTerminalAttachment({ row });
 }

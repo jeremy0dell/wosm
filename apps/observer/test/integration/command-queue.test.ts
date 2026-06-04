@@ -76,7 +76,7 @@ const installHooksCommand: WosmCommand = {
 const closeTerminalCommand: WosmCommand = {
   type: "terminal.close",
   payload: {
-    targetId: "term_web_main",
+    sessionId: "ses_web_main",
   },
 };
 
@@ -297,7 +297,7 @@ describe("observer command queue", () => {
     sqlite.close();
   });
 
-  it("serializes terminal close execution by target scope", async () => {
+  it("serializes terminal close execution by session scope", async () => {
     const { sqlite, queue } = createPersistenceAndQueue();
     const starts: string[] = [];
     const finishes: string[] = [];

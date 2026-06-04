@@ -571,7 +571,7 @@ describe("Phase 1 contract schemas", () => {
       {
         type: "terminal.focus",
         payload: {
-          targetId: "tmux:wosm:@1:%2",
+          sessionId: "ses_web_feature",
           origin: {
             provider: "tmux",
             clientId: "client_1",
@@ -626,7 +626,7 @@ describe("Phase 1 contract schemas", () => {
       {
         type: "terminal.focus",
         payload: {
-          targetId: "tmux:wosm:@1:%2",
+          sessionId: "ses_web_feature",
           origin: {
             provider: "tmux",
             clientId: "client_1",
@@ -635,6 +635,28 @@ describe("Phase 1 contract schemas", () => {
         },
       },
       "terminal focus origin with provider-specific extra fields",
+    );
+
+    expectFails(
+      WosmCommandSchema,
+      {
+        type: "terminal.focus",
+        payload: {
+          targetId: "tmux:wosm:@1:%2",
+        },
+      },
+      "terminal focus command with target id",
+    );
+
+    expectFails(
+      WosmCommandSchema,
+      {
+        type: "terminal.close",
+        payload: {
+          targetId: "tmux:wosm:@1:%2",
+        },
+      },
+      "terminal close command with target id",
     );
 
     expectFails(

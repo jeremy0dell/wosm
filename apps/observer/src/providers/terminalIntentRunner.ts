@@ -3,10 +3,14 @@ import type {
   EnsureAgentWorkspaceIntent,
   HarnessProvider,
   SafeError,
+  TerminalCloseIntent,
+  TerminalFocusIntent,
   TerminalFocusOrigin,
   TerminalIntent,
   TerminalIntentReceipt,
+  TerminalIntentSubject,
   TerminalProvider,
+  TerminalState,
   TerminalTargetObservation,
   TraceContext,
 } from "@wosm/contracts";
@@ -103,8 +107,10 @@ export class DefaultTerminalIntentRunner implements TerminalIntentRunner {
           receipt = await this.#ensureAgentWorkspace(intent, context);
           break;
         case "terminal.focus":
+          receipt = await this.#focusTerminal(intent, context);
+          break;
         case "terminal.close":
-          receipt = this.#rejected(intent, unsupportedIntentError(intent));
+          receipt = await this.#closeTerminal(intent, context);
           break;
       }
       await this.#logReceipt(intent, receipt, context);
@@ -241,6 +247,152 @@ export class DefaultTerminalIntentRunner implements TerminalIntentRunner {
     }
   }
 
+  async #focusTerminal(
+    intent: TerminalFocusIntent,
+    context: TerminalIntentSubmitContext,
+  ): Promise<TerminalIntentReceipt> {
+    const terminal = this.#providers.terminal;
+    if (terminal.id !== intent.terminalProvider) {
+      return this.#rejected(intent, terminalProviderUnavailableError(intent));
+    }
+
+    try {
+      const target = await this.#resolveTargetForIntent({ terminal, intent, context });
+      await runProviderMutation(
+        {
+          ...runtimeOptions({
+            clock: this.#clock,
+            defaultCommandTimeoutMs: this.#commandTimeoutMs,
+            context,
+          }),
+          operation: `provider.${terminal.id}.focusTarget`,
+          fallback: {
+            tag: "TerminalProviderError",
+            code: "TERMINAL_FOCUS_FAILED",
+            message: "The terminal provider failed to focus the target.",
+            provider: terminal.id,
+          },
+          timeoutFallback: {
+            tag: "TimeoutError",
+            code: "TERMINAL_FOCUS_TIMEOUT",
+            message: "The terminal provider timed out while focusing the target.",
+            provider: terminal.id,
+          },
+        },
+        () => terminal.focusTarget(target.id, focusContext(intent.origin)),
+      );
+      return this.#accepted(intent);
+    } catch (error) {
+      return this.#rejected(intent, error, {
+        tag: "TerminalProviderError",
+        code: "TERMINAL_FOCUS_FAILED",
+        message: "The terminal provider failed to focus the target.",
+        provider: terminal.id,
+      });
+    }
+  }
+
+  async #closeTerminal(
+    intent: TerminalCloseIntent,
+    context: TerminalIntentSubmitContext,
+  ): Promise<TerminalIntentReceipt> {
+    const terminal = this.#providers.terminal;
+    if (terminal.id !== intent.terminalProvider) {
+      return this.#rejected(intent, terminalProviderUnavailableError(intent));
+    }
+
+    try {
+      const target = await this.#resolveTargetForIntent({ terminal, intent, context });
+      await runProviderMutation(
+        {
+          ...runtimeOptions({
+            clock: this.#clock,
+            defaultCommandTimeoutMs: this.#commandTimeoutMs,
+            context,
+          }),
+          operation: `provider.${terminal.id}.closeTarget`,
+          fallback: {
+            tag: "TerminalProviderError",
+            code: "TERMINAL_CLOSE_FAILED",
+            message: "The terminal provider failed to close the target.",
+            provider: terminal.id,
+          },
+          timeoutFallback: {
+            tag: "TimeoutError",
+            code: "TERMINAL_CLOSE_TIMEOUT",
+            message: "The terminal provider timed out while closing the target.",
+            provider: terminal.id,
+          },
+        },
+        () => terminal.closeTarget(target.id),
+      );
+      return this.#accepted(intent);
+    } catch (error) {
+      return this.#rejected(intent, error, {
+        tag: "TerminalProviderError",
+        code: "TERMINAL_CLOSE_FAILED",
+        message: "The terminal provider failed to close the target.",
+        provider: terminal.id,
+      });
+    }
+  }
+
+  async #resolveTargetForIntent(input: {
+    terminal: TerminalProvider;
+    intent: TerminalFocusIntent | TerminalCloseIntent;
+    context: TerminalIntentSubmitContext;
+  }): Promise<TerminalTargetObservation> {
+    const targets = await runProviderMutation(
+      {
+        ...runtimeOptions({
+          clock: this.#clock,
+          defaultCommandTimeoutMs: this.#commandTimeoutMs,
+          context: input.context,
+        }),
+        operation: `provider.${input.terminal.id}.listTargets`,
+        fallback: {
+          tag: "TerminalProviderError",
+          code: "TERMINAL_LIST_FAILED",
+          message: "The terminal provider failed to list targets.",
+          provider: input.terminal.id,
+        },
+        timeoutFallback: {
+          tag: "TimeoutError",
+          code: "TERMINAL_LIST_TIMEOUT",
+          message: "The terminal provider timed out while listing targets.",
+          provider: input.terminal.id,
+        },
+      },
+      () => input.terminal.listTargets(),
+    );
+
+    const matching = targets.filter((target) =>
+      targetMatchesSubject({
+        target,
+        terminalProvider: input.terminal.id,
+        subject: input.intent.subject,
+      }),
+    );
+    const ranked = matching
+      .map((target) => rankedTarget(target, input.intent.subject))
+      .filter((candidate): candidate is RankedTarget => candidate !== undefined)
+      .sort((left, right) => {
+        if (left.identityRank !== right.identityRank) {
+          return left.identityRank - right.identityRank;
+        }
+        return left.stateRank - right.stateRank;
+      });
+
+    const selected = ranked[0]?.target;
+    if (selected !== undefined) {
+      return selected;
+    }
+    if (matching.some((target) => target.state === "stale")) {
+      throw terminalTargetStaleError(input.terminal.id, input.intent.subject);
+    }
+    throw terminalTargetMissingError(input.terminal.id, input.intent.subject);
+  }
+
   async #closeOpenedTargetBestEffort(input: {
     terminal: TerminalProvider;
     targetId: string;
@@ -371,6 +523,12 @@ export function createTerminalIntentRunner(
   return new DefaultTerminalIntentRunner(options);
 }
 
+type RankedTarget = {
+  target: TerminalTargetObservation;
+  identityRank: number;
+  stateRank: number;
+};
+
 function buildLaunchRequest(
   intent: EnsureAgentWorkspaceIntent,
   terminalTarget: TerminalTargetObservation,
@@ -423,11 +581,11 @@ function focusContext(
   return { origin };
 }
 
-function unsupportedIntentError(intent: TerminalIntent): SafeError {
+function terminalProviderUnavailableError(intent: TerminalIntent): SafeError {
   return {
-    tag: "CommandValidationError",
-    code: "TERMINAL_INTENT_UNSUPPORTED",
-    message: "This terminal intent is not implemented by the observer runner yet.",
+    tag: "TerminalProviderError",
+    code: "TERMINAL_PROVIDER_UNAVAILABLE",
+    message: "The requested terminal provider is not registered.",
     commandId: intent.commandId,
     provider: intent.terminalProvider,
   };
@@ -468,4 +626,115 @@ function timestamp(clock: RuntimeClock): string {
 
 function cleanupTimeoutMs(commandTimeoutMs: number | undefined): number {
   return Math.min(commandTimeoutMs ?? 30_000, 5_000);
+}
+
+function targetMatchesSubject(input: {
+  target: TerminalTargetObservation;
+  terminalProvider: string;
+  subject: TerminalIntentSubject;
+}): boolean {
+  if (input.target.provider !== input.terminalProvider) {
+    return false;
+  }
+  if (
+    input.subject.projectId !== undefined &&
+    input.target.projectId !== undefined &&
+    input.target.projectId !== input.subject.projectId
+  ) {
+    return false;
+  }
+  if (input.subject.sessionId !== undefined && input.target.sessionId === input.subject.sessionId) {
+    return true;
+  }
+  return (
+    input.subject.worktreeId !== undefined && input.target.worktreeId === input.subject.worktreeId
+  );
+}
+
+function rankedTarget(
+  target: TerminalTargetObservation,
+  subject: TerminalIntentSubject,
+): RankedTarget | undefined {
+  const stateRank = targetStateRank(target.state);
+  if (stateRank === undefined) {
+    return undefined;
+  }
+  const identityRank = targetIdentityRank(target, subject);
+  if (identityRank === undefined) {
+    return undefined;
+  }
+  return { target, identityRank, stateRank };
+}
+
+function targetIdentityRank(
+  target: TerminalTargetObservation,
+  subject: TerminalIntentSubject,
+): number | undefined {
+  const mainAgent = target.harnessBinding?.role === "main-agent";
+  if (subject.sessionId !== undefined && target.sessionId === subject.sessionId && mainAgent) {
+    return 0;
+  }
+  if (subject.sessionId !== undefined && target.sessionId === subject.sessionId) {
+    return 1;
+  }
+  if (subject.worktreeId !== undefined && target.worktreeId === subject.worktreeId && mainAgent) {
+    return 2;
+  }
+  if (subject.worktreeId !== undefined && target.worktreeId === subject.worktreeId) {
+    return 3;
+  }
+  if (target.cwd !== undefined) {
+    return 4;
+  }
+  return undefined;
+}
+
+function targetStateRank(state: TerminalState): number | undefined {
+  switch (state) {
+    case "open":
+      return 0;
+    case "detached":
+      return 1;
+    case "unknown":
+      return 2;
+    case "none":
+    case "stale":
+      return undefined;
+  }
+}
+
+function terminalTargetMissingError(provider: string, subject: TerminalIntentSubject): SafeError {
+  const error: SafeError = {
+    tag: "TerminalProviderError",
+    code: "TERMINAL_TARGET_MISSING",
+    message:
+      subject.sessionId === undefined
+        ? "No terminal is open for this worktree."
+        : "No terminal is open for this session.",
+    hint:
+      subject.sessionId === undefined
+        ? "Start an agent or open this worktree from wosm before focusing it."
+        : "Refresh the dashboard and retry.",
+    provider,
+  };
+  assignSubject(error, subject);
+  return error;
+}
+
+function terminalTargetStaleError(provider: string, subject: TerminalIntentSubject): SafeError {
+  const error: SafeError = {
+    tag: "TerminalProviderError",
+    code: "TERMINAL_TARGET_STALE",
+    message: "Only stale terminal targets match the requested session or worktree.",
+    hint: "Refresh the dashboard or reopen the worktree before retrying.",
+    provider,
+  };
+  assignSubject(error, subject);
+  return error;
+}
+
+function assignSubject(error: SafeError, subject: TerminalIntentSubject): void {
+  if (subject.projectId !== undefined) error.projectId = subject.projectId;
+  if (subject.worktreeId !== undefined) error.worktreeId = subject.worktreeId;
+  if (subject.sessionId !== undefined) error.sessionId = subject.sessionId;
 }

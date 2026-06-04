@@ -948,6 +948,25 @@ adding a debug-target command namespace unless needed to preserve an existing wo
 creating integrations/terminal/shared
 ```
 
+Implementation notes after PR 2:
+
+```text
+apps/observer/src/commands/terminalIntents.ts is the command-side helper for
+payload-to-subject conversion, terminal intent submission, rejected-receipt
+throwing, and provider-neutral closeable attachment checks.
+
+observer cleanup no longer keeps normal target-id resolution helpers; concrete
+focus/close target choice lives in DefaultTerminalIntentRunner.
+
+closeTerminalTarget remains a low-level provider-mechanics helper, but normal
+terminal.close, session.close, session.remove, and worktree.remove paths should
+submit terminal.close intents instead of calling it directly.
+
+target ids intentionally remain in terminal observations, snapshot attachment
+fields, provider APIs, diagnostics, and provider-mechanics tests until the PR 3
+leakage cleanup.
+```
+
 PR 2 acceptance:
 
 ```text

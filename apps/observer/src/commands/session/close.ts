@@ -45,6 +45,7 @@ export function createSessionCloseHandler(
       mode: payload.mode,
       force: payload.force === true,
       context,
+      requireTerminalClose: payload.mode === "terminal" || payload.mode === "all",
       clock: options.clock,
       commandTimeoutMs: options.commandTimeoutMs,
     });

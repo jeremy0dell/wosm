@@ -10,9 +10,15 @@ import type {
   TerminalLaunchProcessRequest,
   TerminalLaunchProcessResult,
   TerminalTargetId,
+  TerminalTargetObservation,
 } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
-import { createFakeWorktree, FakeHarnessProvider, FakeTerminalProvider } from "@wosm/testing";
+import {
+  createFakeTerminalTarget,
+  createFakeWorktree,
+  FakeHarnessProvider,
+  FakeTerminalProvider,
+} from "@wosm/testing";
 import { describe, expect, it } from "vitest";
 import {
   DefaultTerminalIntentRunner,
@@ -97,6 +103,172 @@ describe("DefaultTerminalIntentRunner", () => {
     });
     expect(focusFailureTerminal.snapshot().launches).toHaveLength(1);
     expect(focusFailureTerminal.snapshot().focused).toEqual([]);
+  });
+
+  it("focuses a listed target by session subject and preserves focus origin", async () => {
+    const order: string[] = [];
+    const terminal = new RecordingTerminalProvider({
+      order,
+      targets: [
+        createFakeTerminalTarget({
+          id: "term_workspace",
+          provider: "fake-terminal",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          state: "open",
+          now,
+        }),
+        createFakeTerminalTarget({
+          id: "term_agent",
+          provider: "fake-terminal",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          sessionId: "ses_web_feature",
+          state: "open",
+          now,
+          harnessBinding: {
+            role: "main-agent",
+            harnessProvider: "fake-harness",
+            worktreePath: "/tmp/wosm/web/feature",
+          },
+          providerData: {
+            paneId: "%ignored",
+          },
+        }),
+      ],
+    });
+    const runner = runnerFor(terminal, [new CapturingHarnessProvider()]);
+
+    await expect(
+      runner.submitIntent({
+        type: "terminal.focus",
+        commandId: "cmd_focus",
+        terminalProvider: "fake-terminal",
+        subject: {
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          sessionId: "ses_web_feature",
+        },
+        origin: {
+          provider: "tmux",
+          clientId: "client_1",
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "accepted",
+    });
+
+    expect(order).toEqual(["listTargets", "focusTarget"]);
+    expect(terminal.snapshot().focused).toEqual(["term_agent"]);
+    expect(terminal.snapshot().focusContexts).toEqual([
+      {
+        origin: {
+          provider: "tmux",
+          clientId: "client_1",
+        },
+      },
+    ]);
+  });
+
+  it("closes the main-agent target before workspace targets for worktree subjects", async () => {
+    const terminal = new RecordingTerminalProvider({
+      targets: [
+        createFakeTerminalTarget({
+          id: "term_workspace",
+          provider: "fake-terminal",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          state: "open",
+          now,
+        }),
+        createFakeTerminalTarget({
+          id: "term_agent",
+          provider: "fake-terminal",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          state: "detached",
+          now,
+          harnessBinding: {
+            role: "main-agent",
+            harnessProvider: "fake-harness",
+            worktreePath: "/tmp/wosm/web/feature",
+          },
+        }),
+      ],
+    });
+
+    await expect(
+      runnerFor(terminal, [new CapturingHarnessProvider()]).submitIntent({
+        type: "terminal.close",
+        commandId: "cmd_close",
+        terminalProvider: "fake-terminal",
+        subject: {
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+        },
+        force: true,
+      }),
+    ).resolves.toMatchObject({
+      status: "accepted",
+    });
+
+    expect(terminal.snapshot().closed).toEqual(["term_agent"]);
+  });
+
+  it("rejects stale-only and missing focus or close subjects without calling provider mechanics", async () => {
+    const staleTerminal = new RecordingTerminalProvider({
+      targets: [
+        createFakeTerminalTarget({
+          id: "term_stale",
+          provider: "fake-terminal",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          state: "stale",
+          now,
+        }),
+      ],
+    });
+    await expect(
+      runnerFor(staleTerminal, [new CapturingHarnessProvider()]).submitIntent({
+        type: "terminal.focus",
+        commandId: "cmd_stale_focus",
+        terminalProvider: "fake-terminal",
+        subject: {
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      error: {
+        tag: "TerminalProviderError",
+        code: "TERMINAL_TARGET_STALE",
+        provider: "fake-terminal",
+        worktreeId: "wt_web_feature",
+      },
+    });
+    expect(staleTerminal.snapshot().focused).toEqual([]);
+
+    const missingTerminal = new RecordingTerminalProvider();
+    await expect(
+      runnerFor(missingTerminal, [new CapturingHarnessProvider()]).submitIntent({
+        type: "terminal.close",
+        commandId: "cmd_missing_close",
+        terminalProvider: "fake-terminal",
+        subject: {
+          worktreeId: "wt_missing",
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "rejected",
+      error: {
+        tag: "TerminalProviderError",
+        code: "TERMINAL_TARGET_MISSING",
+        provider: "fake-terminal",
+        worktreeId: "wt_missing",
+      },
+    });
+    expect(missingTerminal.snapshot().closed).toEqual([]);
   });
 
   it("returns owner-tagged rejected receipts for missing harness and provider failures", async () => {
@@ -344,6 +516,11 @@ class RecordingTerminalProvider extends FakeTerminalProvider {
   override async openWorkspace(request: OpenWorkspaceRequest): Promise<OpenWorkspaceResult> {
     this.#order.push("openWorkspace");
     return super.openWorkspace(request);
+  }
+
+  override async listTargets(): Promise<TerminalTargetObservation[]> {
+    this.#order.push("listTargets");
+    return super.listTargets();
   }
 
   override async launchProcess(

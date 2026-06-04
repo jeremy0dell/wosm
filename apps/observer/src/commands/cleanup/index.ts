@@ -4,11 +4,7 @@ export * from "./operations.js";
 export {
   resolveRowForSession,
   resolveSessionOrThrow,
-  resolveTerminalTargetOrThrow,
   resolveWorktreeRowOrThrow,
   sessionMissingError,
   snapshotWorktreeMissingError,
-  terminalTargetIdForRow,
-  terminalTargetIdForSession,
-  terminalTargetMissingError,
 } from "./resolve.js";

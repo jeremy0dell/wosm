@@ -42,13 +42,17 @@ export function registerObserverCommandHandlers(
   );
   options.queue.registerHandler(
     "terminal.focus",
-    createTerminalFocusHandler({ core: options.core, terminal: options.providers.terminal }),
+    createTerminalFocusHandler({
+      core: options.core,
+      providers: options.providers,
+      commandTimeoutMs: options.commandTimeoutMs,
+    }),
   );
   options.queue.registerHandler(
     "terminal.close",
     createTerminalCloseHandler({
       core: options.core,
-      terminal: options.providers.terminal,
+      providers: options.providers,
       persistence: options.persistence,
       eventBus: options.eventBus,
       clock: options.clock,
