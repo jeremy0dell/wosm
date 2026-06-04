@@ -17,6 +17,7 @@ import {
   registeredDevPopupRootOption,
   registeredDevPopupSessionNameOption,
   registeredPopupExpectedSignatureOption,
+  registeredPopupRootOption,
   registeredPopupSessionNameOption,
 } from "./constants.js";
 import type {
@@ -210,12 +211,13 @@ export async function resolvePersistentPopupUi(
   options: ResolvePersistentPopupUiOptions,
   input: TmuxCommandInput,
 ): Promise<TmuxPersistentPopupUi> {
+  const checkoutRoot = options.checkoutRoot ?? options.registeredDevPopupRoot;
   if (options.preferRegisteredDevPopup === true) {
     const registered = await resolveRegisteredDevPopupUi(input);
     if (
       registered !== undefined &&
       registered.root !== undefined &&
-      registered.root === options.registeredDevPopupRoot
+      registered.root === checkoutRoot
     ) {
       return {
         command: registered.command,
@@ -224,11 +226,15 @@ export async function resolvePersistentPopupUi(
       };
     }
   }
-  return {
+  const result: TmuxPersistentPopupUi = {
     command: options.tuiCommand ?? defaultPersistentPopupTuiCommand,
     registerFastPopup: true,
     sessionName: options.uiSessionName ?? defaultPersistentPopupSessionName,
   };
+  if (checkoutRoot !== undefined) {
+    result.root = checkoutRoot;
+  }
+  return result;
 }
 
 export async function registerFastPopupUi(
@@ -241,4 +247,7 @@ export async function registerFastPopupUi(
     registeredPopupExpectedSignatureOption,
     persistentPopupSignature(ui.command),
   );
+  if (ui.root !== undefined) {
+    await setTmuxGlobalOption(input, registeredPopupRootOption, ui.root);
+  }
 }

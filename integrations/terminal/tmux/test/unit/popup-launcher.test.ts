@@ -67,6 +67,7 @@ describe("tmux popup launcher", () => {
     await expect(
       runLauncher([], {
         FAKE_FAST_POPUP_EXPECTED_SIGNATURE: "v1:node normal tui --popup --persistent",
+        FAKE_FAST_POPUP_ROOT: repoRoot,
         FAKE_FAST_POPUP_SESSION_NAME: "_wosm-ui",
         FAKE_TMUX_MISSING_DEV_REGISTRATION: "1",
         TMUX: "/tmp/tmux-501/default,123,0",
@@ -80,8 +81,7 @@ describe("tmux popup launcher", () => {
       "show-options -gqv @wosm_tui_dev_command",
       "show-options -gqv @wosm_popup_ui_session_name",
       "show-options -gqv @wosm_popup_ui_expected_signature",
-      "show-options -gqv @wosm_tui_dev_session_name",
-      "show-options -gqv @wosm_tui_dev_root",
+      "show-options -gqv @wosm_popup_ui_root",
       "has-session -t _wosm-ui",
       "show-options -t _wosm-ui -qv @wosm_popup_ui_signature",
       "display-message -p #{client_name}",
@@ -161,8 +161,10 @@ describe("tmux popup launcher", () => {
       "show-options -gqv @wosm_tui_dev_command",
       "show-options -gqv @wosm_popup_ui_session_name",
       "show-options -gqv @wosm_popup_ui_expected_signature",
-      "show-options -gqv @wosm_tui_dev_session_name",
-      "show-options -gqv @wosm_tui_dev_root",
+      "show-options -gqv @wosm_popup_ui_root",
+      "set-option -gq -u @wosm_popup_ui_session_name",
+      "set-option -gq -u @wosm_popup_ui_expected_signature",
+      "set-option -gq -u @wosm_popup_ui_root",
     ]);
   });
 
@@ -185,8 +187,10 @@ describe("tmux popup launcher", () => {
       "show-options -gqv @wosm_tui_dev_command",
       "show-options -gqv @wosm_popup_ui_session_name",
       "show-options -gqv @wosm_popup_ui_expected_signature",
-      "show-options -gqv @wosm_tui_dev_session_name",
-      "show-options -gqv @wosm_tui_dev_root",
+      "show-options -gqv @wosm_popup_ui_root",
+      "set-option -gq -u @wosm_popup_ui_session_name",
+      "set-option -gq -u @wosm_popup_ui_expected_signature",
+      "set-option -gq -u @wosm_popup_ui_root",
     ]);
   });
 
@@ -213,8 +217,10 @@ describe("tmux popup launcher", () => {
       "has-session -t _wosm-ui-dev",
       "show-options -gqv @wosm_popup_ui_session_name",
       "show-options -gqv @wosm_popup_ui_expected_signature",
-      "show-options -gqv @wosm_tui_dev_session_name",
-      "show-options -gqv @wosm_tui_dev_root",
+      "show-options -gqv @wosm_popup_ui_root",
+      "set-option -gq -u @wosm_popup_ui_session_name",
+      "set-option -gq -u @wosm_popup_ui_expected_signature",
+      "set-option -gq -u @wosm_popup_ui_root",
     ]);
   });
 
@@ -238,17 +244,20 @@ describe("tmux popup launcher", () => {
       "show-options -gqv @wosm_tui_dev_root",
       "show-options -gqv @wosm_popup_ui_session_name",
       "show-options -gqv @wosm_popup_ui_expected_signature",
-      "show-options -gqv @wosm_tui_dev_session_name",
-      "show-options -gqv @wosm_tui_dev_root",
+      "show-options -gqv @wosm_popup_ui_root",
+      "set-option -gq -u @wosm_popup_ui_session_name",
+      "set-option -gq -u @wosm_popup_ui_expected_signature",
+      "set-option -gq -u @wosm_popup_ui_root",
     ]);
   });
 
-  it("falls back when normal popup registration points at another checkout's dev UI", async () => {
+  it("falls back and clears when normal popup registration points at another checkout", async () => {
     const fixture = await createFakeTmux();
 
     await expect(
       runLauncher([], {
         FAKE_FAST_POPUP_EXPECTED_SIGNATURE: "v1:node other-dev tui",
+        FAKE_FAST_POPUP_ROOT: "/other",
         FAKE_FAST_POPUP_SESSION_NAME: "_wosm-ui-dev-other",
         FAKE_TMUX_DEV_ROOT: "/other",
         FAKE_TMUX_DEV_SESSION_NAME: "_wosm-ui-dev-other",
@@ -267,8 +276,68 @@ describe("tmux popup launcher", () => {
       "show-options -gqv @wosm_tui_dev_root",
       "show-options -gqv @wosm_popup_ui_session_name",
       "show-options -gqv @wosm_popup_ui_expected_signature",
+      "show-options -gqv @wosm_popup_ui_root",
+      "set-option -gq -u @wosm_popup_ui_session_name",
+      "set-option -gq -u @wosm_popup_ui_expected_signature",
+      "set-option -gq -u @wosm_popup_ui_root",
+    ]);
+  });
+
+  it("falls back and clears a legacy rootless normal popup registration", async () => {
+    const fixture = await createFakeTmux();
+
+    await expect(
+      runLauncher([], {
+        FAKE_FAST_POPUP_EXPECTED_SIGNATURE: "v1:node normal tui --popup --persistent",
+        FAKE_FAST_POPUP_SESSION_NAME: "_wosm-ui",
+        FAKE_TMUX_MISSING_DEV_REGISTRATION: "1",
+        TMUX: "/tmp/tmux-501/default,123,0",
+        TMUX_LOG: fixture.logPath,
+        WOSM_POPUP_FALLBACK_COMMAND: "printf fallback",
+        WOSM_TMUX_BIN: fixture.tmuxPath,
+      }),
+    ).resolves.toMatchObject({ code: 0, stdout: "fallback" });
+
+    expect(await readLog(fixture.logPath)).toEqual([
       "show-options -gqv @wosm_tui_dev_session_name",
-      "show-options -gqv @wosm_tui_dev_root",
+      "show-options -gqv @wosm_tui_dev_command",
+      "show-options -gqv @wosm_popup_ui_session_name",
+      "show-options -gqv @wosm_popup_ui_expected_signature",
+      "show-options -gqv @wosm_popup_ui_root",
+      "set-option -gq -u @wosm_popup_ui_session_name",
+      "set-option -gq -u @wosm_popup_ui_expected_signature",
+      "set-option -gq -u @wosm_popup_ui_root",
+    ]);
+  });
+
+  it("falls back and clears when the normal popup signature differs", async () => {
+    const fixture = await createFakeTmux();
+
+    await expect(
+      runLauncher([], {
+        FAKE_FAST_POPUP_EXPECTED_SIGNATURE: "v1:node normal tui --popup --persistent",
+        FAKE_FAST_POPUP_ROOT: repoRoot,
+        FAKE_FAST_POPUP_SESSION_NAME: "_wosm-ui",
+        FAKE_SESSION_SIGNATURE: "v1:node stale tui --popup --persistent",
+        FAKE_TMUX_MISSING_DEV_REGISTRATION: "1",
+        TMUX: "/tmp/tmux-501/default,123,0",
+        TMUX_LOG: fixture.logPath,
+        WOSM_POPUP_FALLBACK_COMMAND: "printf fallback",
+        WOSM_TMUX_BIN: fixture.tmuxPath,
+      }),
+    ).resolves.toMatchObject({ code: 0, stdout: "fallback" });
+
+    expect(await readLog(fixture.logPath)).toEqual([
+      "show-options -gqv @wosm_tui_dev_session_name",
+      "show-options -gqv @wosm_tui_dev_command",
+      "show-options -gqv @wosm_popup_ui_session_name",
+      "show-options -gqv @wosm_popup_ui_expected_signature",
+      "show-options -gqv @wosm_popup_ui_root",
+      "has-session -t _wosm-ui",
+      "show-options -t _wosm-ui -qv @wosm_popup_ui_signature",
+      "set-option -gq -u @wosm_popup_ui_session_name",
+      "set-option -gq -u @wosm_popup_ui_expected_signature",
+      "set-option -gq -u @wosm_popup_ui_root",
     ]);
   });
 });
@@ -300,6 +369,7 @@ case "$1" in
 	  @wosm_tui_dev_root) printf '%s\\n' "\${FAKE_TMUX_DEV_ROOT:-}" ;;
 	  @wosm_popup_ui_session_name) printf '%s\\n' "\${FAKE_FAST_POPUP_SESSION_NAME:-}" ;;
 	  @wosm_popup_ui_expected_signature) printf '%s\\n' "\${FAKE_FAST_POPUP_EXPECTED_SIGNATURE:-}" ;;
+	  @wosm_popup_ui_root) printf '%s\\n' "\${FAKE_FAST_POPUP_ROOT:-}" ;;
 	  @wosm_popup_ui_signature) printf '%s\\n' "\${FAKE_SESSION_SIGNATURE:-\${FAKE_FAST_POPUP_EXPECTED_SIGNATURE:-v1:node tui}}" ;;
 	  @wosm_popup_client) printf '%s\\n' "\${FAKE_ACTIVE_POPUP_CLIENT:-}" ;;
 	  @wosm_popup_focus_client) printf '%s\\n' "\${FAKE_FOCUS_POPUP_CLIENT:-}" ;;

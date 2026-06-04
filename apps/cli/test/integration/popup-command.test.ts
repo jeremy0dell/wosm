@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { createTempState, writeConfigToml } from "../../../../tests/support/temp-projects";
 
 const now = "2026-05-20T12:00:00.000Z";
+const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url)).replace(/\/$/, "");
 
 describe("CLI popup command", () => {
   it("delegates popup opening to the tmux integration", async () => {
@@ -121,6 +122,7 @@ describe("CLI popup command", () => {
     expect(reconciles).toEqual(["popup-open"]);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
+      checkoutRoot: repoRoot,
       env: {
         TMUX: "/tmp/tmux-501/default,123,0",
       },
@@ -161,6 +163,7 @@ describe("CLI popup command", () => {
 
     expect(reconciles).toEqual(["popup-open"]);
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.checkoutRoot).toBe(repoRoot);
     expect(calls[0]?.preferRegisteredDevPopup).toBe(true);
   });
 
@@ -204,6 +207,7 @@ describe("CLI popup command", () => {
       ].join(" "),
     );
     expect(calls[0]?.preferRegisteredDevPopup).toBe(false);
+    expect(calls[0]?.checkoutRoot).toBe(repoRoot);
     expect(calls[0]?.uiSessionName).toBe("_wosm-ui-dev");
   });
 
@@ -250,6 +254,7 @@ describe("CLI popup command", () => {
     expect(calls[0]?.tuiCommand).toContain("node --watch apps/cli/dist/main.js");
     expect(calls[0]?.tuiCommand).toContain("tui --popup --persistent");
     expect(calls[0]?.preferRegisteredDevPopup).toBe(false);
+    expect(calls[0]?.checkoutRoot).toBe(repoRoot);
     expect(calls[0]?.uiSessionName).toBe("_wosm-ui-dev");
   });
 

@@ -3,6 +3,7 @@ import type { ExternalCommandRunner } from "@wosm/runtime";
 import type { TmuxCommandInput } from "../command.js";
 
 export type TmuxPopupOptions = {
+  checkoutRoot?: string;
   command?: string;
   config?: TmuxConfig;
   enterWorkbench?: boolean;
@@ -82,10 +83,12 @@ export type TmuxRegisteredDevPopupOptions = {
 export type TmuxPersistentPopupUi = {
   command: string;
   registerFastPopup: boolean;
+  root?: string;
   sessionName: string;
 };
 
 export type ResolvePersistentPopupUiOptions = {
+  checkoutRoot?: string;
   preferRegisteredDevPopup?: boolean;
   registeredDevPopupRoot?: string;
   tuiCommand?: string;

@@ -16,6 +16,7 @@ const globalOptions = [
   "@wosm_popup_focus_client",
   "@wosm_popup_ui_session_name",
   "@wosm_popup_ui_expected_signature",
+  "@wosm_popup_ui_root",
   "@wosm_tui_dev_command",
   "@wosm_tui_dev_owner",
   "@wosm_tui_dev_root",

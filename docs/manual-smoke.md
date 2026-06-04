@@ -266,6 +266,10 @@ To make the old-style prefix binding call that same path, add a tmux binding and
 bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID="#{client_name}" wosm-tmux-popup'
 ```
 
+Use the stable `wosm-tmux-popup` entrypoint, or a stable checkout's `bin/wosm-popup`, for tmux
+bindings. Avoid binding directly to `.worktrees/.../bin/wosm-popup`: that keeps running the old
+worktree's launcher code even after a branch or feature worktree is gone.
+
 ```bash
 tmux source-file ~/.tmux.conf
 ```
