@@ -464,7 +464,7 @@ function commandRecord(commandId: CommandId, status: CommandRecord["status"]): C
     command: {
       type: "terminal.focus",
       payload: {
-        targetId: "term_wt_web_idle_agent",
+        sessionId: "ses_wt_web_idle",
       },
     },
     status,

@@ -67,6 +67,7 @@ describe("CLI notify command", () => {
     );
     expect(executeCommand).toContain('"type":"terminal.focus"');
     expect(executeCommand).toContain('"sessionId":"ses_web_task"');
+    expect(executeCommand).not.toContain('"targetId"');
   });
 
   it("falls back to osascript when terminal-notifier is not available", async () => {

@@ -41,10 +41,7 @@ export function buildFocusCommand(
   options: BuildFocusCommandOptions = {},
 ): Extract<WosmCommand, { type: "terminal.focus" }> {
   const payload: Extract<WosmCommand, { type: "terminal.focus" }>["payload"] = {};
-  const targetId = row.terminal?.primaryAgentTargetId ?? row.terminal?.workspaceTargetId;
-  if (targetId !== undefined) {
-    payload.targetId = targetId;
-  } else if (row.agent?.sessionId !== undefined) {
+  if (row.agent?.sessionId !== undefined) {
     payload.sessionId = row.agent.sessionId;
   } else {
     payload.worktreeId = row.id;
@@ -232,10 +229,7 @@ function buildSessionCloseCommand(
 
 function buildTerminalCloseCommand(row: WorktreeRow, force: boolean): WosmCommand {
   const payload: Extract<WosmCommand, { type: "terminal.close" }>["payload"] = {};
-  const targetId = row.terminal?.primaryAgentTargetId ?? row.terminal?.workspaceTargetId;
-  if (targetId !== undefined) {
-    payload.targetId = targetId;
-  } else if (row.agent?.sessionId !== undefined) {
+  if (row.agent?.sessionId !== undefined) {
     payload.sessionId = row.agent.sessionId;
   } else {
     payload.worktreeId = row.id;

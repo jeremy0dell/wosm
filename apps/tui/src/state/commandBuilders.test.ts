@@ -17,14 +17,14 @@ import {
 } from "./commandBuilders.js";
 
 describe("TUI command builders", () => {
-  it("maps focusable rows to terminal.focus using the primary agent target", () => {
+  it("maps focusable rows to terminal.focus using the agent session", () => {
     const snapshot = createCommandSnapshot("idle");
     const row = snapshot.rows[0];
 
     expect(row).toBeDefined();
     expect(buildFocusCommand(row)).toEqual({
       type: "terminal.focus",
-      payload: { targetId: "term_wt_web_idle_agent" },
+      payload: { sessionId: "ses_wt_web_idle" },
     });
   });
 
@@ -42,7 +42,7 @@ describe("TUI command builders", () => {
     ).toEqual({
       type: "terminal.focus",
       payload: {
-        targetId: "term_wt_web_idle_agent",
+        sessionId: "ses_wt_web_idle",
         origin: {
           provider: "tmux",
           clientId: "client_1",
@@ -131,7 +131,7 @@ describe("TUI command builders", () => {
 
     expect(buildPrimaryCommandForRow(row, snapshot)).toEqual({
       type: "terminal.focus",
-      payload: { targetId: "term_wt_web_idle_agent" },
+      payload: { sessionId: "ses_wt_web_idle" },
     });
     expect(canSendPromptToRow(row, snapshot.sessions)).toBe(false);
 
@@ -162,7 +162,7 @@ describe("TUI command builders", () => {
     expect(buildCleanupCommand(row, "close-terminal", false)).toEqual({
       type: "terminal.close",
       payload: {
-        targetId: "term_wt_web_idle_agent",
+        sessionId: "ses_wt_web_idle",
       },
     });
     expect(buildCleanupCommand(row, "close-all", false)).toEqual({
@@ -198,7 +198,7 @@ describe("TUI command builders", () => {
     expect(buildCleanupCommand(row, "close-terminal", true)).toEqual({
       type: "terminal.close",
       payload: {
-        targetId: "term_wt_web_idle_agent",
+        sessionId: "ses_wt_web_idle",
         force: true,
       },
     });

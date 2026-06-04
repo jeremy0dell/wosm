@@ -5,7 +5,6 @@ import {
   ProjectIdSchema,
   ProviderIdSchema,
   SessionIdSchema,
-  TerminalTargetIdSchema,
   TimestampSchema,
   WorktreeIdSchema,
 } from "./ids.js";
@@ -104,30 +103,28 @@ export type StartAgentPayload = z.infer<typeof StartAgentPayloadSchema>;
 
 export const TerminalFocusPayloadSchema = z
   .object({
-    targetId: TerminalTargetIdSchema.optional(),
     sessionId: SessionIdSchema.optional(),
     worktreeId: WorktreeIdSchema.optional(),
     origin: TerminalFocusOriginSchema.optional(),
   })
   .strict()
   .refine(
-    (payload) => payload.targetId ?? payload.sessionId ?? payload.worktreeId,
-    "terminal.focus requires targetId, sessionId, or worktreeId",
+    (payload) => payload.sessionId ?? payload.worktreeId,
+    "terminal.focus requires sessionId or worktreeId",
   );
 
 export type TerminalFocusPayload = z.infer<typeof TerminalFocusPayloadSchema>;
 
 export const TerminalClosePayloadSchema = z
   .object({
-    targetId: TerminalTargetIdSchema.optional(),
     sessionId: SessionIdSchema.optional(),
     worktreeId: WorktreeIdSchema.optional(),
     force: z.boolean().optional(),
   })
   .strict()
   .refine(
-    (payload) => payload.targetId ?? payload.sessionId ?? payload.worktreeId,
-    "terminal.close requires targetId, sessionId, or worktreeId",
+    (payload) => payload.sessionId ?? payload.worktreeId,
+    "terminal.close requires sessionId or worktreeId",
   );
 
 export type TerminalClosePayload = z.infer<typeof TerminalClosePayloadSchema>;

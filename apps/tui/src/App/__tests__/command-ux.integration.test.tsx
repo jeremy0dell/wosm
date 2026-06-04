@@ -22,7 +22,7 @@ describe("TUI command UX", () => {
     await waitFor(() => service.dispatched.length === 1);
     expect(service.dispatched[0]).toEqual({
       type: "terminal.focus",
-      payload: { targetId: "term_wt_web_idle_agent" },
+      payload: { sessionId: "ses_wt_web_idle" },
     });
     expect(instance.lastFrame()).toContain("1-9/a-z:open");
     instance.unmount();
@@ -42,7 +42,7 @@ describe("TUI command UX", () => {
     await waitFor(() => service.dispatched.length === 1);
     expect(service.dispatched[0]).toEqual({
       type: "terminal.focus",
-      payload: { targetId: "term_wt_fake_1_18_agent" },
+      payload: { sessionId: "ses_wt_fake_1_18" },
     });
     instance.unmount();
   });
@@ -119,7 +119,7 @@ describe("TUI command UX", () => {
     expect(service.dispatched[0]).toMatchObject({ type: "session.startAgent" });
     expect(service.dispatched[1]).toEqual({
       type: "terminal.focus",
-      payload: { targetId: "term_wt_web_no_agent_agent" },
+      payload: { sessionId: "ses_wt_web_no_agent" },
     });
     await waitFor(() => instance.lastFrame()?.includes(" [1] ○ feature-start") === true);
     expect(instance.lastFrame()).not.toContain("starting...");

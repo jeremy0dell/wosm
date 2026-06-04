@@ -52,8 +52,9 @@ export function createWorktreeRemoveHandler(
     });
     throwIfAborted(context.signal);
     await closeTerminalForWorktree({
-      terminal: options.providers.terminal,
+      providers: options.providers,
       row,
+      force,
       context,
       clock: options.clock,
       commandTimeoutMs: options.commandTimeoutMs,

@@ -62,7 +62,22 @@ describe("observer terminal commands", () => {
     });
 
     await core.reconcile("terminal-focus-test");
-    const handler = createTerminalFocusHandler({ core, terminal });
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: "wt_web_feature",
+            projectId: "web",
+            branch: "feature",
+            now,
+          }),
+        ],
+      }),
+      terminal,
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
+    const handler = createTerminalFocusHandler({ core, providers });
 
     await handler({
       commandId: "cmd_1",
@@ -102,7 +117,12 @@ describe("observer terminal commands", () => {
       }),
       clock: { now: () => new Date(now) },
     });
-    const handler = createTerminalFocusHandler({ core, terminal });
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({ now }),
+      terminal,
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
+    const handler = createTerminalFocusHandler({ core, providers });
 
     await expect(
       handler({
@@ -164,7 +184,22 @@ describe("observer terminal commands", () => {
     });
 
     await core.reconcile("terminal-close-test");
-    const handler = createTerminalCloseHandler({ core, terminal });
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: "wt_web_feature",
+            projectId: "web",
+            branch: "feature",
+            now,
+          }),
+        ],
+      }),
+      terminal,
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
+    const handler = createTerminalCloseHandler({ core, providers });
 
     await handler({
       commandId: "cmd_1",
@@ -181,11 +216,19 @@ describe("observer terminal commands", () => {
     expect(closed).toEqual(["tmux:wosm:@1:%2"]);
   });
 
-  it("preserves stale target close provider errors as SafeErrors", async () => {
+  it("preserves close provider errors as SafeErrors", async () => {
     const terminal = new RecordingTerminalProvider({
       id: "tmux",
       now,
-      targets: [],
+      targets: [
+        createFakeTerminalTarget({
+          id: "tmux:wosm:@1:%2",
+          provider: "tmux",
+          projectId: "web",
+          worktreeId: "wt_web_feature",
+          now,
+        }),
+      ],
       focused: [],
       closed: [],
       failures: {
@@ -198,16 +241,28 @@ describe("observer terminal commands", () => {
         },
       },
     });
+    const providers = new ProviderRegistry({
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: "wt_web_feature",
+            projectId: "web",
+            branch: "feature",
+            now,
+          }),
+        ],
+      }),
+      terminal,
+      harnesses: [new FakeHarnessProvider({ now })],
+    });
     const core = createObserverCore({
       config,
-      providers: new ProviderRegistry({
-        worktree: new FakeWorktreeProvider({ now }),
-        terminal,
-        harnesses: [new FakeHarnessProvider({ now })],
-      }),
+      providers,
       clock: { now: () => new Date(now) },
     });
-    const handler = createTerminalCloseHandler({ core, terminal });
+    await core.reconcile("terminal-close-failure-test");
+    const handler = createTerminalCloseHandler({ core, providers });
 
     await expect(
       handler({
@@ -216,7 +271,7 @@ describe("observer terminal commands", () => {
         command: {
           type: "terminal.close",
           payload: {
-            targetId: "tmux:wosm:@missing:%missing",
+            worktreeId: "wt_web_feature",
           },
         },
         signal: new AbortController().signal,

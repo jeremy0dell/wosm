@@ -28,7 +28,7 @@ describe("TUI transient focus-and-close navigation", () => {
     expect(service.dispatched[0]).toEqual({
       type: "terminal.focus",
       payload: {
-        targetId: "term_wt_web_idle_agent",
+        sessionId: "ses_wt_web_idle",
         origin: {
           provider: "tmux",
           clientId: "client_1",
@@ -68,7 +68,7 @@ describe("TUI transient focus-and-close navigation", () => {
     expect(service.dispatched[0]).toEqual({
       type: "terminal.focus",
       payload: {
-        targetId: "term_wt_web_idle_agent",
+        sessionId: "ses_wt_web_idle",
         origin: {
           provider: "tmux",
           clientId: "client_1",

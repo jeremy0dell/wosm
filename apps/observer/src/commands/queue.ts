@@ -363,9 +363,6 @@ function commandScope(command: WosmCommand): string {
 }
 
 function terminalCommandScope(payload: TerminalFocusPayload | TerminalClosePayload): string {
-  if (payload.targetId !== undefined) {
-    return `terminal-target:${payload.targetId}`;
-  }
   if (payload.sessionId !== undefined) {
     return `session:${payload.sessionId}`;
   }

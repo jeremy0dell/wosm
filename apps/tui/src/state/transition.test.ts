@@ -100,7 +100,7 @@ describe("TUI screen transitions", () => {
     expect(transition.commands).toEqual([
       {
         type: "terminal.focus",
-        payload: { targetId: "term_wt_web_idle_agent" },
+        payload: { sessionId: "ses_wt_web_idle" },
       },
     ]);
     expect(transition.state.localRows.pendingStart).toEqual([]);
