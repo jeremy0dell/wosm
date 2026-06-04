@@ -32,11 +32,11 @@ describe("TUI app rendering", () => {
     expect(frame).toContain(" [7] ! slow-tests");
     expect(frame).not.toContain("needs attention");
     expect(frame).not.toContain("stuck");
-    expect(frame).not.toContain("working");
-    expect(frame).not.toContain("idle");
-    expect(frame).not.toContain("unknown");
-    expect(frame).not.toContain("exited");
-    expect(frame).not.toContain("no agent");
+    expect(frame).toContain("working");
+    expect(frame).toContain("idle");
+    expect(frame).toContain("unknown");
+    expect(frame).toContain("exited");
+    expect(frame).toContain("no agent");
     expect(frame).not.toContain(">");
     expect(frame).not.toContain("s:start bg");
     expect(frame).not.toContain("enter/1-9");

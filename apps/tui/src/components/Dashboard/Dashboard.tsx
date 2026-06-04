@@ -10,8 +10,17 @@ import type { KeyedChoice } from "../../selectors/selectors.js";
 import type { TuiScreen, TuiViewState } from "../../state/screen.js";
 import { useTuiMode } from "../../tuiMode.js";
 import type { TopRowWidgetView } from "../../widgets/types.js";
-import { Throbber } from "../Throbber/Throbber.js";
-import { WorktreeRow } from "../WorktreeRow/WorktreeRow.js";
+import {
+  layoutWorktreeRowGrid,
+  type RowGridLayout,
+  type RowGridRowInput,
+  truncateCells,
+} from "../WorktreeRow/layout.js";
+import {
+  WorktreeRowLayoutView,
+  worktreeRowGridInput,
+  worktreeStyleRowGridInput,
+} from "../WorktreeRow/WorktreeRow.js";
 
 export type DashboardProps = {
   snapshot: WosmSnapshot;
@@ -33,7 +42,7 @@ export function Dashboard({
   const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
   const mode = useTuiMode();
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";
-  const contentColumns = Math.max(1, columns - 1);
+  const contentColumns = Math.max(1, Math.floor(columns) - 1);
   return (
     <DashboardLayout>
       <DashboardHeader
@@ -43,7 +52,11 @@ export function Dashboard({
       />
       <DashboardDivider columns={contentColumns} />
       <ScrollIndicatorRow direction="above" hiddenCount={viewport.hiddenAbove} />
-      <DashboardBody items={viewport.visibleItems} choices={viewport.displayRowChoices} />
+      <DashboardBody
+        columns={contentColumns}
+        items={viewport.visibleItems}
+        choices={viewport.displayRowChoices}
+      />
       <ScrollIndicatorRow direction="below" hiddenCount={viewport.hiddenBelow} />
       <DashboardDivider columns={contentColumns} />
       <DashboardFooter columns={contentColumns} quitHint={quitHint} />
@@ -134,17 +147,30 @@ function ScrollIndicatorRow({
 }
 
 function DashboardBody({
+  columns,
   items,
   choices,
 }: {
+  columns: number;
   items: readonly DashboardViewportItem[];
   choices: ReadonlyArray<KeyedChoice<DashboardViewportWorktree>>;
 }) {
   const keyByRow = new Map(choices.map((choice) => [choice.value.id, choice.key]));
+  const rowInputs = items.flatMap((item) => {
+    const input = rowGridInputForViewportItem(item, keyByRow);
+    return input === undefined ? [] : [input];
+  });
+  const rowLayouts = layoutWorktreeRowGrid({ columns, rows: rowInputs });
+  const layoutByItem = new Map(rowLayouts.map((layout) => [layout.id, layout]));
   return (
     <Box flexDirection="column" flexGrow={1} flexShrink={1} overflowY="hidden">
       {items.map((item) => (
-        <DashboardViewportRow key={item.id} item={item} keyByRow={keyByRow} />
+        <DashboardViewportRow
+          key={item.id}
+          columns={columns}
+          item={item}
+          layout={layoutByItem.get(item.id)}
+        />
       ))}
     </Box>
   );
@@ -153,93 +179,106 @@ function DashboardBody({
 type DashboardViewportWorktree = Extract<DashboardViewportItem, { type: "worktree" }>["row"];
 
 function DashboardViewportRow({
+  columns,
   item,
-  keyByRow,
+  layout,
 }: {
+  columns: number;
   item: DashboardViewportItem;
-  keyByRow: ReadonlyMap<string, string>;
+  layout: RowGridLayout | undefined;
 }) {
   switch (item.type) {
     case "projectGap":
       return <Box height={1} />;
     case "projectHeader":
-      return <ProjectHeaderRow project={item.project} collapsed={item.collapsed} />;
-    case "emptyProject":
-      return <EmptyProjectRow project={item.project} />;
-    case "worktree":
-      if (item.pendingRemove !== undefined) {
-        return <RemoveWorktreeLocalRow displayTitle={item.displayTitle} />;
-      }
-      if (item.pendingStart !== undefined) {
-        return (
-          <StartAgentLocalRow displayTitle={item.displayTitle} slot={keyByRow.get(item.row.id)} />
-        );
-      }
       return (
-        <WorktreeRow row={item.row} slot={keyByRow.get(item.row.id)} title={item.displayTitle} />
+        <ProjectHeaderRow columns={columns} project={item.project} collapsed={item.collapsed} />
       );
+    case "emptyProject":
+      return <EmptyProjectRow columns={columns} project={item.project} />;
+    case "worktree":
+      return layout === undefined ? null : <WorktreeRowLayoutView layout={layout} />;
     case "createLocalRow":
-      return <CreateSessionLocalRow row={item.row} />;
+      return layout === undefined ? null : <WorktreeRowLayoutView layout={layout} />;
   }
 }
 
-function RemoveWorktreeLocalRow({ displayTitle }: { displayTitle: string }) {
-  return (
-    <Box>
-      <Text>{" [ ] "}</Text>
-      <Throbber variant="braille" />
-      <Text>{` ${displayTitle}  removing worktree...`}</Text>
-    </Box>
-  );
-}
-
-function StartAgentLocalRow({
-  displayTitle,
-  slot,
-}: {
-  displayTitle: string;
-  slot: string | undefined;
-}) {
-  return (
-    <Box>
-      <Text>{` [${slot ?? " "}] `}</Text>
-      <Throbber variant="braille" />
-      <Text>{` ${displayTitle}  starting...`}</Text>
-    </Box>
-  );
-}
-
-function CreateSessionLocalRow({
-  row,
-}: {
-  row: Extract<DashboardViewportItem, { type: "createLocalRow" }>["row"];
-}) {
-  if (row.status === "failed") {
-    return (
-      <Box>
-        <Text color="red">{` [ ] ! ${row.branch} - ${row.error.message}`}</Text>
-      </Box>
-    );
+function rowGridInputForViewportItem(
+  item: DashboardViewportItem,
+  keyByRow: ReadonlyMap<string, string>,
+): RowGridRowInput | undefined {
+  if (item.type === "worktree") {
+    if (item.pendingRemove !== undefined) {
+      return worktreeStyleRowGridInput({
+        id: item.id,
+        slot: undefined,
+        marker: { kind: "throbber", variant: "braille" },
+        title: item.displayTitle,
+        activity: "removing worktree...",
+        activityImportance: "meaningful",
+      });
+    }
+    if (item.pendingStart !== undefined) {
+      return worktreeStyleRowGridInput({
+        id: item.id,
+        slot: keyByRow.get(item.row.id),
+        marker: { kind: "throbber", variant: "braille" },
+        title: item.displayTitle,
+        activity: "starting...",
+        activityImportance: "meaningful",
+      });
+    }
+    return worktreeRowGridInput({
+      id: item.id,
+      row: item.row,
+      slot: keyByRow.get(item.row.id),
+      title: item.displayTitle,
+    });
   }
-  return (
-    <Box>
-      <Text>{" [ ] "}</Text>
-      <Throbber variant="braille" />
-      <Text>{` ${row.branch}  starting session...`}</Text>
-    </Box>
-  );
+  if (item.type !== "createLocalRow") {
+    return undefined;
+  }
+  if (item.row.status === "failed") {
+    return worktreeStyleRowGridInput({
+      id: item.id,
+      slot: undefined,
+      marker: { kind: "text", text: "!" },
+      title: item.row.branch,
+      activity: item.row.error.message,
+      activityImportance: "meaningful",
+      color: "red",
+    });
+  }
+  return worktreeStyleRowGridInput({
+    id: item.id,
+    slot: undefined,
+    marker: { kind: "throbber", variant: "braille" },
+    title: item.row.branch,
+    agent: item.row.harnessProvider,
+    activity: "starting session...",
+    activityImportance: "meaningful",
+  });
 }
 
-function ProjectHeaderRow({ project, collapsed }: { project: ProjectView; collapsed: boolean }) {
-  return (
-    <Text bold>
-      {collapsed ? "▶" : "▼"} {project.label} - {project.counts.worktrees} worktrees
-    </Text>
-  );
+function ProjectHeaderRow({
+  columns,
+  project,
+  collapsed,
+}: {
+  columns: number;
+  project: ProjectView;
+  collapsed: boolean;
+}) {
+  const label = `${collapsed ? "▶" : "▼"} ${project.label} - ${
+    project.counts.worktrees
+  } worktrees | ${project.defaults.harness}`;
+  return <Text bold>{truncateCells(label, columns)}</Text>;
 }
 
-function EmptyProjectRow({ project }: { project: ProjectView }) {
-  return <Text color="gray"> {project.counts.worktrees} worktrees</Text>;
+function EmptyProjectRow({ columns, project }: { columns: number; project: ProjectView }) {
+  return (
+    <Text color="gray">{truncateCells(` ${project.counts.worktrees} worktrees`, columns)}</Text>
+  );
 }
 
 function DashboardFooter({ columns, quitHint }: { columns: number; quitHint: string }) {

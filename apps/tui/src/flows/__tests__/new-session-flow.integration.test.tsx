@@ -59,7 +59,7 @@ describe("new session bottom-sheet flow", () => {
         },
       },
     ]);
-    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
+    await waitFor(() => instance.lastFrame()?.includes("starting sessio") === true);
     expect(instance.lastFrame()).not.toContain("Create Session");
     expect(instance.lastFrame()).not.toContain("session.create queued");
 
@@ -79,7 +79,7 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(
       () =>
         instance.lastFrame()?.includes("feature/custom") === true &&
-        instance.lastFrame()?.includes("starting session...") === false,
+        instance.lastFrame()?.includes("starting sessio") === false,
     );
     instance.unmount();
   }, 15_000);
@@ -132,7 +132,7 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(() => instance.lastFrame()?.includes("Create Session") === true);
     instance.stdin.write("\r");
 
-    await waitFor(() => instance.lastFrame()?.includes("starting session...") === true);
+    await waitFor(() => instance.lastFrame()?.includes("starting sessio") === true);
     expect(instance.lastFrame()).not.toContain("Create Session");
     service.emit({
       type: "command.failed",
@@ -148,7 +148,7 @@ describe("new session bottom-sheet flow", () => {
     await waitFor(
       () =>
         instance.lastFrame()?.includes("Session create failed.") === true &&
-        instance.lastFrame()?.includes("starting session...") === false,
+        instance.lastFrame()?.includes("starting sessio") === false,
     );
     expect(instance.lastFrame()).toContain("diagnostic diag_create_failed");
     instance.unmount();
@@ -177,7 +177,7 @@ describe("new session bottom-sheet flow", () => {
       () =>
         instance.lastFrame()?.includes("Session create was rejected.") === true &&
         instance.lastFrame()?.includes("Create Session") === false &&
-        instance.lastFrame()?.includes("starting session...") === false,
+        instance.lastFrame()?.includes("starting sessio") === false,
     );
     expect(service.dispatched).toHaveLength(1);
     instance.unmount();

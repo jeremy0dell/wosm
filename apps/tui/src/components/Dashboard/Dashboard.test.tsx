@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import stringWidth from "string-width";
 import { describe, expect, it, vi } from "vitest";
 import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
+import { cellWidth } from "../WorktreeRow/layout.js";
 import { Dashboard, dashboardHeaderLine } from "./Dashboard.js";
 
 describe("Dashboard", () => {
@@ -27,11 +28,11 @@ describe("Dashboard", () => {
     );
 
     expect(frame).toContain("▶ web - 7 worktrees");
-    expect(frame).not.toContain("| codex");
+    expect(frame).toContain("▶ web - 7 worktrees | codex");
     expect(frame).not.toContain("cache-refactor");
     expect(frame).not.toContain("slow-tests");
     expect(frame).toContain("▼ api - 1 worktrees");
-    expect(frame).not.toContain("| opencode");
+    expect(frame).toContain("▼ api - 1 worktrees | opencode");
     expect(frame).toContain(" [1] ◜ queue-worker");
   });
 
@@ -139,9 +140,9 @@ describe("Dashboard", () => {
       { columns: 100 },
     );
 
-    expect(frame).toContain(" [4] ⠋ feature-auth  starting...");
-    expect(frame).toContain(" [ ] ⠋ feature/pending  starting session...");
-    expect(frame).toContain(" [ ] ⠋ fix-nav-mobile  removing worktree...");
+    expect(frame).toMatch(/ \[4\] ⠋ feature-auth\s+starting\.\.\./);
+    expect(frame).toMatch(/ \[ \] ⠋ feature\/pending\s+codex\s+starting sessio…/);
+    expect(frame).toMatch(/ \[ \] ⠋ fix-nav-mobile\s+removing worktr…/);
   });
 
   it("renders configured header widgets right-aligned in configured order", () => {
@@ -213,6 +214,92 @@ describe("Dashboard", () => {
     expect(lines[0]).toContain("wosm");
     expect(lines[0]).toContain("NYC 72° ☀️");
     expect(lines[1]).toMatch(/^─+$/);
+  });
+
+  it("keeps narrow body rows within content columns without changing fixed frame rows", () => {
+    const baseSnapshot = createDashboardSnapshot();
+    const snapshot = {
+      ...baseSnapshot,
+      projects: baseSnapshot.projects.map((project) =>
+        project.id === "web"
+          ? { ...project, label: "web-with-a-very-long-display-label-for-width-tests" }
+          : project,
+      ),
+    };
+    const columns = 32;
+    const contentColumns = 31;
+    const frame = renderToString(
+      <Box flexDirection="column" height={24} width={columns}>
+        <Dashboard
+          columns={columns}
+          snapshot={snapshot}
+          viewState={{
+            searchQuery: "",
+            collapsedProjectIds: new Set(),
+            scrollOffset: 0,
+            terminalRows: 24,
+            localRows: {
+              pendingCreate: [
+                {
+                  localId: "local_create_1",
+                  projectId: "web",
+                  branch: "feature/pending",
+                  harnessProvider: "codex",
+                  createdAt: "2026-05-31T12:00:00.000Z",
+                },
+              ],
+              failedCreate: [
+                {
+                  localId: "local_create_failed",
+                  projectId: "web",
+                  branch: "feature/failure",
+                  error: {
+                    tag: "CommandExecutionError",
+                    code: "COMMAND_REJECTED",
+                    message: "Provider rejected session create.",
+                  },
+                  expiresAt: 0,
+                },
+              ],
+              pendingRemove: [
+                {
+                  localId: "remove:wt_web_idle",
+                  projectId: "web",
+                  worktreeId: "wt_web_idle",
+                  branch: "fix-nav-mobile",
+                  createdAt: "2026-05-31T12:00:00.000Z",
+                },
+              ],
+              pendingStart: [
+                {
+                  localId: "start:wt_web_no_agent",
+                  projectId: "web",
+                  worktreeId: "wt_web_no_agent",
+                  branch: "feature-auth",
+                  createdAt: "2026-05-31T12:00:00.000Z",
+                },
+              ],
+            },
+          }}
+        />
+      </Box>,
+      { columns },
+    );
+    const lines = frame.split("\n");
+    const body = lines.slice(3, -3);
+
+    expect(lines).toHaveLength(24);
+    expect(lines[0]).toBe("wosm");
+    expect(lines[1]).toMatch(/^─+$/);
+    expect(lines[1]).toHaveLength(contentColumns);
+    expect(lines.at(-2)).toHaveLength(contentColumns);
+    for (const line of body) {
+      expect(visibleCellWidth(line)).toBeLessThanOrEqual(contentColumns);
+    }
+    expect(frame).toContain("[4] ⠋");
+    expect(frame).toContain("starting...");
+    expect(frame).toContain("starting sessio");
+    expect(frame).toContain("Provi");
   });
 });
 
@@ -301,4 +388,13 @@ function withSuppressedReactTestRendererWarning<T>(callback: () => T): T {
   } finally {
     errorSpy.mockRestore();
   }
+}
+
+function visibleCellWidth(text: string): number {
+  return cellWidth(stripOsc8(text));
+}
+
+function stripOsc8(text: string): string {
+  const pattern = ["\\u001B]8;[^\\u0007]*\\u0007"].join("");
+  return text.replace(new RegExp(pattern, "g"), "");
 }
