@@ -1,4 +1,5 @@
 import type {
+  EnsureAgentWorkspaceIntent,
   ProviderId,
   ProviderProjectConfig,
   WorktreeObservation,
@@ -18,19 +19,15 @@ import type { CommandHandler } from "../queue.js";
 import { reconcileAndPublish } from "../reconcile.js";
 import {
   assertNoCurrentAgent,
-  closeTerminalTargetBestEffort,
   defaultSessionCommandIdFactory,
   deleteSessionTitleSeedBestEffort,
   findProjectOrThrow,
-  focusTerminalTargetBestEffort,
-  launchHarnessInTerminal,
   publishSessionCreated,
   resolveHarnessProviderOrThrow,
   resolveTerminalProviderOrThrow,
   runProviderMutation,
   type SessionCommandIdFactory,
   seedSessionTitle,
-  terminalTargetObservationFromBinding,
   throwIfAborted,
   worktreeObservationFromRow,
 } from "./shared.js";
@@ -62,7 +59,7 @@ export function createSessionStartAgentHandler(
     const payload = context.command.payload;
     const project = findProjectOrThrow(options.projects, payload.projectId);
     const terminalProviderId = payload.terminal?.provider ?? project.defaults.terminal;
-    const terminal = resolveTerminalProviderOrThrow(options.providers, terminalProviderId);
+    resolveTerminalProviderOrThrow(options.providers, terminalProviderId);
     const snapshot = options.core.getSnapshot();
     const row = snapshot.rows.find((candidate) => candidate.id === payload.worktreeId);
     validateSnapshotRow(row, payload.projectId);
@@ -93,67 +90,11 @@ export function createSessionStartAgentHandler(
         worktreePath: worktree.path,
       })) ??
       project.defaults.harness;
-    const harness = resolveHarnessProviderOrThrow(options.providers, harnessProviderId);
+    resolveHarnessProviderOrThrow(options.providers, harnessProviderId);
 
-    let openedTargetId: string | undefined;
-    let harnessLaunched = false;
     let seededSessionTitle = false;
 
     try {
-      const opened = await runProviderMutation(
-        {
-          ...runtime,
-          operation: `provider.${terminal.id}.openWorkspace`,
-          fallback: {
-            tag: "TerminalProviderError",
-            code: "TERMINAL_OPEN_FAILED",
-            message: "The terminal provider failed to open the session workspace.",
-            provider: terminal.id,
-          },
-        },
-        () =>
-          terminal.openWorkspace({
-            project,
-            worktree,
-            harness: harness.id,
-            layout: payload.terminal?.layout ?? project.defaults.layout,
-            sessionId,
-          }),
-      );
-      openedTargetId = opened.target.targetId;
-      throwIfAborted(context.signal);
-      const terminalTarget = terminalTargetObservationFromBinding({
-        binding: opened.target,
-        worktree,
-        observedAt: nowIso(options.clock),
-      });
-
-      const launchPlan = await runProviderMutation(
-        {
-          ...runtime,
-          operation: `provider.${harness.id}.buildLaunch`,
-          fallback: {
-            tag: "HarnessProviderError",
-            code: "HARNESS_BUILD_LAUNCH_FAILED",
-            message: "The harness provider failed to build a launch plan.",
-            provider: harness.id,
-          },
-        },
-        () =>
-          harness.buildLaunch({
-            project,
-            worktree,
-            terminalTarget,
-            sessionId,
-            ...(payload.harness?.mode === undefined ? {} : { mode: payload.harness.mode }),
-            ...(payload.initialPrompt === undefined
-              ? {}
-              : { initialPrompt: payload.initialPrompt }),
-            ...(payload.harness?.profile === undefined ? {} : { profile: payload.harness.profile }),
-          }),
-      );
-      throwIfAborted(context.signal);
-
       await seedSessionTitle({
         persistence: options.persistence,
         sessionId,
@@ -165,50 +106,38 @@ export function createSessionStartAgentHandler(
       seededSessionTitle = true;
       throwIfAborted(context.signal);
 
-      await launchHarnessInTerminal({
-        ...runtime,
-        terminal,
-        request: {
+      const receipt = await options.providers.terminalIntentRunner.submitIntent(
+        ensureAgentWorkspaceIntent({
+          commandId: context.commandId,
           project,
           worktree,
-          terminalTarget: opened.target,
-          agentEndpointId: opened.agentEndpointId,
-          launchPlan,
+          sessionId,
+          terminalProvider: terminalProviderId,
+          harnessProvider: harnessProviderId,
+          harness: payload.harness,
+          layout: payload.terminal?.layout ?? project.defaults.layout,
+          focus: payload.terminal?.focus,
+          origin: payload.terminal?.origin,
+          initialPrompt: payload.initialPrompt,
+        }),
+        {
+          trace: context.trace,
+          signal: context.signal,
+          commandTimeoutMs: options.commandTimeoutMs,
         },
-      });
-      harnessLaunched = true;
-
-      if (payload.terminal?.focus === true) {
-        await focusTerminalTargetBestEffort({
-          terminal,
-          targetId: opened.target.targetId,
-          ...(payload.terminal?.origin === undefined ? {} : { origin: payload.terminal.origin }),
+      );
+      if (receipt.status === "rejected") {
+        throw receipt.error;
+      }
+      throwIfAborted(context.signal);
+    } catch (error) {
+      if (seededSessionTitle) {
+        await deleteSessionTitleSeedBestEffort({
+          persistence: options.persistence,
+          sessionId,
           context,
           logger: options.logger,
-          clock: options.clock,
-          commandTimeoutMs: options.commandTimeoutMs,
         });
-      }
-    } catch (error) {
-      if (!harnessLaunched) {
-        if (openedTargetId !== undefined) {
-          await closeTerminalTargetBestEffort({
-            terminal,
-            targetId: openedTargetId,
-            context,
-            logger: options.logger,
-            clock: options.clock,
-            commandTimeoutMs: options.commandTimeoutMs,
-          });
-        }
-        if (seededSessionTitle) {
-          await deleteSessionTitleSeedBestEffort({
-            persistence: options.persistence,
-            sessionId,
-            context,
-            logger: options.logger,
-          });
-        }
       }
       throw error;
     }
@@ -229,6 +158,44 @@ export function createSessionStartAgentHandler(
       clock: options.clock,
     });
   };
+}
+
+function ensureAgentWorkspaceIntent(input: {
+  commandId: string;
+  project: ProviderProjectConfig;
+  worktree: WorktreeObservation;
+  sessionId: string;
+  terminalProvider: string;
+  harnessProvider: string;
+  harness:
+    | {
+        mode?: "interactive" | "exec" | undefined;
+        profile?: string | undefined;
+      }
+    | undefined;
+  layout: string;
+  focus?: boolean | undefined;
+  origin?: EnsureAgentWorkspaceIntent["origin"] | undefined;
+  initialPrompt?: string | undefined;
+}): EnsureAgentWorkspaceIntent {
+  const intent: EnsureAgentWorkspaceIntent = {
+    type: "session.ensureAgentWorkspace",
+    commandId: input.commandId,
+    terminalProvider: input.terminalProvider,
+    project: input.project,
+    worktree: input.worktree,
+    sessionId: input.sessionId,
+    harness: {
+      provider: input.harnessProvider,
+    },
+    layout: input.layout,
+  };
+  if (input.harness?.mode !== undefined) intent.harness.mode = input.harness.mode;
+  if (input.harness?.profile !== undefined) intent.harness.profile = input.harness.profile;
+  if (input.focus !== undefined) intent.focus = input.focus;
+  if (input.origin !== undefined) intent.origin = input.origin;
+  if (input.initialPrompt !== undefined) intent.initialPrompt = input.initialPrompt;
+  return intent;
 }
 
 function validateSnapshotRow(row: WorktreeRow | undefined, projectId: string): void {

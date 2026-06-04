@@ -21,6 +21,7 @@ export * from "./migrations/index.js";
 export * from "./persistence/index.js";
 export * from "./providers/factory.js";
 export * from "./providers/registry.js";
+export * from "./providers/terminalIntentRunner.js";
 export * from "./reconcile/core.js";
 export * from "./reconcile/graph.js";
 export * from "./reconcile/statusProjection.js";

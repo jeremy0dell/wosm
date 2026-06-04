@@ -2,6 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
+import * as contracts from "@wosm/contracts";
 import { installCursorHooks } from "@wosm/cursor";
 import { describe, expect, it } from "vitest";
 import { createProviderRegistry } from "../../src/providers/factory";
@@ -38,6 +39,7 @@ describe("provider factory", () => {
       providerId: "noop-harness",
       status: "healthy",
     });
+    expect(registry.terminalIntentRunner).toBeDefined();
     expect(await registry.worktree.listWorktrees(project)).toEqual([]);
     expect(await registry.terminal.listTargets()).toEqual([]);
     expect(
@@ -106,6 +108,7 @@ describe("provider factory", () => {
         canDiscoverRuns: false,
       },
     });
+    expect(registry.terminalIntentRunner).toBeDefined();
     await expect(registry.worktree.listWorktrees(firstProject())).resolves.toEqual([]);
     await expect(registry.terminal.listTargets()).resolves.toEqual([]);
     await expect(
@@ -147,6 +150,12 @@ describe("provider factory", () => {
     });
 
     expect([...registry.harnesses.keys()]).toEqual(["codex", "opencode", "pi", "scripted"]);
+    expect(registry.terminalIntentRunner).toBeDefined();
+  });
+
+  it("keeps the observer terminal intent runner out of contracts exports", () => {
+    expect("TerminalIntentRunner" in contracts).toBe(false);
+    expect("DefaultTerminalIntentRunner" in contracts).toBe(false);
   });
 
   it("omits unconfigured built-in harnesses and shows configured Codex, Pi, OpenCode, and Cursor", () => {

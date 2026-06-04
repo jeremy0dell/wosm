@@ -10,11 +10,13 @@ This document plans cleanup for confirmed terminal leakage that is real but not 
 
 P1 work should follow the P0 blocker fix unless a slice is clearly contract-only and does not depend on the new terminal intent boundary.
 
+Coordination note as of 2026-06-04: the P0 rollout in `terminal_ownership_p0_blocker_fix.md` now uses a maximum three-PR plan. PR 2 is expected to remove `targetId` from normal `terminal.focus` / `terminal.close` commands and move session cleanup close flows to product intents. Before implementing PR 3, refresh this P1 document against the merged PR 1 and PR 2 code so already-completed overlap is marked complete or removed from the remaining scope.
+
 ## 0. Dependency And Conflict Rule
 
 This P1 plan assumes `docs/planning/active/terminal_ownership_p0_blocker_fix.md` has established a terminal intent boundary. Where this document or the P0 document conflicts with older command-path examples in the baseline TDD or phased plan, the P0/P1 addenda are authoritative for terminal ownership.
 
-P1 should not reintroduce observer-owned terminal mechanics while removing leaked fields. Any implementation slice that needs target ids to preserve behavior should keep them behind the provider, session-runner, diagnostic, or debug boundary rather than adding them back to normal TUI/protocol surfaces.
+P1 should not reintroduce observer-owned terminal mechanics while removing leaked fields. Any implementation slice that needs target ids to preserve behavior should keep them behind the provider, terminal intent runner, diagnostic, or debug boundary rather than adding them back to normal TUI/protocol surfaces.
 
 ## 1. Confirmed Leakage
 
