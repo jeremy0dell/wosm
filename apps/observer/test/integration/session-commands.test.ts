@@ -3,6 +3,8 @@ import type {
   BuildHarnessLaunchRequest,
   HarnessLaunchPlan,
   HarnessProvider,
+  TerminalIntent,
+  TerminalIntentReceipt,
 } from "@wosm/contracts";
 import { CursorHarnessProvider } from "@wosm/cursor";
 import { PiHarnessProvider } from "@wosm/pi";
@@ -23,6 +25,7 @@ import {
   openObserverSqlite,
   ProviderRegistry,
   registerObserverCommandHandlers,
+  type TerminalIntentRunner,
 } from "../../src/internal";
 
 const now = "2026-05-21T12:00:00.000Z";
@@ -141,6 +144,73 @@ describe("session command vertical slice", () => {
       sessionId: "ses_web_feature",
       state: "open",
     });
+    fixture.sqlite.close();
+  });
+
+  it("submits session.create launch work through the terminal intent runner seam", async () => {
+    const terminalIntentRunner = new CapturingTerminalIntentRunner();
+    const terminal = new FakeTerminalProvider({
+      now,
+      failures: {
+        openWorkspace: {
+          tag: "TerminalProviderError",
+          code: "DIRECT_OPEN_SHOULD_NOT_RUN",
+          message: "Direct terminal open should not run from the handler.",
+          provider: "fake-terminal",
+        },
+      },
+    });
+    const harness = new FakeHarnessProvider({
+      now,
+      failures: {
+        buildLaunch: {
+          tag: "HarnessProviderError",
+          code: "DIRECT_BUILD_SHOULD_NOT_RUN",
+          message: "Direct harness build should not run from the handler.",
+          provider: "fake-harness",
+        },
+      },
+    });
+    const fixture = createFixture({
+      terminal,
+      harness,
+      terminalIntentRunner,
+      sessionIds: ["ses_runner_create"],
+    });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.create",
+      payload: {
+        projectId: "web",
+        branch: "runner-create",
+        harness: {
+          provider: "fake-harness",
+          mode: "interactive",
+        },
+        terminal: {
+          provider: "fake-terminal",
+          layout: "agent-build-shell",
+          focus: false,
+        },
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(terminalIntentRunner.intents).toEqual([
+      expect.objectContaining({
+        type: "session.ensureAgentWorkspace",
+        commandId: receipt.commandId,
+        terminalProvider: "fake-terminal",
+        sessionId: "ses_runner_create",
+        worktree: expect.objectContaining({
+          id: "wt_web_runner_create",
+        }),
+      }),
+    ]);
+    expect(terminal.snapshot().launches).toEqual([]);
     fixture.sqlite.close();
   });
 
@@ -777,6 +847,78 @@ describe("session command vertical slice", () => {
     fixture.sqlite.close();
   });
 
+  it("submits session.startAgent launch work through the terminal intent runner seam", async () => {
+    const terminalIntentRunner = new CapturingTerminalIntentRunner();
+    const terminal = new FakeTerminalProvider({
+      now,
+      failures: {
+        openWorkspace: {
+          tag: "TerminalProviderError",
+          code: "DIRECT_OPEN_SHOULD_NOT_RUN",
+          message: "Direct terminal open should not run from the handler.",
+          provider: "fake-terminal",
+        },
+      },
+    });
+    const harness = new FakeHarnessProvider({
+      now,
+      failures: {
+        buildLaunch: {
+          tag: "HarnessProviderError",
+          code: "DIRECT_BUILD_SHOULD_NOT_RUN",
+          message: "Direct harness build should not run from the handler.",
+          provider: "fake-harness",
+        },
+      },
+    });
+    const fixture = createFixture({
+      terminal,
+      harness,
+      terminalIntentRunner,
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: "wt_web_runner_start",
+            projectId: "web",
+            branch: "runner-start",
+            now,
+          }),
+        ],
+      }),
+      sessionIds: ["ses_runner_start"],
+    });
+    await fixture.core.reconcile("pre-start-agent-runner-seam");
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.startAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_runner_start",
+        harness: { provider: "fake-harness" },
+        terminal: { provider: "fake-terminal", focus: false },
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(terminalIntentRunner.intents).toEqual([
+      expect.objectContaining({
+        type: "session.ensureAgentWorkspace",
+        commandId: receipt.commandId,
+        terminalProvider: "fake-terminal",
+        sessionId: "ses_runner_start",
+        worktree: expect.objectContaining({
+          id: "wt_web_runner_start",
+        }),
+      }),
+    ]);
+    expect(terminal.snapshot().launches).toEqual([]);
+    fixture.sqlite.close();
+  });
+
   it("keeps the session.startAgent title stable when the provider branch changes before first reconcile", async () => {
     const worktree = new FakeWorktreeProvider({
       now,
@@ -1253,6 +1395,7 @@ function createFixture(
     terminal?: FakeTerminalProvider;
     harness?: HarnessProvider;
     harnesses?: HarnessProvider[];
+    terminalIntentRunner?: TerminalIntentRunner;
     sessionIds?: string[];
   } = {},
 ) {
@@ -1266,6 +1409,7 @@ function createFixture(
     worktree: options.worktree ?? new FakeWorktreeProvider({ now }),
     terminal: options.terminal ?? new FakeTerminalProvider({ now }),
     harnesses: options.harnesses ?? [options.harness ?? new FakeHarnessProvider({ now })],
+    terminalIntentRunner: options.terminalIntentRunner,
   });
   const core = createObserverCore({
     config,
@@ -1336,5 +1480,21 @@ class CapturingHarnessProvider extends FakeHarnessProvider {
   override async buildLaunch(request: BuildHarnessLaunchRequest): Promise<HarnessLaunchPlan> {
     this.lastBuildRequest = request;
     return super.buildLaunch(request);
+  }
+}
+
+class CapturingTerminalIntentRunner implements TerminalIntentRunner {
+  readonly intents: TerminalIntent[] = [];
+
+  async submitIntent(intent: TerminalIntent): Promise<TerminalIntentReceipt> {
+    this.intents.push(intent);
+    return {
+      status: "accepted",
+      accepted: true,
+      commandId: intent.commandId,
+      type: intent.type,
+      terminalProvider: intent.terminalProvider,
+      timestamp: now,
+    };
   }
 }

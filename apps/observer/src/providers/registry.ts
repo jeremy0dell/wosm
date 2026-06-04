@@ -4,12 +4,14 @@ import type {
   TerminalProvider,
   WorktreeProvider,
 } from "@wosm/contracts";
+import { createTerminalIntentRunner, type TerminalIntentRunner } from "./terminalIntentRunner.js";
 
 export type ProviderRegistryInput = {
   worktree: WorktreeProvider;
   terminal: TerminalProvider;
   harnesses: Iterable<HarnessProvider> | Map<string, HarnessProvider>;
   repositories?: Iterable<RepositoryProvider> | Map<string, RepositoryProvider>;
+  terminalIntentRunner?: TerminalIntentRunner | undefined;
 };
 
 export class ProviderRegistry {
@@ -17,6 +19,7 @@ export class ProviderRegistry {
   readonly terminal: TerminalProvider;
   readonly harnesses: Map<string, HarnessProvider>;
   readonly repositories: Map<string, RepositoryProvider>;
+  readonly terminalIntentRunner: TerminalIntentRunner;
 
   constructor(input: ProviderRegistryInput) {
     this.worktree = input.worktree;
@@ -45,5 +48,14 @@ export class ProviderRegistry {
         this.repositories.set(provider.id, provider);
       }
     }
+
+    this.terminalIntentRunner =
+      input.terminalIntentRunner ??
+      createTerminalIntentRunner({
+        providers: {
+          terminal: this.terminal,
+          harnesses: this.harnesses,
+        },
+      });
   }
 }

@@ -13,3 +13,5 @@ export * from "./opencode.js";
 export * from "./providers.js";
 export * from "./recoveryBreadcrumbs.js";
 export * from "./snapshot.js";
+export * from "./terminalIntents.js";
+export * from "./terminalTargets.js";

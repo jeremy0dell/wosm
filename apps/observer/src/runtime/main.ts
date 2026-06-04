@@ -66,6 +66,8 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
   if (options.configPath !== undefined) {
     providerOptions.configPath = loadedConfig.configPath;
   }
+  providerOptions.clock = systemClock;
+  providerOptions.logger = logger;
   const providers = createProviderRegistry(config, providerOptions);
   const featureFlags = createFeatureFlagEvaluator({
     ...(config.featureFlags === undefined ? {} : { overrides: config.featureFlags }),

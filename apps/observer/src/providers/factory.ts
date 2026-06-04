@@ -18,27 +18,47 @@ import type {
 } from "@wosm/contracts";
 import { CursorHarnessProvider } from "@wosm/cursor";
 import { GithubRepositoryProvider } from "@wosm/github-repository";
+import type { JsonlLogger } from "@wosm/observability";
 import { OpenCodeHarnessProvider } from "@wosm/opencode";
 import { PiHarnessProvider } from "@wosm/pi";
-import { systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
 import { TmuxProvider } from "@wosm/tmux";
 import { WorktrunkProvider } from "@wosm/worktrunk";
 import { ProviderRegistry } from "./registry.js";
+import { createTerminalIntentRunner } from "./terminalIntentRunner.js";
 
 export type CreateProviderRegistryOptions = {
   configPath?: string;
+  clock?: RuntimeClock | undefined;
+  logger?: JsonlLogger | undefined;
+  commandTimeoutMs?: number | undefined;
 };
 
 export function createProviderRegistry(
   config: WosmConfig,
   options: CreateProviderRegistryOptions = {},
 ): ProviderRegistry {
+  const worktree = createWorktreeProvider(config);
+  const terminal = createTerminalProvider(config);
+  const harnesses = createHarnessProviders(config, options);
+  const repositories = createRepositoryProviders(config);
+  const harnessMap = new Map(harnesses.map((provider) => [provider.id, provider]));
+  const terminalIntentRunner = createTerminalIntentRunner({
+    providers: {
+      terminal,
+      harnesses: harnessMap,
+    },
+    clock: options.clock,
+    logger: options.logger,
+    commandTimeoutMs: options.commandTimeoutMs,
+  });
   return new ProviderRegistry({
-    worktree: createWorktreeProvider(config),
-    terminal: createTerminalProvider(config),
-    harnesses: createHarnessProviders(config, options),
-    repositories: createRepositoryProviders(config),
+    worktree,
+    terminal,
+    harnesses: harnessMap,
+    repositories,
+    terminalIntentRunner,
   });
 }
 
