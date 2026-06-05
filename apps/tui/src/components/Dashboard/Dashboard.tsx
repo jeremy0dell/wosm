@@ -216,6 +216,7 @@ function rowGridInputForViewportItem(
         title: item.displayTitle,
         activity: "removing worktree...",
         activityImportance: "meaningful",
+        activityOverflow: "rowSlack",
       });
     }
     if (item.pendingStart !== undefined) {
@@ -226,6 +227,7 @@ function rowGridInputForViewportItem(
         title: item.displayTitle,
         activity: "starting...",
         activityImportance: "meaningful",
+        activityOverflow: "rowSlack",
       });
     }
     return worktreeRowGridInput({
@@ -246,6 +248,7 @@ function rowGridInputForViewportItem(
       title: item.row.branch,
       activity: item.row.error.message,
       activityImportance: "meaningful",
+      activityOverflow: "rowSlack",
       color: "red",
     });
   }
@@ -257,6 +260,7 @@ function rowGridInputForViewportItem(
     agent: item.row.harnessProvider,
     activity: "starting session...",
     activityImportance: "meaningful",
+    activityOverflow: "rowSlack",
   });
 }
 
