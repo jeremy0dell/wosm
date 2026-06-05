@@ -1,12 +1,12 @@
 # Provider Hook Scope Guard Plan
 
-**Status:** Planning addendum  
+**Status:** Completed planning record
 **Date:** 2026-05-24  
 **Severity:** P1 behavioral boundary issue  
 **Applies to:** all wosm-installed provider hooks, CLI hook receiver, observer hook ingestion  
 **Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md` and `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`
 
-This document plans the fix for over-broad hook reporting from wosm-installed hooks.
+This document records the fix for over-broad hook reporting from wosm-installed hooks.
 
 The important rule is provider-neutral:
 
@@ -25,7 +25,7 @@ Current Codex example:
 ```text
 wosm installs commands into the Codex hook config.
 Codex executes those hook commands for Codex sessions using that config.
-The generated hook command calls wosm-hook codex <event>.
+The generated hook command calls `wosm-ingress codex <event>`.
 wosm then tries to correlate the hook after receiving it.
 ```
 
@@ -147,7 +147,7 @@ But global semantics should remain consistent across providers.
 
 ## 4. Hook Script Guard
 
-Every wosm-generated provider hook script should include an early scope guard before invoking `wosm-hook`.
+Every wosm-generated provider hook script should include an early scope guard before invoking `wosm-ingress`.
 
 For `owned-only`:
 
@@ -160,20 +160,20 @@ fi
 Then provider-specific hook command continues:
 
 ```sh
-wosm-hook <provider> "$event" < "$payload_file" > /dev/null
+wosm-ingress <provider> "$event" < "$payload_file" > /dev/null
 ```
 
 This is the cheapest guard because unrelated provider sessions never invoke the wosm CLI.
 
-For `owned-or-known-worktree`, the generated script may invoke `wosm-hook` without ownership env because the hook bridge needs config/worktree knowledge to evaluate `cwd`.
+For `owned-or-known-worktree`, the generated script may invoke `wosm-ingress` without ownership env because the receiver needs config/worktree knowledge to evaluate `cwd`.
 
 The script behavior must be:
 
 ```text
 out-of-scope hook -> exit 0
-in-scope hook -> invoke wosm-hook
+in-scope hook -> invoke wosm-ingress
 malformed in-scope payload -> existing invalid-payload behavior
-wosm-hook unavailable for out-of-scope session -> irrelevant because script exits before invoking wosm-hook
+wosm-ingress unavailable for out-of-scope session -> irrelevant because script exits before invoking wosm-ingress
 ```
 
 ## 5. CLI Receiver Guard
@@ -323,7 +323,7 @@ ignored hook does not call observer client
 ignored hook does not call startObserver
 ignored hook does not write hook spool
 ignored hook does not call provider-specific report conversion
-invalid JSON still returns existing invalid-payload behavior when wosm-hook or the compatibility wrapper is invoked
+invalid JSON still returns existing invalid-payload behavior when wosm-ingress or the compatibility wrapper is invoked
 ```
 
 ### Generated Hook Script Tests
@@ -331,9 +331,9 @@ invalid JSON still returns existing invalid-payload behavior when wosm-hook or t
 Every wosm-installed hook generator should have tests proving:
 
 ```text
-owned-only script exits before wosm-hook when WOSM_SESSION_ID is absent
-owned-only script exits before wosm-hook when WOSM_WORKTREE_ID is absent
-owned-only script invokes wosm-hook when both are present
+owned-only script exits before wosm-ingress when WOSM_SESSION_ID is absent
+owned-only script exits before wosm-ingress when WOSM_WORKTREE_ID is absent
+owned-only script invokes wosm-ingress when both are present
 script remains generated for all expected provider hook event names
 ```
 
@@ -369,7 +369,7 @@ The fix is complete when:
 
 ```text
 all wosm-installed provider hooks have a scope guard
-ordinary non-wosm provider sessions do not invoke wosm-hook in owned-only mode when script gating is possible
+ordinary non-wosm provider sessions do not invoke wosm-ingress in owned-only mode when script gating is possible
 ordinary non-wosm provider sessions do not auto-start observer
 ordinary non-wosm provider sessions do not create hook spool records
 ordinary non-wosm provider sessions do not create harness event reports
