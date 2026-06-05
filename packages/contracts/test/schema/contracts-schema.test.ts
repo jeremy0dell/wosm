@@ -36,6 +36,7 @@ import {
   RepositoryPullRequestRequestSchema,
   RepositoryRemoteSchema,
   SafeErrorSchema,
+  TerminalAttachmentSchema,
   TerminalCapabilitiesSchema,
   TerminalHarnessBindingSchema,
   TerminalIdentityBindingSchema,
@@ -80,7 +81,7 @@ describe("Phase 1 contract schemas", () => {
   });
 
   it("exports the shared schema version used by snapshot fixtures", async () => {
-    expect(WOSM_SCHEMA_VERSION).toBe("0.3.0");
+    expect(WOSM_SCHEMA_VERSION).toBe("0.4.0");
 
     const snapshots = (await loadJson("snapshots/snapshot-scenarios.json")) as Record<
       string,
@@ -154,6 +155,53 @@ describe("Phase 1 contract schemas", () => {
       },
       "orphan provider data boundary",
     );
+  });
+
+  it("uses provider-neutral terminal attachments in snapshots", async () => {
+    const attachment = {
+      provider: "tmux",
+      state: "open",
+      focusable: true,
+      closeable: true,
+      hasWorkspace: true,
+      hasPrimaryAgentEndpoint: true,
+      confidence: "high",
+      reason: "Terminal is attached to the worktree.",
+      observedAt: "2026-05-20T12:00:00.000Z",
+    };
+    expectParses(TerminalAttachmentSchema, attachment, "terminal attachment");
+
+    const removedFields: Record<string, unknown> = {
+      workspaceTargetId: "term_workspace",
+      primaryAgentTargetId: "term_agent",
+      sessionName: "wosm",
+      sessionId: "ses_topology",
+      windowId: "@1",
+      agentEndpointId: "%2",
+      attached: true,
+      lastOutputAt: "2026-05-20T12:00:00.000Z",
+    };
+    for (const [field, value] of Object.entries(removedFields)) {
+      expectFails(
+        TerminalAttachmentSchema,
+        { ...attachment, [field]: value },
+        `terminal attachment with ${field}`,
+      );
+    }
+
+    const snapshots = (await loadJson("snapshots/snapshot-scenarios.json")) as Record<
+      string,
+      unknown
+    >;
+    const snapshot = structuredClone(snapshots.idleAgent) as {
+      rows: Array<{ terminal?: Record<string, unknown> }>;
+    };
+    const row = snapshot.rows[0];
+    if (row === undefined || row.terminal === undefined) {
+      throw new Error("idleAgent fixture must include a terminal row.");
+    }
+    row.terminal.primaryAgentTargetId = "term_agent";
+    expectFails(WosmSnapshotSchema, snapshot, "snapshot row terminal with target id");
   });
 
   it("keeps production feature flags empty until a real flag is registered", () => {

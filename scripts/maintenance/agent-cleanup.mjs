@@ -140,7 +140,7 @@ function listProcesses() {
 
 function isLocalObserver(command) {
   return (
-    command.includes("/apps/observer/dist/runtime/main.js") &&
+    command.includes("/apps/cli/dist/observerMain.js") &&
     command.includes(`${home}/.local/state/wosm/run/observer.sock`)
   );
 }

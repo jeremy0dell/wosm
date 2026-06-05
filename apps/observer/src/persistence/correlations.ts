@@ -25,6 +25,7 @@ import {
   terminalTargetFromRow,
   worktreeFromRow,
 } from "./rows.js";
+import { stripTerminalProviderData } from "./terminalObservations.js";
 import type {
   ObserverIdFactory,
   PersistedHarnessRun,
@@ -65,7 +66,7 @@ export function persistReconcileResult(
     });
   }
   for (const target of input.terminalTargets.map((value) =>
-    TerminalTargetObservationSchema.parse(value),
+    stripTerminalProviderData(TerminalTargetObservationSchema.parse(value)),
   )) {
     upsertTerminalTarget(database, target);
     insertProviderObservation(database, {
@@ -296,7 +297,7 @@ function upsertTerminalTarget(database: DatabaseSync, target: TerminalTargetObse
       target.provider,
       target.state,
       target.id,
-      optionalJson(target.providerData),
+      null,
       target.observedAt,
     );
 }

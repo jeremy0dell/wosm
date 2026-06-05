@@ -19,17 +19,16 @@ import type {
 import { CursorHarnessProvider } from "@wosm/cursor";
 import { GithubRepositoryProvider } from "@wosm/github-repository";
 import type { JsonlLogger } from "@wosm/observability";
+import { createTerminalIntentRunner, ProviderRegistry } from "@wosm/observer/internal";
 import { OpenCodeHarnessProvider } from "@wosm/opencode";
 import { PiHarnessProvider } from "@wosm/pi";
 import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { ScriptedAgentHarnessProvider } from "@wosm/scripted-harness";
 import { TmuxProvider } from "@wosm/tmux";
 import { WorktrunkProvider } from "@wosm/worktrunk";
-import { ProviderRegistry } from "./registry.js";
-import { createTerminalIntentRunner } from "./terminalIntentRunner.js";
 
 export type CreateProviderRegistryOptions = {
-  configPath?: string;
+  configPath?: string | undefined;
   clock?: RuntimeClock | undefined;
   logger?: JsonlLogger | undefined;
   commandTimeoutMs?: number | undefined;

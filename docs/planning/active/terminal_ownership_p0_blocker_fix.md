@@ -1005,6 +1005,20 @@ verify normal command payloads no longer contain targetId
 
 ### PR 3: Remaining Terminal Leakage Cleanup
 
+Implementation note as of 2026-06-05:
+
+```text
+PR 3 implements the remaining leakage cleanup after PR 2.
+Normal snapshot row/session terminal data now uses provider-neutral attachment fields.
+WOSM_SCHEMA_VERSION is bumped to 0.4.0 because the normal snapshot wire shape changed.
+Terminal providerData is stripped from observer-owned terminal target and terminal provider-observation persistence, including hook-ingested terminal observations.
+Row-level diagnostic evidence no longer derives targetId or terminal-target questions from snapshot rows; targetId evidence must come from explicit errors, logs, provider diagnostics, or other deliberate diagnostic sources.
+Concrete provider construction moved from apps/observer into CLI bootstrap code.
+apps/cli/dist/observerMain.js is now the production observer bootstrap for repo callers and provider-hook autostart.
+apps/observer/dist/runtime/main.js is no longer a standalone production bootstrap.
+The debug terminal-target command namespace remains deferred.
+```
+
 Goal:
 
 ```text
@@ -1017,8 +1031,8 @@ Relationship to `docs/planning/active/terminal_leakage_p1_fix.md`:
 
 ```text
 the P1 leakage doc remains accurate as the detailed backlog of leakage concerns
-but it should be refreshed before PR 3 implementation
-items already completed by PR 2 should be marked complete or removed from PR 3 scope
+it now marks the PR 2 overlap and PR 3 implementation status
+items completed by PR 2 stay out of the remaining PR 3 scope
 especially targetId removal from normal focus/close commands and session cleanup close flows
 ```
 

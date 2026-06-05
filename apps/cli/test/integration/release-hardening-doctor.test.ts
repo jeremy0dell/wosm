@@ -140,7 +140,7 @@ async function killObserverProcessesForRoot(root: string): Promise<void> {
     }
     const pid = Number(match[1]);
     const command = match[2] ?? "";
-    if (!command.includes(root) || !command.includes("apps/observer/dist/runtime/main.js")) {
+    if (!command.includes(root) || !command.includes("apps/cli/dist/observerMain.js")) {
       continue;
     }
     try {

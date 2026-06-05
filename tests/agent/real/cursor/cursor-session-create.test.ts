@@ -143,7 +143,7 @@ describeRealCursor("real Cursor session.create launch lane", () => {
       const snapshot = await pollForCursorRow(core);
       const pane = await inspectTmuxPane({
         tmuxBin,
-        targetId: cursorTargetId(snapshot),
+        targetId: await cursorTargetId(terminal),
       });
 
       expect(await persistence.getCommand(receipt.commandId)).toMatchObject({
@@ -233,12 +233,17 @@ async function inspectTmuxPane(input: {
   return { dead, command, pid };
 }
 
-function cursorTargetId(snapshot: Awaited<ReturnType<typeof pollForCursorRow>>): string {
-  const targetId = snapshot.rows[0]?.terminal?.primaryAgentTargetId;
-  if (targetId === undefined) {
-    throw new Error("Cursor row did not include a primary tmux target id.");
+async function cursorTargetId(terminal: TmuxProvider): Promise<string> {
+  const target = (await terminal.listTargets()).find(
+    (candidate) =>
+      candidate.sessionId === "ses_real_cursor" &&
+      candidate.harnessBinding?.role === "main-agent" &&
+      candidate.state !== "stale",
+  );
+  if (target === undefined) {
+    throw new Error("Tmux provider did not report a primary Cursor target id.");
   }
-  return targetId;
+  return target.id;
 }
 
 function tmuxPaneId(targetId: string): string {

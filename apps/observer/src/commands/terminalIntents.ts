@@ -134,15 +134,28 @@ export function hasCloseableTerminalAttachment(input: {
   session?: SessionView | undefined;
   row?: WorktreeRow | undefined;
 }): boolean {
-  if (input.session?.terminal.exists === true) {
+  if (terminalAttachmentIsCloseable(input.session?.terminal)) {
     return true;
   }
-  const terminalState = input.row?.terminal?.state;
+  return terminalAttachmentIsCloseable(input.row?.terminal);
+}
+
+function terminalAttachmentIsCloseable(
+  terminal: SessionView["terminal"] | WorktreeRow["terminal"] | undefined,
+): boolean {
+  if (terminal === undefined) {
+    return false;
+  }
+  if (terminal.closeable === true) {
+    return true;
+  }
+  // This controls whether to show/submit the product close action. The terminal
+  // intent runner still validates the provider target and may report stale state.
   return (
-    terminalState === "open" ||
-    terminalState === "detached" ||
-    terminalState === "unknown" ||
-    terminalState === "stale"
+    terminal.state === "open" ||
+    terminal.state === "detached" ||
+    terminal.state === "unknown" ||
+    terminal.state === "stale"
   );
 }
 

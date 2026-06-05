@@ -149,7 +149,7 @@ async function checkBuiltInNotifyCommand(input: {
     return checkCommandAvailable(input.command, input.args, input.env);
   }
   const invocation = {
-    schemaVersion: "0.3.0",
+    schemaVersion: "0.4.0",
     hookId: `${builtInHookId}-doctor-check`,
     observedAt: "2026-01-01T00:00:00.000Z",
     event: {

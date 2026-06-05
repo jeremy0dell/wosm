@@ -18,6 +18,7 @@ import { providerObservationRetentionDays } from "./retention.js";
 import type { CreateObserverPersistenceOptions, ObserverPersistence } from "./types.js";
 import * as worktreeMetadataCurrentStore from "./worktreeMetadataCurrent.js";
 
+export * from "./terminalObservations.js";
 export type * from "./types.js";
 
 export function createObserverPersistence(

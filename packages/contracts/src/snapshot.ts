@@ -67,19 +67,23 @@ export const WorktreeRuntimeSchema = z
   })
   .strict();
 
-export const WorktreeTerminalSchema = z
+export const TerminalAttachmentSchema = z
   .object({
     provider: ProviderIdSchema,
     state: TerminalStateSchema,
-    workspaceTargetId: TerminalTargetIdSchema.optional(),
-    primaryAgentTargetId: TerminalTargetIdSchema.optional(),
-    sessionName: nonEmptyStringSchema.optional(),
-    windowId: nonEmptyStringSchema.optional(),
-    agentEndpointId: nonEmptyStringSchema.optional(),
-    attached: z.boolean().optional(),
-    lastOutputAt: TimestampSchema.optional(),
+    focusable: z.boolean().optional(),
+    closeable: z.boolean().optional(),
+    hasWorkspace: z.boolean().optional(),
+    hasPrimaryAgentEndpoint: z.boolean().optional(),
+    confidence: ConfidenceSchema.optional(),
+    reason: nonEmptyStringSchema.optional(),
+    observedAt: TimestampSchema.optional(),
   })
   .strict();
+
+export const WorktreeTerminalSchema = TerminalAttachmentSchema;
+
+export type TerminalAttachment = z.infer<typeof TerminalAttachmentSchema>;
 
 export const WorktreeAgentSchema = z
   .object({
@@ -123,7 +127,7 @@ export const WorktreeRowSchema = z
     branch: nonEmptyStringSchema,
     path: nonEmptyStringSchema,
     worktree: WorktreeRuntimeSchema,
-    terminal: WorktreeTerminalSchema.optional(),
+    terminal: TerminalAttachmentSchema.optional(),
     agent: WorktreeAgentSchema.optional(),
     display: WorktreeDisplaySchema,
   })
@@ -150,20 +154,7 @@ export const SessionViewSchema = z
         capabilities: HarnessCapabilitiesSchema,
       })
       .strict(),
-    terminal: z
-      .object({
-        provider: ProviderIdSchema,
-        exists: z.boolean(),
-        workspaceTargetId: TerminalTargetIdSchema.optional(),
-        primaryAgentTargetId: TerminalTargetIdSchema.optional(),
-        sessionName: nonEmptyStringSchema.optional(),
-        sessionId: nonEmptyStringSchema.optional(),
-        windowId: nonEmptyStringSchema.optional(),
-        agentEndpointId: nonEmptyStringSchema.optional(),
-        attached: z.boolean().optional(),
-        lastOutputAt: TimestampSchema.optional(),
-      })
-      .strict(),
+    terminal: TerminalAttachmentSchema,
     status: ObservedStatusSchema,
     title: nonEmptyStringSchema,
     tags: z.array(nonEmptyStringSchema),

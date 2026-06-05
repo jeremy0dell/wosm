@@ -31,8 +31,13 @@ describe("row-level provider diagnostics from debug bundles", () => {
               terminal: {
                 provider: "tmux",
                 state: "open",
-                workspaceTargetId: "tmux:%2.4",
-                primaryAgentTargetId: "tmux:%2.4",
+                focusable: true,
+                closeable: true,
+                hasWorkspace: true,
+                hasPrimaryAgentEndpoint: true,
+                confidence: "high",
+                reason: "Terminal is attached to the worktree.",
+                observedAt: diagnosticNow,
               },
               agent: {
                 harness: "codex",
@@ -62,10 +67,6 @@ describe("row-level provider diagnostics from debug bundles", () => {
         expect.objectContaining({
           id: "row-wt_web_debug-provider",
           answer: expect.stringContaining("worktree source worktrunk"),
-        }),
-        expect.objectContaining({
-          id: "row-wt_web_debug-terminal-target",
-          answer: expect.stringContaining("tmux:%2.4"),
         }),
         expect.objectContaining({
           id: "row-wt_web_debug-agent-run",

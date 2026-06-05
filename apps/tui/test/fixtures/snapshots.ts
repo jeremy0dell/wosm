@@ -108,10 +108,13 @@ export function row(input: {
     built.terminal = {
       provider: "tmux",
       state: "open",
-      workspaceTargetId: `term_${input.id}_window`,
-      primaryAgentTargetId: `term_${input.id}_agent`,
-      attached: true,
-      lastOutputAt: fixtureNow,
+      focusable: true,
+      closeable: true,
+      hasWorkspace: true,
+      hasPrimaryAgentEndpoint: true,
+      confidence: input.state === "unknown" ? "low" : "high",
+      reason: "Fixture terminal.",
+      observedAt: fixtureNow,
     };
     built.agent = {
       harness: input.projectId === "api" ? "opencode" : "codex",
@@ -178,6 +181,23 @@ function sessionForRow(candidate: WorktreeRow): SessionView {
   if (candidate.agent === undefined || candidate.terminal === undefined) {
     throw new Error("Cannot create a session for a row without an agent and terminal.");
   }
+  const terminal: SessionView["terminal"] = {
+    provider: candidate.terminal.provider,
+    state: candidate.terminal.state,
+  };
+  if (candidate.terminal.focusable !== undefined) terminal.focusable = candidate.terminal.focusable;
+  if (candidate.terminal.closeable !== undefined) terminal.closeable = candidate.terminal.closeable;
+  if (candidate.terminal.hasWorkspace !== undefined) {
+    terminal.hasWorkspace = candidate.terminal.hasWorkspace;
+  }
+  if (candidate.terminal.hasPrimaryAgentEndpoint !== undefined) {
+    terminal.hasPrimaryAgentEndpoint = candidate.terminal.hasPrimaryAgentEndpoint;
+  }
+  if (candidate.terminal.confidence !== undefined)
+    terminal.confidence = candidate.terminal.confidence;
+  if (candidate.terminal.reason !== undefined) terminal.reason = candidate.terminal.reason;
+  if (candidate.terminal.observedAt !== undefined)
+    terminal.observedAt = candidate.terminal.observedAt;
   return {
     id: candidate.agent.sessionId ?? `ses_${candidate.id}`,
     projectId: candidate.projectId,
@@ -190,14 +210,7 @@ function sessionForRow(candidate: WorktreeRow): SessionView {
       runId: candidate.agent.runId,
       capabilities: defaultCapabilities,
     },
-    terminal: {
-      provider: candidate.terminal.provider,
-      exists: true,
-      workspaceTargetId: candidate.terminal.workspaceTargetId,
-      primaryAgentTargetId: candidate.terminal.primaryAgentTargetId,
-      attached: true,
-      lastOutputAt: fixtureNow,
-    },
+    terminal,
     status: {
       value: candidate.agent.state,
       confidence: candidate.agent.confidence,

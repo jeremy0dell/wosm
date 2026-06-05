@@ -40,7 +40,7 @@ describe("observer lifecycle e2e", () => {
         stateDir: fixture.stateDir,
       });
       await expect(client.getSnapshot()).resolves.toMatchObject({
-        schemaVersion: "0.3.0",
+        schemaVersion: "0.4.0",
         counts: { projects: 0 },
       });
     } finally {

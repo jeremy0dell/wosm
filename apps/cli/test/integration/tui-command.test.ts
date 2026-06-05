@@ -43,7 +43,7 @@ describe("CLI tui command", () => {
             health: async () => {
               if (!running) throw new Error("stopped");
               return {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 status: "healthy",
                 pid: 1234,
                 startedAt: now,
@@ -53,11 +53,11 @@ describe("CLI tui command", () => {
             reconcile: async (reason: string) => {
               reconciles.push(reason);
               return {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 reason,
                 reconciledAt: now,
                 snapshot: {
-                  schemaVersion: "0.3.0",
+                  schemaVersion: "0.4.0",
                   generatedAt: now,
                   observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
                   providerHealth: {},
@@ -120,7 +120,7 @@ describe("CLI tui command", () => {
             health: async () => {
               if (!running) throw new Error("stopped");
               return {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 status: "healthy",
                 pid: 1234,
                 startedAt: now,
@@ -128,11 +128,11 @@ describe("CLI tui command", () => {
               };
             },
             reconcile: async (reason: string) => ({
-              schemaVersion: "0.3.0",
+              schemaVersion: "0.4.0",
               reason,
               reconciledAt: now,
               snapshot: {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 generatedAt: now,
                 observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
                 providerHealth: {},
@@ -187,7 +187,7 @@ describe("CLI tui command", () => {
             health: async () => {
               if (!running) throw new Error("stopped");
               return {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 status: "healthy",
                 pid: 1234,
                 startedAt: now,
@@ -195,11 +195,11 @@ describe("CLI tui command", () => {
               };
             },
             reconcile: async (reason: string) => ({
-              schemaVersion: "0.3.0",
+              schemaVersion: "0.4.0",
               reason,
               reconciledAt: now,
               snapshot: {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 generatedAt: now,
                 observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
                 providerHealth: {},
@@ -269,7 +269,7 @@ describe("CLI tui command", () => {
               health: async () => {
                 if (!running) throw new Error("stopped");
                 return {
-                  schemaVersion: "0.3.0",
+                  schemaVersion: "0.4.0",
                   status: "healthy",
                   pid: 1234,
                   startedAt: now,
@@ -335,7 +335,7 @@ describe("CLI tui command", () => {
             health: async () => {
               if (!running) throw new Error("stopped");
               return {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 status: "healthy",
                 pid: 1234,
                 startedAt: now,
@@ -343,11 +343,11 @@ describe("CLI tui command", () => {
               };
             },
             reconcile: async (reason: string) => ({
-              schemaVersion: "0.3.0",
+              schemaVersion: "0.4.0",
               reason,
               reconciledAt: now,
               snapshot: {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 generatedAt: now,
                 observer: { pid: 1234, startedAt: now, version: "0.0.0", healthy: true },
                 providerHealth: {},

@@ -53,7 +53,7 @@ describe("observer diagnostics collector", () => {
     };
 
     await expect(collectDiagnosticSnapshot(deps)).resolves.toMatchObject({
-      schemaVersion: "0.3.0",
+      schemaVersion: "0.4.0",
       providerHealth: {
         "fake-worktree": { status: "healthy" },
       },

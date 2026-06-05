@@ -228,7 +228,7 @@ function defaultClientFactory(socketPath: string) {
 }
 
 function defaultSpawnObserver(input: SpawnObserverInput): ChildProcessLike {
-  const observerEntry = new URL("../../observer/dist/runtime/main.js", import.meta.url);
+  const observerEntry = new URL("../dist/observerMain.js", import.meta.url);
   const args = [
     observerEntry.pathname,
     "--socket",

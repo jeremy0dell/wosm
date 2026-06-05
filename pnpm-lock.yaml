@@ -53,54 +53,15 @@ importers:
       '@wosm/cursor':
         specifier: workspace:*
         version: link:../../integrations/harness/cursor
-      '@wosm/observability':
-        specifier: workspace:*
-        version: link:../../packages/observability
-      '@wosm/observer':
-        specifier: workspace:*
-        version: link:../observer
-      '@wosm/opencode':
-        specifier: workspace:*
-        version: link:../../integrations/harness/opencode
-      '@wosm/protocol':
-        specifier: workspace:*
-        version: link:../../packages/protocol
-      '@wosm/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
-      '@wosm/tmux':
-        specifier: workspace:*
-        version: link:../../integrations/terminal/tmux
-      '@wosm/tui':
-        specifier: workspace:*
-        version: link:../tui
-      '@wosm/worktrunk':
-        specifier: workspace:*
-        version: link:../../integrations/worktree/worktrunk
-      zod:
-        specifier: ^4.1.12
-        version: 4.4.3
-
-  apps/observer:
-    dependencies:
-      '@wosm/codex':
-        specifier: workspace:*
-        version: link:../../integrations/harness/codex
-      '@wosm/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@wosm/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@wosm/cursor':
-        specifier: workspace:*
-        version: link:../../integrations/harness/cursor
       '@wosm/github-repository':
         specifier: workspace:*
         version: link:../../integrations/repository/github
       '@wosm/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@wosm/observer':
+        specifier: workspace:*
+        version: link:../observer
       '@wosm/opencode':
         specifier: workspace:*
         version: link:../../integrations/harness/opencode
@@ -119,9 +80,33 @@ importers:
       '@wosm/tmux':
         specifier: workspace:*
         version: link:../../integrations/terminal/tmux
+      '@wosm/tui':
+        specifier: workspace:*
+        version: link:../tui
       '@wosm/worktrunk':
         specifier: workspace:*
         version: link:../../integrations/worktree/worktrunk
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
+
+  apps/observer:
+    dependencies:
+      '@wosm/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@wosm/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@wosm/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@wosm/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@wosm/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
       zod:
         specifier: ^4.1.12
         version: 4.4.3

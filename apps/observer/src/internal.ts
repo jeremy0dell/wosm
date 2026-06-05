@@ -19,7 +19,6 @@ export * from "./metadata/refresh.js";
 export * from "./metadata/repositoryGit.js";
 export * from "./migrations/index.js";
 export * from "./persistence/index.js";
-export * from "./providers/factory.js";
 export * from "./providers/registry.js";
 export * from "./providers/terminalIntentRunner.js";
 export * from "./reconcile/core.js";

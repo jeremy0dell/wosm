@@ -11,6 +11,17 @@ const providerNeutralSourceRoots = [
   "packages/runtime/src",
 ];
 
+const observerConcreteProviderImports = [
+  "@wosm/tmux",
+  "@wosm/worktrunk",
+  "@wosm/codex",
+  "@wosm/cursor",
+  "@wosm/opencode",
+  "@wosm/pi",
+  "@wosm/scripted-harness",
+  "@wosm/github-repository",
+];
+
 const tmuxImplementationMarkers = [
   "@wosm/tmux",
   "display-popup",
@@ -103,6 +114,25 @@ describe("boundary inventory guard", () => {
       for (const marker of tmuxImplementationMarkers) {
         if (source.includes(marker)) {
           violations.push(`${path}: tmux implementation marker ${marker}`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps concrete provider construction out of observer production source", async () => {
+    const files = (await sourceFilesAt(join(process.cwd(), "apps/observer/src"))).filter(
+      isProductionSourceFile,
+    );
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const source = await readFile(file, "utf8");
+      const path = relative(process.cwd(), file);
+      for (const providerImport of observerConcreteProviderImports) {
+        if (source.includes(providerImport)) {
+          violations.push(`${path}: concrete provider import ${providerImport}`);
         }
       }
     }

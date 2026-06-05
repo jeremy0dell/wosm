@@ -85,9 +85,11 @@
       },
       "terminal": {
         "provider": "tmux",
-        "exists": true,
-        "workspaceTargetId": "term_web_feature_auth_window",
-        "primaryAgentTargetId": "term_web_feature_auth_agent"
+        "state": "open",
+        "focusable": true,
+        "closeable": true,
+        "hasWorkspace": true,
+        "hasPrimaryAgentEndpoint": true
       },
       "status": {
         "value": "working",

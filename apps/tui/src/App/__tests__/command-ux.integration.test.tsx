@@ -339,11 +339,7 @@ describe("TUI command UX", () => {
         runId: "run_agent_created",
         sessionId: "ses_agent_created",
       },
-      terminal: {
-        ...sourceRow.terminal,
-        workspaceTargetId: "term_agent_created_window",
-        primaryAgentTargetId: "term_agent_created_agent",
-      },
+      terminal: sourceRow.terminal,
     };
     service.setSnapshot({
       ...snapshot,
@@ -358,11 +354,7 @@ describe("TUI command UX", () => {
             ...sourceSession.harness,
             runId: "run_agent_created",
           },
-          terminal: {
-            ...sourceSession.terminal,
-            workspaceTargetId: "term_agent_created_window",
-            primaryAgentTargetId: "term_agent_created_agent",
-          },
+          terminal: sourceSession.terminal,
         },
       ],
     });
@@ -878,10 +870,13 @@ function startedAgentSnapshot(snapshot: WosmSnapshot): WosmSnapshot {
     terminal: {
       provider: "tmux",
       state: "open",
-      workspaceTargetId: "term_wt_web_no_agent_window",
-      primaryAgentTargetId: "term_wt_web_no_agent_agent",
-      attached: true,
-      lastOutputAt: fixtureNow,
+      focusable: true,
+      closeable: true,
+      hasWorkspace: true,
+      hasPrimaryAgentEndpoint: true,
+      confidence: "high",
+      reason: "Fixture terminal.",
+      observedAt: fixtureNow,
     },
     agent: {
       harness: "codex",
@@ -922,11 +917,14 @@ function startedAgentSnapshot(snapshot: WosmSnapshot): WosmSnapshot {
     },
     terminal: {
       provider: "tmux",
-      exists: true,
-      workspaceTargetId: "term_wt_web_no_agent_window",
-      primaryAgentTargetId: "term_wt_web_no_agent_agent",
-      attached: true,
-      lastOutputAt: fixtureNow,
+      state: "open",
+      focusable: true,
+      closeable: true,
+      hasWorkspace: true,
+      hasPrimaryAgentEndpoint: true,
+      confidence: "high",
+      reason: "Fixture terminal.",
+      observedAt: fixtureNow,
     },
     status: {
       value: "idle",

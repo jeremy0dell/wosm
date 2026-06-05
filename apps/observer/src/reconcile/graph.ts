@@ -9,6 +9,7 @@ import type {
   SafeError,
   SessionView,
   SnapshotHarness,
+  TerminalAttachment,
   TerminalTargetObservation,
   WorktreeObservation,
   WorktreeRow,
@@ -202,18 +203,30 @@ function buildWorktreeRow(input: BuildWorktreeRowInput): WorktreeRow {
     worktree,
     display,
   };
-  if (input.terminal !== undefined) row.terminal = rowTerminal(input.terminal);
+  if (input.terminal !== undefined)
+    row.terminal = terminalAttachment(input.terminal, input.harnessRun);
   if (input.harnessRun !== undefined) row.agent = rowAgent(input.harnessRun);
   return row;
 }
 
-function rowTerminal(terminal: TerminalTargetObservation): WorktreeRow["terminal"] {
-  return {
+function terminalAttachment(
+  terminal: TerminalTargetObservation,
+  harnessRun: ObserverHarnessRun | undefined,
+): TerminalAttachment {
+  const attachment: TerminalAttachment = {
     provider: terminal.provider,
     state: terminal.state,
-    workspaceTargetId: terminal.id,
-    primaryAgentTargetId: terminal.id,
   };
+  if (isFocusableTerminalState(terminal.state)) attachment.focusable = true;
+  if (isCloseableTerminalState(terminal.state)) attachment.closeable = true;
+  if (terminal.worktreeId !== undefined) attachment.hasWorkspace = true;
+  if (hasPrimaryAgentEndpoint(terminal, harnessRun)) {
+    attachment.hasPrimaryAgentEndpoint = true;
+  }
+  if (terminal.confidence !== undefined) attachment.confidence = terminal.confidence;
+  if (terminal.reason !== undefined) attachment.reason = terminal.reason;
+  if (terminal.observedAt !== undefined) attachment.observedAt = terminal.observedAt;
+  return attachment;
 }
 
 function rowAgent(harnessRun: ObserverHarnessRun): WorktreeRow["agent"] {
@@ -263,12 +276,8 @@ function buildSession(input: BuildSessionInput): SessionView | undefined {
   if (run.pid !== undefined) harness.pid = run.pid;
 
   const terminal: SessionView["terminal"] = {
-    provider: input.terminal.provider,
-    exists: input.terminal.state !== "stale",
-    workspaceTargetId: input.terminal.id,
-    primaryAgentTargetId: input.terminal.id,
+    ...terminalAttachment(input.terminal, input.harnessRun),
   };
-  if (input.terminal.sessionId !== undefined) terminal.sessionId = input.terminal.sessionId;
 
   return {
     id: sessionId,
@@ -288,6 +297,26 @@ function buildSession(input: BuildSessionInput): SessionView | undefined {
     title: metadata?.title ?? input.worktree.branch,
     tags: [],
   };
+}
+
+function isFocusableTerminalState(state: TerminalTargetObservation["state"]): boolean {
+  return state === "open" || state === "detached" || state === "unknown";
+}
+
+function isCloseableTerminalState(state: TerminalTargetObservation["state"]): boolean {
+  return state === "open" || state === "detached" || state === "unknown" || state === "stale";
+}
+
+function hasPrimaryAgentEndpoint(
+  terminal: TerminalTargetObservation,
+  harnessRun: ObserverHarnessRun | undefined,
+): boolean {
+  return (
+    terminal.harnessBinding?.role === "main-agent" ||
+    terminal.harnessRunId !== undefined ||
+    terminal.sessionId !== undefined ||
+    harnessRun !== undefined
+  );
 }
 
 function chooseTerminal(
