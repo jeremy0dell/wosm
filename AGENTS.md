@@ -34,7 +34,7 @@ Inside already-typed code, prefer discriminated unions, exhaustive `switch` hand
 
 Observer/core code should not scrape provider-specific keys out of generic `providerData`. Normalize those fields at the provider boundary into contract fields, correlation fields, or a provider-owned schema.
 
-This convention comes from `docs/planning/active/code_smell_remediation_p1_p2.md`.
+This convention comes from `docs/planning/completed/code_smell_remediation_p1_p2.md`.
 
 ## Runtime Trace Debugging
 

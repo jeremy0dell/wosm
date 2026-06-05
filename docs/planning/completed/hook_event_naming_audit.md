@@ -375,8 +375,8 @@ Surface:
 - `docs/architecture.md`
 - `docs/diagnostics.md`
 - `docs/harness-ingress.md`
-- `docs/planning/active/observer_hook_reconcile_profiling.md`
-- `docs/planning/active/provider_hook_scope_guard_plan.md`
+- `docs/planning/completed/observer_hook_reconcile_profiling.md`
+- `docs/planning/completed/provider_hook_scope_guard_plan.md`
 - `README.md`
 
 Current state:
