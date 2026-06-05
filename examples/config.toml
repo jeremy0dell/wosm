@@ -13,12 +13,16 @@ worktree_provider = "worktrunk"
 terminal = "tmux"
 harness = "codex"
 layout = "agent-build-shell"
+default_branch = "main"
 harness_permission_mode = "yolo"
 
 [worktree.worktrunk]
 command = "wt"
 config_path = "~/.config/worktrunk/config.toml"
 managed_root = "~/.worktrees"
+base = "main"
+include_main = false
+include_external = false
 use_lifecycle_hooks = true
 hook_mode = "required-for-mvp"
 breadcrumb_location = "external"
@@ -58,16 +62,6 @@ label = "web"
 aliases = ["frontend", "site", "www"]
 root = "~/projects/web"
 repo = "github.com/my-org/web"
-default_branch = "main"
-
-[projects.defaults]
-harness = "codex"
-terminal = "tmux"
-layout = "agent-build-shell"
-
-[projects.worktrunk]
-enabled = true
-base = "main"
 
 [projects.commands]
 dev = "pnpm dev"
@@ -90,16 +84,9 @@ label = "api"
 aliases = ["backend"]
 root = "~/projects/api"
 repo = "github.com/my-org/api"
-default_branch = "main"
 
 [projects.defaults]
-harness = "codex"
-terminal = "tmux"
 layout = "agent-shell"
-
-[projects.worktrunk]
-enabled = true
-base = "main"
 
 [projects.commands]
 dev = "cargo run"
@@ -116,16 +103,9 @@ label = "mobile"
 aliases = ["app"]
 root = "~/projects/mobile"
 repo = "github.com/my-org/mobile"
-default_branch = "main"
 
 [projects.defaults]
 harness = "opencode"
-terminal = "tmux"
-layout = "agent-build-shell"
-
-[projects.worktrunk]
-enabled = true
-base = "main"
 
 [projects.commands]
 dev = "pnpm start"
@@ -142,16 +122,9 @@ id = "wosm"
 label = "wosm"
 root = "~/projects/wosm"
 repo = "github.com/me/wosm"
-default_branch = "main"
 
 [projects.defaults]
-harness = "codex"
-terminal = "tmux"
 layout = "agent-shell"
-
-[projects.worktrunk]
-enabled = true
-base = "main"
 
 [projects.commands]
 dev = "pnpm dev"
