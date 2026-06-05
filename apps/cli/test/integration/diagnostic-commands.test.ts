@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { runCli } from "@wosm/cli";
 import { observerRuntimeFreshnessCheck } from "@wosm/cli/internal";
 import type { DiagnosticEvidenceIndex, DiagnosticSnapshot, DoctorReport } from "@wosm/contracts";
@@ -84,6 +85,41 @@ describe("CLI diagnostic commands", () => {
     });
     const bundlePath = (result.output as { bundlePath: string }).bundlePath;
     await expect(readFile(join(bundlePath, "manifest.json"), "utf8")).resolves.toContain("diag_");
+  });
+
+  it("lets debug bundle diagnostics exceed the old one second collection budget", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    const deps = {
+      clientFactory: () =>
+        ({
+          health: async () => ({
+            schemaVersion: "0.4.0",
+            status: "healthy",
+            pid: 1234,
+            startedAt: now,
+            version: "0.0.0",
+          }),
+          collectDiagnostics: async () => {
+            await sleep(1100);
+            return diagnosticSnapshot();
+          },
+        }) as never,
+      sleep: async () => undefined,
+    };
+
+    await expect(
+      runCli(["--config", configPath, "debug", "bundle"], {
+        observerDeps: deps,
+      }),
+    ).resolves.toMatchObject({
+      code: 0,
+      output: {
+        manifest: {
+          sections: expect.arrayContaining(["manifest.json"]),
+        },
+      },
+    });
   });
 
   it("passes trace and latest-failure filters to debug bundle collection", async () => {
@@ -243,6 +279,54 @@ describe("CLI diagnostic commands", () => {
         error: {
           code: "WORKTRUNK_BRANCH_EXISTS",
         },
+      },
+    });
+  });
+
+  it("resolves CLI observer lifecycle failures from live logs", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    await mkdir(join(fixture.stateDir, "logs"), { recursive: true });
+    await writeFile(
+      join(fixture.stateDir, "logs", "cli.jsonl"),
+      `${JSON.stringify({
+        timestamp: "2026-05-20T12:02:00.000Z",
+        level: "error",
+        component: "cli",
+        message: "Observer lifecycle failed.",
+        traceId: "trc_lifecycle",
+        spanId: "spn_lifecycle",
+        attributes: {
+          operation: "cli.observer.start",
+          error: {
+            tag: "ObserverStartupError",
+            code: "OBSERVER_START_FAILED",
+            message: "Observer did not become healthy before the startup timeout.",
+            traceId: "trc_lifecycle",
+          },
+        },
+      })}\n`,
+    );
+
+    const traced = await runCli(["--config", configPath, "debug", "trace", "--latest-failure"], {
+      observerDeps: {
+        clientFactory: () => {
+          throw new Error("debug trace should not contact observer");
+        },
+      },
+    });
+
+    expect(traced).toMatchObject({
+      code: 0,
+      output: {
+        matched: true,
+        source: "log",
+        traceId: "trc_lifecycle",
+        spanId: "spn_lifecycle",
+        error: {
+          code: "OBSERVER_START_FAILED",
+        },
+        suggestedCommands: expect.arrayContaining(["wosm debug bundle --trace trc_lifecycle"]),
       },
     });
   });

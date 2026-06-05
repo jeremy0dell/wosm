@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { getObserverStatus, startObserver } from "@wosm/cli";
 import type { ChildProcessLike } from "@wosm/cli/internal";
 import { describe, expect, it } from "vitest";
@@ -148,8 +150,29 @@ describe("CLI observer process helpers", () => {
       status: "unhealthy",
       error: {
         tag: "ObserverStartupError",
+        traceId: expect.stringMatching(/^trc_/),
+        hint: expect.stringMatching(/^Run wosm debug trace trc_/),
       },
     });
     expect(result.error?.message).not.toContain("internal-frame");
+
+    const logs = await readFile(join(fixture.stateDir, "logs", "cli.jsonl"), "utf8");
+    const records = logs
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      level: "error",
+      component: "cli",
+      message: "Observer lifecycle failed.",
+      traceId: result.error?.traceId,
+      attributes: {
+        operation: "cli.observer.start",
+        error: {
+          traceId: result.error?.traceId,
+        },
+      },
+    });
   });
 });

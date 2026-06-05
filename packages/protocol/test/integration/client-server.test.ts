@@ -251,6 +251,34 @@ describe("protocol client/server", () => {
     }
   });
 
+  it("lets diagnostic handlers use the diagnostic timeout budget", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const server = await startProtocolServer({
+      socketPath,
+      requestTimeoutMs: 10,
+      api: createFakeObserverApi({
+        runDoctor: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          return createFakeObserverApi().runDoctor();
+        },
+      }),
+    });
+    const client = createObserverClient({
+      socketPath,
+      timeoutMs: 500,
+      requestId: ids("diagnostic-timeout"),
+    });
+
+    try {
+      await expect(client.runDoctor()).resolves.toMatchObject({
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        status: "healthy",
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("returns SafeError envelopes for malformed API results and keeps the connection usable", async () => {
     const { socketPath } = await createTempSocketPath();
     const server = await startProtocolServer({

@@ -34,6 +34,8 @@ export type DebugTraceResult = {
   matchedIdType?: "traceId" | "commandId" | "diagnosticId" | "unknown";
   source?: "bundle" | "log";
   bundlePath?: string;
+  traceId?: string;
+  spanId?: string;
   command?: {
     id: string;
     type?: string;
@@ -70,6 +72,8 @@ type DebugTraceMatch = {
   bundlePath?: string;
   command?: DebugTraceResult["command"];
   error?: DebugTraceResult["error"];
+  traceId?: string;
+  spanId?: string;
   rootCauseCodes: string[];
   matchedFiles: string[];
   createdAt?: string;
@@ -126,6 +130,8 @@ export async function runDebugTraceCommand(
   if (match?.matchedIdType !== undefined) result.matchedIdType = match.matchedIdType;
   if (match?.source !== undefined) result.source = match.source;
   if (match?.bundlePath !== undefined) result.bundlePath = match.bundlePath;
+  if (match?.traceId !== undefined) result.traceId = match.traceId;
+  if (match?.spanId !== undefined) result.spanId = match.spanId;
   if (match?.command !== undefined) result.command = match.command;
   if (match?.error !== undefined) result.error = match.error;
   return result;
@@ -379,6 +385,8 @@ function matchFromLog(log: LogRecord, path: string, query: string | undefined): 
     source: "log",
     matchedIdType: matchedIdType(query, undefined, undefined),
     ...(command === undefined ? {} : { command }),
+    ...(traceId === undefined ? {} : { traceId }),
+    ...(spanId === undefined ? {} : { spanId }),
     rootCauseCodes: [],
     matchedFiles: [path],
     createdAt: log.timestamp,
@@ -496,7 +504,9 @@ function suggestedCommands(
   match: DebugTraceMatch | undefined,
 ): string[] {
   const traceId =
-    match?.command?.traceId ?? (query?.startsWith("trc_") === true ? query : undefined);
+    match?.command?.traceId ??
+    match?.traceId ??
+    (query?.startsWith("trc_") === true ? query : undefined);
   const commandId = match?.command?.id ?? (query?.startsWith("cmd_") === true ? query : undefined);
   const commands = ["wosm doctor"];
   if (traceId !== undefined) {
