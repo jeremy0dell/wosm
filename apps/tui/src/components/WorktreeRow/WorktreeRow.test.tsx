@@ -187,6 +187,137 @@ describe("WorktreeRow", () => {
     }
   });
 
+  it("expands local action activity into row slack without moving shared starts", () => {
+    const rows = localActionGridRows();
+
+    for (const columns of [100, 56]) {
+      const layouts = layoutWorktreeRowGrid({ columns, rows });
+      const rendered = layouts.map(layoutText);
+      const titleStarts = [
+        startColumn(rendered[0] ?? "", "fix-nav-mobile"),
+        startColumn(rendered[1] ?? "", "feature/pending"),
+        startColumn(rendered[2] ?? "", "fix-nav-mobile"),
+        startColumn(rendered[3] ?? "", "feature-auth"),
+        startColumn(rendered[4] ?? "", "feature/failure"),
+        startColumn(rendered[5] ?? "", "checkout-copy"),
+      ];
+      const activityStarts = [
+        startColumn(rendered[0] ?? "", "idle"),
+        startColumn(rendered[1] ?? "", "starting"),
+        startColumn(rendered[2] ?? "", "removing"),
+        startColumn(rendered[3] ?? "", "starting"),
+        startColumn(rendered[4] ?? "", "Provider"),
+        startColumn(rendered[5] ?? "", "Agent"),
+      ];
+
+      expect(new Set(titleStarts).size).toBe(1);
+      expect(new Set(activityStarts).size).toBe(1);
+    }
+
+    const layouts = layoutWorktreeRowGrid({ columns: 100, rows });
+    const rendered = layouts.map(layoutText);
+
+    expect(rendered[1]).toContain("starting session...");
+    expect(rendered[2]).toContain("removing worktree...");
+    expect(rendered[3]).toContain("starting...");
+    expect(rendered[4]).toContain("Provider rejected session create.");
+    expect(rendered[5]).toContain("Agent needs app…");
+    expect(rendered[5]).not.toContain("Agent needs app approval.");
+    expect(layoutCellWidth(requiredLayout(layouts[0]))).toBeLessThan(100);
+    expect(layoutCellWidth(requiredLayout(layouts[1]))).toBe(100);
+    expect(layoutCellWidth(requiredLayout(layouts[2]))).toBe(100);
+    expect(layoutCellWidth(requiredLayout(layouts[5]))).toBeLessThan(100);
+  });
+
+  it("keeps row-slack activity clear of right metadata", () => {
+    const columns = 54;
+    const [layout] = layoutWorktreeRowGrid({
+      columns,
+      rows: [
+        worktreeStyleRowGridInput({
+          id: "failed-with-metadata",
+          slot: undefined,
+          marker: { kind: "text", text: "!" },
+          title: "feature/failure",
+          activity: "Provider rejected session create.",
+          activityImportance: "meaningful",
+          activityOverflow: "rowSlack",
+          color: "red",
+          metadataGroups: {
+            diff: [],
+            pr: [
+              textSegment("#42", {
+                color: "blue",
+                underline: true,
+                url: "https://github.com/example/web/pull/42",
+              }),
+              textSegment("✓", { color: "green" }),
+            ],
+          },
+        }),
+      ],
+    });
+    const rendered = layoutText(requiredLayout(layout));
+
+    expect(visibleCellWidth(rendered)).toBeLessThanOrEqual(columns);
+    expect(rendered).toMatch(/\s#42 ✓$/);
+    expect(startColumn(rendered, "#42")).toBeGreaterThan(startColumn(rendered, "Provider"));
+    expect(rendered).toContain("Provider reject");
+  });
+
+  it("keeps row-slack grid output within every terminal width", () => {
+    const rows = [
+      worktreeStyleRowGridInput({
+        id: "observer",
+        slot: "1",
+        marker: { kind: "text", text: "○" },
+        title: "fix-nav-mobile",
+        agent: "codex",
+        activity: "idle",
+      }),
+      worktreeStyleRowGridInput({
+        id: "cjk-action",
+        slot: undefined,
+        marker: { kind: "throbber", variant: "braille" },
+        title: "日本語-worktree-name-that-is-wide",
+        activity: "removing worktree...",
+        activityImportance: "meaningful",
+        activityOverflow: "rowSlack",
+      }),
+      worktreeStyleRowGridInput({
+        id: "linked-metadata",
+        slot: "a",
+        marker: { kind: "text", text: "○" },
+        title: "linked-pr",
+        agent: "codex",
+        activity: "working",
+        metadataGroups: {
+          diff: [],
+          pr: [
+            textSegment("#123", {
+              color: "blue",
+              underline: true,
+              url: "https://github.com/example/web/pull/123",
+            }),
+            textSegment("✓", { color: "green" }),
+          ],
+        },
+      }),
+    ];
+
+    for (let columns = 1; columns <= 200; columns += 1) {
+      const layouts = layoutWorktreeRowGrid({ columns, rows });
+
+      for (const layout of layouts) {
+        const rendered = layoutText(layout);
+
+        expect(rendered).not.toContain("\n");
+        expect(layoutCellWidth(layout)).toBeLessThanOrEqual(columns);
+        expect(visibleCellWidth(rendered)).toBeLessThanOrEqual(columns);
+      }
+    }
+  });
+
   it("keeps pure layout output within every terminal width", () => {
     const cases: WorktreeRowLayoutInput[] = [
       {
@@ -533,6 +664,67 @@ function representativeGridRows(): RowGridRowInput[] {
   ];
 }
 
+function localActionGridRows(): RowGridRowInput[] {
+  return [
+    worktreeStyleRowGridInput({
+      id: "observer-idle",
+      slot: "1",
+      marker: { kind: "text", text: "○" },
+      title: "fix-nav-mobile",
+      agent: "codex",
+      activity: "idle",
+    }),
+    worktreeStyleRowGridInput({
+      id: "pending-create",
+      slot: undefined,
+      marker: { kind: "throbber", variant: "braille" },
+      title: "feature/pending",
+      agent: "codex",
+      activity: "starting session...",
+      activityImportance: "meaningful",
+      activityOverflow: "rowSlack",
+    }),
+    worktreeStyleRowGridInput({
+      id: "pending-remove",
+      slot: undefined,
+      marker: { kind: "throbber", variant: "braille" },
+      title: "fix-nav-mobile",
+      activity: "removing worktree...",
+      activityImportance: "meaningful",
+      activityOverflow: "rowSlack",
+    }),
+    worktreeStyleRowGridInput({
+      id: "pending-start",
+      slot: "4",
+      marker: { kind: "throbber", variant: "braille" },
+      title: "feature-auth",
+      activity: "starting...",
+      activityImportance: "meaningful",
+      activityOverflow: "rowSlack",
+    }),
+    worktreeStyleRowGridInput({
+      id: "failed-create",
+      slot: undefined,
+      marker: { kind: "text", text: "!" },
+      title: "feature/failure",
+      activity: "Provider rejected session create.",
+      activityImportance: "meaningful",
+      activityOverflow: "rowSlack",
+      color: "red",
+    }),
+    worktreeStyleRowGridInput({
+      id: "observer-warning",
+      slot: "3",
+      marker: { kind: "text", text: "!" },
+      title: "checkout-copy",
+      agent: "codex",
+      activity: "Agent needs app approval.",
+      activityImportance: "meaningful",
+      color: "red",
+    }),
+  ];
+}
+
 function layoutText(layout: WorktreeRowLayout): string {
   return segmentsText(layout.segments);
 }
@@ -550,6 +742,21 @@ function segmentText(segment: RowSegment): string {
 
 function layoutCellWidth(layout: WorktreeRowLayout): number {
   return segmentsWidth(layout.segments);
+}
+
+function requiredLayout(layout: WorktreeRowLayout | undefined): WorktreeRowLayout {
+  if (layout === undefined) {
+    throw new Error("Expected row layout.");
+  }
+  return layout;
+}
+
+function startColumn(rendered: string, needle: string): number {
+  const index = rendered.indexOf(needle);
+  if (index < 0) {
+    throw new Error(`Expected rendered row to contain ${needle}.`);
+  }
+  return cellWidth(rendered.slice(0, index));
 }
 
 function uniqueStarts(rendered: readonly string[], needles: readonly string[]): number[] {

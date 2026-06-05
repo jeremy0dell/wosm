@@ -53,11 +53,20 @@ export type RowGridConfig = {
 
 export type RowGridCellImportance = "required" | "meaningful" | "optional";
 
-export type RowGridCell = {
-  key: RowGridCellKey;
+type BaseRowGridCell = {
   segments: RowSegment[];
   importance: RowGridCellImportance;
 };
+
+export type RowGridCell =
+  | (BaseRowGridCell & {
+      key: "activity";
+      overflow?: "rowSlack";
+    })
+  | (BaseRowGridCell & {
+      key: Exclude<RowGridCellKey, "activity">;
+      overflow?: never;
+    });
 
 export type RowGridRowInput = {
   id: string;
@@ -474,15 +483,27 @@ function renderGridRow(input: {
 }): RowGridLayout {
   const activeSet = new Set(input.activeKeys);
   const segments: RowSegment[] = [];
-  for (const key of sortKeysByConfig(input.config, [...input.activeKeys])) {
+  const activeKeys = sortKeysByConfig(input.config, [...input.activeKeys]);
+  const metadataWidth = segmentsWidth(input.metadata.segments);
+  for (const [index, key] of activeKeys.entries()) {
     const spec = requiredSpec(input.config, key);
     const gap = normalizeCells(spec.gapBefore);
     if (gap > 0) segments.push(textSegment(" ".repeat(gap)));
-    const width = input.widths.get(key) ?? 0;
+    const width = renderWidthForCell({
+      activeKeys,
+      cell: input.row.cells[key],
+      columns: input.columns,
+      config: input.config,
+      index,
+      key,
+      metadataWidth,
+      segments,
+      sharedWidth: input.widths.get(key) ?? 0,
+      widths: input.widths,
+    });
     segments.push(...renderCell(input.row.cells[key], spec, width));
   }
 
-  const metadataWidth = segmentsWidth(input.metadata.segments);
   if (metadataWidth > 0) {
     const spacerCells = Math.max(1, input.columns - segmentsWidth(segments) - metadataWidth);
     segments.push(textSegment(" ".repeat(spacerCells)));
@@ -497,6 +518,47 @@ function renderGridRow(input: {
       metadata: hiddenMetadata(metadataGroups(input.row), input.metadata.visibleGroups),
     },
   };
+}
+
+function renderWidthForCell(input: {
+  activeKeys: readonly RowGridCellKey[];
+  cell: RowGridCell | undefined;
+  columns: number;
+  config: RowGridConfig;
+  index: number;
+  key: RowGridCellKey;
+  metadataWidth: number;
+  segments: readonly RowSegment[];
+  sharedWidth: number;
+  widths: ReadonlyMap<RowGridCellKey, number>;
+}): number {
+  const sharedWidth = normalizeCells(input.sharedWidth);
+  if (input.key !== "activity" || input.cell?.overflow !== "rowSlack") {
+    return sharedWidth;
+  }
+
+  const tailWidth = remainingLeftColumnWidth({
+    activeKeys: input.activeKeys,
+    config: input.config,
+    index: input.index,
+    widths: input.widths,
+  });
+  const metadataGap = input.metadataWidth > 0 ? 1 : 0;
+  const available =
+    input.columns - segmentsWidth(input.segments) - tailWidth - metadataGap - input.metadataWidth;
+  return Math.max(sharedWidth, normalizeCells(available));
+}
+
+function remainingLeftColumnWidth(input: {
+  activeKeys: readonly RowGridCellKey[];
+  config: RowGridConfig;
+  index: number;
+  widths: ReadonlyMap<RowGridCellKey, number>;
+}): number {
+  return input.activeKeys.slice(input.index + 1).reduce((total, key) => {
+    const spec = requiredSpec(input.config, key);
+    return total + normalizeCells(spec.gapBefore) + normalizeCells(input.widths.get(key) ?? 0);
+  }, 0);
 }
 
 function renderCell(
