@@ -50,6 +50,7 @@ function normalizeObserverConfig(value: unknown): unknown {
 function normalizeGlobalDefaults(value: unknown): unknown {
   return normalizeObject(value, {
     worktree_provider: "worktreeProvider",
+    default_branch: "defaultBranch",
     harness_permission_mode: "harnessPermissionMode",
   });
 }
@@ -61,6 +62,8 @@ function normalizeWorktreeProvidersConfig(value: unknown): unknown {
 function normalizeWorktreeWorktrunkConfig(value: unknown): unknown {
   return normalizeObject(value, {
     config_path: "configPath",
+    include_main: "includeMain",
+    include_external: "includeExternal",
     use_lifecycle_hooks: "useLifecycleHooks",
     hook_mode: "hookMode",
     breadcrumb_location: "breadcrumbLocation",
