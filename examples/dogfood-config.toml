@@ -13,11 +13,15 @@ worktree_provider = "worktrunk"
 terminal = "tmux"
 harness = "codex"
 layout = "agent-shell"
+default_branch = "main"
 harness_permission_mode = "yolo"
 
 [worktree.worktrunk]
 command = "wt"
 managed_root = "~/.worktrees"
+base = "main"
+include_main = false
+include_external = false
 use_lifecycle_hooks = true
 hook_mode = "required-for-mvp"
 breadcrumb_location = "external"
@@ -50,18 +54,6 @@ timeout_ms = 3000
 id = "wosm"
 label = "wosm"
 root = "~/Developer/wosm"
-default_branch = "main"
-
-[projects.defaults]
-harness = "codex"
-terminal = "tmux"
-layout = "agent-shell"
-
-[projects.worktrunk]
-enabled = true
-base = "main"
-include_main = false
-include_external = false
 
 [projects.commands]
 test = "pnpm test"

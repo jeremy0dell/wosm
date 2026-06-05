@@ -153,6 +153,75 @@ include_external = false
     });
   });
 
+  it("derives project branch and Worktrunk policy defaults from global config", async () => {
+    const tempDir = await makeTempDir();
+    const webRoot = await makeProjectRoot(tempDir, "web");
+    const apiRoot = await makeProjectRoot(tempDir, "api");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+default_branch = "main"
+
+[worktree.worktrunk]
+managed_root = "~/.worktrees"
+base = "origin/main"
+include_main = false
+include_external = false
+
+[[projects]]
+id = "web"
+label = "web"
+root = ${quoteTomlString(webRoot)}
+
+[[projects]]
+id = "api"
+label = "api"
+root = ${quoteTomlString(apiRoot)}
+default_branch = "release"
+
+[projects.worktrunk]
+base = "origin/release"
+include_main = true
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.defaults.defaultBranch).toBe("main");
+    expect(loaded.config.worktree?.worktrunk).toMatchObject({
+      managedRoot: join(tempDir, ".worktrees"),
+      base: "origin/main",
+      includeMain: false,
+      includeExternal: false,
+    });
+    expect(loaded.config.projects.find((project) => project.id === "web")).toMatchObject({
+      defaultBranch: "main",
+      worktrunk: {
+        enabled: true,
+        base: "origin/main",
+        managedRoot: join(tempDir, ".worktrees", "web"),
+        includeMain: false,
+        includeExternal: false,
+      },
+    });
+    expect(loaded.config.projects.find((project) => project.id === "api")).toMatchObject({
+      defaultBranch: "release",
+      worktrunk: {
+        enabled: true,
+        base: "origin/release",
+        managedRoot: join(tempDir, ".worktrees", "api"),
+        includeMain: true,
+        includeExternal: false,
+      },
+    });
+  });
+
   it("loads global and provider-specific harness permission modes", async () => {
     const tempDir = await makeTempDir();
     const root = await makeProjectRoot(tempDir, "web");

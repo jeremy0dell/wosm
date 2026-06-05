@@ -66,9 +66,6 @@ wosm can restrict each project to a managed Worktrunk directory under a shared r
 ```toml
 [worktree.worktrunk]
 managed_root = "~/.worktrees"
-
-[projects.worktrunk]
-enabled = true
 base = "main"
 include_main = false
 include_external = false
@@ -90,10 +87,14 @@ worktree_provider = "worktrunk"
 terminal = "tmux"
 harness = "codex"
 layout = "agent-shell"
+default_branch = "main"
 
 [worktree.worktrunk]
 command = "wt"
 managed_root = "~/.worktrees"
+base = "main"
+include_main = false
+include_external = false
 use_lifecycle_hooks = false
 hook_mode = "disabled"
 
@@ -113,18 +114,6 @@ command = "agent"
 id = "wosm"
 label = "wosm"
 root = "~/Developer/wosm"
-default_branch = "main"
-
-[projects.defaults]
-harness = "codex"
-terminal = "tmux"
-layout = "agent-shell"
-
-[projects.worktrunk]
-enabled = true
-base = "main"
-include_main = false
-include_external = false
 ```
 
 Place it at `~/.config/wosm/config.toml`, or pass it explicitly with `--config /path/to/config.toml`.
