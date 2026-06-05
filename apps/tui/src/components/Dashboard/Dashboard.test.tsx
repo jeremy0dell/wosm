@@ -114,7 +114,19 @@ describe("Dashboard", () => {
                   createdAt: "2026-05-31T12:00:00.000Z",
                 },
               ],
-              failedCreate: [],
+              failedCreate: [
+                {
+                  localId: "local_create_failed",
+                  projectId: "web",
+                  branch: "feature/failure",
+                  error: {
+                    tag: "CommandExecutionError",
+                    code: "COMMAND_REJECTED",
+                    message: "Provider rejected session create.",
+                  },
+                  expiresAt: 0,
+                },
+              ],
               pendingRemove: [
                 {
                   localId: "remove:wt_web_idle",
@@ -141,8 +153,9 @@ describe("Dashboard", () => {
     );
 
     expect(frame).toMatch(/ \[4\] ⠋ feature-auth\s+starting\.\.\./);
-    expect(frame).toMatch(/ \[ \] ⠋ feature\/pending\s+codex\s+starting sessio…/);
-    expect(frame).toMatch(/ \[ \] ⠋ fix-nav-mobile\s+removing worktr…/);
+    expect(frame).toMatch(/ \[ \] ⠋ feature\/pending\s+codex\s+starting session\.\.\./);
+    expect(frame).toMatch(/ \[ \] ⠋ fix-nav-mobile\s+removing worktree\.\.\./);
+    expect(frame).toMatch(/ \[ \] ! feature\/failure\s+Provider rejected session create\./);
   });
 
   it("renders configured header widgets right-aligned in configured order", () => {

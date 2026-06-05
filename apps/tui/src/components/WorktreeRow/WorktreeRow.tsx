@@ -69,6 +69,7 @@ export function worktreeStyleRowGridInput(input: {
   agent?: string;
   activity?: string;
   activityImportance?: RowGridCellImportance;
+  activityOverflow?: RowGridCell["overflow"];
   color?: RowColor;
   metadataGroups?: WorktreeRowMetadataGroups;
 }): RowGridRowInput {
@@ -96,6 +97,9 @@ export function worktreeStyleRowGridInput(input: {
       segments: [textSegment(input.activity, { color: input.color })],
       importance: input.activityImportance ?? "optional",
     };
+    if (input.activityOverflow !== undefined) {
+      cells.activity.overflow = input.activityOverflow;
+    }
   }
   if (input.metadataGroups !== undefined) {
     const metadata = metadataCellSegments(input.metadataGroups);
