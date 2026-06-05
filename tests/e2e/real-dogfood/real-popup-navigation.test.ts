@@ -99,12 +99,8 @@ describeReal("real tmux popup navigation dogfood", () => {
       120_000,
     );
     const agentRow = findRowByBranch(agentSnapshot, branch);
-    const targetId = agentRow.terminal?.primaryAgentTargetId;
-    if (targetId === undefined) {
-      throw new Error("Popup navigation row does not expose a primary agent target.");
-    }
-    const paneId = paneIdFromTargetId(targetId);
     const windowName = expectedWindowName(config.projectId, branch, agentRow.id, agentRow.path);
+    const paneId = await activeTmuxPane(env, `${config.tmuxSession}:${windowName}.0`);
     const markerPath = join(repo.root, "popup-navigation.marker");
 
     await displayWosmPopupAndSendKey({
@@ -124,14 +120,6 @@ describeReal("real tmux popup navigation dogfood", () => {
 
 function findMaybeRow(snapshot: WosmSnapshot, branch: string) {
   return snapshot.rows.find((row) => row.branch === branch);
-}
-
-function paneIdFromTargetId(targetId: string): string {
-  const paneId = targetId.split(":").at(-1);
-  if (paneId === undefined || paneId.length === 0) {
-    throw new Error(`Invalid terminal target id: ${targetId}`);
-  }
-  return paneId;
 }
 
 function expectedWindowName(

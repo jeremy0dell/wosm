@@ -340,7 +340,7 @@ function parsePositiveInteger(value: string, flag: string): number {
 }
 
 function defaultObserverEntryPath(): string {
-  return fileURLToPath(new URL("../../../apps/observer/dist/runtime/main.js", import.meta.url));
+  return fileURLToPath(new URL("../../../apps/cli/dist/observerMain.js", import.meta.url));
 }
 
 function formatRejectedReceipt(receipt: ProviderHookReceipt): string {

@@ -4,6 +4,7 @@ import {
   type WosmCommand,
   type WosmSnapshot,
 } from "@wosm/contracts";
+import { buildWorkbenchWindowName } from "@wosm/tmux";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertDebugBundleContains, findRowByBranch } from "../../support/real-wosm/assertions";
 import {
@@ -22,7 +23,12 @@ import {
 import { createRealNotifyHookCapture, waitForNotifyEvent } from "../../support/real-wosm/notify";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
 import { createRealTempRepo, uniqueBranch } from "../../support/real-wosm/repo";
-import { captureTmuxPane, killTmuxSession, sendTmuxKeys } from "../../support/real-wosm/tmux";
+import {
+  activeTmuxPane,
+  captureTmuxPane,
+  killTmuxSession,
+  sendTmuxKeys,
+} from "../../support/real-wosm/tmux";
 import { removeRealWorktrunkWorktree } from "../../support/real-wosm/worktrunk";
 
 const describeReal = realDogfoodEnabled() ? describe : describe.skip;
@@ -109,13 +115,13 @@ describeReal("real Codex hook dogfood", () => {
       });
       expect(createResult.status).toBe("succeeded");
 
-      const row = await waitForRowTerminalTarget({
+      const row = await waitForRowTerminalAttachment({
         env,
         configPath: config.configPath,
         branch,
         timeoutMs: 90_000,
       });
-      await continuePastCodexStartupPrompts(env, row);
+      await continuePastCodexStartupPrompts(env, config.tmuxSession, row);
       await waitForCodexSentinel(sentinel, { rootPath: row.path, timeoutMs: 240_000 });
       const idleRow = await waitForRowAgentState({
         env,
@@ -200,7 +206,7 @@ async function waitForRowAgentState(input: {
   );
 }
 
-async function waitForRowTerminalTarget(input: {
+async function waitForRowTerminalAttachment(input: {
   env: RealDogfoodEnvironment;
   configPath: string;
   branch: string;
@@ -215,12 +221,12 @@ async function waitForRowTerminalTarget(input: {
         timeoutMs: 30_000,
       });
       const row = findRowByBranch(snapshot, input.branch);
-      if (row.terminal?.primaryAgentTargetId !== undefined) {
+      if (row.terminal?.hasPrimaryAgentEndpoint === true && row.terminal.focusable === true) {
         return row;
       }
       await runWosmJson(input.env, {
         configPath: input.configPath,
-        args: ["reconcile", "--reason", "real-codex-hooks-target-poll"],
+        args: ["reconcile", "--reason", "real-codex-hooks-terminal-poll"],
         timeoutMs: 60_000,
       }).catch(() => undefined);
     } catch {
@@ -228,18 +234,23 @@ async function waitForRowTerminalTarget(input: {
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
-  throw new Error(`Timed out waiting for Codex row ${input.branch} to get a tmux target.`);
+  throw new Error(`Timed out waiting for Codex row ${input.branch} to get terminal attachment.`);
 }
 
 async function continuePastCodexStartupPrompts(
   env: RealDogfoodEnvironment,
+  tmuxSession: string,
   row: WosmSnapshot["rows"][number],
 ): Promise<void> {
-  const targetId = row.terminal?.primaryAgentTargetId;
-  if (targetId === undefined) {
-    throw new Error(`Row ${row.id} has no primary Codex tmux target.`);
-  }
-  const target = tmuxPaneTarget(targetId);
+  const target = await activeTmuxPane(
+    env,
+    `${tmuxSession}:${buildWorkbenchWindowName({
+      projectId: row.projectId,
+      branch: row.branch,
+      worktreeId: row.id,
+      path: row.path,
+    })}.0`,
+  );
   const deadline = Date.now() + 30_000;
   while (Date.now() <= deadline) {
     const captured = await captureTmuxPane({ env, target });
@@ -252,10 +263,6 @@ async function continuePastCodexStartupPrompts(
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-}
-
-function tmuxPaneTarget(targetId: string): string {
-  return targetId.split(":").at(-1) ?? targetId;
 }
 
 function notifyEventMatches(event: unknown, harness: string): boolean {

@@ -48,7 +48,7 @@ describe("CLI observer process helpers", () => {
                 throw new Error("not yet");
               }
               return {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 status: "healthy",
                 pid: 1234,
                 startedAt: now,
@@ -92,7 +92,7 @@ describe("CLI observer process helpers", () => {
                 throw new Error("not running");
               }
               return {
-                schemaVersion: "0.3.0",
+                schemaVersion: "0.4.0",
                 status: "healthy",
                 pid: 1234,
                 startedAt: now,

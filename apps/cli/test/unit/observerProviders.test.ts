@@ -5,11 +5,11 @@ import type { WosmConfig } from "@wosm/config";
 import * as contracts from "@wosm/contracts";
 import { installCursorHooks } from "@wosm/cursor";
 import { describe, expect, it } from "vitest";
-import { createProviderRegistry } from "../../src/providers/factory";
+import { createProviderRegistry } from "../../src/observerProviders";
 
 const now = "2026-05-21T12:00:00.000Z";
 
-describe("provider factory", () => {
+describe("observer providers", () => {
   it("keeps explicit noop providers healthy for empty/test startup", async () => {
     const registry = createProviderRegistry({
       ...config,

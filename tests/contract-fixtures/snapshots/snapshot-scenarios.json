@@ -1,6 +1,6 @@
 {
   "noProjects": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -24,7 +24,7 @@
     "alerts": []
   },
   "multipleProjects": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -109,7 +109,7 @@
     "alerts": []
   },
   "zeroWorktreeProject": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -158,7 +158,7 @@
     "alerts": []
   },
   "noAgentWorktree": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -228,7 +228,7 @@
     "alerts": []
   },
   "idleAgent": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -277,13 +277,10 @@
         "terminal": {
           "provider": "tmux",
           "state": "open",
-          "workspaceTargetId": "term_web_idle_window",
-          "primaryAgentTargetId": "term_web_idle_agent",
-          "sessionName": "wosm",
-          "windowId": "@12",
-          "agentEndpointId": "%45",
-          "attached": false,
-          "lastOutputAt": "2026-05-20T11:59:30.000Z"
+          "focusable": true,
+          "closeable": true,
+          "hasWorkspace": true,
+          "hasPrimaryAgentEndpoint": true
         },
         "agent": {
           "harness": "codex",
@@ -328,15 +325,11 @@
         },
         "terminal": {
           "provider": "tmux",
-          "exists": true,
-          "workspaceTargetId": "term_web_idle_window",
-          "primaryAgentTargetId": "term_web_idle_agent",
-          "sessionName": "wosm",
-          "sessionId": "$1",
-          "windowId": "@12",
-          "agentEndpointId": "%45",
-          "attached": false,
-          "lastOutputAt": "2026-05-20T11:59:30.000Z"
+          "state": "open",
+          "focusable": true,
+          "closeable": true,
+          "hasWorkspace": true,
+          "hasPrimaryAgentEndpoint": true
         },
         "status": {
           "value": "idle",
@@ -361,7 +354,7 @@
     "alerts": []
   },
   "workingAgent": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -411,9 +404,10 @@
         "terminal": {
           "provider": "tmux",
           "state": "open",
-          "workspaceTargetId": "term_api_cache_window",
-          "primaryAgentTargetId": "term_api_cache_agent",
-          "lastOutputAt": "2026-05-20T11:59:58.000Z"
+          "focusable": true,
+          "closeable": true,
+          "hasWorkspace": true,
+          "hasPrimaryAgentEndpoint": true
         },
         "agent": {
           "harness": "codex",
@@ -445,7 +439,7 @@
     "alerts": []
   },
   "needsAttentionAgent": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -494,8 +488,10 @@
         "terminal": {
           "provider": "tmux",
           "state": "open",
-          "workspaceTargetId": "term_web_payments_window",
-          "primaryAgentTargetId": "term_web_payments_agent"
+          "focusable": true,
+          "closeable": true,
+          "hasWorkspace": true,
+          "hasPrimaryAgentEndpoint": true
         },
         "agent": {
           "harness": "codex",
@@ -527,7 +523,7 @@
     "alerts": []
   },
   "stuckAgent": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -576,9 +572,10 @@
         "terminal": {
           "provider": "tmux",
           "state": "open",
-          "workspaceTargetId": "term_api_stuck_window",
-          "primaryAgentTargetId": "term_api_stuck_agent",
-          "lastOutputAt": "2026-05-20T11:42:00.000Z"
+          "focusable": true,
+          "closeable": true,
+          "hasWorkspace": true,
+          "hasPrimaryAgentEndpoint": true
         },
         "agent": {
           "harness": "codex",
@@ -611,7 +608,7 @@
     "alerts": []
   },
   "exitedAgent": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -660,8 +657,9 @@
         "terminal": {
           "provider": "tmux",
           "state": "stale",
-          "workspaceTargetId": "term_web_exited_window",
-          "primaryAgentTargetId": "term_web_exited_agent"
+          "closeable": true,
+          "hasWorkspace": true,
+          "hasPrimaryAgentEndpoint": true
         },
         "agent": {
           "harness": "codex",
@@ -692,7 +690,7 @@
     "alerts": []
   },
   "unknownLowConfidence": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -741,7 +739,9 @@
         "terminal": {
           "provider": "tmux",
           "state": "unknown",
-          "workspaceTargetId": "term_mobile_unknown_window"
+          "focusable": true,
+          "closeable": true,
+          "hasWorkspace": true
         },
         "agent": {
           "harness": "opencode",
@@ -774,7 +774,7 @@
     "alerts": []
   },
   "orphanedTerminalTarget": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,
@@ -808,7 +808,7 @@
     ]
   },
   "providerFailure": {
-    "schemaVersion": "0.3.0",
+    "schemaVersion": "0.4.0",
     "generatedAt": "2026-05-20T12:00:00.000Z",
     "observer": {
       "pid": 4242,

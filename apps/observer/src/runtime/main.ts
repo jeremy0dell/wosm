@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { type LoadedWosmConfig, loadConfig, type WosmConfig } from "@wosm/config";
 import { componentLogPath } from "@wosm/observability";
-import { systemClock, toIsoTimestamp } from "@wosm/runtime";
+import { type RuntimeClock, systemClock, toIsoTimestamp } from "@wosm/runtime";
 import { createCommandQueue } from "../commands/queue.js";
 import { registerObserverCommandHandlers } from "../commands/router.js";
 import { createFeatureFlagEvaluator } from "../features/evaluator.js";
@@ -18,7 +18,7 @@ import {
   providerObservationLegacyCutoff,
   providerObservationRetentionDays,
 } from "../persistence/retention.js";
-import { createProviderRegistry } from "../providers/factory.js";
+import type { ProviderRegistry } from "../providers/registry.js";
 import { createObserverCore, providerProjectsFromConfig } from "../reconcile/core.js";
 import { openObserverSqlite } from "../sqlite.js";
 import { createObserverApi } from "./api.js";
@@ -27,7 +27,26 @@ import { createObserverEventBus } from "./eventBus.js";
 import { createObserverLogger } from "./logging.js";
 import { type ObserverServer, startObserverServer } from "./server.js";
 
-export async function runObserverMain(argv = process.argv.slice(2)): Promise<number> {
+export type ObserverProviderRegistryFactoryOptions = {
+  configPath?: string | undefined;
+  clock: RuntimeClock;
+  logger: ReturnType<typeof createObserverLogger>;
+  commandTimeoutMs?: number | undefined;
+};
+
+export type ObserverProviderRegistryFactory = (
+  config: WosmConfig,
+  options: ObserverProviderRegistryFactoryOptions,
+) => ProviderRegistry;
+
+export type RunObserverMainDeps = {
+  providerRegistryFactory: ObserverProviderRegistryFactory;
+};
+
+export async function runObserverMain(
+  argv = process.argv.slice(2),
+  deps: RunObserverMainDeps,
+): Promise<number> {
   const options = parseArgs(argv);
   const loadedConfig: LoadedWosmConfig =
     options.configPath === undefined
@@ -62,13 +81,14 @@ export async function runObserverMain(argv = process.argv.slice(2)): Promise<num
     providerObservationLegacyCutoff(pruneAt, retentionDays),
   );
   const commandQueue = createCommandQueue({ persistence, clock: systemClock, eventBus, logger });
-  const providerOptions: Parameters<typeof createProviderRegistry>[1] = {};
+  const providerOptions: ObserverProviderRegistryFactoryOptions = {
+    clock: systemClock,
+    logger,
+  };
   if (options.configPath !== undefined) {
     providerOptions.configPath = loadedConfig.configPath;
   }
-  providerOptions.clock = systemClock;
-  providerOptions.logger = logger;
-  const providers = createProviderRegistry(config, providerOptions);
+  const providers = deps.providerRegistryFactory(config, providerOptions);
   const featureFlags = createFeatureFlagEvaluator({
     ...(config.featureFlags === undefined ? {} : { overrides: config.featureFlags }),
     revisionSeed: loadedConfig.configPath,
@@ -157,14 +177,10 @@ function createConfiguredEventHooks(
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runObserverMain()
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch((error) => {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      process.exitCode = 1;
-    });
+  process.stderr.write(
+    "apps/observer/dist/runtime/main.js is no longer a standalone production bootstrap. Use apps/cli/dist/observerMain.js.\n",
+  );
+  process.exitCode = 1;
 }
 
 function parseArgs(argv: string[]): {

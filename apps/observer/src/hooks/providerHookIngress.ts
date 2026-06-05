@@ -19,6 +19,7 @@ import {
   providerObservationExpiresAt,
   providerObservationRetentionDays,
 } from "../persistence/retention.js";
+import { stripTerminalProviderData } from "../persistence/terminalObservations.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 
 export type ProviderHookIngestResult = {
@@ -213,12 +214,13 @@ function worktreeObservationRecord(observation: WorktreeObservation): Observatio
 }
 
 function terminalObservationRecord(observation: TerminalTargetObservation): ObservationRecord {
+  const payload = stripTerminalProviderData(observation);
   return {
     provider: observation.provider,
     providerType: "terminal",
     entityKind: "terminal_target",
     entityKey: observation.id,
-    payload: observation,
+    payload,
     observedAt: observation.observedAt,
   };
 }

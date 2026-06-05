@@ -75,7 +75,7 @@ describe("diagnostic evidence index", () => {
     const index = buildDiagnosticEvidenceIndex(
       baseDiagnosticSnapshot({
         observerHealth: {
-          schemaVersion: "0.3.0",
+          schemaVersion: "0.4.0",
           status: "degraded",
           pid: 1234,
           startedAt: diagnosticNow,
@@ -120,8 +120,12 @@ describe("diagnostic evidence index", () => {
               terminal: {
                 provider: "tmux",
                 state: "stale",
-                workspaceTargetId: "tmux:%1.2",
-                primaryAgentTargetId: "tmux:%1.2",
+                closeable: true,
+                hasWorkspace: true,
+                hasPrimaryAgentEndpoint: true,
+                confidence: "high",
+                reason: "Terminal target is stale.",
+                observedAt: diagnosticNow,
               },
               agent: {
                 harness: "scripted",

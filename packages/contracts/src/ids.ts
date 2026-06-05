@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { nonEmptyStringSchema } from "./shared.js";
 
-export const WOSM_SCHEMA_VERSION = "0.3.0" as const;
+export const WOSM_SCHEMA_VERSION = "0.4.0" as const;
 
 const timestampSchema = z.string().datetime({ offset: true });
 declare const wosmIdKind: unique symbol;

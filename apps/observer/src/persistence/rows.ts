@@ -14,6 +14,7 @@ import {
 } from "@wosm/contracts";
 import { z } from "zod";
 import { parseJson } from "./json.js";
+import { sanitizeTerminalObservationPayload } from "./terminalObservations.js";
 import type {
   PersistedCommand,
   PersistedCommandError,
@@ -233,13 +234,15 @@ export function providerObservationFromRow(
   referenceTime: string,
 ): PersistedProviderObservation {
   const expiresAt = row.expires_at ?? undefined;
+  const payload = parseJson(row.payload_json);
   const observation: PersistedProviderObservation = {
     id: row.id,
     provider: row.provider,
     providerType: row.provider_type,
     entityKind: row.entity_kind,
     entityKey: row.entity_key,
-    payload: parseJson(row.payload_json),
+    payload:
+      row.entity_kind === "terminal_target" ? sanitizeTerminalObservationPayload(payload) : payload,
     observedAt: row.observed_at,
     expired: expiresAt === undefined ? false : Date.parse(expiresAt) <= Date.parse(referenceTime),
   };
@@ -285,7 +288,6 @@ export function terminalTargetFromRow(row: SqliteTerminalTargetRow): PersistedTe
   if (row.worktree_id !== null) target.worktreeId = row.worktree_id;
   if (row.state !== null) target.state = TerminalStateSchema.parse(row.state);
   if (row.provider_key !== null) target.providerKey = row.provider_key;
-  if (row.provider_data_json !== null) target.providerData = parseJson(row.provider_data_json);
   return target;
 }
 

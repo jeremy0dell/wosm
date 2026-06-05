@@ -9,6 +9,7 @@ import {
 import { isRecord } from "../utils/guards.js";
 import { parseJson, stringifyJson } from "./json.js";
 import { providerObservationFromRow, type SqliteProviderObservationRow } from "./rows.js";
+import { stripTerminalProviderData } from "./terminalObservations.js";
 import type {
   CurrentProviderObservationKind,
   PersistedProviderObservation,
@@ -190,7 +191,7 @@ function validateProviderObservationPayload(
     return WorktreeObservationSchema.parse(payload);
   }
   if (kind === "terminal_target") {
-    return TerminalTargetObservationSchema.parse(payload);
+    return stripTerminalProviderData(TerminalTargetObservationSchema.parse(payload));
   }
   if (kind === "harness_run") {
     return HarnessRunObservationSchema.parse(payload);

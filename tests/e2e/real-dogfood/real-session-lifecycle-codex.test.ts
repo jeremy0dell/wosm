@@ -99,7 +99,9 @@ describeReal("real Codex session lifecycle dogfood", () => {
           try {
             const row = findRowByBranch(candidate, branch);
             return (
-              row.agent?.harness === "codex" && row.terminal?.primaryAgentTargetId !== undefined
+              row.agent?.harness === "codex" &&
+              row.terminal?.hasPrimaryAgentEndpoint === true &&
+              row.terminal.focusable === true
             );
           } catch {
             return false;
@@ -114,7 +116,12 @@ describeReal("real Codex session lifecycle dogfood", () => {
         harness: "codex",
         sessionId: expect.any(String),
       });
-      expect(row.terminal?.primaryAgentTargetId).toEqual(expect.any(String));
+      expect(row.terminal).toMatchObject({
+        provider: "tmux",
+        state: expect.stringMatching(/^(open|detached|unknown)$/),
+        focusable: true,
+        hasPrimaryAgentEndpoint: true,
+      });
       await expect(listTmuxWindows(env, config.tmuxSession)).resolves.toContain(
         expectedWindowName(config.projectId, branch, row.id, row.path),
       );

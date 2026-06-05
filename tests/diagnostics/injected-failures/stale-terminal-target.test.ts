@@ -18,8 +18,11 @@ describe("stale terminal target diagnostic", () => {
               terminal: {
                 provider: "tmux",
                 state: "stale",
-                workspaceTargetId: "tmux:%1.9",
-                primaryAgentTargetId: "tmux:%1.9",
+                closeable: true,
+                hasWorkspace: true,
+                confidence: "high",
+                reason: "Terminal target is stale.",
+                observedAt: diagnosticNow,
               },
               display: {
                 statusLabel: "unknown",
@@ -60,10 +63,6 @@ describe("stale terminal target diagnostic", () => {
         expect.objectContaining({
           id: "row-wt_web_stale-provider",
           answer: expect.stringContaining("tmux"),
-        }),
-        expect.objectContaining({
-          id: "row-wt_web_stale-terminal-target",
-          answer: expect.stringContaining("tmux:%1.9"),
         }),
       ]),
     );

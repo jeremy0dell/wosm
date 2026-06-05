@@ -1,6 +1,6 @@
 # Terminal Leakage P1 Fix Plan
 
-**Status:** Planning addendum
+**Status:** Planning addendum with PR 3 implementation notes
 **Date:** 2026-05-24
 **Severity:** P1 leakage
 **Applies to:** contracts, snapshots, TUI commands, observer persistence, provider wiring
@@ -10,7 +10,11 @@ This document plans cleanup for confirmed terminal leakage that is real but not 
 
 P1 work should follow the P0 blocker fix unless a slice is clearly contract-only and does not depend on the new terminal intent boundary.
 
-Coordination note as of 2026-06-04: the P0 rollout in `terminal_ownership_p0_blocker_fix.md` now uses a maximum three-PR plan. PR 2 is expected to remove `targetId` from normal `terminal.focus` / `terminal.close` commands and move session cleanup close flows to product intents. Before implementing PR 3, refresh this P1 document against the merged PR 1 and PR 2 code so already-completed overlap is marked complete or removed from the remaining scope.
+Coordination note as of 2026-06-04: the P0 rollout in `terminal_ownership_p0_blocker_fix.md` now uses a maximum three-PR plan. PR 2 removed `targetId` from normal `terminal.focus` / `terminal.close` commands and moved session cleanup close flows to product intents. The PR 2 overlap and PR 3 implementation status are marked below so future work does not reintroduce completed command-surface cleanup.
+
+Implementation note as of 2026-06-05: PR 2 completed the normal focus/close and cleanup command-surface migration. The PR 3 implementation removes topology-shaped terminal fields from normal snapshot row/session terminal attachments, strips terminal `providerData` from observer-owned terminal target and provider-observation persistence, moves concrete provider construction into the CLI bootstrap, and leaves target ids behind provider, terminal-intent, diagnostic, and provider-specific test boundaries.
+
+Compatibility note as of 2026-06-05: the normal snapshot wire shape changed, so `WOSM_SCHEMA_VERSION` moved from `0.3.0` to `0.4.0`. Observability artifacts that embed snapshots, including diagnostic snapshots and doctor reports, carry the new terminal attachment shape. Diagnostic evidence index schema stays stable, but row-derived terminal `targetId` evidence and the row terminal-target question are intentionally no longer produced from snapshot rows.
 
 ## 0. Dependency And Conflict Rule
 
@@ -22,7 +26,15 @@ P1 should not reintroduce observer-owned terminal mechanics while removing leake
 
 ### P1.1 Terminal Target Identity Crosses UI And Protocol Boundaries
 
-Current evidence:
+PR 2 status:
+
+```text
+completed for normal terminal.focus and terminal.close command payloads
+normal product commands now use sessionId or worktreeId instead of targetId
+terminal target ids remain in provider APIs, terminal intent runner internals, diagnostics, and provider-specific evidence
+```
+
+Original evidence before PR 2/PR 3:
 
 ```text
 packages/contracts/src/commands.ts
@@ -44,7 +56,13 @@ TUI and protocol should express product intent, not provider target mechanics.
 
 ### P1.2 Snapshot Contracts Contain Terminal-Topology-Shaped Fields
 
-Current evidence:
+PR 3 status:
+
+```text
+completed for normal snapshot row/session terminal attachments
+```
+
+Original evidence before PR 2/PR 3:
 
 ```text
 packages/contracts/src/snapshot.ts
@@ -61,7 +79,16 @@ They create pressure for every terminal provider to map its model into session/w
 
 ### P1.3 Observer Persists Raw Terminal providerData
 
-Current evidence:
+PR 3 status:
+
+```text
+completed for terminal_targets.provider_data_json writes and hydration
+completed for terminal provider_observations.payload_json writes and hydration
+completed for hook-ingested terminal observations
+legacy columns remain in place and legacy terminal providerData is ignored/sanitized on read
+```
+
+Original evidence before PR 2/PR 3:
 
 ```text
 apps/observer/src/persistence/correlations.ts
@@ -80,7 +107,16 @@ Debug bundles, persistence inspection, and future code can accidentally depend o
 
 ### P1.4 Observer App Constructs Concrete Terminal Integrations
 
-Current evidence:
+PR 3 status:
+
+```text
+completed by moving real provider construction to apps/cli/src/observerProviders.ts
+apps/cli/src/observerMain.ts is now the production observer bootstrap
+apps/observer/dist/runtime/main.js is no longer a standalone production bootstrap
+repo observer callers and provider-hook autostart now target apps/cli/dist/observerMain.js
+```
+
+Original evidence before PR 2/PR 3:
 
 ```text
 apps/observer/src/providers/factory.ts
@@ -97,7 +133,14 @@ It is acceptable as a temporary bootstrap shape, but it keeps concrete integrati
 
 ### P1.5 Observer Tests Use Provider-Shaped Terminal IDs
 
-Current evidence:
+PR 3 status:
+
+```text
+completed for normal snapshot, TUI, diagnostics, and observer coverage
+provider-specific tests may still use provider-shaped ids when the test is explicitly about provider mechanics or target correlation
+```
+
+Original evidence before PR 2/PR 3:
 
 ```text
 apps/observer/test/unit/terminal-commands.test.ts
@@ -114,7 +157,14 @@ Observer tests should use opaque target ids with no parseable provider semantics
 
 ### P1.6 Session Cleanup Resolves Terminal Targets Through Observer
 
-Current evidence:
+PR 2 status:
+
+```text
+completed for normal cleanup and close flows by submitting product terminal intents
+the terminal intent runner still resolves concrete provider targets behind the observer/runtime boundary
+```
+
+Original evidence before PR 2/PR 3:
 
 ```text
 apps/observer/src/commands/cleanup/resolve.ts

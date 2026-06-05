@@ -50,8 +50,8 @@ export async function runObserverCommand(
     case "restart":
       return restartObserver(runtimeOptions, deps);
     case "run": {
-      const { runObserverMain } = await import("@wosm/observer");
-      const code = await runObserverMain([
+      const { runCliObserverMain } = await import("../observerMain.js");
+      const code = await runCliObserverMain([
         "--socket",
         paths.socketPath,
         "--state-dir",

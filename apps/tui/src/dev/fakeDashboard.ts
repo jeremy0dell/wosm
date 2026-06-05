@@ -135,10 +135,13 @@ function fakeWorktreeRow(
     row.terminal = {
       provider: "tmux",
       state: worktreeIndex % 11 === 0 ? "detached" : "open",
-      workspaceTargetId: `term_${id}_workspace`,
-      primaryAgentTargetId: `term_${id}_agent`,
-      attached: worktreeIndex % 11 !== 0,
-      lastOutputAt: generatedAt,
+      focusable: true,
+      closeable: true,
+      hasWorkspace: true,
+      hasPrimaryAgentEndpoint: true,
+      confidence: state === "unknown" ? "low" : "high",
+      reason: "Fake dashboard terminal.",
+      observedAt: generatedAt,
     };
     row.agent = {
       harness: harnessForWorktree(projectIndex, worktreeIndex),
@@ -236,6 +239,20 @@ function fakeSession(row: WorktreeRow): SessionView {
   if (row.agent === undefined || row.terminal === undefined) {
     throw new Error("Cannot create a fake session without agent and terminal state.");
   }
+  const terminal: SessionView["terminal"] = {
+    provider: row.terminal.provider,
+    state: row.terminal.state,
+  };
+  if (row.terminal.focusable !== undefined) terminal.focusable = row.terminal.focusable;
+  if (row.terminal.closeable !== undefined) terminal.closeable = row.terminal.closeable;
+  if (row.terminal.hasWorkspace !== undefined) terminal.hasWorkspace = row.terminal.hasWorkspace;
+  if (row.terminal.hasPrimaryAgentEndpoint !== undefined) {
+    terminal.hasPrimaryAgentEndpoint = row.terminal.hasPrimaryAgentEndpoint;
+  }
+  if (row.terminal.confidence !== undefined) terminal.confidence = row.terminal.confidence;
+  if (row.terminal.reason !== undefined) terminal.reason = row.terminal.reason;
+  if (row.terminal.observedAt !== undefined) terminal.observedAt = row.terminal.observedAt;
+
   const session: SessionView = {
     id: row.agent.sessionId ?? `ses_${row.id}`,
     projectId: row.projectId,
@@ -247,10 +264,7 @@ function fakeSession(row: WorktreeRow): SessionView {
       mode: "interactive",
       capabilities: defaultCapabilities,
     },
-    terminal: {
-      provider: row.terminal.provider,
-      exists: row.terminal.state === "open" || row.terminal.state === "detached",
-    },
+    terminal,
     status: {
       value: row.agent.state,
       confidence: row.agent.confidence,
@@ -263,18 +277,6 @@ function fakeSession(row: WorktreeRow): SessionView {
   };
   if (row.agent.runId !== undefined) {
     session.harness.runId = row.agent.runId;
-  }
-  if (row.terminal.workspaceTargetId !== undefined) {
-    session.terminal.workspaceTargetId = row.terminal.workspaceTargetId;
-  }
-  if (row.terminal.primaryAgentTargetId !== undefined) {
-    session.terminal.primaryAgentTargetId = row.terminal.primaryAgentTargetId;
-  }
-  if (row.terminal.attached !== undefined) {
-    session.terminal.attached = row.terminal.attached;
-  }
-  if (row.terminal.lastOutputAt !== undefined) {
-    session.terminal.lastOutputAt = row.terminal.lastOutputAt;
   }
   return session;
 }

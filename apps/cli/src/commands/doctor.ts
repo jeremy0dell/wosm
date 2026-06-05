@@ -100,7 +100,7 @@ export async function observerRuntimeFreshnessCheck(
   observerStartedAt: string,
 ): Promise<DoctorCheck | undefined> {
   const runtimeEntries = [
-    new URL("../../../observer/dist/runtime/main.js", import.meta.url),
+    new URL("../../dist/observerMain.js", import.meta.url),
     new URL("../main.js", import.meta.url),
     new URL("../main.ts", import.meta.url),
   ];

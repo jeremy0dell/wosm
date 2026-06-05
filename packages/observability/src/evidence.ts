@@ -311,7 +311,6 @@ class EvidenceIndexBuilder {
         provider: row.terminal?.provider ?? row.agent?.harness,
         projectId: row.projectId,
         worktreeId: row.id,
-        targetId: row.terminal?.primaryAgentTargetId ?? row.terminal?.workspaceTargetId,
         runId: row.agent?.runId,
         sessionId: row.agent?.sessionId,
         evidence,
@@ -467,16 +466,6 @@ class EvidenceIndexBuilder {
       answer: `Row ${row.id} uses ${providerParts.join(", ")}.`,
       itemIds: [itemId],
     });
-
-    const targetId = row.terminal?.primaryAgentTargetId ?? row.terminal?.workspaceTargetId;
-    if (targetId !== undefined && row.terminal !== undefined) {
-      this.#questions.push({
-        id: `row-${row.id}-terminal-target`,
-        question: `Which terminal target backs row ${row.id}?`,
-        answer: `Row ${row.id} uses ${row.terminal.provider} target ${targetId}.`,
-        itemIds: [itemId],
-      });
-    }
 
     if (row.agent?.runId !== undefined) {
       this.#questions.push({
