@@ -26,6 +26,9 @@ import {
 } from "./messages.js";
 import { listenUnixSocket, type NdjsonConnection, type UnixSocketServer } from "./transport.js";
 
+const defaultRequestTimeoutMs = 5000;
+const diagnosticRequestTimeoutMs = 30_000;
+
 export type ProtocolServerOptions = {
   socketPath: string;
   api: ObserverApi;
@@ -38,7 +41,11 @@ export async function startProtocolServer(
   return listenUnixSocket({
     socketPath: options.socketPath,
     onConnection: (connection) =>
-      handleConnection(connection, options.api, options.requestTimeoutMs ?? 5000),
+      handleConnection(
+        connection,
+        options.api,
+        options.requestTimeoutMs ?? defaultRequestTimeoutMs,
+      ),
   });
 }
 
@@ -72,10 +79,11 @@ async function routeRequest(
     return;
   }
 
+  const timeoutMs = protocolHandlerTimeoutMs(request.method, requestTimeoutMs);
   const result = await runRuntimeBoundaryWithTimeout(
     {
       operation: `protocol.server.${request.method}`,
-      timeoutMs: requestTimeoutMs,
+      timeoutMs,
       error: protocolSafeError({
         code: "PROTOCOL_HANDLER_FAILED",
         message: "Observer protocol method failed.",
@@ -98,6 +106,16 @@ async function routeRequest(
     connection.send(
       errorResponse(request.id, "Observer protocol response validation failed.", error),
     );
+  }
+}
+
+function protocolHandlerTimeoutMs(method: ProtocolMethod, requestTimeoutMs: number): number {
+  switch (method) {
+    case "doctor.run":
+    case "diagnostics.collect":
+      return Math.max(requestTimeoutMs, diagnosticRequestTimeoutMs);
+    default:
+      return requestTimeoutMs;
   }
 }
 

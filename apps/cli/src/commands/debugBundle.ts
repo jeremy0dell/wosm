@@ -23,6 +23,8 @@ export type DebugBundleCommandResult = {
   manifest: DebugBundleManifest;
 };
 
+const diagnosticCollectionTimeoutMs = 30_000;
+
 export async function runDebugBundleCommand(
   args: string[],
   options: DebugBundleCommandOptions = {},
@@ -36,7 +38,7 @@ export async function runDebugBundleCommand(
   const collected = await runRuntimeBoundaryWithTimeout(
     {
       operation: "cli.debugBundle.collectDiagnostics",
-      timeoutMs: options.timeoutMs ?? 1000,
+      timeoutMs: options.timeoutMs ?? diagnosticCollectionTimeoutMs,
       error: {
         tag: "DebugBundleError",
         code: "DEBUG_BUNDLE_COLLECT_FAILED",
@@ -157,5 +159,5 @@ function assertRunning(
 }
 
 function defaultClientFactory(socketPath: string) {
-  return createObserverClient({ socketPath, timeoutMs: 500 });
+  return createObserverClient({ socketPath, timeoutMs: diagnosticCollectionTimeoutMs });
 }
