@@ -8,6 +8,11 @@ import { ConfigError, validationError } from "./errors.js";
 import { resolveConfigPath } from "./paths.js";
 
 type DeriveProjectOptions = { configPath: string; configDir: string; homeDir: string };
+type GlobalWorktrunkProjectDefaults = {
+  base?: string;
+  includeMain?: boolean;
+  includeExternal?: boolean;
+};
 
 export function deriveProjectConfig(
   normalizedConfig: unknown,
@@ -42,6 +47,7 @@ export function deriveProjectConfig(
     ? expandWorktreePaths(normalizedConfig.worktree, options)
     : normalizedConfig.worktree;
   const globalWorktrunkManagedRoot = globalManagedRoot(worktree);
+  const globalWorktrunkProjectDefaults = globalProjectWorktrunkDefaults(worktree);
   const managedRootSegments = projectManagedRootSegments(rawProjects);
 
   return {
@@ -53,6 +59,7 @@ export function deriveProjectConfig(
         project,
         defaultsResult.data,
         globalWorktrunkManagedRoot,
+        globalWorktrunkProjectDefaults,
         managedRootSegments,
         options,
       ),
@@ -64,6 +71,7 @@ function deriveSingleProject(
   rawProject: unknown,
   globalDefaults: z.infer<typeof ConfigDefaultsSchema>,
   globalWorktrunkManagedRoot: string | undefined,
+  globalWorktrunkProjectDefaults: GlobalWorktrunkProjectDefaults,
   managedRootSegments: ReadonlyMap<string, string>,
   options: DeriveProjectOptions,
 ): unknown {
@@ -85,6 +93,9 @@ function deriveSingleProject(
       : undefined;
 
   const derivedProject: MutableRecord = { ...rawProject };
+  if (derivedProject.defaultBranch === undefined && globalDefaults.defaultBranch !== undefined) {
+    derivedProject.defaultBranch = globalDefaults.defaultBranch;
+  }
   derivedProject.defaults = {
     harness: projectDefaultsResult.data.harness ?? globalDefaults.harness,
     terminal: projectDefaultsResult.data.terminal ?? globalDefaults.terminal,
@@ -94,6 +105,7 @@ function deriveSingleProject(
     rawProject.worktrunk,
     resolvedRoot,
     globalWorktrunkManagedRoot,
+    globalWorktrunkProjectDefaults,
     projectId === undefined ? undefined : managedRootSegments.get(projectId),
     options,
   );
@@ -109,6 +121,7 @@ function deriveProjectWorktrunk(
   rawWorktrunk: unknown,
   projectRoot: string | undefined,
   globalWorktrunkManagedRoot: string | undefined,
+  globalWorktrunkProjectDefaults: GlobalWorktrunkProjectDefaults,
   managedRootSegment: string | undefined,
   options: DeriveProjectOptions,
 ): unknown {
@@ -117,7 +130,23 @@ function deriveProjectWorktrunk(
   }
 
   const worktrunk: MutableRecord =
-    rawWorktrunk === undefined ? { enabled: true } : { ...rawWorktrunk };
+    rawWorktrunk === undefined ? { enabled: true } : { enabled: true, ...rawWorktrunk };
+
+  if (worktrunk.base === undefined && globalWorktrunkProjectDefaults.base !== undefined) {
+    worktrunk.base = globalWorktrunkProjectDefaults.base;
+  }
+  if (
+    worktrunk.includeMain === undefined &&
+    globalWorktrunkProjectDefaults.includeMain !== undefined
+  ) {
+    worktrunk.includeMain = globalWorktrunkProjectDefaults.includeMain;
+  }
+  if (
+    worktrunk.includeExternal === undefined &&
+    globalWorktrunkProjectDefaults.includeExternal !== undefined
+  ) {
+    worktrunk.includeExternal = globalWorktrunkProjectDefaults.includeExternal;
+  }
 
   if (typeof worktrunk.managedRoot === "string") {
     if (projectRoot !== undefined) {
@@ -209,6 +238,25 @@ function globalManagedRoot(worktree: unknown): string | undefined {
   return typeof worktree.worktrunk.managedRoot === "string"
     ? worktree.worktrunk.managedRoot
     : undefined;
+}
+
+function globalProjectWorktrunkDefaults(worktree: unknown): GlobalWorktrunkProjectDefaults {
+  const defaults: GlobalWorktrunkProjectDefaults = {};
+  if (!isRecord(worktree) || !isRecord(worktree.worktrunk)) {
+    return defaults;
+  }
+
+  if (typeof worktree.worktrunk.base === "string") {
+    defaults.base = worktree.worktrunk.base;
+  }
+  if (typeof worktree.worktrunk.includeMain === "boolean") {
+    defaults.includeMain = worktree.worktrunk.includeMain;
+  }
+  if (typeof worktree.worktrunk.includeExternal === "boolean") {
+    defaults.includeExternal = worktree.worktrunk.includeExternal;
+  }
+
+  return defaults;
 }
 
 function projectManagedRootSegment(projectId: string): string {

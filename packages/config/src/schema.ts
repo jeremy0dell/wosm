@@ -107,6 +107,7 @@ export const ConfigDefaultsSchema = z
     terminal: providerIdSchema,
     harness: providerIdSchema,
     layout: nonEmptyStringSchema,
+    defaultBranch: nonEmptyStringSchema.optional(),
     harnessPermissionMode: HarnessPermissionModeSchema.optional(),
   })
   .strict();
@@ -118,6 +119,9 @@ export const WorktreeWorktrunkConfigSchema = z
     command: nonEmptyStringSchema.optional(),
     configPath: nonEmptyStringSchema.optional(),
     managedRoot: nonEmptyStringSchema.optional(),
+    base: nonEmptyStringSchema.optional(),
+    includeMain: z.boolean().optional(),
+    includeExternal: z.boolean().optional(),
     useLifecycleHooks: z.boolean().optional(),
     hookMode: z.enum(["required-for-mvp", "disabled"]).optional(),
     breadcrumbLocation: z.enum(["external", "worktree", "provider-native", "disabled"]).optional(),
