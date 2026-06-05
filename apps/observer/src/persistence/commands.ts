@@ -97,9 +97,19 @@ export function getCommand(
 }
 
 export function listCommands(database: DatabaseSync): PersistedCommand[] {
-  return (
-    database.prepare("SELECT * FROM commands ORDER BY created_at, id").all() as SqliteCommandRow[]
-  ).map(commandFromRow);
+  const rows = database
+    .prepare("SELECT * FROM commands ORDER BY created_at, id")
+    .all() as SqliteCommandRow[];
+  const commands: PersistedCommand[] = [];
+  for (const row of rows) {
+    try {
+      commands.push(commandFromRow(row));
+    } catch {
+      // Legacy command payloads can predate the current command contracts. Diagnostics list
+      // commands best-effort so one historical row does not poison doctor/debug output.
+    }
+  }
+  return commands;
 }
 
 export function listCommandErrors(

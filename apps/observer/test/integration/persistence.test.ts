@@ -221,6 +221,201 @@ describe("observer persistence", () => {
     sqlite.close();
   });
 
+  it("skips legacy command rows that no longer match current command contracts", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const insertCommand = sqlite.database.prepare(`
+      INSERT INTO commands (id, type, payload_json, status, created_at, trace_id, span_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertCommand.run(
+      "cmd_legacy_focus",
+      "terminal.focus",
+      JSON.stringify({
+        type: "terminal.focus",
+        payload: {
+          targetId: "tmux:wosm:@83:%83",
+          origin: {
+            provider: "tmux",
+            clientId: "/dev/ttys008",
+          },
+        },
+      }),
+      "succeeded",
+      now,
+      null,
+      null,
+    );
+    await persistence.recordCommandAccepted({
+      commandId: "cmd_current",
+      command,
+      createdAt: later,
+    });
+
+    expect((await persistence.listCommands()).map((item) => item.id)).toEqual(["cmd_current"]);
+    sqlite.close();
+  });
+
+  it("skips legacy event rows that no longer match current event contracts", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const insertEvent = sqlite.database.prepare(`
+      INSERT INTO events (id, type, source, command_id, trace_id, span_id, payload_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertEvent.run(
+      "evt_legacy_command",
+      "command.accepted",
+      "observer",
+      "cmd_legacy_focus",
+      null,
+      null,
+      JSON.stringify({
+        type: "command.accepted",
+        commandId: "cmd_legacy_focus",
+        command: {
+          type: "terminal.focus",
+          payload: {
+            targetId: "tmux:wosm:@83:%83",
+          },
+        },
+      }),
+      now,
+    );
+    await persistence.recordEvent(
+      {
+        type: "observer.reconciled",
+        at: later,
+        changed: 0,
+      },
+      { createdAt: later },
+    );
+
+    expect((await persistence.listEvents()).map((event) => event.id)).toEqual(["evt_1"]);
+    sqlite.close();
+  });
+
+  it("normalizes legacy session terminal attachments while listing persisted events", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+    const insertEvent = sqlite.database.prepare(`
+      INSERT INTO events (id, type, source, command_id, trace_id, span_id, payload_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertEvent.run(
+      "evt_legacy_session_created",
+      "session.created",
+      "observer",
+      null,
+      null,
+      null,
+      JSON.stringify({
+        type: "session.created",
+        session: {
+          id: "ses_legacy",
+          projectId: "web",
+          worktreeId: "wt_legacy",
+          createdAt: now,
+          updatedAt: now,
+          harness: {
+            provider: "codex",
+            mode: "unknown",
+            capabilities: {
+              canLaunch: true,
+              canDiscoverRuns: true,
+              canEmitEvents: true,
+              canClassifyStatus: true,
+              canReceivePrompt: false,
+              canResume: false,
+              canStop: false,
+              canRunNonInteractive: true,
+              canExposeApprovalState: false,
+            },
+          },
+          terminal: {
+            provider: "tmux",
+            exists: true,
+            workspaceTargetId: "tmux:wosm:@83:%83",
+            primaryAgentTargetId: "tmux:wosm:@83:%83",
+            sessionId: "ses_legacy",
+          },
+          status: {
+            value: "unknown",
+            confidence: "low",
+            reason: "Legacy fixture.",
+            source: "harness_process",
+            updatedAt: now,
+          },
+          title: "legacy",
+          tags: [],
+        },
+      }),
+      now,
+    );
+    insertEvent.run(
+      "evt_legacy_session_updated",
+      "session.updated",
+      "observer",
+      null,
+      null,
+      null,
+      JSON.stringify({
+        type: "session.updated",
+        sessionId: "ses_legacy",
+        patch: {
+          terminal: {
+            provider: "tmux",
+            exists: false,
+          },
+        },
+      }),
+      later,
+    );
+
+    const events = await persistence.listEvents();
+
+    expect(events.map((event) => event.event)).toEqual([
+      expect.objectContaining({
+        type: "session.created",
+        session: expect.objectContaining({
+          terminal: {
+            provider: "tmux",
+            state: "open",
+            hasWorkspace: true,
+            hasPrimaryAgentEndpoint: true,
+          },
+        }),
+      }),
+      expect.objectContaining({
+        type: "session.updated",
+        patch: {
+          terminal: {
+            provider: "tmux",
+            state: "none",
+          },
+        },
+      }),
+    ]);
+    expect(JSON.stringify(events)).not.toContain("workspaceTargetId");
+    expect(JSON.stringify(events)).not.toContain("primaryAgentTargetId");
+    sqlite.close();
+  });
+
   it("expires and prunes provider observations", async () => {
     const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
     const persistence = createObserverPersistence({

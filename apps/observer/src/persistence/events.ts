@@ -45,10 +45,19 @@ export function listEvents(
     type?: WosmEvent["type"];
   } = {},
 ): PersistedEvent[] {
-  return (
-    database.prepare("SELECT * FROM events ORDER BY created_at, id").all() as SqliteEventRow[]
-  )
-    .map(eventFromRow)
+  const rows = database
+    .prepare("SELECT * FROM events ORDER BY created_at, id")
+    .all() as SqliteEventRow[];
+  const events: PersistedEvent[] = [];
+  for (const row of rows) {
+    try {
+      events.push(eventFromRow(row));
+    } catch {
+      // Legacy event payloads can embed command/session shapes that predate the current
+      // contracts. Diagnostics list events best-effort so old history cannot break doctor.
+    }
+  }
+  return events
     .filter((event) => filter.commandId === undefined || event.commandId === filter.commandId)
     .filter((event) => filter.type === undefined || event.type === filter.type);
 }

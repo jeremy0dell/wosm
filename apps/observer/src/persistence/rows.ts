@@ -199,17 +199,93 @@ const LegacyPersistedHookEventSchema = z.discriminatedUnion("type", [
   LegacyProviderHookSpoolDrainedEventSchema,
 ]);
 
+const LegacySessionTerminalAttachmentSchema = z
+  .object({
+    provider: ProviderIdSchema,
+    exists: z.boolean().optional(),
+    workspaceTargetId: z.string().min(1).optional(),
+    primaryAgentTargetId: z.string().min(1).optional(),
+    sessionId: z.string().min(1).optional(),
+  })
+  .strict();
+
+const LegacySessionCreatedEventSchema = z
+  .object({
+    type: z.literal("session.created"),
+    session: z
+      .object({
+        terminal: LegacySessionTerminalAttachmentSchema,
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+const LegacySessionUpdatedEventSchema = z
+  .object({
+    type: z.literal("session.updated"),
+    patch: z
+      .object({
+        terminal: LegacySessionTerminalAttachmentSchema.optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
 function normalizeLegacyPersistedEventPayload(payload: unknown): unknown {
-  const parsed = LegacyPersistedHookEventSchema.safeParse(payload);
-  if (!parsed.success) {
-    return payload;
+  const hookEvent = LegacyPersistedHookEventSchema.safeParse(payload);
+  if (hookEvent.success) {
+    switch (hookEvent.data.type) {
+      case "hook.ingested":
+        return { ...hookEvent.data, type: "providerHook.ingested" };
+      case "hook.spoolDrained":
+        return { ...hookEvent.data, type: "providerHook.spoolDrained" };
+    }
   }
-  switch (parsed.data.type) {
-    case "hook.ingested":
-      return { ...parsed.data, type: "providerHook.ingested" };
-    case "hook.spoolDrained":
-      return { ...parsed.data, type: "providerHook.spoolDrained" };
+
+  const sessionCreated = LegacySessionCreatedEventSchema.safeParse(payload);
+  if (sessionCreated.success) {
+    return {
+      ...sessionCreated.data,
+      session: {
+        ...sessionCreated.data.session,
+        terminal: normalizeLegacySessionTerminalAttachment(sessionCreated.data.session.terminal),
+      },
+    };
   }
+
+  const sessionUpdated = LegacySessionUpdatedEventSchema.safeParse(payload);
+  if (sessionUpdated.success && sessionUpdated.data.patch.terminal !== undefined) {
+    return {
+      ...sessionUpdated.data,
+      patch: {
+        ...sessionUpdated.data.patch,
+        terminal: normalizeLegacySessionTerminalAttachment(sessionUpdated.data.patch.terminal),
+      },
+    };
+  }
+
+  return payload;
+}
+
+function normalizeLegacySessionTerminalAttachment(
+  terminal: z.infer<typeof LegacySessionTerminalAttachmentSchema>,
+): unknown {
+  const normalized: {
+    provider: string;
+    state: "none" | "open";
+    hasWorkspace?: boolean;
+    hasPrimaryAgentEndpoint?: boolean;
+  } = {
+    provider: terminal.provider,
+    state: terminal.exists === false ? "none" : "open",
+  };
+  if (terminal.workspaceTargetId !== undefined) {
+    normalized.hasWorkspace = true;
+  }
+  if (terminal.primaryAgentTargetId !== undefined) {
+    normalized.hasPrimaryAgentEndpoint = true;
+  }
+  return normalized;
 }
 
 export function eventFromRow(row: SqliteEventRow): PersistedEvent {
