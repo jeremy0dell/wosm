@@ -7,6 +7,7 @@ import { parsePositiveIntegerOption } from "../args.js";
 import {
   type ObserverProcessDeps,
   type ObserverStatus,
+  observerStatusErrorMessage,
   startObserver,
 } from "../observerProcess.js";
 import { resolveObserverPaths } from "../paths.js";
@@ -285,6 +286,6 @@ function assertRunning(
   status: ObserverStatus,
 ): asserts status is Extract<ObserverStatus, { status: "running" }> {
   if (status.status !== "running") {
-    throw new Error(status.error?.message ?? "Observer is not running.");
+    throw new Error(observerStatusErrorMessage(status));
   }
 }
