@@ -9,9 +9,9 @@ import type {
   WosmCommand,
   WosmEvent,
 } from "@wosm/contracts";
-import { WosmEventSchema } from "@wosm/contracts";
+import { WOSM_SCHEMA_VERSION, WosmEventSchema } from "@wosm/contracts";
 import { Effect, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
-import type { z } from "zod";
+import { z } from "zod";
 import type { ObserverApi } from "./api.js";
 import {
   ProtocolEventEnvelopeSchema,
@@ -57,6 +57,11 @@ type OpenSubscription = {
 };
 
 const defaultRequestId = () => `req_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+const ProtocolSchemaVersionProbeSchema = z
+  .object({
+    schemaVersion: z.union([z.string(), z.number()]).optional(),
+  })
+  .passthrough();
 
 export function createObserverClient(options: CreateObserverClientOptions): ObserverClient {
   const requestId = options.requestId ?? defaultRequestId;
@@ -156,7 +161,7 @@ async function readResponseForRequest<TMethod extends ProtocolMethod>(
   connection.send(protocolRequest(id, method, params));
 
   for await (const message of connection.messages()) {
-    const response = ProtocolResponseSchema.parse(message);
+    const response = parseProtocolResponseMessage(message);
     if (response.id !== id) {
       continue;
     }
@@ -173,7 +178,15 @@ function parseProtocolResponseResult<TMethod extends ProtocolMethod>(
   if ("error" in response) {
     throw response.error;
   }
-  return ProtocolResultSchemas[method].parse(response.result) as ProtocolResult<TMethod>;
+  const parsed = ProtocolResultSchemas[method].safeParse(response.result);
+  if (parsed.success) {
+    return parsed.data as ProtocolResult<TMethod>;
+  }
+  throw protocolSafeError({
+    code: "PROTOCOL_RESPONSE_VALIDATION_FAILED",
+    message: `Observer protocol response failed validation for ${method}.`,
+    hint: "The running observer may be from a different WOSM build. Restart it or use a config with an isolated observer socket_path and state_dir.",
+  });
 }
 
 function subscriptionIterator(
@@ -289,7 +302,7 @@ async function readSubscriptionAck(
     },
     signal,
   );
-  const response = ProtocolResponseSchema.parse(ack);
+  const response = parseProtocolResponseMessage(ack);
   if (response.id !== id) {
     throw protocolSafeError({
       code: "PROTOCOL_SUBSCRIBE_ACK_MISMATCH",
@@ -309,8 +322,47 @@ async function readSubscriptionEvent(
   if (next.done) {
     return undefined;
   }
-  const envelope = ProtocolEventEnvelopeSchema.parse(next.value);
-  return WosmEventSchema.parse(envelope.event);
+  const envelope = parseProtocolEventEnvelope(next.value);
+  const parsed = WosmEventSchema.safeParse(envelope.event);
+  if (parsed.success) {
+    return parsed.data;
+  }
+  throw protocolSafeError({
+    code: "PROTOCOL_EVENT_VALIDATION_FAILED",
+    message: "Observer protocol event failed validation.",
+    hint: "The running observer may be from a different WOSM build. Restart it or use a config with an isolated observer socket_path and state_dir.",
+  });
+}
+
+function parseProtocolResponseMessage(message: unknown): ProtocolResponse {
+  const parsed = ProtocolResponseSchema.safeParse(message);
+  if (parsed.success) {
+    return parsed.data;
+  }
+  throwProtocolSchemaMismatchIfPresent(message);
+  throw parsed.error;
+}
+
+function parseProtocolEventEnvelope(message: unknown) {
+  const parsed = ProtocolEventEnvelopeSchema.safeParse(message);
+  if (parsed.success) {
+    return parsed.data;
+  }
+  throwProtocolSchemaMismatchIfPresent(message);
+  throw parsed.error;
+}
+
+function throwProtocolSchemaMismatchIfPresent(message: unknown): void {
+  const probed = ProtocolSchemaVersionProbeSchema.safeParse(message);
+  const schemaVersion = probed.success ? probed.data.schemaVersion : undefined;
+  if (schemaVersion === undefined || String(schemaVersion) === WOSM_SCHEMA_VERSION) {
+    return;
+  }
+  throw protocolSafeError({
+    code: "PROTOCOL_SCHEMA_MISMATCH",
+    message: `Observer protocol schema mismatch: the observer responded with schema ${String(schemaVersion)}, but this CLI expects schema ${WOSM_SCHEMA_VERSION}.`,
+    hint: "A different WOSM checkout may own the observer socket. Stop that observer, rebuild this checkout, or use a config with an isolated observer socket_path and state_dir.",
+  });
 }
 
 async function closeSubscription(subscription: OpenSubscription): Promise<void> {

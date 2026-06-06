@@ -21,6 +21,11 @@ import type { EventHooksCommandOptions } from "./commands/eventHooks.js";
 import { runEventHooksCommand } from "./commands/eventHooks.js";
 import type { NotifyCommandOptions } from "./commands/notify.js";
 import { type NotifyCommandDeps, runNotifyCommand } from "./commands/notify.js";
+import {
+  type ObserveCommandDeps,
+  type ObserveCommandOptions,
+  runObserveCommand,
+} from "./commands/observe/index.js";
 import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
 import type { OpenCodeHooksCommandOptions } from "./commands/opencodeHooks.js";
 import { runOpenCodeHooksCommand } from "./commands/opencodeHooks.js";
@@ -49,6 +54,7 @@ export type CliRunOptions = {
   popupDeps?: PopupCommandDeps;
   tuiDeps?: TuiCommandDeps;
   notifyDeps?: NotifyCommandDeps;
+  observeDeps?: ObserveCommandDeps;
 };
 
 const configBackedCommands = [
@@ -57,6 +63,7 @@ const configBackedCommands = [
   "hooks",
   "command",
   "observer",
+  "observe",
   "popup",
   "reconcile",
   "snapshot",
@@ -155,6 +162,19 @@ export async function runCli(
     }
     const result = await runEventHooksCommand(commandArgs, eventHookOptions);
     return { code: hookCommandExitCode(result), output: result };
+  }
+
+  if (command === "observe") {
+    const observeOptions: ObserveCommandOptions = loadedCommandOptions(config, resolvedConfigPath);
+    const observeDeps: ObserveCommandDeps = {};
+    if (options.observeDeps !== undefined) {
+      Object.assign(observeDeps, options.observeDeps);
+    }
+    if (options.observerDeps !== undefined && observeDeps.observer === undefined) {
+      observeDeps.observer = options.observerDeps;
+    }
+    const result = await runObserveCommand(commandArgs, observeOptions, observeDeps);
+    return { code: result.code };
   }
 
   if (command === "command") {
@@ -404,7 +424,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
 export function shouldSuppressCliProcessOutput(invoked: readonly string[]): boolean {
   const command = invoked[0];
-  return command === undefined || command === "tui" || command === "popup";
+  return command === undefined || command === "tui" || command === "popup" || command === "observe";
 }
 
 function formatCliError(error: unknown): string {
