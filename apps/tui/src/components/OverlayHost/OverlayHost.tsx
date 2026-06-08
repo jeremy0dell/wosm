@@ -1,7 +1,7 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import { Box } from "ink";
-import type { TuiScreen } from "../../state/screen.js";
 import { AddProjectBottomSheet } from "../AddProjectBottomSheet/AddProjectBottomSheet.js";
+import type { TuiScreen } from "../../state/types.js";
 import { HelpOverlay } from "../HelpOverlay/HelpOverlay.js";
 import { NewSessionBottomSheet } from "../NewSessionBottomSheet/NewSessionBottomSheet.js";
 import { RenameSessionBottomSheet } from "../RenameSessionBottomSheet/RenameSessionBottomSheet.js";

@@ -1,8 +1,8 @@
 import { choiceValueByKey, selectProjectChoices } from "../../selectors/selectors.js";
 import { clampDashboardStateScroll } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
-import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
+import type { TuiState } from "../types.js";
 
 export function handleProjectCollapseKey(state: TuiState, key: TuiKey): TuiTransition {
   if (state.screen.name !== "projectCollapse") {

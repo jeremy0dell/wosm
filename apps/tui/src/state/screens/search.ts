@@ -1,7 +1,7 @@
 import type { TuiKey } from "../keys.js";
 import { isReturnKey } from "../keys.js";
-import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
+import type { TuiState } from "../types.js";
 
 export function handleSearchKey(state: TuiState, key: TuiKey): TuiTransition {
   if (state.screen.name !== "search") {

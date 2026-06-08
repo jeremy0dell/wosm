@@ -11,8 +11,9 @@ import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { isReturnKey } from "../keys.js";
 import { addPendingRenameSessionTitle } from "../localRows.js";
-import { addTuiToast, type TuiState } from "../screen.js";
+import { addTuiToast } from "../toasts.js";
 import type { TuiTransition } from "../transition.js";
+import type { TuiState } from "../types.js";
 import { scrollDeltaForKey } from "./dashboard.js";
 
 function handleChooseSlotKey(state: TuiState, key: TuiKey): TuiTransition {
