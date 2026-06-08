@@ -12,9 +12,14 @@ import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { addPendingStartAgentRow } from "../localRows.js";
 import type { TuiState } from "../screen.js";
-import type { TuiTransition } from "../transition.js";
+import type { TuiKeyRuntimeContext, TuiTransition } from "../transition.js";
+import { openAddProject } from "./addProjectScreen.js";
 
-export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition {
+export function handleDashboardKey(
+  state: TuiState,
+  key: TuiKey,
+  context: TuiKeyRuntimeContext,
+): TuiTransition {
   const scrollDelta = scrollDeltaForKey(key);
   if (scrollDelta !== 0) {
     return {
@@ -85,6 +90,12 @@ export function handleDashboardKey(state: TuiState, key: TuiKey): TuiTransition 
 
   if (key.input === "N") {
     return openNewSession(state);
+  }
+
+  if (key.input === "A") {
+    return {
+      state: openAddProject(state, context),
+    };
   }
 
   if (key.input === "C") {

@@ -10,6 +10,7 @@ export * from "./commands/observe/index.js";
 export * from "./commands/observer.js";
 export * from "./commands/opencodeHooks.js";
 export * from "./commands/popup.js";
+export * from "./commands/project.js";
 export * from "./commands/reconcile.js";
 export * from "./commands/snapshot.js";
 export * from "./commands/tui.js";

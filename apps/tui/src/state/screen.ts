@@ -1,5 +1,6 @@
 import type { SessionId, TerminalFocusOrigin, WorktreeId, WosmSnapshot } from "@wosm/contracts";
 import type { EditableTextInputState } from "../components/EditableTextInput/editing.js";
+import type { AddProjectFlowState } from "../flows/addProject/types.js";
 import type { NewSessionFlowState } from "../flows/newSession.js";
 import type { TuiToast } from "../services/types.js";
 import {
@@ -55,6 +56,7 @@ export type TuiScreen =
       currentTitle: string;
       draftTitle: EditableTextInputState;
     }
+  | { name: "addProject"; flow: AddProjectFlowState }
   | { name: "newSession"; flow: NewSessionFlowState };
 
 export type CreateInitialTuiStateOptions = {

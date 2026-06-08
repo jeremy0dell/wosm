@@ -1,8 +1,14 @@
 import type { WosmEvent } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { createCommandSnapshot, createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
+import {
+  createCommandSnapshot,
+  createDashboardSnapshot,
+  createNoProjectsSnapshot,
+  createZeroWorktreeSnapshot,
+} from "../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../test/support/fakeObserverService.js";
-import { createTuiStore } from "./store.js";
+import type { TuiFolderService } from "../services/folderService.js";
+import { createTuiStore, type TuiStore } from "./store.js";
 
 describe("TUI store", () => {
   it("loads initial snapshots and cleans up event subscriptions", async () => {
@@ -86,7 +92,210 @@ describe("TUI store", () => {
     expect(store.getState().terminalRows).toBe(24);
     expect(store.getState().scrollOffset).toBe(0);
   });
+
+  it("uses the local folder service and dispatches project.add after confirmation", async () => {
+    const snapshot = createNoProjectsSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const folderService = fakeFolderService();
+    const store = createTuiStore({
+      service,
+      initialSnapshot: snapshot,
+      folderService,
+    });
+
+    store.getState().handleKey({ input: "A" });
+    expect(store.getState().screen).toMatchObject({ name: "addProject" });
+
+    store.getState().handleKey({ input: "", rightArrow: true });
+    await waitFor(() => screenMode(store.getState()) === "choose");
+    expect(folderService.reads).toEqual(["/Users/example/Developer/wosm"]);
+
+    store.getState().handleKey({ input: "", downArrow: true });
+    store.getState().handleKey({ input: "\r", return: true });
+    await waitFor(() => screenMode(store.getState()) === "review");
+
+    store.getState().handleKey({ input: "N" });
+    store.getState().handleKey({ input: "-custom" });
+    store.getState().handleKey({ input: "\r", return: true });
+
+    service.setSnapshot(createZeroWorktreeSnapshot());
+    store.getState().handleKey({ input: "\r", return: true });
+    await waitFor(() => screenMode(store.getState()) === "success");
+
+    expect(service.dispatched).toEqual([
+      {
+        type: "project.add",
+        payload: {
+          path: "/Users/example/Developer/wosm",
+          id: "wosm-custom",
+          label: "wosm",
+        },
+      },
+    ]);
+    expect(service.waitedForCommandIds).toEqual(["cmd_tui_1"]);
+  });
+
+  it("reviews a pasted full path when folder filtering has no matches", async () => {
+    const snapshot = createNoProjectsSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const folderService = fakeFolderService();
+    const store = createTuiStore({
+      service,
+      initialSnapshot: snapshot,
+      folderService,
+    });
+
+    store.getState().handleKey({ input: "A" });
+    store.getState().handleKey({ input: "", rightArrow: true });
+    await waitFor(() => screenMode(store.getState()) === "choose");
+
+    store.getState().handleKey({ input: "/" });
+    store.getState().handleKey({ input: "/Users/example/Developer/synth" });
+    store.getState().handleKey({ input: "\r", return: true });
+    await waitFor(() => screenMode(store.getState()) === "review");
+
+    expect(folderService.reviews).toEqual(["/Users/example/Developer/synth"]);
+    expect(store.getState().screen).toMatchObject({
+      name: "addProject",
+      flow: {
+        mode: "review",
+        selectedPath: "/Users/example/Developer/synth",
+        id: "synth",
+        label: "synth",
+      },
+    });
+  });
+
+  it("opens the home anchor from start choices", async () => {
+    const snapshot = createNoProjectsSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const folderService = fakeFolderService();
+    const store = createTuiStore({
+      service,
+      initialSnapshot: snapshot,
+      folderService,
+    });
+
+    store.getState().handleKey({ input: "A" });
+    store.getState().handleKey({ input: "", downArrow: true });
+    store.getState().handleKey({ input: "\r", return: true });
+    await waitFor(() => screenMode(store.getState()) === "choose");
+
+    expect(folderService.reads).toEqual(["/Users/example"]);
+    expect(store.getState().screen).toMatchObject({
+      name: "addProject",
+      flow: {
+        mode: "choose",
+        currentPath: "/Users/example",
+      },
+    });
+  });
+
+  it("globally searches likely project roots from slash mode", async () => {
+    const snapshot = createNoProjectsSnapshot();
+    const service = new FakeTuiObserverService(snapshot);
+    const folderService = fakeFolderService();
+    const store = createTuiStore({
+      service,
+      initialSnapshot: snapshot,
+      folderService,
+    });
+
+    store.getState().handleKey({ input: "A" });
+    store.getState().handleKey({ input: "\r", return: true });
+    await waitFor(() => screenMode(store.getState()) === "choose");
+
+    store.getState().handleKey({ input: "/" });
+    store.getState().handleKey({ input: "Germ" });
+    await waitFor(() => addProjectSearchResultCount(store.getState()) === 1);
+
+    store.getState().handleKey({ input: "\r", return: true });
+    await waitFor(() => screenMode(store.getState()) === "review");
+
+    expect(folderService.reviews).toContain("/Users/example/Desktop/projects/GermStack");
+  });
 });
+
+function fakeFolderService(): TuiFolderService & {
+  reads: string[];
+  reviews: string[];
+  searches: string[];
+} {
+  const reads: string[] = [];
+  const reviews: string[] = [];
+  const searches: string[] = [];
+  return {
+    reads,
+    reviews,
+    searches,
+    cwd: () => "/Users/example/Developer/wosm",
+    homeDir: () => "/Users/example",
+    parent: (path) => path.split("/").slice(0, -1).join("/") || "/",
+    readDirectory: async (path) => {
+      reads.push(path);
+      return {
+        path,
+        entries: entriesForPath(path),
+      };
+    },
+    searchDirectories: async (query) => {
+      searches.push(query);
+      return {
+        query,
+        truncated: false,
+        entries: query.toLowerCase().includes("germ")
+          ? [
+              {
+                name: "GermStack",
+                path: "/Users/example/Desktop/projects/GermStack",
+                displayPath: "~/Desktop/projects/GermStack",
+                kind: "directory",
+              },
+            ]
+          : [],
+      };
+    },
+    reviewFolder: async (path) => {
+      reviews.push(path);
+      const label = path.split("/").filter(Boolean).at(-1) ?? "project";
+      return {
+        selectedPath: path,
+        gitRoot: path,
+        id: label,
+        label,
+      };
+    },
+  };
+}
+
+function entriesForPath(path: string) {
+  if (path === "/Users/example/Desktop/projects") {
+    return [
+      {
+        name: "GermStack",
+        path: "/Users/example/Desktop/projects/GermStack",
+        kind: "directory" as const,
+      },
+    ];
+  }
+  return [
+    {
+      name: "wosm",
+      path: "/Users/example/Developer/wosm",
+      kind: "directory" as const,
+    },
+  ];
+}
+
+function screenMode(state: TuiStore) {
+  return state.screen.name === "addProject" ? state.screen.flow.mode : undefined;
+}
+
+function addProjectSearchResultCount(state: TuiStore) {
+  return state.screen.name === "addProject" && state.screen.flow.mode === "choose"
+    ? state.screen.flow.searchEntries.length
+    : 0;
+}
 
 async function waitFor(assertion: () => boolean): Promise<void> {
   const deadline = Date.now() + 500;

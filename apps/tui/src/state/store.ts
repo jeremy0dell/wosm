@@ -10,6 +10,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { applyWosmEvent } from "../eventReducer/eventReducer.js";
 import { sessionForWorktreeRow } from "../selectors/selectors.js";
 import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
+import { createNodeFolderService, type TuiFolderService } from "../services/folderService.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { buildFocusCommand } from "./commandBuilders.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
@@ -50,14 +51,17 @@ export type TuiStoreOptions = {
   onDismiss?: () => Promise<void>;
   persistentPopup?: boolean;
   onExit?: (code: number) => void;
+  folderService?: TuiFolderService;
 };
 
 export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
   const runtime = createRuntimeOptions(options);
+  const folderService = options.folderService ?? createNodeFolderService();
   let store: StoreApi<TuiStore>;
   const operations = createTuiLocalOperationRunner({
     getStore: () => store,
     service: options.service,
+    folderService,
     runtime,
     focusStartedAgentRow: async (snapshot, row) => {
       await dispatchFocusWithLifecycle(
@@ -86,7 +90,10 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
     }),
     start: (): (() => void) => startStoreRuntime(store, options.service),
     handleKey: (key): void => {
-      const transition = handleTuiKey(get(), key);
+      const transition = handleTuiKey(get(), key, {
+        cwd: folderService.cwd(),
+        homeDir: folderService.homeDir(),
+      });
       set(transition.state);
       void applyTransitionEffects(store, options.service, runtime, operations, transition);
     },

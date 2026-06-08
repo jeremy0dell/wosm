@@ -3,6 +3,7 @@ import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import {
   createDashboardSnapshot,
+  createNoProjectsSnapshot,
   createZeroWorktreeSnapshot,
 } from "../../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
@@ -78,7 +79,7 @@ describe("TUI app rendering", () => {
     expect(lines.at(-3)?.trim()).toBe("");
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain(
-      "N:new R:rename Z:refresh 1-9/a-z:open X:remove /:search C:collapse H:help Q:quit",
+      "N:new A:add R:rename Z:refresh 1-9/a-z:open X:rm /:search C:fold H:help Q:quit",
     );
     expect(lines.slice(0, -1).join("\n")).not.toContain("N:new 1-9/a-z");
   });
@@ -115,8 +116,22 @@ describe("TUI app rendering", () => {
     expect(lines[1]).toMatch(/^─+$/);
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain("N:new");
+    expect(lines.at(-1)).toContain("A:add");
     expect(lines.at(-1)).toContain("H:help");
     expect(lines.at(-1)).toContain("Q/esc:close");
+  });
+
+  it("renders first-run empty state with Add Project", () => {
+    const snapshot = createNoProjectsSnapshot();
+    const instance = render(
+      <App initialSnapshot={snapshot} service={new FakeTuiObserverService(snapshot)} />,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("No projects configured yet.");
+    expect(frame).toContain("A:Add Project");
+    expect(frame).toContain("S:setup");
+    instance.unmount();
   });
 
   it("renders configured projects even when they have zero worktrees", () => {
