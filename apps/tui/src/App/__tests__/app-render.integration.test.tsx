@@ -243,6 +243,20 @@ describe("TUI app rendering", () => {
     instance.unmount();
   });
 
+  it("labels cold-start reconnect as close in persistent popup mode", async () => {
+    const service = new ColdStartConnectFailingService(createCommandSnapshot("idle"));
+    const instance = render(
+      <App service={service} persistentPopup={true} onDismiss={async () => undefined} />,
+    );
+
+    await waitFor(() => instance.lastFrame()?.includes("waiting for observer") === true);
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("Q/esc:close");
+    expect(frame).not.toContain("Q:quit");
+    instance.unmount();
+  });
+
   it("renders configured time and weather widgets while preserving dashboard rows", async () => {
     const snapshot = createDashboardSnapshot();
     const instance = render(

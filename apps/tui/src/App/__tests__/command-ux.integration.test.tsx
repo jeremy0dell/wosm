@@ -1,4 +1,10 @@
-import type { SessionView, WorktreeRow, WosmSnapshot } from "@wosm/contracts";
+import type {
+  CommandReceipt,
+  SessionView,
+  WorktreeRow,
+  WosmCommand,
+  WosmSnapshot,
+} from "@wosm/contracts";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import {
@@ -27,6 +33,28 @@ describe("TUI command UX", () => {
     expect(instance.lastFrame()).toContain("1-9/a-z:open");
     instance.unmount();
   });
+
+  it("keeps queued toasts alive while hidden by the help overlay", async () => {
+    const snapshot = createDashboardSnapshot();
+    const service = new DeferredDispatchService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    instance.stdin.write("5");
+    await waitFor(() => service.dispatched.length === 1);
+    instance.stdin.write("H");
+    await waitFor(() => instance.lastFrame()?.includes("wosm help") === true);
+
+    service.resolveDispatch();
+    await settle();
+    expect(instance.lastFrame()).not.toContain("terminal.focus queued");
+    await settle(2_600);
+    expect(instance.lastFrame()).toContain("wosm help");
+
+    instance.stdin.write("\u001B");
+    await waitFor(() => instance.lastFrame()?.includes("terminal.focus queued") === true);
+    expect(instance.lastFrame()).toContain("saved");
+    instance.unmount();
+  }, 10_000);
 
   it("retargets visible slots after dashboard scrolling", async () => {
     const snapshot = createFakeDashboardSnapshot({ projectCount: 1, worktreesPerProject: 30 });
@@ -1006,6 +1034,27 @@ class DeferredCompletionService extends FakeTuiObserverService {
     }
     this.resolveWaiter = undefined;
     resolve(completion);
+  }
+}
+
+class DeferredDispatchService extends FakeTuiObserverService {
+  private resolveDispatchWaiter: (() => void) | undefined;
+
+  override async dispatch(command: WosmCommand): Promise<CommandReceipt> {
+    this.dispatched.push(command);
+    await new Promise<void>((resolve) => {
+      this.resolveDispatchWaiter = resolve;
+    });
+    return this.nextReceipt;
+  }
+
+  resolveDispatch(): void {
+    const resolve = this.resolveDispatchWaiter;
+    if (resolve === undefined) {
+      throw new Error("No dispatch waiter is registered.");
+    }
+    this.resolveDispatchWaiter = undefined;
+    resolve();
   }
 }
 

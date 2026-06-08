@@ -1,6 +1,6 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
 import { Box, Text, useInput, useWindowSize } from "ink";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { useStore } from "zustand/react";
 import { CommandPrompt } from "../components/CommandPrompt/CommandPrompt.js";
 import {
@@ -55,6 +55,8 @@ export function App({
   const mode = useTuiMode();
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";
   const contentColumns = Math.max(1, columns - 1);
+  const quitActionLabel = persistentPopup && onDismiss !== undefined ? "close" : "quit";
+  const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
   const store = useTuiAppStore({
     service,
     initialSnapshot,
@@ -82,10 +84,19 @@ export function App({
     observerConnectionStatus,
     snapshot !== undefined,
   );
+  const toastHiddenByModal = isModalOverlayActive(screen);
+  const wasToastHiddenByModal = useRef(toastHiddenByModal);
 
   useEffect(() => store.getState().start(), [store]);
   useEffect(() => {
-    if (nextExpiry === undefined) {
+    const wasHidden = wasToastHiddenByModal.current;
+    wasToastHiddenByModal.current = toastHiddenByModal;
+    if (wasHidden && !toastHiddenByModal && activeToast !== undefined) {
+      store.getState().refreshActiveToastExpiry(Date.now());
+    }
+  }, [activeToast, store, toastHiddenByModal]);
+  useEffect(() => {
+    if (nextExpiry === undefined || toastHiddenByModal) {
       return;
     }
     const delay = Math.max(0, nextExpiry - Date.now());
@@ -93,7 +104,7 @@ export function App({
       store.getState().expireToasts(Date.now());
     }, delay);
     return () => clearTimeout(timer);
-  }, [nextExpiry, store]);
+  }, [nextExpiry, store, toastHiddenByModal]);
   useEffect(() => {
     store.getState().setTerminalRows(rows);
   }, [rows, store]);
@@ -132,7 +143,7 @@ export function App({
             )}
           </Box>
           <Text color="gray">{"─".repeat(contentColumns)}</Text>
-          <Text color="gray">Q:quit</Text>
+          <Text color="gray">{quitHint}</Text>
         </Box>
       </TuiFrame>
     );
@@ -147,7 +158,7 @@ export function App({
           screen={screen}
           viewState={{ searchQuery, collapsedProjectIds, scrollOffset, terminalRows, localRows }}
           topRowWidgets={topRowWidgets}
-          quitActionLabel={persistentPopup && onDismiss !== undefined ? "close" : "quit"}
+          quitActionLabel={quitActionLabel}
           {...(observerStatus === undefined ? {} : { observerStatus })}
         />
         <FixedStatusLayer>
@@ -158,7 +169,7 @@ export function App({
           rows={rows}
           toast={activeToast}
           promptRows={commandPromptRows(screen)}
-          hiddenByModal={isModalOverlayActive(screen)}
+          hiddenByModal={toastHiddenByModal}
         />
         <OverlayHost columns={columns} rows={rows} screen={screen} snapshot={snapshot} />
       </TuiShell>
