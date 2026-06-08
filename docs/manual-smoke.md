@@ -27,6 +27,7 @@ Use the repo-local command while developing:
 pnpm wosm doctor
 pnpm wosm reconcile --reason manual-smoke
 pnpm wosm snapshot --json
+pnpm wosm observe --include-snapshot --duration 3s
 pnpm wosm
 ```
 
@@ -37,6 +38,7 @@ pnpm wosm:link
 wosm doctor
 wosm reconcile --reason manual-smoke
 wosm snapshot --json
+wosm observe --include-snapshot --duration 3s
 wosm
 ```
 
@@ -160,6 +162,7 @@ Run this sequence before opening the TUI:
 wosm doctor
 wosm reconcile --reason manual-smoke
 wosm snapshot --json
+wosm observe --include-snapshot --duration 3s
 ```
 
 Expected basics:
@@ -167,6 +170,7 @@ Expected basics:
 - `doctor` starts or connects to the observer and reports provider health.
 - `reconcile` asks the observer to read Worktrunk state for each configured project.
 - `snapshot --json` returns the current project and worktree rows as JSON.
+- `observe --include-snapshot --duration 3s` prints a bounded live stream from the same observer snapshot and event truth.
 
 Then launch:
 

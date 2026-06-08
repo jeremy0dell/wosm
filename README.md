@@ -40,9 +40,9 @@ The repo is organized around three local apps that work together.
 ### CLI
 
 `@wosm/cli` provides the `wosm` command. It is the entry point for setup checks,
-observer lifecycle, reconciliation, snapshots, hooks, diagnostics, and launching the
-TUI. During development you can run it through `pnpm wosm`, or link it globally with
-`pnpm wosm:link`.
+observer lifecycle, reconciliation, snapshots, live event observation, hooks,
+diagnostics, and launching the TUI. During development you can run it through
+`pnpm wosm`, or link it globally with `pnpm wosm:link`.
 
 Useful commands include:
 
@@ -50,6 +50,7 @@ Useful commands include:
 wosm doctor
 wosm reconcile --reason manual
 wosm snapshot --json
+wosm observe --include-snapshot --duration 3s
 wosm debug bundle
 wosm observer stop
 ```
