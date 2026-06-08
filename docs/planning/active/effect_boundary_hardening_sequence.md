@@ -337,7 +337,7 @@ no provider mechanics leak into components
 
 Do not use this hardening sequence to convert the whole repo to Effect.
 
-Keep these plain unless a later phase introduces a real runtime boundary:
+Keep these plain unless a later step introduces a real runtime boundary:
 
 ```text
 contracts
@@ -369,15 +369,15 @@ SQLite transactions may stay mostly synchronous and plain because `node:sqlite` 
 
 This order matters. Do not refactor observer, protocol, CLI, or providers onto new boundary semantics before `@wosm/runtime` can actually interrupt, cancel, retry, clean up, and preserve diagnostic context.
 
-## 5. Phase Relationship
+## 5. Step Relationship
 
-This sequence is a refinement of Phase 6 and a prerequisite hardening track before real provider work is considered complete.
+This sequence is a refinement of Step 6 and a prerequisite hardening track before real provider work is considered complete.
 
 ```text
-Phase 6 owns the runtime boundary primitives and diagnostic foundation.
-Phase 7 Worktrunk work should not be considered complete until Step 5 is satisfied.
-Protocol, observer, and CLI steps can be done after Phase 6 but before relying on real long-lived provider or TUI behavior.
-TUI service boundary work belongs with the TUI phase, but should reuse the hardened protocol/runtime layer.
+Step 6 owns the runtime boundary primitives and diagnostic foundation.
+Step 7 Worktrunk work should not be considered complete until Step 5 is satisfied.
+Protocol, observer, and CLI steps can be done after Step 6 but before relying on real long-lived provider or TUI behavior.
+TUI service boundary work belongs with the TUI work, but should reuse the hardened protocol/runtime layer.
 ```
 
-If a future phase plan touches one of these boundaries, it must include an Effect boundary decision table entry and the relevant red-first tests from this document.
+If a future change plan touches one of these boundaries, it must include an Effect boundary decision table entry and the relevant red-first tests from this document.

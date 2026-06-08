@@ -1,6 +1,6 @@
 # Known Issues
 
-These are accepted limitations and testing gaps for the current dogfood milestone.
+These are accepted limitations and testing gaps for the current local-use checkpoint.
 
 ## Product Limitations
 
@@ -10,7 +10,7 @@ These are accepted limitations and testing gaps for the current dogfood mileston
 - The TUI does not include a row-level inspect/debug panel in v1. Use `wosm doctor`, `wosm snapshot --json`, and `wosm debug bundle` for support evidence.
 - Real provider status can be conservative. Provider hooks can promote correlated live rows to working, needs attention, or idle when supported, but terminal-only rows may remain unknown until a reliable hook or provider status signal arrives.
 - Worktrunk hook installation is explicit and reversible; it is not applied by `pnpm smoke:release`.
-- Cleanup and remove workflows should be tested only against disposable projects or isolated real-dogfood temp state.
+- Cleanup and remove workflows should be tested only against disposable projects or isolated real-e2e temp state.
 
 ## UX TODOs
 

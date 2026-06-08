@@ -10,7 +10,7 @@ const keepTemp = takeFlag(args, "--keep-temp");
 const vitestArgs = ["run", "--config", "config/vitest/vitest.real-e2e.config.ts", ...args];
 const env = {
   ...process.env,
-  WOSM_REAL_DOGFOOD: "1",
+  WOSM_REAL_E2E: "1",
   WOSM_REAL_WORKTRUNK: "1",
   WOSM_REAL_CODEX: "1",
   WOSM_WORKTRUNK_BIN: process.env.WOSM_WORKTRUNK_BIN ?? resolveCommand("wt"),
@@ -18,7 +18,7 @@ const env = {
   WOSM_CODEX_BIN: process.env.WOSM_CODEX_BIN ?? resolveCommand("codex"),
 };
 if (keepTemp) {
-  env.WOSM_REAL_DOGFOOD_KEEP_TEMP = "1";
+  env.WOSM_REAL_E2E_KEEP_TEMP = "1";
 }
 
 const vitestBin = join(repoRoot, "node_modules", ".bin", "vitest");

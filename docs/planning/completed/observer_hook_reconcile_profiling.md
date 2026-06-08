@@ -1,18 +1,18 @@
 # Observer Hook Reconcile Profiling
 
-Status: active profiling note from local dogfood on `notify-hooks`.
+Status: active profiling note from local use on `notify-hooks`.
 
 ## Scope
 
 This is adjacent to, but broader than, the observer event notification PR.
 
-The notification PR adds event hooks and exposes a real idle notification path. The performance issue observed during dogfood appears to be observer responsiveness under high hook volume, not notification delivery itself. Keep notify review separate unless notification-specific evidence later shows the event hook command path is the bottleneck.
+The notification PR adds event hooks and exposes a real idle notification path. The performance issue observed during real E2E appears to be observer responsiveness under high hook volume, not notification delivery itself. Keep notify review separate unless notification-specific evidence later shows the event hook command path is the bottleneck.
 
 This note is intended to be separable and safe to carry to `main` as runtime evidence and next-step guidance.
 
 ## Observed Symptoms
 
-During local dogfood on 2026-06-02:
+During local use on 2026-06-02:
 
 - `pnpm wosm observer status` returned `status: "stopped"` only because the protocol request timed out.
 - A live observer process still existed: PID `90885`.

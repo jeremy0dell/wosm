@@ -7,7 +7,7 @@ This setup path is for a local development checkout. wosm remains a private work
 - Node.js 24.x
 - pnpm 11
 - Worktrunk `wt` for real Worktrunk workflows
-- tmux for the reference terminal provider and popup dogfood path
+- tmux for the reference terminal provider and popup local-use path
 - Codex, Cursor, Pi, or OpenCode only when running those real harness providers
 
 ## Fresh Checkout
@@ -49,13 +49,13 @@ pnpm wosm:link
 wosm doctor
 ```
 
-## Dogfood Config
+## Local Real Config
 
-Use [examples/dogfood-config.toml](../examples/dogfood-config.toml) as the safe real-tool starting point. Copy it to `~/.config/wosm/config.toml`, update the project root, and keep the managed Worktrunk root policy unless you intentionally want to show main or external worktrees.
+Use [examples/local-real-config.toml](../examples/local-real-config.toml) as the safe real-tool starting point. Copy it to `~/.config/wosm/config.toml`, update the project root, and keep the managed Worktrunk root policy unless you intentionally want to show main or external worktrees.
 
 ```bash
 mkdir -p ~/.config/wosm
-cp examples/dogfood-config.toml ~/.config/wosm/config.toml
+cp examples/local-real-config.toml ~/.config/wosm/config.toml
 ```
 
 Run `wosm doctor` after editing the config. Doctor should report config diagnostics, Worktrunk availability, hook setup status, SQLite health, provider health, local-state retention, and debug-bundle availability.

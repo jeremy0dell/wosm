@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { RealDogfoodEnvironment } from "./env";
+import type { RealE2eEnvironment } from "./env";
 import { requireToolPath } from "./env";
 import type { RealTempRepo } from "./repo";
 
@@ -14,7 +14,7 @@ export type RealWosmConfigFixture = {
 };
 
 export type WriteRealWosmConfigOptions = {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   repo: RealTempRepo;
   projectId?: string;
   autoStartFromHooks?: boolean;
@@ -73,7 +73,7 @@ export async function writeRealWosmConfig(
     ...eventHookConfigLines(options),
     "[[projects]]",
     `id = ${tomlString(projectId)}`,
-    'label = "wosm real dogfood"',
+    'label = "wosm real E2E"',
     `root = ${tomlString(options.repo.repoPath)}`,
     `default_branch = ${tomlString(options.repo.baseBranch)}`,
     "",
@@ -85,7 +85,7 @@ export async function writeRealWosmConfig(
     "[projects.worktrunk]",
     "enabled = true",
     `base = ${tomlString(options.repo.baseBranch)}`,
-    'managed_root = ".wosm-dogfood/worktrees"',
+    'managed_root = ".wosm-real-e2e/worktrees"',
     "include_main = false",
     "include_external = false",
     "",

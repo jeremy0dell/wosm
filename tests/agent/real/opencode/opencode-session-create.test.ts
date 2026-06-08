@@ -19,7 +19,7 @@ import { installOpenCodePlugin, OpenCodeHarnessProvider } from "@wosm/opencode";
 import { FakeWorktreeProvider } from "@wosm/testing";
 import { TmuxProvider } from "@wosm/tmux";
 import { afterEach, describe, expect, it } from "vitest";
-import { requireRealDogfoodEnvironment, requireToolPath } from "../../../support/real-wosm/env";
+import { requireRealE2eEnvironment, requireToolPath } from "../../../support/real-wosm/env";
 
 const execFileAsync = promisify(execFile);
 const realOpenCodeEnabled = process.env.WOSM_REAL_OPENCODE === "1";
@@ -38,7 +38,7 @@ describeRealOpenCode("real OpenCode session.create", () => {
   });
 
   it("launches real OpenCode through tmux and observes a normalized OpenCode harness run", async () => {
-    const env = await requireRealDogfoodEnvironment({ tmux: true, opencode: true });
+    const env = await requireRealE2eEnvironment({ tmux: true, opencode: true });
     const opencodeBin = requireToolPath(env, "opencode");
     const tmuxBin = requireToolPath(env, "tmux");
     const root = await mkdtemp(join(tmpdir(), "wosm-real-opencode-session-"));

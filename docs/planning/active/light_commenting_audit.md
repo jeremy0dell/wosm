@@ -3,7 +3,7 @@
 **Status:** Planning addendum  
 **Date:** 2026-05-21  
 **Applies to:** current implementation after runtime, protocol, observer, diagnostics, Worktrunk, tmux, and scripted harness slices  
-**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`, `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`, and `docs/planning/completed/code_smell_remediation_p1_p2.md`
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`, and `docs/planning/completed/code_smell_remediation_p1_p2.md`
 
 This document ranks the places where a small code comment would be most useful.
 

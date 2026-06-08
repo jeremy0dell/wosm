@@ -3,14 +3,14 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import type { WorktreeObservation } from "@wosm/contracts";
 import type { RealWosmConfigFixture } from "./config";
-import type { RealDogfoodEnvironment } from "./env";
+import type { RealE2eEnvironment } from "./env";
 import { requireToolPath } from "./env";
 import type { RealTempRepo } from "./repo";
 
 const execFileAsync = promisify(execFile);
 
 export async function runWorktrunkJson<T = unknown>(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   config: RealWosmConfigFixture;
   repo: RealTempRepo;
   args: string[];
@@ -37,7 +37,7 @@ export async function runWorktrunkJson<T = unknown>(input: {
 }
 
 export async function listRealWorktrunkWorktrees(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   config: RealWosmConfigFixture;
   repo: RealTempRepo;
 }): Promise<unknown> {
@@ -48,7 +48,7 @@ export async function listRealWorktrunkWorktrees(input: {
 }
 
 export async function createRealWorktrunkWorktree(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   config: RealWosmConfigFixture;
   repo: RealTempRepo;
   branch: string;
@@ -69,7 +69,7 @@ export async function createRealWorktrunkWorktree(input: {
     envVars: {
       WORKTRUNK_WORKTREE_PATH: join(
         input.repo.repoPath,
-        ".wosm-dogfood",
+        ".wosm-real-e2e",
         "worktrees",
         "{{ branch | sanitize }}",
       ),
@@ -79,7 +79,7 @@ export async function createRealWorktrunkWorktree(input: {
 }
 
 export async function removeRealWorktrunkWorktree(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   config: RealWosmConfigFixture;
   repo: RealTempRepo;
   branch: string | readonly string[];

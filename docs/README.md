@@ -17,10 +17,9 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 - [Manual smoke testing](manual-smoke.md) is the detailed reference for runnable CLI/TUI smoke loops, real provider lanes, popup behavior, and cleanup smoke.
 - [Install](install.md) is the current local-checkout setup path for Node.js 24.x, pnpm 11, system dependency checks, build, smoke, and local CLI use.
 - [System dependencies](system-dependencies.md) is the reference for external provider tools, install checks, command resolution, and dependency diagnostics.
-- [Release readiness](release-readiness.md) is the current gate reference for `standard-ci`, manual release checks, real dogfood checks, and documentation release criteria.
-- [Dogfood checklist](dogfood-checklist.md) is the manual checklist for relying on wosm in day-to-day local agent work.
-- [Known issues](known-issues.md) records accepted limitations for the current dogfood milestone and is operational status, not architecture authority.
-- [Phase 18 release notes](release-notes/phase-18-dogfood-milestone.md) record the dogfood checkpoint and are historical release notes.
+- [Release readiness](release-readiness.md) is the current gate reference for `standard-ci`, manual release checks, real E2E checks, and documentation release criteria.
+- [Local use checklist](local-use-checklist.md) is the manual checklist for relying on wosm in day-to-day local agent work.
+- [Known issues](known-issues.md) records accepted limitations for the current local-use checkpoint and is operational status, not architecture authority.
 - [Test layout](../tests/README.md) is the reference for deterministic, e2e, real-provider, and support-test locations.
 
 ## Active Plans
@@ -37,8 +36,6 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 ## Historical/Deprecated Baselines
 
 - [wosm rebuild TDD Final V1](planning/historical/wosm_rebuild_tdd_final_v1.md) is a historical V1 baseline retained for original architecture rationale and deprecated as mandatory startup context.
-- [wosm phased development cycle Final V1](planning/historical/wosm_phased_development_cycle_final_v1.md) is a historical V1 build sequence retained for phase archaeology and deprecated as mandatory startup context.
-- [Harness hook ingress refactor master plan](planning/historical/harness_hook_ingress_refactor_master_plan.md) is superseded by the completed socket ingress and observer queue plan, but remains useful historical context for the first provider-neutral harness report slices.
 
 ## Completed Records And Audits
 

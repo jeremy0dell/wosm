@@ -21,7 +21,7 @@ export function buildPiLaunchPlan(
       "HARNESS_PI_EXEC_UNSUPPORTED",
       "Pi exec mode is not supported by the interactive v1 harness provider.",
       {
-        hint: "Use an interactive Pi session; JSON/RPC control is deferred to a later phase.",
+        hint: "Use an interactive Pi session; JSON/RPC control is not implemented for Pi JSON/RPC mode yet.",
       },
     );
   }

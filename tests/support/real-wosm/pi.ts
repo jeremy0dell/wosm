@@ -1,6 +1,6 @@
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { RealDogfoodEnvironment } from "./env";
+import type { RealE2eEnvironment } from "./env";
 import { requireToolPath } from "./env";
 
 export type PiLaunchWrapper = {
@@ -9,7 +9,7 @@ export type PiLaunchWrapper = {
 };
 
 export async function createPiLaunchLoggingWrapper(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   root: string;
   execRealPi?: boolean;
 }): Promise<PiLaunchWrapper> {

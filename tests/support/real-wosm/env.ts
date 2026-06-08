@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export type RealDogfoodRequirements = {
+export type RealE2eRequirements = {
   worktrunk?: boolean;
   tmux?: boolean;
   codex?: boolean;
@@ -13,7 +13,7 @@ export type RealDogfoodRequirements = {
   opencode?: boolean;
 };
 
-export type RealDogfoodEnvironment = {
+export type RealE2eEnvironment = {
   repoRoot: string;
   wosmBin: string;
   wosmIngressBin: string;
@@ -24,15 +24,15 @@ export type RealDogfoodEnvironment = {
   opencodeBin?: string;
 };
 
-export function realDogfoodEnabled(): boolean {
-  return process.env.WOSM_REAL_DOGFOOD === "1";
+export function realE2eEnabled(): boolean {
+  return process.env.WOSM_REAL_E2E === "1";
 }
 
-export async function requireRealDogfoodEnvironment(
-  requirements: RealDogfoodRequirements = {},
-): Promise<RealDogfoodEnvironment> {
-  if (!realDogfoodEnabled()) {
-    throw new Error("Set WOSM_REAL_DOGFOOD=1 to run real dogfood E2E tests.");
+export async function requireRealE2eEnvironment(
+  requirements: RealE2eRequirements = {},
+): Promise<RealE2eEnvironment> {
+  if (!realE2eEnabled()) {
+    throw new Error("Set WOSM_REAL_E2E=1 to run real E2E tests.");
   }
 
   const repoRoot = process.cwd();
@@ -41,7 +41,7 @@ export async function requireRealDogfoodEnvironment(
   await access(wosmBin);
   await access(wosmIngressBin);
 
-  const env: RealDogfoodEnvironment = {
+  const env: RealE2eEnvironment = {
     repoRoot,
     wosmBin,
     wosmIngressBin,
@@ -49,7 +49,7 @@ export async function requireRealDogfoodEnvironment(
 
   if (requirements.worktrunk === true) {
     if (process.env.WOSM_REAL_WORKTRUNK !== "1") {
-      throw new Error("Set WOSM_REAL_WORKTRUNK=1 to run real Worktrunk dogfood tests.");
+      throw new Error("Set WOSM_REAL_WORKTRUNK=1 to run real Worktrunk E2E tests.");
     }
     const worktrunkBin = process.env.WOSM_WORKTRUNK_BIN ?? "wt";
     await execFileAsync(worktrunkBin, ["--version"], { timeout: 15_000 });
@@ -64,7 +64,7 @@ export async function requireRealDogfoodEnvironment(
 
   if (requirements.codex === true) {
     if (process.env.WOSM_REAL_CODEX !== "1") {
-      throw new Error("Set WOSM_REAL_CODEX=1 to run real Codex dogfood tests.");
+      throw new Error("Set WOSM_REAL_CODEX=1 to run real Codex E2E tests.");
     }
     const codexBin = process.env.WOSM_CODEX_BIN ?? "codex";
     await execFileAsync(codexBin, ["login", "status"], { timeout: 20_000 });
@@ -73,7 +73,7 @@ export async function requireRealDogfoodEnvironment(
 
   if (requirements.pi === true) {
     if (process.env.WOSM_REAL_PI !== "1") {
-      throw new Error("Set WOSM_REAL_PI=1 to run real Pi dogfood tests.");
+      throw new Error("Set WOSM_REAL_PI=1 to run real Pi E2E tests.");
     }
     const piBin = process.env.WOSM_PI_BIN ?? "pi";
     await execFileAsync(piBin, ["--version"], { timeout: 20_000 });
@@ -82,7 +82,7 @@ export async function requireRealDogfoodEnvironment(
 
   if (requirements.opencode === true) {
     if (process.env.WOSM_REAL_OPENCODE !== "1") {
-      throw new Error("Set WOSM_REAL_OPENCODE=1 to run real OpenCode dogfood tests.");
+      throw new Error("Set WOSM_REAL_OPENCODE=1 to run real OpenCode E2E tests.");
     }
     const opencodeBin = process.env.WOSM_OPENCODE_BIN ?? "opencode";
     await execFileAsync(opencodeBin, ["--version"], { timeout: 20_000 });
@@ -93,7 +93,7 @@ export async function requireRealDogfoodEnvironment(
 }
 
 export function requireToolPath(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   tool: "worktrunk" | "tmux" | "codex" | "pi" | "opencode",
 ): string {
   if (tool === "worktrunk" && env.worktrunkBin !== undefined) return env.worktrunkBin;
@@ -101,5 +101,5 @@ export function requireToolPath(
   if (tool === "codex" && env.codexBin !== undefined) return env.codexBin;
   if (tool === "pi" && env.piBin !== undefined) return env.piBin;
   if (tool === "opencode" && env.opencodeBin !== undefined) return env.opencodeBin;
-  throw new Error(`Real dogfood environment is missing ${tool}.`);
+  throw new Error(`Real E2E environment is missing ${tool}.`);
 }

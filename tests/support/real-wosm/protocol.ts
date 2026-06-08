@@ -34,7 +34,7 @@ export async function waitForSnapshot(
     if (predicate(snapshot)) {
       return snapshot;
     }
-    await client.reconcile("real-dogfood-poll").catch(() => undefined);
+    await client.reconcile("real-e2e-poll").catch(() => undefined);
     await delay(500);
   }
   throw new Error(message);
