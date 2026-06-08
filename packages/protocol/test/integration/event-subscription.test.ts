@@ -62,6 +62,48 @@ describe("protocol event subscriptions", () => {
     await server.close();
   });
 
+  it("normalizes legacy hook event filters at the subscribe boundary", async () => {
+    const { socketPath } = await createTempSocketPath();
+    let observedFilter: EventFilter | undefined;
+    const api = {
+      ...createFakeObserverApi(),
+      subscribe: (filter?: EventFilter) => {
+        observedFilter = filter;
+        return stream([]);
+      },
+    };
+    const server = await startProtocolServer({ socketPath, api });
+    const connection = await connectUnixSocket(socketPath, { timeoutMs: 500 });
+
+    try {
+      connection.send({
+        schemaVersion: WOSM_SCHEMA_VERSION,
+        jsonrpc: "2.0",
+        id: "legacy_sub",
+        method: "events.subscribe",
+        params: {
+          type: ["hook.ingested", "providerHook.ingested", "hook.spoolDrained"],
+        },
+      });
+      const iterator = connection.messages()[Symbol.asyncIterator]();
+      await expect(iterator.next()).resolves.toMatchObject({
+        done: false,
+        value: {
+          id: "legacy_sub",
+          result: { subscribed: true },
+        },
+      });
+      await waitFor(() => observedFilter !== undefined);
+
+      expect(observedFilter).toEqual({
+        type: ["providerHook.ingested", "providerHook.spoolDrained"],
+      });
+    } finally {
+      connection.close();
+      await server.close();
+    }
+  });
+
   it("cleans up a blocked subscriber when the socket disconnects", async () => {
     const { socketPath } = await createTempSocketPath();
     let releaseNextStarted: () => void = () => undefined;

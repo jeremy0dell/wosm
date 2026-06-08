@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SafeErrorSchema } from "./errors.js";
-import { WosmEventSchema, WosmEventTypeSchema } from "./events.js";
+import { WosmEventSchema, WosmEventTypeArrayInputSchema } from "./events.js";
 import {
   HarnessRunIdSchema,
   ProjectIdSchema,
@@ -269,7 +269,7 @@ export type EventHookFilter = ObserverEventHookFilter;
 export const ObserverEventHookConfigSchema = z
   .object({
     id: nonEmptyStringSchema,
-    events: z.array(WosmEventTypeSchema).min(1),
+    events: WosmEventTypeArrayInputSchema,
     command: nonEmptyStringSchema,
     args: z.array(nonEmptyStringSchema).optional(),
     timeoutMs: z.number().int().positive().optional(),
