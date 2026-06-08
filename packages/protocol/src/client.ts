@@ -14,7 +14,6 @@ import { Effect, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
 import { z } from "zod";
 import type { ObserverApi } from "./api.js";
 import {
-  ProtocolEventEnvelopeSchema,
   type ProtocolMethod,
   type ProtocolResponse,
   ProtocolResponseSchema,
@@ -62,6 +61,12 @@ const ProtocolSchemaVersionProbeSchema = z
     schemaVersion: z.union([z.string(), z.number()]).optional(),
   })
   .passthrough();
+const ProtocolEventEnvelopeMessageSchema = z
+  .object({
+    schemaVersion: z.literal(WOSM_SCHEMA_VERSION),
+    event: z.unknown(),
+  })
+  .strict();
 
 export function createObserverClient(options: CreateObserverClientOptions): ObserverClient {
   const requestId = options.requestId ?? defaultRequestId;
@@ -344,7 +349,7 @@ function parseProtocolResponseMessage(message: unknown): ProtocolResponse {
 }
 
 function parseProtocolEventEnvelope(message: unknown) {
-  const parsed = ProtocolEventEnvelopeSchema.safeParse(message);
+  const parsed = ProtocolEventEnvelopeMessageSchema.safeParse(message);
   if (parsed.success) {
     return parsed.data;
   }
