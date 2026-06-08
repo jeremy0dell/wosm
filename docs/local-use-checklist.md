@@ -1,4 +1,4 @@
-# Dogfood Checklist
+# Local Use Checklist
 
 Use this checklist before relying on wosm for day-to-day local agent work.
 
@@ -8,11 +8,11 @@ Use this checklist before relying on wosm for day-to-day local agent work.
 - `pnpm smoke:release` succeeds against isolated fake/scripted state.
 - `pnpm setup:system:check` succeeds.
 - `codex login status` succeeds.
-- `wt --version`, `tmux -V`, and `bin/wosm doctor` succeed for the dogfood config.
-- `examples/dogfood-config.toml` has been copied and edited for the local dogfood project root.
-- The dogfood config uses `managed_root = "~/.worktrees"` and omits `profile = "default"` unless
+- `wt --version`, `tmux -V`, and `bin/wosm doctor` succeed for the local-real config.
+- `examples/local-real-config.toml` has been copied and edited for the local use project root.
+- The local-real config uses `managed_root = "~/.worktrees"` and omits `profile = "default"` unless
   that Codex profile has been created locally.
-- `pnpm agent:cleanup` and `pnpm agent:reset` have been dry-run before destructive dogfood cleanup;
+- `pnpm agent:cleanup` and `pnpm agent:reset` have been dry-run before destructive real E2E cleanup;
   use `-- --yes` only when the listed worktrees/processes are safe to remove.
 
 ## Real E2E Gate
@@ -20,7 +20,7 @@ Use this checklist before relying on wosm for day-to-day local agent work.
 Run:
 
 ```bash
-WOSM_REAL_DOGFOOD=1 \
+WOSM_REAL_E2E=1 \
 WOSM_REAL_WORKTRUNK=1 \
 WOSM_REAL_CODEX=1 \
 WOSM_WORKTRUNK_BIN="$(command -v wt)" \
@@ -44,7 +44,7 @@ Confirm:
 ## Manual Product Loop
 
 - Start with a disposable or temporary project.
-- Run `wosm doctor`, `wosm reconcile --reason dogfood`, and `wosm snapshot --json`.
+- Run `wosm doctor`, `wosm reconcile --reason local-use`, and `wosm snapshot --json`.
 - Launch `wosm tui`.
 - Press `n`, create a branch/session, and confirm the TUI stays visible while the tmux workbench window opens in the background.
 - Verify the worktree appears in snapshots and the primary pane current command is Codex or the Codex runtime, not an idle shell with a typed `cd && env && codex` command.

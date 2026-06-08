@@ -16,9 +16,9 @@ import {
 } from "../../support/real-wosm/codex";
 import { writeRealWosmConfig } from "../../support/real-wosm/config";
 import {
-  type RealDogfoodEnvironment,
-  realDogfoodEnabled,
-  requireRealDogfoodEnvironment,
+  type RealE2eEnvironment,
+  realE2eEnabled,
+  requireRealE2eEnvironment,
 } from "../../support/real-wosm/env";
 import { createRealNotifyHookCapture, waitForNotifyEvent } from "../../support/real-wosm/notify";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
@@ -31,7 +31,7 @@ import {
 } from "../../support/real-wosm/tmux";
 import { removeRealWorktrunkWorktree } from "../../support/real-wosm/worktrunk";
 
-const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+const describeReal = realE2eEnabled() ? describe : describe.skip;
 
 type CommandDispatchWaitResult = {
   status: "succeeded" | "failed";
@@ -39,12 +39,12 @@ type CommandDispatchWaitResult = {
   command: CommandRecord;
 };
 
-describeReal("real Codex hook dogfood", () => {
-  let env: RealDogfoodEnvironment;
+describeReal("real Codex hook ingestion", () => {
+  let env: RealE2eEnvironment;
   let cleanup: CleanupStack;
 
   beforeAll(async () => {
-    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+    env = await requireRealE2eEnvironment({ worktrunk: true, tmux: true, codex: true });
   });
 
   afterEach(async () => {
@@ -177,7 +177,7 @@ describeReal("real Codex hook dogfood", () => {
 });
 
 async function waitForRowAgentState(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   configPath: string;
   branch: string;
   states: Array<NonNullable<WosmSnapshot["rows"][number]["agent"]>["state"]>;
@@ -207,7 +207,7 @@ async function waitForRowAgentState(input: {
 }
 
 async function waitForRowTerminalAttachment(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   configPath: string;
   branch: string;
   timeoutMs: number;
@@ -238,7 +238,7 @@ async function waitForRowTerminalAttachment(input: {
 }
 
 async function continuePastCodexStartupPrompts(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   tmuxSession: string,
   row: WosmSnapshot["rows"][number],
 ): Promise<void> {

@@ -178,7 +178,7 @@ describe("observer graph derivation", () => {
     expect(WosmSnapshotSchema.parse(snapshot)).toEqual(snapshot);
   });
 
-  it("derives row status, project counts, and sort order for all Phase 3 visible states", () => {
+  it("derives row status, project counts, and sort order for all visible states", () => {
     const rows = [
       worktree("wt_web_none", "web", "no-agent", { raw: "worktree-only" }),
       worktree("wt_web_idle", "web", "idle"),

@@ -254,7 +254,7 @@ Surface:
 - `packages/config/src/schema.ts`
 - `packages/config/src/load/normalize.ts`
 - `examples/config.toml`
-- `examples/dogfood-config.toml`
+- `examples/local-real-config.toml`
 - `tests/support/real-wosm/config.ts`
 
 Current names:
@@ -355,7 +355,7 @@ Surface:
 - `tests/contract-fixtures/hooks/provider-hook-events.json`
 - observer hook ingestion/spool tests
 - protocol subscription fixtures/tests
-- real dogfood hook tests
+- real E2E hook tests
 - TUI service fake observer tests
 
 Problem:
@@ -395,7 +395,7 @@ Recommended cleanup:
 
 ## Migration Plan
 
-### Phase 0: Documentation And Audit - Done
+### Step 0: Documentation And Audit - Done
 
 Done when:
 
@@ -403,7 +403,7 @@ Done when:
 - This audit maps source, tests, docs, and user-facing surfaces.
 - No runtime code is renamed yet.
 
-### Phase 1: Internal Type And Module Names - Done
+### Step 1: Internal Type And Module Names - Done
 
 Rename internal/exported types with compatibility aliases:
 
@@ -416,7 +416,7 @@ Rename internal/exported types with compatibility aliases:
 
 Rename local variables/modules where there is no wire compatibility concern.
 
-### Phase 2: Observer Event Names - Done
+### Step 2: Observer Event Names - Done
 
 Rename WOSM event names:
 
@@ -425,7 +425,7 @@ Rename WOSM event names:
 
 Update event fixtures, event filters, protocol fixtures, TUI refresh behavior, observability evidence, and docs together.
 
-### Phase 3: Protocol Compatibility Alias - Done
+### Step 3: Protocol Compatibility Alias - Done
 
 Add:
 
@@ -439,7 +439,7 @@ Keep:
 
 Generated OpenCode scripts and integration tests use the new method.
 
-### Phase 4: CLI And Config UX - Done
+### Step 4: CLI And Config UX - Done
 
 Fix event-hook setup UX:
 
@@ -448,7 +448,7 @@ Fix event-hook setup UX:
 - Stopped returning `provider: "event"` for notification/event-hook setup.
 - Keep `[[hooks.event]]` config shape.
 
-### Phase 5: Status Source Cleanup - Done
+### Step 5: Status Source Cleanup - Done
 
 Normalize status source naming:
 

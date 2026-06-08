@@ -10,7 +10,7 @@ import { waitForSocketClosed } from "../../../../tests/support/sockets";
 
 const execFileAsync = promisify(execFile);
 
-describe("Phase 18 CLI release doctor", () => {
+describe("CLI release doctor", () => {
   const tempRoots: string[] = [];
 
   afterEach(async () => {

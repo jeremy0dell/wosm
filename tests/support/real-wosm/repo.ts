@@ -3,22 +3,22 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { RealDogfoodEnvironment } from "./env";
+import type { RealE2eEnvironment } from "./env";
 
 const execFileAsync = promisify(execFile);
 
 export type RealTempRepo = {
   root: string;
   repoPath: string;
-  dogfoodDir: string;
+  realE2eDir: string;
   baseBranch: string;
   cleanup(): Promise<void>;
 };
 
-export async function createRealTempRepo(env: RealDogfoodEnvironment): Promise<RealTempRepo> {
-  const root = await mkdtemp(join(tmpdir(), "wosm-real-dogfood-"));
+export async function createRealTempRepo(env: RealE2eEnvironment): Promise<RealTempRepo> {
+  const root = await mkdtemp(join(tmpdir(), "wosm-real-e2e-"));
   const repoPath = join(root, "repo");
-  const dogfoodDir = join(repoPath, ".wosm-dogfood");
+  const realE2eDir = join(repoPath, ".wosm-real-e2e");
 
   await execFileAsync(
     "git",
@@ -31,11 +31,11 @@ export async function createRealTempRepo(env: RealDogfoodEnvironment): Promise<R
     cwd: repoPath,
     timeout: 10_000,
   });
-  await execFileAsync("git", ["config", "user.name", "wosm real dogfood"], {
+  await execFileAsync("git", ["config", "user.name", "wosm real E2E"], {
     cwd: repoPath,
     timeout: 10_000,
   });
-  await mkdir(dogfoodDir, { recursive: true });
+  await mkdir(realE2eDir, { recursive: true });
 
   const baseBranchOutput = await execFileAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: repoPath,
@@ -46,7 +46,7 @@ export async function createRealTempRepo(env: RealDogfoodEnvironment): Promise<R
   return {
     root,
     repoPath,
-    dogfoodDir,
+    realE2eDir,
     baseBranch,
     cleanup: async () => {
       await rm(root, { recursive: true, force: true });

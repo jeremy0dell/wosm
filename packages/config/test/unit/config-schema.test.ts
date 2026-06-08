@@ -13,7 +13,7 @@ async function loadJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(fixtureUrl(path), "utf8"));
 }
 
-describe("Phase 1 config schemas", () => {
+describe("config schemas", () => {
   it("validates parsed config objects without loading TOML or expanding paths", async () => {
     const config = await loadJson("valid-config.json");
     const parsed = ParsedWosmConfigSchema.parse(config);

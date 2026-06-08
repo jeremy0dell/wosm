@@ -2,7 +2,7 @@ import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { appendFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { promisify } from "node:util";
-import type { RealDogfoodEnvironment } from "./env";
+import type { RealE2eEnvironment } from "./env";
 import { requireToolPath } from "./env";
 
 const execFileAsync = promisify(execFile);
@@ -40,17 +40,14 @@ except ChildProcessError:
     sys.exit(0)
 `;
 
-export async function killTmuxSession(
-  env: RealDogfoodEnvironment,
-  sessionName: string,
-): Promise<void> {
+export async function killTmuxSession(env: RealE2eEnvironment, sessionName: string): Promise<void> {
   await execFileAsync(requireToolPath(env, "tmux"), ["kill-session", "-t", sessionName], {
     timeout: 10_000,
   }).catch(() => undefined);
 }
 
 export async function tmuxSessionExists(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   sessionName: string,
 ): Promise<boolean> {
   try {
@@ -64,7 +61,7 @@ export async function tmuxSessionExists(
 }
 
 export async function listTmuxWindows(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   sessionName: string,
 ): Promise<string[]> {
   const output = await execFileAsync(
@@ -79,7 +76,7 @@ export async function listTmuxWindows(
 }
 
 export async function activeTmuxWindow(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   sessionName: string,
 ): Promise<string> {
   const output = await execFileAsync(
@@ -90,7 +87,7 @@ export async function activeTmuxWindow(
   return output.stdout.trim();
 }
 
-export async function activeTmuxPane(env: RealDogfoodEnvironment, target: string): Promise<string> {
+export async function activeTmuxPane(env: RealE2eEnvironment, target: string): Promise<string> {
   const output = await execFileAsync(
     requireToolPath(env, "tmux"),
     ["display-message", "-p", "-t", target, "#{pane_id}"],
@@ -100,7 +97,7 @@ export async function activeTmuxPane(env: RealDogfoodEnvironment, target: string
 }
 
 export async function startWosmTuiInTmux(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   configPath: string;
   sessionName: string;
 }): Promise<void> {
@@ -118,7 +115,7 @@ export async function startWosmTuiInTmux(input: {
 }
 
 export async function displayWosmPopupAndSendKey(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   configPath: string;
   target: string;
   key: string;
@@ -180,7 +177,7 @@ export async function displayWosmPopupAndSendKey(input: {
 }
 
 export async function sendTmuxKeys(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   target: string;
   keys: string[];
 }): Promise<void> {
@@ -194,7 +191,7 @@ export async function sendTmuxKeys(input: {
 }
 
 export async function captureTmuxPane(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   target: string;
 }): Promise<string> {
   const output = await execFileAsync(
@@ -210,7 +207,7 @@ function shellQuote(value: string): string {
 }
 
 async function startTmuxPtyClient(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   sessionName: string,
 ): Promise<{ clientName: string; sendKey(key: string): void; close(): Promise<void> }> {
   const tmux = requireToolPath(env, "tmux");
@@ -250,7 +247,7 @@ async function startTmuxPtyClient(
 }
 
 async function waitForTmuxClient(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   sessionName: string,
   child: ChildProcess,
   output: Buffer[],

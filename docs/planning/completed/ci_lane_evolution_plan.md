@@ -47,15 +47,15 @@ Recommended trigger:
 Keep this lane fake-provider only. It can share artifacts such as logs,
 diagnostics, and debug bundles for failures.
 
-## Real Provider Dogfood Lanes
+## Real Provider E2E Lanes
 
-Real Worktrunk, tmux, Codex, OpenCode, and product dogfood lanes must stay out
+Real Worktrunk, tmux, Codex, OpenCode, and product real E2E lanes must stay out
 of normal PR and `main` CI.
 
 Allowed trigger shapes:
 
 - `workflow_dispatch` on a prepared self-hosted runner
-- scheduled run on an isolated machine owned for dogfood
+- scheduled run on an isolated machine owned for real E2E
 - explicit local command from a release checklist
 
 Required guardrails:

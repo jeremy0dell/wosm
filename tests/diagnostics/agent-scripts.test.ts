@@ -32,7 +32,7 @@ describe("agent cleanup/reset scripts", () => {
   it("defaults cleanup and reset to dry-run mode", () => {
     expect(parseCleanupArgs([])).toMatchObject({
       dryRun: true,
-      dogfood: true,
+      realE2e: true,
       localObserver: true,
       tmux: true,
     });
@@ -63,7 +63,7 @@ describe("agent cleanup/reset scripts", () => {
     });
   });
 
-  it("normalizes stale dogfood config without requiring a default Codex profile", () => {
+  it("normalizes stale local real config without requiring a default Codex profile", () => {
     const input = `[harness.codex]
 profile = "default"
 sandbox = "workspace-write"

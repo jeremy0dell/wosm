@@ -229,7 +229,7 @@ To reset stale local workbench state during manual smoke, clear the tmux workben
 tmux kill-session -t wosm 2>/dev/null || true
 ```
 
-For repeated agent-driven dogfood work, prefer the repo helper so cleanup remains scoped and
+For repeated agent-driven real E2E work, prefer the repo helper so cleanup remains scoped and
 repeatable:
 
 ```bash
@@ -239,7 +239,7 @@ pnpm agent:reset
 pnpm agent:reset -- --yes --force-worktrees --fix-config
 ```
 
-`agent:cleanup` targets stale wosm tmux sessions, the local wosm observer, and temp real-dogfood
+`agent:cleanup` targets stale wosm tmux sessions, the local wosm observer, and temp real-e2e
 processes. `agent:reset` also targets managed worktree directories under `PROJECT/.worktrees` and
 `~/.worktrees/wosm`. Both scripts dry-run by default unless `--run` or `--yes` is supplied.
 
@@ -345,16 +345,16 @@ pnpm test:e2e:cursor:real
 
 The test uses a temporary project/worktree plus a temporary Cursor shim that records argv/env and then executes the real Cursor Agent binary. It is a launch-only lane: the expected observer result is a normalized Cursor harness run with conservative `unknown` low-confidence status and tmux pane/process evidence that an interactive launch exists. It does not install or exercise Cursor hooks.
 
-## Real Dogfood E2E
+## Real E2E
 
-The opt-in product dogfood lane drives the built `bin/wosm` CLI against real config TOML, a real observer process, real Unix socket, real SQLite file, real Worktrunk, real tmux, and real Codex. It uses a temporary clone of this repository and unique tmux/Worktrunk state, not the active checkout.
+The opt-in product real E2E lane drives the built `bin/wosm` CLI against real config TOML, a real observer process, real Unix socket, real SQLite file, real Worktrunk, real tmux, and real Codex. It uses a temporary clone of this repository and unique tmux/Worktrunk state, not the active checkout.
 
 ```bash
 pnpm build
 pnpm setup:system:check
 codex login status
 
-WOSM_REAL_DOGFOOD=1 \
+WOSM_REAL_E2E=1 \
 WOSM_REAL_WORKTRUNK=1 \
 WOSM_REAL_CODEX=1 \
 WOSM_WORKTRUNK_BIN="$(command -v wt)" \

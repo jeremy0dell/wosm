@@ -1,4 +1,4 @@
-# Real Dogfood E2E
+# Real E2E
 
 This suite runs `bin/wosm` and `bin/wosm-ingress` against real config TOML, a real observer process, a real Unix socket, real SQLite state, real Worktrunk, real tmux, and real Codex. The Codex hook test creates an isolated temporary `CODEX_HOME`, appends inline hook config there, launches Codex with hooks enabled and hook trust bypassed for that temp project, and verifies `wosm-ingress codex` reaches the observer.
 
@@ -15,7 +15,7 @@ codex login status
 Run with explicit flags:
 
 ```bash
-WOSM_REAL_DOGFOOD=1 \
+WOSM_REAL_E2E=1 \
 WOSM_REAL_WORKTRUNK=1 \
 WOSM_REAL_CODEX=1 \
 WOSM_WORKTRUNK_BIN="$(command -v wt)" \
@@ -24,7 +24,7 @@ WOSM_CODEX_BIN="$(command -v codex)" \
 pnpm test:e2e:real
 ```
 
-For local dogfood from this repository, use the wrapper scripts instead of inline shell variables:
+For local real E2E from this repository, use the wrapper scripts instead of inline shell variables:
 
 ```bash
 pnpm test:e2e:real:local
@@ -32,7 +32,7 @@ pnpm test:e2e:real:codex-hooks
 pnpm test:e2e:real:codex-hooks:keep-temp
 ```
 
-The popup navigation test is part of the local dogfood lane. It creates a real Worktrunk worktree, starts a real Codex agent in the tmux workbench, opens the wosm TUI in a real tmux popup over that agent pane, injects a numeric activation key through the popup TTY, and verifies tmux lands back on the same primary agent pane after the popup exits.
+The popup navigation test is part of the local real E2E lane. It creates a real Worktrunk worktree, starts a real Codex agent in the tmux workbench, opens the wosm TUI in a real tmux popup over that agent pane, injects a numeric activation key through the popup TTY, and verifies tmux lands back on the same primary agent pane after the popup exits.
 
 ## Isolation
 
@@ -40,7 +40,7 @@ Each test uses a temporary local clone of this repository, a temporary wosm conf
 
 The active checkout is never passed to Worktrunk as the project root. Cleanup kills the unique tmux sessions, stops the observer, removes created Worktrunk branches/worktrees where possible, and removes the temp clone.
 
-Set `WOSM_REAL_DOGFOOD_KEEP_TEMP=1` while debugging a failure to leave the observer, tmux session, Worktrunk state, and temp clone in place. Clean those resources manually after inspection.
+Set `WOSM_REAL_E2E_KEEP_TEMP=1` while debugging a failure to leave the observer, tmux session, Worktrunk state, and temp clone in place. Clean those resources manually after inspection.
 
 ## Failure Triage
 
@@ -53,7 +53,7 @@ On lifecycle failures, tests attempt to write `wosm debug bundle` under the test
 - `logs/observer.jsonl`
 - `diagnostic-index.json`
 
-Real Codex can be slow or model-dependent. The prompts are bounded and target only sentinel files under `.wosm-dogfood/sentinels/` in the temp clone.
+Real Codex can be slow or model-dependent. The prompts are bounded and target only sentinel files under `.wosm-real-e2e/sentinels/` in the temp clone.
 
 The Codex hook lane also writes compact hook delivery evidence into the test temp root. Use that alongside `events.jsonl` to confirm that Codex lifecycle hooks such as `SessionStart`, tool-use events, compaction events, subagent events, and `Stop` came from the real Codex process and were ingested as `harness.eventReported` events for provider `codex`.
 
