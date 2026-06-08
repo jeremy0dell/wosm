@@ -331,6 +331,39 @@ ${projectToml("web", root)}
     ]);
   });
 
+  it("normalizes legacy observer event hook names from TOML", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[[hooks.event]]
+id = "legacy-provider-hook-events"
+events = ["hook.ingested", "hook.spoolDrained"]
+command = "wosm"
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.hooks?.event).toEqual([
+      {
+        id: "legacy-provider-hook-events",
+        events: ["providerHook.ingested", "providerHook.spoolDrained"],
+        command: "wosm",
+      },
+    ]);
+  });
+
   it("loads TUI widgets in configured order and normalizes snake_case keys", async () => {
     const tempDir = await makeTempDir();
     const root = await makeProjectRoot(tempDir, "web");

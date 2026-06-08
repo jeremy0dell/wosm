@@ -790,6 +790,17 @@ describe("contract schemas", () => {
       "worktree.updated",
     ]);
 
+    expectFails(
+      WosmEventSchema,
+      {
+        type: "hook.ingested",
+        at: "2026-05-20T12:00:00.000Z",
+        hookId: "hook_1",
+        provider: "codex",
+        event: "PreToolUse",
+      },
+      "legacy hook event name stays invalid for emitted events",
+    );
     expectFails(WosmEventSchema, await loadJson("events/invalid-event.json"), "invalid event");
   });
 
@@ -974,6 +985,12 @@ describe("contract schemas", () => {
       },
     };
     expectParses(ObserverEventHookConfigSchema, eventHookConfig, "event hook config");
+    expect(
+      ObserverEventHookConfigSchema.parse({
+        ...eventHookConfig,
+        events: ["hook.ingested", "hook.spoolDrained"],
+      }).events,
+    ).toEqual(["providerHook.ingested", "providerHook.spoolDrained"]);
     expectFails(
       ObserverEventHookConfigSchema,
       {
@@ -1093,6 +1110,22 @@ describe("contract schemas", () => {
       },
       "event filter",
     );
+    expect(EventFilterSchema.parse({ type: "hook.ingested" })).toEqual({
+      type: "providerHook.ingested",
+    });
+    expect(
+      EventFilterSchema.parse({
+        type: [
+          "hook.ingested",
+          "providerHook.ingested",
+          "hook.spoolDrained",
+          "providerHook.spoolDrained",
+          "command.accepted",
+        ],
+      }),
+    ).toEqual({
+      type: ["providerHook.ingested", "providerHook.spoolDrained", "command.accepted"],
+    });
   });
 
   it("keeps SafeError safe while allowing rich internal ErrorEnvelope diagnostics", async () => {

@@ -34,6 +34,48 @@ export const WosmEventTypeSchema = z.enum([
   "providerHook.spoolDrained",
 ]);
 
+export type WosmEventType = z.infer<typeof WosmEventTypeSchema>;
+
+const legacyWosmEventTypeAliases = {
+  "hook.ingested": "providerHook.ingested",
+  "hook.spoolDrained": "providerHook.spoolDrained",
+} as const satisfies Record<string, WosmEventType>;
+
+export function normalizeWosmEventTypeAlias(type: string): string {
+  return legacyWosmEventTypeAliases[type as keyof typeof legacyWosmEventTypeAliases] ?? type;
+}
+
+function normalizeWosmEventTypeArrayInput(types: readonly unknown[]): unknown[] {
+  const seen = new Set<string>();
+  const normalized: unknown[] = [];
+
+  for (const type of types) {
+    if (typeof type !== "string") {
+      normalized.push(type);
+      continue;
+    }
+
+    const normalizedType = normalizeWosmEventTypeAlias(type);
+    if (seen.has(normalizedType)) {
+      continue;
+    }
+    seen.add(normalizedType);
+    normalized.push(normalizedType);
+  }
+
+  return normalized;
+}
+
+export const WosmEventTypeInputSchema = z.preprocess(
+  (value) => (typeof value === "string" ? normalizeWosmEventTypeAlias(value) : value),
+  WosmEventTypeSchema,
+);
+
+export const WosmEventTypeArrayInputSchema = z.preprocess(
+  (value) => (Array.isArray(value) ? normalizeWosmEventTypeArrayInput(value) : value),
+  z.array(WosmEventTypeSchema).min(1),
+);
+
 const DiagnosticEventFields = {
   traceId: nonEmptyStringSchema.optional(),
   spanId: nonEmptyStringSchema.optional(),
@@ -256,7 +298,7 @@ export function wosmEventTimestamp(event: WosmEvent): string | undefined {
 
 export const EventFilterSchema = z
   .object({
-    type: z.union([WosmEventTypeSchema, z.array(WosmEventTypeSchema).min(1)]).optional(),
+    type: z.union([WosmEventTypeInputSchema, WosmEventTypeArrayInputSchema]).optional(),
     commandId: CommandIdSchema.optional(),
     traceId: nonEmptyStringSchema.optional(),
     since: TimestampSchema.optional(),
