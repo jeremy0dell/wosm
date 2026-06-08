@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { lstat, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { WosmConfig } from "@wosm/config";
 import type { ObserverHealth, ObserverStopReceipt, SafeError } from "@wosm/contracts";
@@ -61,11 +61,17 @@ export async function getObserverStatus(
   deps: ObserverProcessDeps = {},
 ): Promise<ObserverStatus> {
   const paths = options.paths ?? resolveObserverPaths(options.config);
+  const socketExists = await socketPathExists(paths.socketPath);
   if (await isSocketStale(paths.socketPath)) {
     return { status: "stale", paths };
   }
 
-  const client = (deps.clientFactory ?? defaultClientFactory)(paths.socketPath);
+  const client =
+    deps.clientFactory?.(paths.socketPath) ??
+    createObserverClient({
+      socketPath: paths.socketPath,
+      timeoutMs: observerStatusHealthTimeoutMs(options.timeoutMs),
+    });
   try {
     return {
       status: "running",
@@ -73,14 +79,11 @@ export async function getObserverStatus(
       health: await client.health(),
     };
   } catch (error) {
+    const safeError = observerConnectionError(error, paths, socketExists);
     return {
-      status: "stopped",
+      status: socketExists ? "unhealthy" : "stopped",
       paths,
-      error: safeErrorFromUnknown(error, {
-        tag: "ObserverConnectionError",
-        code: "OBSERVER_NOT_RUNNING",
-        message: "Observer is not running.",
-      }),
+      error: safeError,
     };
   }
 }
@@ -99,6 +102,9 @@ export async function startObserver(
   }
   if (existing.status === "stale") {
     await removeStaleSocket(paths.socketPath);
+  }
+  if (existing.status === "unhealthy") {
+    return existing;
   }
 
   // Spawning only starts the daemon; report running only after the socket health check succeeds.
@@ -258,6 +264,24 @@ export async function waitForObserverHealth(
   return result.value;
 }
 
+export function observerStatusErrorMessage(
+  status: Exclude<ObserverStatus, { status: "running" }>,
+): string {
+  const error = status.error;
+  if (error === undefined) {
+    return "Observer is not running.";
+  }
+
+  const lines = [error.message];
+  if (error.hint !== undefined) {
+    lines.push(`Hint: ${error.hint}`);
+  }
+  if (error.code !== undefined) {
+    lines.push(`Code: ${error.code}`);
+  }
+  return lines.join("\n");
+}
+
 function defaultClientFactory(socketPath: string) {
   return createObserverClient({ socketPath, timeoutMs: 500 });
 }
@@ -309,4 +333,54 @@ async function logObserverLifecycleFailure(input: {
   } catch {
     // The startup error itself must remain the user-visible result even if diagnostics logging fails.
   }
+}
+
+async function socketPathExists(socketPath: string): Promise<boolean> {
+  try {
+    await lstat(socketPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function observerConnectionError(
+  error: unknown,
+  paths: ObserverPaths,
+  socketExists: boolean,
+): SafeError {
+  const safeError = safeErrorFromUnknown(error, {
+    tag: "ObserverConnectionError",
+    code: "OBSERVER_NOT_RUNNING",
+    message: "Observer is not running.",
+  });
+  if (!socketExists || safeError.code === "PROTOCOL_SCHEMA_MISMATCH") {
+    return safeError;
+  }
+
+  if (safeError.tag === "TimeoutError" || safeError.code.endsWith("_TIMEOUT")) {
+    const timeoutError: SafeError = {
+      tag: "ObserverConnectionError",
+      code: "OBSERVER_HEALTH_TIMEOUT",
+      message: `Observer socket is present at ${paths.socketPath}, but the observer health request timed out.`,
+      hint: `The observer may be busy, hung, or running incompatible code. Retry, check ${paths.stateDir}/logs/observer.jsonl, or restart the observer.`,
+    };
+    if (safeError.traceId !== undefined) timeoutError.traceId = safeError.traceId;
+    if (safeError.diagnosticId !== undefined) timeoutError.diagnosticId = safeError.diagnosticId;
+    return timeoutError;
+  }
+
+  const enhanced: SafeError = {
+    tag: "ObserverConnectionError",
+    code: "OBSERVER_SOCKET_UNHEALTHY",
+    message: `Observer socket is present at ${paths.socketPath}, but the observer did not answer a valid health request.`,
+    hint: "A stale, hung, or incompatible observer may own the socket. Stop that observer, remove the socket if no process owns it, or use a config with an isolated observer socket_path and state_dir.",
+  };
+  if (safeError.traceId !== undefined) enhanced.traceId = safeError.traceId;
+  if (safeError.diagnosticId !== undefined) enhanced.diagnosticId = safeError.diagnosticId;
+  return enhanced;
+}
+
+function observerStatusHealthTimeoutMs(timeoutMs: number | undefined): number {
+  return Math.min(timeoutMs ?? 2000, 5000);
 }

@@ -130,6 +130,35 @@ describe("Phase 1 contract schemas", () => {
       "snapshot with configured harness options",
     );
 
+    const providerNeutralTerminalSnapshot = structuredClone(snapshots.idleAgent) as {
+      rows: Array<{ terminal?: unknown }>;
+      sessions: Array<{ terminal?: unknown }>;
+    };
+    const terminal = {
+      provider: "tmux",
+      state: "open",
+      focusable: true,
+      closeable: true,
+      hasWorkspace: true,
+      hasPrimaryAgentEndpoint: true,
+      confidence: "high",
+      reason: "Terminal is attached to the worktree.",
+      observedAt: "2026-05-20T12:00:00.000Z",
+    };
+    if (providerNeutralTerminalSnapshot.rows[0] === undefined) {
+      throw new Error("idleAgent fixture must include a row.");
+    }
+    if (providerNeutralTerminalSnapshot.sessions[0] === undefined) {
+      throw new Error("idleAgent fixture must include a session.");
+    }
+    providerNeutralTerminalSnapshot.rows[0].terminal = terminal;
+    providerNeutralTerminalSnapshot.sessions[0].terminal = terminal;
+    expectParses(
+      WosmSnapshotSchema,
+      providerNeutralTerminalSnapshot,
+      "snapshot with provider-neutral terminal attachment",
+    );
+
     expectFails(
       WosmSnapshotSchema,
       await loadJson("snapshots/invalid-snapshot.json"),

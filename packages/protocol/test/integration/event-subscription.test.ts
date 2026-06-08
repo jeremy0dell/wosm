@@ -201,7 +201,12 @@ describe("protocol event subscriptions", () => {
     const iterator = client.subscribe()[Symbol.asyncIterator]();
 
     try {
-      await expect(iterator.next()).rejects.toThrow();
+      await expect(iterator.next()).rejects.toMatchObject({
+        tag: "ProtocolError",
+        code: "PROTOCOL_EVENT_VALIDATION_FAILED",
+        message: "Observer protocol event failed validation.",
+        hint: expect.stringContaining("different WOSM build"),
+      });
       await waitFor(() => closed);
     } finally {
       await iterator.return?.();

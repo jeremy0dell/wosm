@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getObserverStatus, startObserver } from "@wosm/cli";
 import type { ChildProcessLike } from "@wosm/cli/internal";
+import { listenUnixSocket } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
 import { createStaleSocketFile } from "../../../../tests/support/sockets";
 import { fileExists } from "../../../../tests/support/spool";
@@ -174,5 +175,101 @@ describe("CLI observer process helpers", () => {
         },
       },
     });
+  });
+
+  it("does not spawn over a present incompatible observer socket", async () => {
+    const fixture = await createTempState();
+    const server = await listenUnixSocket({
+      socketPath: fixture.socketPath,
+      onConnection: () => undefined,
+    });
+    let spawned = false;
+
+    try {
+      const result = await startObserver(
+        {
+          config: fixture.config,
+          timeoutMs: 200,
+        },
+        {
+          clock: { now: () => new Date(now) },
+          spawnObserver: async (): Promise<ChildProcessLike> => {
+            spawned = true;
+            return { pid: 1234, unref: () => undefined };
+          },
+          clientFactory: () =>
+            ({
+              health: async () => {
+                throw {
+                  tag: "ProtocolError",
+                  code: "PROTOCOL_SCHEMA_MISMATCH",
+                  message:
+                    "Observer protocol schema mismatch: the observer responded with schema 0.3.0, but this CLI expects schema 0.4.0.",
+                  hint: "A different WOSM checkout may own the observer socket.",
+                };
+              },
+            }) as never,
+          sleep: async () => undefined,
+        },
+      );
+
+      expect(spawned).toBe(false);
+      expect(result).toMatchObject({
+        status: "unhealthy",
+        error: {
+          code: "PROTOCOL_SCHEMA_MISMATCH",
+          hint: "A different WOSM checkout may own the observer socket.",
+        },
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("does not spawn over a present observer socket when health times out", async () => {
+    const fixture = await createTempState();
+    const server = await listenUnixSocket({
+      socketPath: fixture.socketPath,
+      onConnection: () => undefined,
+    });
+    let spawned = false;
+
+    try {
+      const result = await startObserver(
+        {
+          config: fixture.config,
+          timeoutMs: 200,
+        },
+        {
+          clock: { now: () => new Date(now) },
+          spawnObserver: async (): Promise<ChildProcessLike> => {
+            spawned = true;
+            return { pid: 1234, unref: () => undefined };
+          },
+          clientFactory: () =>
+            ({
+              health: async () => {
+                throw {
+                  tag: "TimeoutError",
+                  code: "PROTOCOL_REQUEST_TIMEOUT",
+                  message: "Observer protocol request timed out.",
+                };
+              },
+            }) as never,
+          sleep: async () => undefined,
+        },
+      );
+
+      expect(spawned).toBe(false);
+      expect(result).toMatchObject({
+        status: "unhealthy",
+        error: {
+          code: "OBSERVER_HEALTH_TIMEOUT",
+          message: expect.stringContaining("health request timed out"),
+        },
+      });
+    } finally {
+      await server.close();
+    }
   });
 });

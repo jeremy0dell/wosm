@@ -230,6 +230,87 @@ describe("protocol client/server", () => {
     }
   });
 
+  it("reports protocol schema mismatches before generic response validation", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const server = await listenUnixSocket({
+      socketPath,
+      onConnection: async (connection) => {
+        const iterator = connection.messages()[Symbol.asyncIterator]();
+        const request = await iterator.next();
+        const requestId =
+          typeof request.value === "object" &&
+          request.value !== null &&
+          "id" in request.value &&
+          typeof request.value.id === "string"
+            ? request.value.id
+            : "unknown";
+        connection.send({
+          schemaVersion: "9.9.9",
+          jsonrpc: "2.0",
+          id: requestId,
+          result: {
+            status: "healthy",
+          },
+        });
+      },
+    });
+    const client = createObserverClient({ socketPath, timeoutMs: 1000, requestId: ids("schema") });
+
+    try {
+      await expect(client.health()).rejects.toMatchObject({
+        tag: "ProtocolError",
+        code: "PROTOCOL_SCHEMA_MISMATCH",
+        message:
+          "Observer protocol schema mismatch: the observer responded with schema 9.9.9, but this CLI expects schema 0.4.0.",
+        hint: expect.stringContaining("A different WOSM checkout"),
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("reports response result validation failures with method context", async () => {
+    const { socketPath } = await createTempSocketPath();
+    const server = await listenUnixSocket({
+      socketPath,
+      onConnection: async (connection) => {
+        const iterator = connection.messages()[Symbol.asyncIterator]();
+        const request = await iterator.next();
+        const requestId =
+          typeof request.value === "object" &&
+          request.value !== null &&
+          "id" in request.value &&
+          typeof request.value.id === "string"
+            ? request.value.id
+            : "unknown";
+        connection.send({
+          schemaVersion: WOSM_SCHEMA_VERSION,
+          jsonrpc: "2.0",
+          id: requestId,
+          result: {
+            status: "healthy",
+          },
+        });
+      },
+    });
+    const client = createObserverClient({
+      socketPath,
+      timeoutMs: 1000,
+      requestId: ids("invalid_result"),
+    });
+
+    try {
+      await expect(client.getSnapshot()).rejects.toMatchObject({
+        tag: "ProtocolError",
+        code: "PROTOCOL_RESPONSE_VALIDATION_FAILED",
+        message: "Observer protocol response failed validation for snapshot.get.",
+        hint: expect.stringContaining("different WOSM build"),
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
   it("maps server handler timeout to a typed protocol error", async () => {
     const { socketPath } = await createTempSocketPath();
     const server = await startProtocolServer({
