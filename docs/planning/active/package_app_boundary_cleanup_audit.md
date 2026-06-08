@@ -30,7 +30,7 @@ testing owns shared fake providers and fixtures
 
 The useful cleanup is smaller and more concrete: remove dead symbols, finish or delete half-wired abstractions, trim generic helper exports, and tighten boundary tests.
 
-## 1. Straight Delete: Phase 0 Testing Placeholders
+## 1. Straight Delete: Step 0 Testing Placeholders
 
 File:
 
@@ -49,7 +49,7 @@ createScriptedAgentLifecyclePlaceholder
 
 Why this should be deleted:
 
-These were Phase 0 placeholders. Current tests use real fake provider helpers from `@wosm/testing`; the placeholder names are not referenced outside the file.
+These were Step 0 placeholders. Current tests use real fake provider helpers from `@wosm/testing`; the placeholder names are not referenced outside the file.
 
 Minimal fix:
 

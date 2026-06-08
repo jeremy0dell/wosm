@@ -16,8 +16,8 @@ import { FakeHarnessProvider, FakeTerminalProvider, FakeWorktreeProvider } from 
 import { describe, expect, it } from "vitest";
 
 const now = "2026-05-20T12:00:00.000Z";
-const secretToken = "sk-phase6secret000000000";
-const bearerSecret = "Bearer phase6BearerSecretToken";
+const secretToken = "sk-diagsecret000000000";
+const bearerSecret = "Bearer diagBearerSecretToken";
 
 describe("operational debug bundle", () => {
   it("writes redacted diagnostics from fake providers and injected failures", async () => {
@@ -93,7 +93,7 @@ describe("operational debug bundle", () => {
       diagnosticsDir,
       snapshot,
       now: new Date(now),
-      bundleId: "diag_phase6",
+      bundleId: "diag_debug",
     });
 
     expect(manifest.sections).toContain("manifest.json");

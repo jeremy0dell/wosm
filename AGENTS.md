@@ -6,7 +6,7 @@ For development, test, and documentation workflow, read `docs/development.md`.
 
 For runtime trace IDs, command IDs, diagnostic IDs, or live debugging, read `docs/debugging.md`.
 
-The old rebuild TDD and phased plan in `docs/planning/historical/` are historical V1 baselines. Use them only for explicit rebuild-phase archaeology or original rationale. For ordinary work, current code, current tests, runtime evidence, and the living docs above supersede them.
+The old rebuild TDD in `docs/planning/historical/` is a historical V1 baseline. Use it only for explicit original rationale. For ordinary work, current code, current tests, runtime evidence, and the living docs above supersede it.
 
 When finishing a change and summarizing it, include a minimal line or section naming the specific UX implication and how to manually verify it when possible.
 

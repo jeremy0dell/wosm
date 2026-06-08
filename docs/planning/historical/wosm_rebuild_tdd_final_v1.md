@@ -22,7 +22,7 @@ New or finalized decisions:
 - `wosm debug bundle` must exist before the first real provider integration ships. It must work with fake providers, injected failures, redaction, recent commands, events, errors, logs, provider health, snapshot state, and trace/span context.
 - OpenTelemetry compatibility is designed into V1 through trace/span IDs and stable operation names, but exporter support is disabled or no-op by default until local observability is stable.
 - Log and diagnostic retention are bounded by default: local-first, configurable, visible through `wosm doctor`, and never treated as source of truth.
-- The companion phased development plan is updated to V1 and reflects the final testing, diagnostic, Effect, and retention decisions.
+- The historical implementation sequence reflected the final testing, diagnostic, Effect, and retention decisions, but current code and living docs now supersede it.
 - All previously listed open questions are now resolved for the V1 baseline.
 - A final consistency pass resolved stale TUI protocol wording, import-direction conflicts, outdated open-question framing, and observability/debug-bundle sequencing conflicts.
 
@@ -3857,7 +3857,7 @@ wosm debug bundle must make failures agent-debuggable.
 
 ## 19. Testing strategy and test architecture
 
-Testing is part of the architecture of wosm, not a final-phase quality pass.
+Testing is part of the architecture of wosm, not a final-pass quality pass.
 
 Wosm is a local developer-infrastructure system. It coordinates a lazy observer daemon, a TUI, a CLI, provider integrations, external processes, local sockets, SQLite persistence, hook ingestion, terminal targets, worktrees, and agent runs. A project like this cannot be made reliable by manual testing alone.
 
@@ -3880,7 +3880,7 @@ True agent-driven tests exist from the start, first with scripted agents and lat
 
 The purpose of testing is not only to prove correctness. It is also to create stable seams so future coding agents can safely modify the system.
 
-The companion phased-development document defines which tests are expected to be red at the beginning of each phase and what makes them green.
+The historical implementation sequence defined which tests were expected to be red at the beginning of each step and what made them green.
 
 ### 19.2 Test taxonomy
 
@@ -3918,15 +3918,15 @@ real-agent tests
 
 ### 19.3 Red-first development rule
 
-For each phase and each meaningful feature slice:
+For each step and each meaningful feature slice:
 
 ```text
 1. Write or update the relevant tests first.
 2. Run the targeted suite and confirm the new tests fail for the expected reason.
 3. Implement the smallest coherent slice.
 4. Run the targeted suite until green.
-5. Run the required phase gate.
-6. Merge only when the phase gate is green.
+5. Run the required step gate.
+6. Merge only when the step gate is green.
 ```
 
 This means tests should run red during local development. It does not mean the repository should keep broken tests on the main branch.
@@ -4534,18 +4534,12 @@ Every bug that reaches manual testing should become either:
   or an agent-driven test.
 ```
 
-## 20. Companion phased-development plan
+## 20. Historical implementation sequence
 
-The detailed development sequence lives in the companion document:
-
-```text
-wosm Phased Development Cycle - V1
-```
-
-That document defines:
+The detailed development sequence was kept separate from this TDD. That sequence defined:
 
 ```text
-phase goals
+step goals
 non-goals
 build scope
 test packs
@@ -4555,7 +4549,7 @@ exit artifacts
 risks
 ```
 
-The TDD owns architecture and testing structure. The companion plan owns implementation order.
+The TDD owns architecture and testing structure. Historical sequencing owned implementation order.
 
 ---
 
@@ -4637,9 +4631,9 @@ Structured logs, SQLite events, trace/span context, provider health, reconcile t
 
 The repository test layout, test tiers, fake providers, scripted agents, diagnostic tests, and CI lanes are defined in the TDD. They are not incidental project hygiene. They are how the observer, protocol, providers, and TUI remain separable.
 
-### Decision 20: Detailed sequencing belongs in the companion phased plan
+### Decision 20: Detailed sequencing belongs outside the TDD
 
-The TDD should not become a build checklist. The detailed implementation sequence lives in the companion phased development plan. The TDD defines what the system is and how its pieces relate; the companion plan defines how to build it.
+The TDD should not become a build checklist. The TDD defines what the system is and how its pieces relate; implementation sequencing defines how to build it.
 
 ### Decision 21: One primary agent pane per worktree in MVP
 
@@ -4663,7 +4657,7 @@ Global config remains authoritative for which projects wosm manages. Project-loc
 
 ### Decision 26: Runtime doctor is required before polish
 
-`wosm doctor` must validate config, observer, SQLite, provider availability, hook installation state, hook spool, runtime graph health, recent errors, and debug bundle availability before dog/notification work begins. Deep simulation doctor is deferred to a later phase.
+`wosm doctor` must validate config, observer, SQLite, provider availability, hook installation state, hook spool, runtime graph health, recent errors, and debug bundle availability before dog/notification work begins. Deep simulation doctor is deferred to a later step.
 
 ### Decision 27: v1 TUI focuses agents; prompt sending is deferred
 
@@ -4687,7 +4681,7 @@ Breadcrumbs live under local state by default. In-worktree breadcrumbs are allow
 
 ### Decision 32: No TUI inspect/debug panel in v1
 
-The v1 TUI does not implement row-level inspect or provider-debug panels. Deeper debugging is handled through CLI and diagnostics: `wosm doctor`, `wosm debug bundle`, `wosm snapshot --json`, command records, events, and logs. Raw provider details remain out of normal TUI behavior until a later UX phase.
+The v1 TUI does not implement row-level inspect or provider-debug panels. Deeper debugging is handled through CLI and diagnostics: `wosm doctor`, `wosm debug bundle`, `wosm snapshot --json`, command records, events, and logs. Raw provider details remain out of normal TUI behavior until a later UX step.
 
 ### Decision 33: Effect is standardized through a small runtime subset
 
@@ -4916,7 +4910,7 @@ All open questions tracked during the drafting process are resolved for the V1 b
 17. Log retention: balanced local retention, about 14 days and 250 MB by default, configurable and visible in doctor.
 ```
 
-This does not mean the architecture is frozen forever. Future discoveries should be handled as explicit design changes against this baseline, with tests and phased-plan updates.
+This does not mean the architecture is frozen forever. Future discoveries should be handled as explicit design changes against this baseline, with tests and implementation-sequence updates.
 
 ## 24. External references consulted
 

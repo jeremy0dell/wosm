@@ -4,27 +4,27 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertDebugBundleContains } from "../../support/real-wosm/assertions";
 import { type RealWosmConfigFixture, writeRealWosmConfig } from "../../support/real-wosm/config";
 import {
-  type RealDogfoodEnvironment,
-  realDogfoodEnabled,
-  requireRealDogfoodEnvironment,
+  type RealE2eEnvironment,
+  realE2eEnabled,
+  requireRealE2eEnvironment,
 } from "../../support/real-wosm/env";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
 import { createRealTempRepo } from "../../support/real-wosm/repo";
 import { killTmuxSession } from "../../support/real-wosm/tmux";
 
-const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+const describeReal = realE2eEnabled() ? describe : describe.skip;
 
 type ProviderHookReceipt = {
   hookId: string;
   status: "ingested" | "spooled" | "rejected";
 };
 
-describeReal("real Worktrunk hook dogfood", () => {
-  let env: RealDogfoodEnvironment;
+describeReal("real Worktrunk hook ingestion", () => {
+  let env: RealE2eEnvironment;
   let cleanup: CleanupStack;
 
   beforeAll(async () => {
-    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+    env = await requireRealE2eEnvironment({ worktrunk: true, tmux: true, codex: true });
   });
 
   afterEach(async () => {
@@ -138,7 +138,7 @@ describeReal("real Worktrunk hook dogfood", () => {
 });
 
 async function runWorktrunkIngress(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   config: RealWosmConfigFixture,
   input: {
     event: string;

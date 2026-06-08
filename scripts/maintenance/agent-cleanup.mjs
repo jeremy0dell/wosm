@@ -17,7 +17,7 @@ export function parseCleanupArgs(args) {
   const options = {
     dryRun: true,
     localObserver: true,
-    dogfood: true,
+    realE2e: true,
     tmux: true,
     verbose: false,
   };
@@ -32,8 +32,8 @@ export function parseCleanupArgs(args) {
       options.dryRun = true;
     } else if (arg === "--no-local-observer") {
       options.localObserver = false;
-    } else if (arg === "--no-dogfood") {
-      options.dogfood = false;
+    } else if (arg === "--no-real-e2e") {
+      options.realE2e = false;
     } else if (arg === "--no-tmux") {
       options.tmux = false;
     } else if (arg === "--verbose") {
@@ -54,7 +54,7 @@ export async function cleanupRuntime(options) {
   if (options.tmux) {
     actions.push(...tmuxCleanupActions());
   }
-  if (options.localObserver || options.dogfood) {
+  if (options.localObserver || options.realE2e) {
     actions.push(...processCleanupActions(options));
   }
 
@@ -89,7 +89,7 @@ function processCleanupActions(options) {
       if (options.localObserver && isLocalObserver(processInfo.command)) {
         return true;
       }
-      return options.dogfood && isDogfoodProcess(processInfo.command);
+      return options.realE2e && isRealE2eProcess(processInfo.command);
     })
     .map((processInfo) => ({
       label: `kill pid ${processInfo.pid} ${summarizeCommand(processInfo.command)}`,
@@ -145,8 +145,8 @@ function isLocalObserver(command) {
   );
 }
 
-function isDogfoodProcess(command) {
-  return command.includes("wosm-real-dogfood-") || command.includes("wosm-real-");
+function isRealE2eProcess(command) {
+  return command.includes("wosm-real-e2e-") || command.includes("wosm-real-");
 }
 
 async function killProcess(pid) {
@@ -198,7 +198,7 @@ Options:
   --run, --yes           perform cleanup
   --dry-run              print actions only
   --no-local-observer    do not stop the local wosm observer
-  --no-dogfood           do not stop temp real-dogfood processes
+  --no-real-e2e          do not stop temp real-e2e processes
   --no-tmux              do not kill wosm tmux sessions
   --verbose              reserved for noisier future output
 `);

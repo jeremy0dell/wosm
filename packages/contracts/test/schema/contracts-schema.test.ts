@@ -71,7 +71,7 @@ function expectFails(schema: ZodType, value: unknown, label: string) {
   expect(result.success, `${label} unexpectedly parsed`).toBe(false);
 }
 
-describe("Phase 1 contract schemas", () => {
+describe("contract schemas", () => {
   it("keeps id aliases distinct while preserving string wire values", () => {
     const projectId: ProjectId = "project_api";
 
@@ -793,7 +793,7 @@ describe("Phase 1 contract schemas", () => {
     expectFails(WosmEventSchema, await loadJson("events/invalid-event.json"), "invalid event");
   });
 
-  it("parses Phase 5 hook, observer, command-record, and event-filter contracts", async () => {
+  it("parses hook, observer, command-record, and event-filter contracts", async () => {
     const hookEvents = (await loadJson("hooks/provider-hook-events.json")) as Record<
       string,
       unknown

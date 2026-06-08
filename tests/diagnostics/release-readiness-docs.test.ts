@@ -2,31 +2,29 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("release readiness docs", () => {
-  it("documents install, smoke, known issues, release notes, and deterministic versus real gates", async () => {
+  it("documents install, smoke, known issues, local use, and deterministic versus real gates", async () => {
     const [
       readme,
       docsReadme,
       install,
       knownIssues,
-      releaseNotes,
       releaseReadiness,
-      dogfoodChecklist,
+      localUseChecklist,
       manualSmoke,
       systemDependencies,
       testsReadme,
-      dogfoodConfig,
+      localRealConfig,
     ] = await Promise.all([
       read("README.md"),
       read("docs/README.md"),
       read("docs/install.md"),
       read("docs/known-issues.md"),
-      read("docs/release-notes/phase-18-dogfood-milestone.md"),
       read("docs/release-readiness.md"),
-      read("docs/dogfood-checklist.md"),
+      read("docs/local-use-checklist.md"),
       read("docs/manual-smoke.md"),
       read("docs/system-dependencies.md"),
       read("tests/README.md"),
-      read("examples/dogfood-config.toml"),
+      read("examples/local-real-config.toml"),
     ]);
 
     expect(readme).toContain("pnpm smoke:release");
@@ -34,23 +32,21 @@ describe("release readiness docs", () => {
     expect(docsReadme).toContain("install.md");
     expect(install).toContain("Node.js 24.x");
     expect(install).toContain("pnpm smoke:release");
-    expect(install).toContain("examples/dogfood-config.toml");
+    expect(install).toContain("examples/local-real-config.toml");
     expect(knownIssues).toContain("Real E2E remains opt-in");
-    expect(releaseNotes).toContain("Phase 18 dogfood milestone");
-    expect(releaseNotes).toContain("No public npm package");
     expect(releaseReadiness).toContain("standard-ci");
     expect(releaseReadiness).toContain("pnpm smoke:release");
     expect(releaseReadiness).toContain("Standard CI Gate");
     expect(releaseReadiness).toContain("Manual Release Gate");
-    expect(releaseReadiness).toContain("Real Dogfood Gate");
-    expect(dogfoodChecklist).toContain("examples/dogfood-config.toml");
+    expect(releaseReadiness).toContain("Real E2E Gate");
+    expect(localUseChecklist).toContain("examples/local-real-config.toml");
     expect(manualSmoke).toContain("pnpm smoke:release");
     expect(systemDependencies).toContain("tmux");
     expect(systemDependencies).toContain("pnpm setup:system:check");
     expect(testsReadme).toContain("release-hardening-smoke");
-    expect(dogfoodConfig).toContain('managed_root = "~/.worktrees"');
-    expect(dogfoodConfig).toContain("include_external = false");
-    expect(dogfoodConfig).not.toContain('profile = "default"');
+    expect(localRealConfig).toContain('managed_root = "~/.worktrees"');
+    expect(localRealConfig).toContain("include_external = false");
+    expect(localRealConfig).not.toContain('profile = "default"');
   });
 });
 

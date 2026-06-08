@@ -4,7 +4,7 @@
 **Date:** 2026-05-24
 **Severity:** P1 leakage
 **Applies to:** contracts, snapshots, TUI commands, observer persistence, provider wiring
-**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`, `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`, and `docs/planning/active/terminal_ownership_p0_blocker_fix.md`
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`, and `docs/planning/active/terminal_ownership_p0_blocker_fix.md`
 
 This document plans cleanup for confirmed terminal leakage that is real but not independently blocking once the P0 terminal ownership fix is complete.
 
@@ -18,7 +18,7 @@ Compatibility note as of 2026-06-05: the normal snapshot wire shape changed, so 
 
 ## 0. Dependency And Conflict Rule
 
-This P1 plan assumes `docs/planning/active/terminal_ownership_p0_blocker_fix.md` has established a terminal intent boundary. Where this document or the P0 document conflicts with older command-path examples in the baseline TDD or phased plan, the P0/P1 addenda are authoritative for terminal ownership.
+This P1 plan assumes `docs/planning/active/terminal_ownership_p0_blocker_fix.md` has established a terminal intent boundary. Where this document or the P0 document conflicts with older command-path examples in the baseline TDD, the P0/P1 addenda are authoritative for terminal ownership.
 
 P1 should not reintroduce observer-owned terminal mechanics while removing leaked fields. Any implementation slice that needs target ids to preserve behavior should keep them behind the provider, terminal intent runner, diagnostic, or debug boundary rather than adding them back to normal TUI/protocol surfaces.
 

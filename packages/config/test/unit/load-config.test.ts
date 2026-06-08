@@ -79,7 +79,7 @@ async function writeProjectLocalConfig(root: string, contents: string): Promise<
   await writeFile(join(localDir, "config.toml"), contents, "utf8");
 }
 
-describe("Phase 2 config loading", () => {
+describe("config loading", () => {
   it("loads TOML, applies defaults, expands paths, and keeps every configured project", async () => {
     const tempDir = await makeTempDir();
     const roots = {

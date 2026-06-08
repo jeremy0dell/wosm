@@ -8,9 +8,9 @@ import {
 } from "../../support/real-wosm/codex";
 import { writeRealWosmConfig } from "../../support/real-wosm/config";
 import {
-  type RealDogfoodEnvironment,
-  realDogfoodEnabled,
-  requireRealDogfoodEnvironment,
+  type RealE2eEnvironment,
+  realE2eEnabled,
+  requireRealE2eEnvironment,
 } from "../../support/real-wosm/env";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
 import { createRealTempRepo, uniqueBranch } from "../../support/real-wosm/repo";
@@ -20,7 +20,7 @@ import {
   removeRealWorktrunkWorktree,
 } from "../../support/real-wosm/worktrunk";
 
-const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+const describeReal = realE2eEnabled() ? describe : describe.skip;
 
 type CommandDispatchWaitResult = {
   status: "succeeded" | "failed";
@@ -28,12 +28,12 @@ type CommandDispatchWaitResult = {
   command: CommandRecord;
 };
 
-describeReal("real existing Worktrunk worktree start-agent dogfood", () => {
-  let env: RealDogfoodEnvironment;
+describeReal("real existing Worktrunk worktree start-agent", () => {
+  let env: RealE2eEnvironment;
   let cleanup: CleanupStack;
 
   beforeAll(async () => {
-    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+    env = await requireRealE2eEnvironment({ worktrunk: true, tmux: true, codex: true });
   });
 
   afterEach(async () => {

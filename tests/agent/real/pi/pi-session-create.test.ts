@@ -19,7 +19,7 @@ import { PiHarnessProvider } from "@wosm/pi";
 import { FakeWorktreeProvider } from "@wosm/testing";
 import { TmuxProvider } from "@wosm/tmux";
 import { afterEach, describe, expect, it } from "vitest";
-import type { RealDogfoodEnvironment } from "../../../support/real-wosm/env";
+import type { RealE2eEnvironment } from "../../../support/real-wosm/env";
 import { createPiLaunchLoggingWrapper, waitForPiLaunchLog } from "../../../support/real-wosm/pi";
 
 const execFileAsync = promisify(execFile);
@@ -55,7 +55,7 @@ describeRealPi("real Pi session.create launch lane", () => {
     await execFileAsync("git", ["init"], { cwd: worktreePath, timeout: 10_000 });
     await writeFile(configPath, "# real Pi launch test config placeholder\n", "utf8");
 
-    const env: RealDogfoodEnvironment = {
+    const env: RealE2eEnvironment = {
       repoRoot: process.cwd(),
       wosmBin: join(process.cwd(), "bin", "wosm"),
       wosmIngressBin: join(process.cwd(), "bin", "wosm-ingress"),

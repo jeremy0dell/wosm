@@ -99,7 +99,7 @@ availability through `wosm doctor`, provider health, and debug bundles.
 
 wosm is under active development. The current build supports local setup, diagnostics,
 Worktrunk reconciliation, JSON snapshots, hook ingestion, debug bundles, and the TUI
-shell. It is ready for manual smoke testing and early dogfooding, but interfaces may
+shell. It is ready for manual smoke testing and early local use, but interfaces may
 still change.
 
 ## Requirements
@@ -173,7 +173,6 @@ pnpm test:all
 - [System dependencies](docs/system-dependencies.md)
 - [Diagnostics](docs/diagnostics.md)
 - [Example config](examples/config.toml)
-- [Dogfood config](examples/dogfood-config.toml)
+- [Local real config](examples/local-real-config.toml)
 - [Known issues](docs/known-issues.md)
-- [Phase 18 release notes](docs/release-notes/phase-18-dogfood-milestone.md)
 - [Docs index](docs/README.md)

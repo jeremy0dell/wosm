@@ -13,7 +13,7 @@ type Scenario = {
 const scenarioDir = fileURLToPath(new URL(".", import.meta.url));
 
 describe("diagnostic oracle scenarios", () => {
-  it("classifies all deterministic Phase 15 diagnosis fixtures", async () => {
+  it("classifies all deterministic diagnosis fixtures", async () => {
     const files = (await readdir(scenarioDir)).filter((file) => file.endsWith(".json")).sort();
     const scenarios = await Promise.all(
       files.map(

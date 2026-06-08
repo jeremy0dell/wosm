@@ -6,22 +6,22 @@ import {
 } from "../../support/real-wosm/assertions";
 import { writeRealWosmConfig } from "../../support/real-wosm/config";
 import {
-  type RealDogfoodEnvironment,
-  realDogfoodEnabled,
-  requireRealDogfoodEnvironment,
+  type RealE2eEnvironment,
+  realE2eEnabled,
+  requireRealE2eEnvironment,
 } from "../../support/real-wosm/env";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
 import { createRealTempRepo } from "../../support/real-wosm/repo";
 import { killTmuxSession } from "../../support/real-wosm/tmux";
 
-const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+const describeReal = realE2eEnabled() ? describe : describe.skip;
 
-describeReal("real wosm process dogfood", () => {
-  let env: RealDogfoodEnvironment;
+describeReal("real wosm process", () => {
+  let env: RealE2eEnvironment;
   let cleanup: CleanupStack;
 
   beforeAll(async () => {
-    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+    env = await requireRealE2eEnvironment({ worktrunk: true, tmux: true, codex: true });
   });
 
   afterEach(async () => {
@@ -61,7 +61,7 @@ describeReal("real wosm process dogfood", () => {
     await expect(
       runWosmJson(env, {
         configPath: config.configPath,
-        args: ["reconcile", "--reason", "real-dogfood-process"],
+        args: ["reconcile", "--reason", "real-e2e-process"],
         timeoutMs: 60_000,
       }),
     ).resolves.toMatchObject({

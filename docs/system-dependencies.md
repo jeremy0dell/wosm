@@ -13,7 +13,7 @@ The Worktrunk provider shells out to `wt`. Install Worktrunk before using a conf
 worktree_provider = "worktrunk"
 ```
 
-The tmux provider shells out to `tmux` for the workbench and popup dogfood path.
+The tmux provider shells out to `tmux` for the workbench and popup local-use path.
 
 On macOS, the repo `Brewfile` declares both dependencies:
 

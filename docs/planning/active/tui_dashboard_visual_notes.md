@@ -59,7 +59,7 @@ These recommendations synthesize common patterns from mature TUIs such as LazyGi
   - pass: `ok`
   - fail: `xN`
 - Consider a small details/inspector overlay later for row diagnostics, terminal provider details, stale metadata timestamps, and command history. Keep raw provider data out of the normal row.
-- Keep attention static initially. If static alerts are missed in dogfood, pulse style on the same `!` before changing glyphs.
+- Keep attention static initially. If static alerts are missed in real E2E, pulse style on the same `!` before changing glyphs.
 - Add config-driven help sections once custom commands exist. Built-in keybindings and configured commands should render in one help surface with stable grouping.
 
 ## Component Hierarchy
