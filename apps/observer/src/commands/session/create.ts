@@ -27,7 +27,7 @@ import {
 } from "./shared.js";
 
 export type CreateSessionCreateHandlerOptions = {
-  projects: readonly ProviderProjectConfig[];
+  getProjects: () => readonly ProviderProjectConfig[];
   providers: ProviderRegistry;
   core: ObserverCore;
   persistence: ObserverPersistence;
@@ -51,7 +51,7 @@ export function createSessionCreateHandler(
     throwIfAborted(context.signal);
 
     const payload = context.command.payload;
-    const project = findProjectOrThrow(options.projects, payload.projectId);
+    const project = findProjectOrThrow(options.getProjects(), payload.projectId);
     resolveTerminalProviderOrThrow(options.providers, payload.terminal.provider);
     resolveHarnessProviderOrThrow(options.providers, payload.harness.provider);
     const sessionId = idFactory.sessionId();

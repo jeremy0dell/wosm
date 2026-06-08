@@ -1,6 +1,7 @@
-import type { CommandId, SafeError, WosmEvent } from "@wosm/contracts";
+import type { CommandId, SafeError, WosmCommand, WosmEvent } from "@wosm/contracts";
 import type { StoreApi } from "zustand/vanilla";
 import { safeErrorToToast } from "../../services/errors/errors.js";
+import type { TuiFolderService } from "../../services/folderService.js";
 import type { TuiObserverService } from "../../services/types.js";
 import {
   failPendingCreateSessionRow,
@@ -9,7 +10,17 @@ import {
   removePendingRenameSessionTitle,
   removePendingStartAgentRow,
 } from "../localRows.js";
-import type { TuiState } from "../screen.js";
+import { replaceSnapshot, type TuiState } from "../screen.js";
+import {
+  applyAddProjectFolderLoaded,
+  applyAddProjectFolderLoadFailed,
+  applyAddProjectFolderReviewed,
+  applyAddProjectFolderReviewFailed,
+  applyAddProjectFolderSearchFailed,
+  applyAddProjectFolderSearchLoaded,
+  applyAddProjectSubmitFailed,
+  applyAddProjectSubmitted,
+} from "../screens/addProjectScreen.js";
 import type { TuiStore } from "../store.js";
 import { runCreateSessionOperation } from "./createSession.js";
 import { runRemoveWorktreeOperation } from "./removeWorktree.js";
@@ -120,6 +131,7 @@ function addRenameSuccessToast(store: StoreApi<TuiStore>): void {
 export function createTuiLocalOperationRunner(input: {
   getStore: () => StoreApi<TuiStore>;
   service: TuiObserverService;
+  folderService: TuiFolderService;
   runtime: CommandRuntimeOptions;
   focusStartedAgentRow: FocusStartedAgentRow;
 }): TuiLocalOperationRunner {
@@ -177,6 +189,18 @@ export function createTuiLocalOperationRunner(input: {
             () => addRenameSuccessToast(store()),
           );
         }
+        if (operation.type === "loadProjectDirectory") {
+          void runLoadProjectDirectoryOperation(store(), input.folderService, operation.path);
+        }
+        if (operation.type === "reviewProjectFolder") {
+          void runReviewProjectFolderOperation(store(), input.folderService, operation.path);
+        }
+        if (operation.type === "searchProjectDirectories") {
+          void runSearchProjectDirectoriesOperation(store(), input.folderService, operation.query);
+        }
+        if (operation.type === "addProject") {
+          void runAddProjectOperation(store(), input.service, operation.command);
+        }
       }
     },
     prepareCommandFailedEvent: (event) => {
@@ -204,4 +228,96 @@ export function createTuiLocalOperationRunner(input: {
       };
     },
   };
+}
+
+async function runLoadProjectDirectoryOperation(
+  store: StoreApi<TuiStore>,
+  folderService: TuiFolderService,
+  path: string,
+): Promise<void> {
+  try {
+    const result = await folderService.readDirectory(path);
+    store.setState(applyAddProjectFolderLoaded(store.getState(), result));
+  } catch (error: unknown) {
+    store.setState(applyAddProjectFolderLoadFailed(store.getState(), path, error));
+  }
+}
+
+async function runReviewProjectFolderOperation(
+  store: StoreApi<TuiStore>,
+  folderService: TuiFolderService,
+  path: string,
+): Promise<void> {
+  try {
+    const review = await folderService.reviewFolder(path);
+    store.setState(applyAddProjectFolderReviewed(store.getState(), review));
+  } catch (error: unknown) {
+    store.setState(applyAddProjectFolderReviewFailed(store.getState(), path, error));
+  }
+}
+
+async function runSearchProjectDirectoriesOperation(
+  store: StoreApi<TuiStore>,
+  folderService: TuiFolderService,
+  query: string,
+): Promise<void> {
+  try {
+    const result = await folderService.searchDirectories(query);
+    store.setState(applyAddProjectFolderSearchLoaded(store.getState(), result));
+  } catch (error: unknown) {
+    store.setState(applyAddProjectFolderSearchFailed(store.getState(), query, error));
+  }
+}
+
+async function runAddProjectOperation(
+  store: StoreApi<TuiStore>,
+  service: TuiObserverService,
+  command: Extract<WosmCommand, { type: "project.add" }>,
+): Promise<void> {
+  try {
+    const reviewedProject = currentReviewedProject(store.getState());
+    const receipt = await service.dispatch(command);
+    if (!receipt.accepted) {
+      const error =
+        receipt.error ??
+        ({
+          tag: "CommandDispatchError",
+          code: "PROJECT_ADD_REJECTED",
+          message: "Project add was rejected.",
+        } satisfies SafeError);
+      store.setState(applyAddProjectSubmitFailed(store.getState(), error));
+      return;
+    }
+    const completion = await service.waitForCommandCompletion(receipt.commandId);
+    if (completion.status === "failed") {
+      store.setState(applyAddProjectSubmitFailed(store.getState(), completion.error));
+      return;
+    }
+    const snapshot = await service.loadSnapshot();
+    const withSnapshot = replaceSnapshot(store.getState(), snapshot);
+    store.setState(
+      applyAddProjectSubmitted(withSnapshot, {
+        label: reviewedProject?.label ?? command.payload.label ?? command.payload.id ?? "project",
+        root: reviewedProject?.gitRoot ?? command.payload.path,
+      }),
+    );
+  } catch (error: unknown) {
+    store.setState(applyAddProjectSubmitFailed(store.getState(), error));
+  }
+}
+
+function currentReviewedProject(state: TuiState):
+  | {
+      label: string;
+      gitRoot?: string;
+    }
+  | undefined {
+  if (state.screen.name !== "addProject" || state.screen.flow.mode !== "review") {
+    return undefined;
+  }
+  const result: { label: string; gitRoot?: string } = { label: state.screen.flow.label };
+  if (state.screen.flow.gitRoot !== undefined) {
+    result.gitRoot = state.screen.flow.gitRoot;
+  }
+  return result;
 }

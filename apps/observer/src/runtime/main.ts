@@ -107,10 +107,12 @@ export async function runObserverMain(
     core,
     providers,
     projects: providerProjectsFromConfig(config),
+    getProjects: () => core.getProjects(),
     persistence,
     eventBus,
     clock: systemClock,
     logger,
+    ...(options.configPath === undefined ? {} : { configPath: loadedConfig.configPath }),
   });
   const eventHooks = createConfiguredEventHooks(config, eventBus, logger);
 
