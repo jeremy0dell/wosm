@@ -6,6 +6,7 @@ export * from "./commands/debugTrace.js";
 export * from "./commands/doctor.js";
 export * from "./commands/eventHooks.js";
 export * from "./commands/notify.js";
+export * from "./commands/observe/index.js";
 export * from "./commands/observer.js";
 export * from "./commands/opencodeHooks.js";
 export * from "./commands/popup.js";

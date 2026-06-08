@@ -6,10 +6,13 @@ This document describes the current local diagnostic surface for observer runs, 
 
 ```bash
 wosm doctor
+wosm observe --include-snapshot --duration 3s
 wosm debug bundle
 ```
 
 `wosm doctor` connects to the observer, asks the observer for runtime health, and reports config, SQLite, provider health, hook spool, snapshot, logs, local state usage, and retention status. If the config cannot be loaded, `doctor` does not start the observer; it returns a local SafeError report with diagnostic id `config-load`.
+
+`wosm observe` streams the observer's current snapshot and live events. Use `--json` for JSONL envelopes, `--pane` for an alternate-screen terminal tail, and bounded flags such as `--duration 3s` for smoke checks.
 
 `wosm debug bundle` asks the observer for a diagnostic snapshot, then writes a redacted bundle under the configured state directory. If the config cannot be loaded, it writes a local invalid-config bundle next to the failing config instead of contacting the observer.
 
