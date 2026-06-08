@@ -1,6 +1,6 @@
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
-import { formatLink, Link } from "./Link.js";
+import { formatLink, Link, stripTerminalLinks } from "./Link.js";
 
 describe("Link", () => {
   it("formats OSC 8 links with a stable id", () => {
@@ -25,5 +25,11 @@ describe("Link", () => {
     expect(frame).toContain(
       " \u001B]8;id=wosm-fNrWuVdbZiLi;https://github.com/example/web/pull/123\u0007#123",
     );
+  });
+
+  it("strips OSC 8 link escapes while keeping visible text", () => {
+    const linked = formatLink("https://github.com/example/web/pull/123", "#123");
+
+    expect(stripTerminalLinks(linked)).toBe("#123");
   });
 });

@@ -5,6 +5,10 @@ export function toSafeError(error: unknown): SafeError {
   if (isSafeError(error)) {
     return error;
   }
+  const cause = safeErrorCause(error);
+  if (cause !== undefined) {
+    return cause;
+  }
   return {
     tag: "TuiObserverError",
     code: "TUI_OBSERVER_OPERATION_FAILED",
@@ -13,6 +17,14 @@ export function toSafeError(error: unknown): SafeError {
 }
 
 export function safeErrorToToast(error: SafeError): TuiToast {
+  if (isObserverConnectError(error)) {
+    return {
+      kind: "error",
+      message: "Observer is reconnecting.",
+      hint: "Try the command again when the observer is ready.",
+    };
+  }
+
   const toast: TuiToast = {
     kind: "error",
     message: error.message,
@@ -22,6 +34,10 @@ export function safeErrorToToast(error: SafeError): TuiToast {
   if (error.traceId !== undefined) toast.traceId = error.traceId;
   if (error.diagnosticId !== undefined) toast.diagnosticId = error.diagnosticId;
   return toast;
+}
+
+export function isObserverConnectError(error: SafeError): boolean {
+  return error.code === "PROTOCOL_CONNECT_FAILED" || error.code === "PROTOCOL_CONNECT_TIMEOUT";
 }
 
 function isSafeError(value: unknown): value is SafeError {
@@ -37,4 +53,16 @@ function isSafeError(value: unknown): value is SafeError {
     typeof candidate.message === "string" &&
     candidate.message.length > 0
   );
+}
+
+function safeErrorCause(error: unknown, seen = new Set<unknown>()): SafeError | undefined {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return undefined;
+  }
+  seen.add(error);
+  const cause = (error as { cause?: unknown }).cause;
+  if (isSafeError(cause)) {
+    return cause;
+  }
+  return safeErrorCause(cause, seen);
 }

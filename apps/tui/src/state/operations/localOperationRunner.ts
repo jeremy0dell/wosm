@@ -10,7 +10,7 @@ import {
   removePendingRenameSessionTitle,
   removePendingStartAgentRow,
 } from "../localRows.js";
-import { replaceSnapshot, type TuiState } from "../screen.js";
+import { addTuiToast, replaceSnapshot, type TuiState } from "../screen.js";
 import {
   applyAddProjectFolderLoaded,
   applyAddProjectFolderLoadFailed,
@@ -111,21 +111,16 @@ function markRenameSessionFailed(store: StoreApi<TuiStore>, sessionId: string): 
 }
 
 function addSafeErrorToast(store: StoreApi<TuiStore>, error: SafeError): void {
-  store.setState((state) => ({
-    toasts: [...state.toasts, safeErrorToToast(error)],
-  }));
+  store.setState(addTuiToast(store.getState(), safeErrorToToast(error)));
 }
 
 function addRenameSuccessToast(store: StoreApi<TuiStore>): void {
-  store.setState((state) => ({
-    toasts: [
-      ...state.toasts,
-      {
-        kind: "success",
-        message: "Session renamed.",
-      },
-    ],
-  }));
+  store.setState(
+    addTuiToast(store.getState(), {
+      kind: "success",
+      message: "Session renamed.",
+    }),
+  );
 }
 
 export function createTuiLocalOperationRunner(input: {

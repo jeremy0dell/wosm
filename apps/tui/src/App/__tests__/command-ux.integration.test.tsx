@@ -444,6 +444,8 @@ describe("TUI command UX", () => {
         instance.lastFrame()?.includes(" [5] ○ fix-nav-mobile updated") === true &&
         instance.lastFrame()?.includes("Session renamed.") === true,
     );
+    expect(instance.lastFrame()).toContain("saved");
+    await waitFor(() => instance.lastFrame()?.includes("Session renamed.") === false, 4_000);
     expect(instance.lastFrame()).not.toContain("session.rename queued");
     instance.unmount();
   });
