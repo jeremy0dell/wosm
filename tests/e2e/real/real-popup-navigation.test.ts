@@ -6,9 +6,9 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { findRowByBranch } from "../../support/real-wosm/assertions";
 import { writeRealWosmConfig } from "../../support/real-wosm/config";
 import {
-  type RealDogfoodEnvironment,
-  realDogfoodEnabled,
-  requireRealDogfoodEnvironment,
+  type RealE2eEnvironment,
+  realE2eEnabled,
+  requireRealE2eEnvironment,
 } from "../../support/real-wosm/env";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
 import {
@@ -28,14 +28,14 @@ import {
   removeRealWorktrunkWorktree,
 } from "../../support/real-wosm/worktrunk";
 
-const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+const describeReal = realE2eEnabled() ? describe : describe.skip;
 
-describeReal("real tmux popup navigation dogfood", () => {
-  let env: RealDogfoodEnvironment;
+describeReal("real tmux popup navigation", () => {
+  let env: RealE2eEnvironment;
   let cleanup: CleanupStack;
 
   beforeAll(async () => {
-    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+    env = await requireRealE2eEnvironment({ worktrunk: true, tmux: true, codex: true });
   });
 
   afterEach(async () => {

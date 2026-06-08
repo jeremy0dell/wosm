@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("Phase 18 release smoke", () => {
+describe("release smoke", () => {
   it("runs the deterministic release smoke against the built CLI", () => {
     const root = process.cwd();
     const cliEntry = join(root, "apps", "cli", "dist", "main.js");

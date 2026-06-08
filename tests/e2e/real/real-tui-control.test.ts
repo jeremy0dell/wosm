@@ -4,9 +4,9 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { findRowByBranch } from "../../support/real-wosm/assertions";
 import { uniqueTmuxSession, writeRealWosmConfig } from "../../support/real-wosm/config";
 import {
-  type RealDogfoodEnvironment,
-  realDogfoodEnabled,
-  requireRealDogfoodEnvironment,
+  type RealE2eEnvironment,
+  realE2eEnabled,
+  requireRealE2eEnvironment,
 } from "../../support/real-wosm/env";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
 import { createRealObserverClient, waitForSnapshot } from "../../support/real-wosm/protocol";
@@ -23,14 +23,14 @@ import {
   removeRealWorktrunkWorktree,
 } from "../../support/real-wosm/worktrunk";
 
-const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+const describeReal = realE2eEnabled() ? describe : describe.skip;
 
-describeReal("real TUI control dogfood", () => {
-  let env: RealDogfoodEnvironment;
+describeReal("real TUI control", () => {
+  let env: RealE2eEnvironment;
   let cleanup: CleanupStack;
 
   beforeAll(async () => {
-    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+    env = await requireRealE2eEnvironment({ worktrunk: true, tmux: true, codex: true });
   });
 
   afterEach(async () => {
@@ -92,7 +92,7 @@ describeReal("real TUI control dogfood", () => {
 });
 
 async function waitForTuiText(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   target: string,
   text: string,
 ): Promise<void> {

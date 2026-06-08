@@ -317,7 +317,7 @@ Later UI improvements can add explicit markers such as "recoverable" or "resume"
 - Keep ordinary no-agent rows on `session.startAgent`.
 - Add interaction tests around row primary action and command runtime focus options.
 
-### Slice 6: Real Dogfood
+### Slice 6: Real E2E
 
 - Codex: start a WOSM-launched Codex session, kill the harness process while tmux pane remains, refresh WOSM, select the row, and verify `codex resume <id>` relaunches into the same native session.
 - OpenCode: repeat with plugin-reported native session id and `opencode --session`.

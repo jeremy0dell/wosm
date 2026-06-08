@@ -6,7 +6,7 @@ export default defineConfig({
   test: {
     ...commonTestConfig,
     include: ["tests/e2e/**/*.test.ts"],
-    exclude: ["tests/e2e/real-dogfood/**/*.test.ts"],
+    exclude: ["tests/e2e/real/**/*.test.ts"],
     fileParallelism: false,
     testTimeout: 60_000,
     passWithNoTests: true,

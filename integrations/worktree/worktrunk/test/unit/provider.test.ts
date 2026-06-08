@@ -125,7 +125,7 @@ describe("WorktrunkProvider", () => {
       root: "/var/folders/test/wosm/repo",
       worktrunk: {
         ...project.worktrunk,
-        managedRoot: ".wosm-dogfood/worktrees",
+        managedRoot: ".wosm-real-e2e/worktrees",
         includeMain: false,
         includeExternal: false,
       },
@@ -138,7 +138,7 @@ describe("WorktrunkProvider", () => {
           input,
           JSON.stringify([
             {
-              path: "/private/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+              path: "/private/var/folders/test/wosm/repo/.wosm-real-e2e/worktrees/feature",
               branch: "feature",
             },
           ]),

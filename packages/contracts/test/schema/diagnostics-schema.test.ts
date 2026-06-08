@@ -25,7 +25,7 @@ function expectParses(schema: ZodType, value: unknown, label: string) {
   expect(result.success, `${label}: ${result.success ? "" : result.error.message}`).toBe(true);
 }
 
-describe("Phase 6 diagnostics schemas", () => {
+describe("diagnostics schemas", () => {
   it("parses doctor, manifest, redaction, trace, log, and retention fixtures", async () => {
     expectParses(DoctorReportSchema, await loadJson("doctor-report.json"), "doctor report");
     expectParses(
@@ -127,7 +127,7 @@ describe("Phase 6 diagnostics schemas", () => {
     );
   });
 
-  it("parses the Phase 15 diagnostic evidence index fixture", async () => {
+  it("parses the diagnostic evidence index fixture", async () => {
     expectParses(
       DiagnosticEvidenceIndexSchema,
       await loadJson("diagnostic-evidence-index.json"),

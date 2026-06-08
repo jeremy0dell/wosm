@@ -3,7 +3,7 @@
 **Status:** Planning addendum  
 **Date:** 2026-05-21  
 **Applies to:** current implementation after diagnostics, persistence, observer graph, Worktrunk, tmux, and harness integration slices  
-**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md` and `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`
 
 This document records the P1 and P2 remediation work found during the code smell audit.
 
@@ -650,4 +650,4 @@ changing public protocol shapes for style reasons
 converting this work into an Effect refactor
 ```
 
-If a future phase wants to add lint guards, add them only after the convention is implemented and written in `AGENTS.md`.
+If a future change wants to add lint guards, add them only after the convention is implemented and written in `AGENTS.md`.

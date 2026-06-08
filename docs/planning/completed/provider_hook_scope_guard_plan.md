@@ -4,7 +4,7 @@
 **Date:** 2026-05-24  
 **Severity:** P1 behavioral boundary issue  
 **Applies to:** all wosm-installed provider hooks, CLI hook receiver, observer hook ingestion  
-**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md` and `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`
 
 This document records the fix for over-broad hook reporting from wosm-installed hooks.
 

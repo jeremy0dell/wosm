@@ -15,7 +15,7 @@ import {
 
 const now = "2026-05-22T12:00:00.000Z";
 
-describe("Phase 18 release doctor boundaries", () => {
+describe("release doctor boundaries", () => {
   it("bounds provider doctor checks and returns typed diagnostic evidence", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wosm-release-doctor-"));
     const clock = { now: () => new Date(now) };

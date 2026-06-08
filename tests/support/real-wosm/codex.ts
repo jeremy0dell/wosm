@@ -1,7 +1,7 @@
 import { access, chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import type { RealDogfoodEnvironment } from "./env";
+import type { RealE2eEnvironment } from "./env";
 import { requireToolPath } from "./env";
 import { runWosmJson } from "./process";
 import type { RealTempRepo } from "./repo";
@@ -28,7 +28,7 @@ export type CodexHookFixture = {
 
 export function createCodexSentinel(repo: RealTempRepo, label: string): CodexSentinel {
   const token = `wosm-real-${label}-${process.pid}-${Date.now()}`;
-  const relativePath = `.wosm-dogfood/sentinels/${sanitize(label)}-${Date.now()}.txt`;
+  const relativePath = `.wosm-real-e2e/sentinels/${sanitize(label)}-${Date.now()}.txt`;
   const absolutePath = join(repo.repoPath, relativePath);
   return {
     relativePath,
@@ -44,7 +44,7 @@ export function createCodexBranchSwitchSentinel(
   branch: string,
 ): CodexBranchSwitchSentinel {
   const token = `wosm-real-${label}-${process.pid}-${Date.now()}`;
-  const relativePath = `.wosm-dogfood/sentinels/${sanitize(label)}-${Date.now()}.txt`;
+  const relativePath = `.wosm-real-e2e/sentinels/${sanitize(label)}-${Date.now()}.txt`;
   const absolutePath = join(repo.repoPath, relativePath);
   return {
     relativePath,
@@ -77,7 +77,7 @@ export async function waitForCodexSentinel(
 }
 
 export async function createCodexHookEnabledWrapper(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   repo: RealTempRepo;
 }): Promise<string> {
   const wrapperPath = join(input.repo.root, "codex-with-wosm-hooks.sh");
@@ -105,7 +105,7 @@ export async function createCodexHookEnabledWrapper(input: {
 }
 
 export async function installCodexHookProjectConfig(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   repo: RealTempRepo;
   configPath: string;
 }): Promise<CodexHookFixture> {
@@ -168,7 +168,7 @@ export async function waitForFileContaining(
 }
 
 export async function writeFailureBundle(input: {
-  env: RealDogfoodEnvironment;
+  env: RealE2eEnvironment;
   configPath: string;
   commandId?: string;
 }): Promise<unknown | undefined> {
@@ -185,7 +185,7 @@ export async function writeFailureBundle(input: {
 
 function boundedCodexPrompt(relativePath: string, token: string): string {
   return [
-    "This is a wosm real dogfood sentinel task.",
+    "This is a wosm real E2E sentinel task.",
     `Create or overwrite only ${relativePath}.`,
     `Write exactly this token followed by a newline: ${token}`,
     "Do not modify any other files.",
@@ -198,7 +198,7 @@ function boundedCodexBranchSwitchPrompt(
   branch: string,
 ): string {
   return [
-    "This is a wosm real dogfood branch-switch sentinel task.",
+    "This is a wosm real E2E branch-switch sentinel task.",
     `Create and switch to a new Git branch named ${branch}.`,
     `Then create or overwrite only ${relativePath}.`,
     `Write exactly this token followed by a newline: ${token}`,

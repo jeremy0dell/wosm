@@ -18,7 +18,7 @@ export async function resetAgentState(options) {
   await cleanupRuntime({
     dryRun: options.dryRun,
     localObserver: true,
-    dogfood: true,
+    realE2e: true,
     tmux: true,
     verbose: options.verbose,
   });
@@ -175,7 +175,7 @@ function configFixActions(options) {
   const configPath = join(home, ".config", "wosm", "config.toml");
   return [
     {
-      label: `normalize dogfood config ${configPath}`,
+      label: `normalize local real config ${configPath}`,
       run: () => {
         if (!existsSync(configPath)) {
           return;

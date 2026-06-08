@@ -219,7 +219,7 @@ describe("Worktrunk list parser", () => {
     const varObservation = parseWorktrunkListJson(
       JSON.stringify([
         {
-          path: "/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+          path: "/var/folders/test/wosm/repo/.wosm-real-e2e/worktrees/feature",
           branch,
         },
       ]),
@@ -231,7 +231,7 @@ describe("Worktrunk list parser", () => {
     const privateVarObservation = parseWorktrunkListJson(
       JSON.stringify([
         {
-          path: "/private/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+          path: "/private/var/folders/test/wosm/repo/.wosm-real-e2e/worktrees/feature",
           branch,
         },
       ]),

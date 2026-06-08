@@ -3,7 +3,7 @@
 **Status:** Executed remediation record  
 **Date:** 2026-05-21  
 **Applies to:** current implementation after diagnostics, persistence, observer graph, Worktrunk, tmux, protocol, and harness integration slices  
-**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`, `docs/planning/historical/wosm_phased_development_cycle_final_v1.md`, and the broad TypeScript audit performed on 2026-05-21
+**Source baseline:** `docs/planning/historical/wosm_rebuild_tdd_final_v1.md`, and the broad TypeScript audit performed on 2026-05-21
 
 This document records the P0 and P1 TypeScript/codebase improvements found during the broad TypeScript audit and the execution status of the remediation pass.
 

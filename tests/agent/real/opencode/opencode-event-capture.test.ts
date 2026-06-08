@@ -23,7 +23,7 @@ import {
   FakeWorktreeProvider,
 } from "@wosm/testing";
 import { afterEach, describe, expect, it } from "vitest";
-import { requireRealDogfoodEnvironment, requireToolPath } from "../../../support/real-wosm/env";
+import { requireRealE2eEnvironment, requireToolPath } from "../../../support/real-wosm/env";
 
 const realOpenCodeEnabled = process.env.WOSM_REAL_OPENCODE === "1";
 const describeRealOpenCode = realOpenCodeEnabled ? describe : describe.skip;
@@ -39,7 +39,7 @@ describeRealOpenCode("real OpenCode event capture", () => {
   });
 
   it("runs real OpenCode and ingests plugin events through the observer socket", async () => {
-    const env = await requireRealDogfoodEnvironment({ opencode: true });
+    const env = await requireRealE2eEnvironment({ opencode: true });
     const opencodeBin = requireToolPath(env, "opencode");
     const root = await mkdtemp(join(tmpdir(), "wosm-real-opencode-"));
     const stateDir = join(root, "state");

@@ -158,7 +158,7 @@ Backlog implications:
 Existing related references:
 
 - `docs/debugging.md`
-- `docs/dogfood-checklist.md`
+- `docs/local-use-checklist.md`
 - `docs/manual-smoke.md`
 
 ### 6. Setup That Feels Finished
@@ -183,7 +183,7 @@ Existing related references:
 
 ## Priority Order
 
-1. Make the TUI legible and discoverable enough to dogfood daily.
+1. Make the TUI legible and discoverable enough to use locally daily.
 2. Productize semantic harness observation for Codex and OpenCode.
 3. Ship explainable recovery as the signature wedge.
 4. Add row-level inspect/debug once the evidence model is strong.
@@ -200,12 +200,12 @@ feels obviously better.
 - Do not make flexibility the main pitch before the default path feels complete.
 - Do not expose raw provider payloads in ordinary TUI surfaces.
 - Do not make the management UI a dense terminal-pane layout by default.
-- Do not require public release packaging before the local dogfood loop is
+- Do not require public release packaging before the local use loop is
   compelling.
 
 ## Manual Verification Shape
 
-The competitive dogfood loop should eventually be this:
+The competitive local-use loop should eventually be this:
 
 ```text
 wosm doctor

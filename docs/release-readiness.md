@@ -1,7 +1,7 @@
 # Release Readiness
 
 Use GitHub `standard-ci` as the normal deterministic gate for pull requests and
-`main` pushes. Keep release smoke, e2e, and real dogfood checks as local or
+`main` pushes. Keep release smoke, e2e, and real E2E checks as local or
 manual release gates.
 
 ## Standard CI Gate
@@ -33,7 +33,7 @@ pnpm test:all
 ## Manual Release Gate
 
 Run these locally or from an explicit release workflow when preparing a release
-or dogfood checkpoint:
+or local-use checkpoint:
 
 ```bash
 pnpm smoke:release
@@ -43,13 +43,13 @@ pnpm test:e2e
 `pnpm smoke:release` and `pnpm test:e2e` use fake or scripted dependencies, but
 they are release-readiness checks rather than the default PR gate.
 
-## Real Dogfood Gate
+## Real E2E Gate
 
 ```bash
 pnpm setup:system:check
 codex login status
 
-WOSM_REAL_DOGFOOD=1 \
+WOSM_REAL_E2E=1 \
 WOSM_REAL_WORKTRUNK=1 \
 WOSM_REAL_CODEX=1 \
 WOSM_WORKTRUNK_BIN="$(command -v wt)" \
@@ -65,15 +65,14 @@ Real failures must have enough evidence to triage from `doctor`, `snapshot --jso
 - `docs/install.md` can take a fresh checkout through `pnpm install`, `pnpm build`, and `pnpm smoke:release`.
 - `docs/manual-smoke.md` matches the current CLI commands.
 - `docs/system-dependencies.md` names required external tools and override env vars.
-- `tests/e2e/real-dogfood/README.md` lists real-lane flags, cleanup behavior, and triage files.
-- `docs/dogfood-checklist.md` reflects the current manual dogfood loop.
-- `docs/known-issues.md` lists accepted current dogfood limitations.
-- `docs/release-notes/phase-18-dogfood-milestone.md` records the dogfood checkpoint.
+- `tests/e2e/real/README.md` lists real-lane flags, cleanup behavior, and triage files.
+- `docs/local-use-checklist.md` reflects the current manual local-use loop.
+- `docs/known-issues.md` lists accepted current local-use limitations.
 
 ## Release Notes Gate
 
 - Known real-provider limitations are documented.
 - Debug-bundle redaction remains enabled.
 - Real E2E remains opt-in.
-- No active checkout mutation is part of any release smoke or dogfood command.
-- No public npm package is implied by the dogfood milestone.
+- No active checkout mutation is part of any release smoke or local-use command.
+- No public npm package is implied by the local-use checkpoint.

@@ -940,14 +940,14 @@ install_hooks = true
 9. Assert snapshot row reaches `working` and later `idle` if the bounded prompt completes.
 10. Write debug bundle on failure.
 
-### 15.6 Real Dogfood Lane
+### 15.6 Real E2E Lane
 
-Do not add OpenCode to the main real dogfood lane immediately.
+Do not add OpenCode to the main real E2E lane immediately.
 
-After the focused real OpenCode lane is stable, add an optional focused dogfood script:
+After the focused real OpenCode lane is stable, add an optional focused real E2E script:
 
 ```json
-"test:e2e:real:opencode": "node scripts/run-real-dogfood.mjs tests/e2e/real-dogfood/real-opencode-hooks.test.ts"
+"test:e2e:real:opencode": "node scripts/run-real-e2e.mjs tests/e2e/real/real-opencode-hooks.test.ts"
 ```
 
 Then consider broadening `pnpm test:e2e:real:local` only after repeated local success.
@@ -995,9 +995,9 @@ events containing harness.eventReported provider=opencode
 diagnostic bundle commands/errors on failure
 ```
 
-## 17. Implementation Phases
+## 17. Implementation Steps
 
-### Phase 0: Real Event Reconnaissance
+### Step 0: Real Event Reconnaissance
 
 Do this before schema work:
 
@@ -1020,7 +1020,7 @@ or provider-local fixtures under:
 integrations/harness/opencode/test/fixtures/
 ```
 
-### Phase 1: Provider-Local Mapping
+### Step 1: Provider-Local Mapping
 
 Build compact schema, compaction, status mapping, report construction, discovery, and launch env. No CLI installer yet.
 
@@ -1032,7 +1032,7 @@ observer integration test passes with fake OpenCode reports
 no observer core imports @wosm/opencode beyond provider factory/registry
 ```
 
-### Phase 2: Plugin Install And Doctor
+### Step 2: Plugin Install And Doctor
 
 Add generated plugin, install/plan/uninstall/doctor, CLI wiring, provider doctor checks.
 
@@ -1044,7 +1044,7 @@ doctor reports plugin status through provider checks
 plugin does not edit opencode.jsonc
 ```
 
-### Phase 3: Real OpenCode Lane
+### Step 3: Real OpenCode Lane
 
 Add focused opt-in real lane.
 
@@ -1056,9 +1056,9 @@ WOSM_REAL_OPENCODE=1 pnpm test:e2e:opencode:real
 
 passes locally with installed/authenticated OpenCode and tmux.
 
-### Phase 4: Docs And Dogfood
+### Step 4: Docs And Real E2E
 
-Update operational docs and optionally add focused real dogfood coverage.
+Update operational docs and optionally add focused real E2E coverage.
 
 Exit criteria:
 
@@ -1147,7 +1147,7 @@ Spooling from a dependency-free plugin duplicates a small part of WOSM's spool s
 
 ```text
 keep spooling generated and tested
-omit spooling in Phase 1 if it delays real event capture
+omit spooling in Step 1 if it delays real event capture
 events are semantic hints, not liveness authority
 ```
 

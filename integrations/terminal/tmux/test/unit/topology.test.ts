@@ -101,13 +101,13 @@ describe("tmux workbench topology", () => {
       projectId: "web",
       branch,
       worktreeId,
-      path: "/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+      path: "/var/folders/test/wosm/repo/.wosm-real-e2e/worktrees/feature",
     });
     const right = buildWorkbenchWindowName({
       projectId: "web",
       branch,
       worktreeId,
-      path: "/private/var/folders/test/wosm/repo/.wosm-dogfood/worktrees/feature",
+      path: "/private/var/folders/test/wosm/repo/.wosm-real-e2e/worktrees/feature",
     });
 
     expect(left).toBe(right);

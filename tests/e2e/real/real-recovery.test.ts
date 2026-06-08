@@ -5,9 +5,9 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertDebugBundleContains, findRowByBranch } from "../../support/real-wosm/assertions";
 import { writeRealWosmConfig } from "../../support/real-wosm/config";
 import {
-  type RealDogfoodEnvironment,
-  realDogfoodEnabled,
-  requireRealDogfoodEnvironment,
+  type RealE2eEnvironment,
+  realE2eEnabled,
+  requireRealE2eEnvironment,
 } from "../../support/real-wosm/env";
 import { CleanupStack, runWosmJson } from "../../support/real-wosm/process";
 import { createRealTempRepo, uniqueBranch } from "../../support/real-wosm/repo";
@@ -17,7 +17,7 @@ import {
   removeRealWorktrunkWorktree,
 } from "../../support/real-wosm/worktrunk";
 
-const describeReal = realDogfoodEnabled() ? describe : describe.skip;
+const describeReal = realE2eEnabled() ? describe : describe.skip;
 
 type CommandDispatchWaitResult = {
   status: "succeeded" | "failed";
@@ -25,12 +25,12 @@ type CommandDispatchWaitResult = {
   command: CommandRecord;
 };
 
-describeReal("real observer recovery dogfood", () => {
-  let env: RealDogfoodEnvironment;
+describeReal("real observer recovery", () => {
+  let env: RealE2eEnvironment;
   let cleanup: CleanupStack;
 
   beforeAll(async () => {
-    env = await requireRealDogfoodEnvironment({ worktrunk: true, tmux: true, codex: true });
+    env = await requireRealE2eEnvironment({ worktrunk: true, tmux: true, codex: true });
   });
 
   afterEach(async () => {
@@ -142,7 +142,7 @@ describeReal("real observer recovery dogfood", () => {
   }, 240_000);
 });
 
-async function waitForObserverDown(env: RealDogfoodEnvironment, configPath: string): Promise<void> {
+async function waitForObserverDown(env: RealE2eEnvironment, configPath: string): Promise<void> {
   const deadline = Date.now() + 15_000;
   while (Date.now() <= deadline) {
     const result = await runWosmJson(env, {

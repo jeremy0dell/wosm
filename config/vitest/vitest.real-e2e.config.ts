@@ -5,7 +5,7 @@ export default defineConfig({
   ...commonResolveConfig,
   test: {
     ...commonTestConfig,
-    include: ["tests/e2e/real-dogfood/**/*.test.ts"],
+    include: ["tests/e2e/real/**/*.test.ts"],
     fileParallelism: false,
     sequence: {
       concurrent: false,

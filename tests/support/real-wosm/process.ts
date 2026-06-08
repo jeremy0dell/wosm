@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { RealDogfoodEnvironment } from "./env";
+import type { RealE2eEnvironment } from "./env";
 
 export type WosmProcessResult = {
   exitCode: number | null;
@@ -25,8 +25,8 @@ export class CleanupStack {
   }
 
   async run(): Promise<void> {
-    if (process.env.WOSM_REAL_DOGFOOD_KEEP_TEMP === "1") {
-      process.stderr.write("WOSM_REAL_DOGFOOD_KEEP_TEMP=1; skipping real dogfood cleanup.\n");
+    if (process.env.WOSM_REAL_E2E_KEEP_TEMP === "1") {
+      process.stderr.write("WOSM_REAL_E2E_KEEP_TEMP=1; skipping real E2E cleanup.\n");
       return;
     }
     const tasks = this.#tasks.splice(0).reverse();
@@ -39,13 +39,13 @@ export class CleanupStack {
       }
     }
     if (failures.length > 0) {
-      throw new AggregateError(failures, "Real dogfood cleanup failed.");
+      throw new AggregateError(failures, "Real E2E cleanup failed.");
     }
   }
 }
 
 export async function runWosm(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   options: RunWosmOptions,
 ): Promise<WosmProcessResult> {
   const timeoutMs = options.timeoutMs ?? 30_000;
@@ -99,7 +99,7 @@ export async function runWosm(
 }
 
 export async function runWosmJson<T = unknown>(
-  env: RealDogfoodEnvironment,
+  env: RealE2eEnvironment,
   options: RunWosmOptions,
 ): Promise<T> {
   const result = await runWosm(env, options);
@@ -118,7 +118,7 @@ export async function runWosmJson<T = unknown>(
   }
 }
 
-function wosmChildEnv(env: RealDogfoodEnvironment): NodeJS.ProcessEnv {
+function wosmChildEnv(env: RealE2eEnvironment): NodeJS.ProcessEnv {
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   if (env.worktrunkBin !== undefined) childEnv.WOSM_WORKTRUNK_BIN = env.worktrunkBin;
   if (env.tmuxBin !== undefined) childEnv.WOSM_TMUX_BIN = env.tmuxBin;

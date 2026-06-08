@@ -1,10 +1,8 @@
 # Harness Socket Ingress And Observer Queue Plan
 
-**Status:** Phase 1 committed; Phase 2 implemented locally
+**Status:** Step 1 committed; Step 2 implemented locally
 **Date:** 2026-05-29
 **Applies to:** harness integrations, provider hook delivery, observer ingress, protocol, persistence, diagnostics
-**Supersedes:** `docs/planning/historical/harness_hook_ingress_refactor_master_plan.md` for future transport and observer backpressure work
-
 This plan records the current runtime discoveries and the target architecture for replacing the `wosm-hook` hot path with a shared local ingress API and an observer-owned semantic agent state pipeline.
 
 The goal is not to add one more package beside the old stack. The goal is to remove the CLI-shaped hook bridge from the high-frequency path and make the observer acknowledge harness events before slow persistence, projection, and reconciliation work.
@@ -21,18 +19,18 @@ Pi extension / Codex hook / Claude hook / OpenCode plugin / heuristics
 
 Provider integrations may keep provider-specific capture code because every provider exposes events differently. Once a provider has a semantic event or state report, delivery should be provider-neutral.
 
-This is one architecture change with two implementation phases:
+This is one architecture change with two implementation steps:
 
 1. Remove the CLI/hook-runner delivery hot path.
 2. Make observer ingress enqueue-first instead of doing observer work before ack.
 
-Doing only the first phase leaves observer backpressure. Doing only the second phase leaves every high-frequency event paying process startup and config loading costs.
+Doing only the first step leaves observer backpressure. Doing only the second step leaves every high-frequency event paying process startup and config loading costs.
 
 ## Implementation Status
 
-Phase 1 was committed as `7790cb7 Remove provider hook bridge hot path`.
+Step 1 was committed as `7790cb7 Remove provider hook bridge hot path`.
 
-Phase 2 is implemented in the current working tree:
+Step 2 is implemented in the current working tree:
 
 - `observer.harnessEvent.report` now validates and enqueues before slow persistence, projection, and reconcile work.
 - The observer owns a bounded in-memory harness ingress queue with report-id dedupe, stable-key coalescing, overflow rejection, async processing, and batched reconcile reasons.
@@ -222,13 +220,13 @@ The exact contract can differ, but these rules should hold:
 - Reconcile validates and correlates state, but individual hook events do not wait for full reconcile.
 - High-frequency status changes can update the TUI before the next full provider scan.
 
-## Phase 1 - Remove The CLI Delivery Hot Path
+## Step 1 - Remove The CLI Delivery Hot Path
 
 ### Scope
 
 Replace generated `wosm-hook` delivery with direct local observer ingress for Codex, Pi, Worktrunk, and future provider hooks/plugins.
 
-This phase is primarily about producer-side overhead and code deletion. It should not redesign observer persistence beyond what is needed to keep the new sender working.
+This step is primarily about producer-side overhead and code deletion. It should not redesign observer persistence beyond what is needed to keep the new sender working.
 
 ### Implementation Direction
 
@@ -300,7 +298,7 @@ rg test proves no production generated hook path invokes wosm-hook
 
 Update real/smoke docs and tests that currently assert `bin/wosm-hook`.
 
-### Phase 1 Acceptance
+### Step 1 Acceptance
 
 ```text
 No generated provider hook calls wosm-hook.
@@ -313,13 +311,13 @@ The root package no longer exposes a wosm-hook bin.
 Offline compact spool still works.
 ```
 
-## Phase 2 - Fix Observer Ingress Backpressure
+## Step 2 - Fix Observer Ingress Backpressure
 
 ### Scope
 
 Change observer handling from synchronous report processing to fast enqueue plus asynchronous semantic state processing.
 
-This phase is required because direct protocol calls to the live observer were still slow under Pi load.
+This step is required because direct protocol calls to the live observer were still slow under Pi load.
 
 ### Implementation Direction
 
@@ -397,7 +395,7 @@ diagnostics expose queue depth, coalesced count, dropped count, and last error
 snapshot consumes semantic agent state without parsing provider-specific payloads
 ```
 
-### Phase 2 Acceptance
+### Step 2 Acceptance
 
 ```text
 Direct reportHarnessEvent to a live observer stays comfortably below hook timeout under Pi-like load.
@@ -420,9 +418,9 @@ Recommended order:
 6. Delete `apps/hook-runner` and collapse/delete `packages/hook-bridge`.
 7. Change observer report handling to enqueue-first.
 8. Add queue/coalescing diagnostics and load tests.
-9. Update smoke, release-readiness, diagnostics, and dogfood docs.
+9. Update smoke, release-readiness, diagnostics, and local-use docs.
 
-If implementation risk forces the order to change, keep the same acceptance rule: no phase is complete while the old path remains as a normal production route.
+If implementation risk forces the order to change, keep the same acceptance rule: no step is complete while the old path remains as a normal production route.
 
 ## Open Questions
 

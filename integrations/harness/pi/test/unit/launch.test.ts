@@ -70,7 +70,7 @@ describe("buildPiLaunchPlan", () => {
     expect(plan.args[1]).toMatch(/\/integrations\/harness\/pi\/dist\/piExtension\.js$/);
   });
 
-  it("rejects exec mode until a later Pi JSON/RPC phase", () => {
+  it("rejects exec mode while Pi JSON/RPC control is not implemented", () => {
     expect(() =>
       buildPiLaunchPlan({
         ...request(),
