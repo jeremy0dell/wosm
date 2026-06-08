@@ -6,13 +6,12 @@ import {
 } from "../../components/EditableTextInput/editing.js";
 import { selectDashboardViewport } from "../../selectors/dashboardViewport.js";
 import { choiceValueByKey, worktreeRowDisplayTitle } from "../../selectors/selectors.js";
-import { safeErrorToToast } from "../../services/errors/errors.js";
 import { buildRenameSessionCommand } from "../commandBuilders.js";
 import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { isReturnKey } from "../keys.js";
 import { addPendingRenameSessionTitle } from "../localRows.js";
-import type { TuiState } from "../screen.js";
+import { addTuiToast, type TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
 import { scrollDeltaForKey } from "./dashboard.js";
 
@@ -48,17 +47,10 @@ function handleChooseSlotKey(state: TuiState, key: TuiKey): TuiTransition {
   const session = sessionForRow(state.snapshot, row);
   if (session === undefined) {
     return {
-      state: {
-        ...state,
-        toasts: [
-          ...state.toasts,
-          safeErrorToToast({
-            tag: "CommandValidationError",
-            code: "SESSION_NOT_FOUND",
-            message: "No session exists for that row.",
-          }),
-        ],
-      },
+      state: addTuiToast(state, {
+        kind: "error",
+        message: "No session exists for that row.",
+      }),
     };
   }
 
@@ -104,10 +96,10 @@ function handleEditNameKey(state: TuiState, key: TuiKey): TuiTransition {
   return {
     state: {
       ...state,
-      screen: {
-        ...state.screen,
+      screen: renameEditScreen({
+        screen: state.screen,
         draftTitle: transitionEditableTextInput(state.screen.draftTitle, intent.action),
-      },
+      }),
     },
   };
 }
@@ -122,14 +114,10 @@ function submitRename(state: TuiState): TuiTransition {
     return {
       state: {
         ...state,
-        toasts: [
-          ...state.toasts,
-          safeErrorToToast({
-            tag: "CommandValidationError",
-            code: "SESSION_TITLE_EMPTY",
-            message: "Session title cannot be empty.",
-          }),
-        ],
+        screen: {
+          ...state.screen,
+          validationError: "Session title cannot be empty.",
+        },
       },
     };
   }
@@ -195,4 +183,21 @@ export function handleRenameSessionKey(state: TuiState, key: TuiKey): TuiTransit
   }
 
   return handleEditNameKey(state, key);
+}
+
+function renameEditScreen(input: {
+  screen: Extract<TuiState["screen"], { name: "renameSession"; step: "editName" }>;
+  draftTitle: Extract<
+    TuiState["screen"],
+    { name: "renameSession"; step: "editName" }
+  >["draftTitle"];
+}): Extract<TuiState["screen"], { name: "renameSession"; step: "editName" }> {
+  return {
+    name: "renameSession",
+    step: "editName",
+    rowId: input.screen.rowId,
+    sessionId: input.screen.sessionId,
+    currentTitle: input.screen.currentTitle,
+    draftTitle: input.draftTitle,
+  };
 }

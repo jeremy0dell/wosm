@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import stringWidth from "string-width";
 import { describe, expect, it, vi } from "vitest";
 import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
+import { stripTerminalLinks } from "../Link/Link.js";
 import { cellWidth } from "../WorktreeRow/layout.js";
 import { Dashboard, dashboardHeaderLine } from "./Dashboard.js";
 
@@ -198,6 +199,55 @@ describe("Dashboard", () => {
         productLabel: "wosm",
         columns: 12,
         widgets,
+      }),
+    ).toBe("wosm");
+  });
+
+  it("renders observer status while preserving widgets when they fit", () => {
+    const line = dashboardHeaderLine({
+      productLabel: "wosm",
+      columns: 72,
+      statusText: "observer reconnecting · display-only snapshot",
+      widgets: [{ id: "time:0", text: "10:42 AM" }],
+    });
+
+    expect(line).toContain("wosm");
+    expect(line).toContain("observer reconnecting · display-only snapshot");
+    expect(line.endsWith("10:42 AM")).toBe(true);
+    expect(stringWidth(line)).toBe(72);
+  });
+
+  it("hides widgets before hiding observer status", () => {
+    const line = dashboardHeaderLine({
+      productLabel: "wosm",
+      columns: 54,
+      statusText: "observer reconnecting · display-only snapshot",
+      widgets: [{ id: "time:0", text: "10:42 AM" }],
+    });
+
+    expect(line).toContain("observer reconnecting · display-only snapshot");
+    expect(line).not.toContain("10:42 AM");
+  });
+
+  it("uses compact observer status at narrow widths", () => {
+    const line = dashboardHeaderLine({
+      productLabel: "wosm",
+      columns: 28,
+      statusText: "observer reconnecting · display-only snapshot",
+      widgets: [],
+    });
+
+    expect(line).toContain("observer reconnecting");
+    expect(line).not.toContain("display-only snapshot");
+  });
+
+  it("keeps the product label when status cannot fit", () => {
+    expect(
+      dashboardHeaderLine({
+        productLabel: "wosm",
+        columns: 18,
+        statusText: "observer reconnecting · display-only snapshot",
+        widgets: [{ id: "time:0", text: "10:42 AM" }],
       }),
     ).toBe("wosm");
   });
@@ -404,10 +454,5 @@ function withSuppressedReactTestRendererWarning<T>(callback: () => T): T {
 }
 
 function visibleCellWidth(text: string): number {
-  return cellWidth(stripOsc8(text));
-}
-
-function stripOsc8(text: string): string {
-  const pattern = ["\\u001B]8;[^\\u0007]*\\u0007"].join("");
-  return text.replace(new RegExp(pattern, "g"), "");
+  return cellWidth(stripTerminalLinks(text));
 }

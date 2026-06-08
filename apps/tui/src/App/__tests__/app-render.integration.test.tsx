@@ -1,7 +1,9 @@
+import type { SafeError, WosmEvent, WosmSnapshot } from "@wosm/contracts";
 import { Box, renderToString } from "ink";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import {
+  createCommandSnapshot,
   createDashboardSnapshot,
   createNoProjectsSnapshot,
   createZeroWorktreeSnapshot,
@@ -206,6 +208,41 @@ describe("TUI app rendering", () => {
     instance.unmount();
   });
 
+  it("shows display-only observer status while keeping the last snapshot visible", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new SnapshotConnectFailingService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    await waitFor(() => service.subscribeCount === 1);
+    service.failSubscriptions(wrappedConnectError());
+
+    await waitFor(
+      () =>
+        instance.lastFrame()?.includes("observer reconnecting · display-only snapshot") === true,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("fix-nav-mobile");
+    expect(frame).not.toContain("Could not connect to observer socket");
+    expect(frame).not.toContain("/tmp/wosm-test.sock");
+    instance.unmount();
+  });
+
+  it("shows cold-start reconnect copy without the raw socket path", async () => {
+    const service = new ColdStartConnectFailingService(createCommandSnapshot("idle"));
+    const instance = render(<App service={service} />);
+
+    await waitFor(() => instance.lastFrame()?.includes("waiting for observer") === true);
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("retrying connection");
+    expect(frame).toContain("The dashboard will appear when the observer is ready.");
+    expect(frame).not.toContain("display-only");
+    expect(frame).not.toContain("Could not connect to observer socket");
+    expect(frame).not.toContain("/tmp/wosm-test.sock");
+    instance.unmount();
+  });
+
   it("renders configured time and weather widgets while preserving dashboard rows", async () => {
     const snapshot = createDashboardSnapshot();
     const instance = render(
@@ -357,6 +394,68 @@ function pendingObserverService(): TuiObserverService {
     }),
     reconcile: () => new Promise(() => undefined),
   };
+}
+
+class SnapshotConnectFailingService extends FakeTuiObserverService {
+  override async loadSnapshot(): Promise<WosmSnapshot> {
+    this.loadCount += 1;
+    throw wrappedConnectError();
+  }
+}
+
+class ColdStartConnectFailingService implements TuiObserverService {
+  subscribeCount = 0;
+
+  constructor(private readonly snapshot: WosmSnapshot) {}
+
+  async loadSnapshot(): Promise<WosmSnapshot> {
+    throw wrappedConnectError();
+  }
+
+  subscribeEvents(): AsyncIterable<WosmEvent> {
+    this.subscribeCount += 1;
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: async () => {
+          throw wrappedConnectError();
+        },
+        return: async () => ({ done: true, value: undefined }),
+      }),
+    };
+  }
+
+  async dispatch() {
+    return {
+      commandId: "cmd_tui_1",
+      accepted: true,
+      status: "accepted" as const,
+    };
+  }
+
+  async waitForCommandCompletion(commandId: string) {
+    return {
+      status: "succeeded" as const,
+      commandId,
+    };
+  }
+
+  async reconcile(): Promise<WosmSnapshot> {
+    return this.snapshot;
+  }
+}
+
+function connectSafeError(): SafeError {
+  return {
+    tag: "ProtocolError",
+    code: "PROTOCOL_CONNECT_FAILED",
+    message: "Could not connect to observer socket /tmp/wosm-test.sock.",
+  };
+}
+
+function wrappedConnectError(): Error {
+  const error = new Error("wrapped connect failure");
+  (error as Error & { cause?: unknown }).cause = connectSafeError();
+  return error;
 }
 
 async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {

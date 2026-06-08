@@ -29,6 +29,7 @@ export type DashboardProps = {
   quitActionLabel?: "close" | "quit";
   columns?: number;
   topRowWidgets?: readonly TopRowWidgetView[];
+  observerStatusText?: string;
 };
 
 export function Dashboard({
@@ -37,6 +38,7 @@ export function Dashboard({
   quitActionLabel = "quit",
   columns = 80,
   topRowWidgets = [],
+  observerStatusText,
 }: DashboardProps) {
   const viewport = selectDashboardViewport(snapshot, viewState);
   const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
@@ -49,6 +51,7 @@ export function Dashboard({
         productLabel={productLabel}
         columns={contentColumns}
         widgets={topRowWidgets}
+        {...(observerStatusText === undefined ? {} : { statusText: observerStatusText })}
       />
       <DashboardDivider columns={contentColumns} />
       <ScrollIndicatorRow direction="above" hiddenCount={viewport.hiddenAbove} />
@@ -83,13 +86,20 @@ function DashboardLayout({ children }: { children: ReactNode }) {
 export function DashboardHeader({
   productLabel,
   columns,
+  statusText,
   widgets,
 }: {
   productLabel: string;
   columns: number;
+  statusText?: string;
   widgets: readonly TopRowWidgetView[];
 }) {
-  const headerLine = dashboardHeaderLine({ productLabel, columns, widgets });
+  const headerLine = dashboardHeaderLine({
+    productLabel,
+    columns,
+    widgets,
+    ...(statusText === undefined ? {} : { statusText }),
+  });
   const suffix = headerLine.startsWith(productLabel) ? headerLine.slice(productLabel.length) : "";
   return (
     <Box flexShrink={0}>
@@ -104,23 +114,36 @@ export function DashboardHeader({
 export function dashboardHeaderLine({
   productLabel,
   columns,
+  statusText,
   widgets,
 }: {
   productLabel: string;
   columns: number;
+  statusText?: string;
   widgets: readonly TopRowWidgetView[];
 }): string {
   const safeColumns = Math.max(1, columns);
   const productWidth = stringWidth(productLabel);
-  if (widgets.length === 0 || productWidth >= safeColumns) {
+  if (productWidth >= safeColumns) {
+    return productLabel;
+  }
+
+  if (statusText !== undefined) {
+    return dashboardHeaderLineWithStatus({
+      productLabel,
+      productWidth,
+      safeColumns,
+      statusText,
+      widgets,
+    });
+  }
+
+  if (widgets.length === 0) {
     return productLabel;
   }
 
   for (let visibleCount = widgets.length; visibleCount > 0; visibleCount -= 1) {
-    const strip = widgets
-      .slice(0, visibleCount)
-      .map((widget) => widget.text)
-      .join("  ");
+    const strip = widgetStrip(widgets, visibleCount);
     const stripWidth = stringWidth(strip);
     const gapWidth = safeColumns - productWidth - stripWidth;
     if (gapWidth >= 1) {
@@ -129,6 +152,42 @@ export function dashboardHeaderLine({
   }
 
   return productLabel;
+}
+
+function dashboardHeaderLineWithStatus(input: {
+  productLabel: string;
+  productWidth: number;
+  safeColumns: number;
+  statusText: string;
+  widgets: readonly TopRowWidgetView[];
+}): string {
+  for (const statusText of statusTextCandidates(input.statusText)) {
+    for (let visibleCount = input.widgets.length; visibleCount >= 0; visibleCount -= 1) {
+      const widgets = widgetStrip(input.widgets, visibleCount);
+      const strip = widgets.length === 0 ? statusText : `${statusText}  ${widgets}`;
+      const stripWidth = stringWidth(strip);
+      const gapWidth = input.safeColumns - input.productWidth - stripWidth;
+      if (gapWidth >= 1) {
+        return `${input.productLabel}${" ".repeat(gapWidth)}${strip}`;
+      }
+    }
+  }
+  return input.productLabel;
+}
+
+function statusTextCandidates(statusText: string): string[] {
+  const compact =
+    statusText === "observer reconnecting · display-only snapshot"
+      ? "observer reconnecting"
+      : statusText;
+  return compact === statusText ? [statusText] : [statusText, compact];
+}
+
+function widgetStrip(widgets: readonly TopRowWidgetView[], visibleCount: number): string {
+  return widgets
+    .slice(0, visibleCount)
+    .map((widget) => widget.text)
+    .join("  ");
 }
 
 function DashboardDivider({ columns }: { columns: number }) {

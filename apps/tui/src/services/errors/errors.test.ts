@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeErrorToToast, toSafeError } from "./errors.js";
+import { isObserverConnectError, safeErrorToToast, toSafeError } from "./errors.js";
 
 describe("TUI SafeError mapping", () => {
   it("preserves user-safe diagnostics from protocol errors", () => {
@@ -32,5 +32,26 @@ describe("TUI SafeError mapping", () => {
     expect(JSON.stringify(toast)).not.toContain("providerData");
     expect(JSON.stringify(toast)).not.toContain("raw stack");
     expect(JSON.stringify(toast)).not.toContain("token");
+  });
+
+  it("recognizes wrapped observer connect errors and hides raw socket paths in toasts", () => {
+    const cause = {
+      tag: "ProtocolError",
+      code: "PROTOCOL_CONNECT_FAILED",
+      message: "Could not connect to observer socket /tmp/wosm-test.sock.",
+    };
+    const error = new Error("wrapped");
+    (error as Error & { cause?: unknown }).cause = cause;
+
+    const safe = toSafeError(error);
+    const toast = safeErrorToToast(safe);
+
+    expect(isObserverConnectError(safe)).toBe(true);
+    expect(toast).toEqual({
+      kind: "error",
+      message: "Observer is reconnecting.",
+      hint: "Try the command again when the observer is ready.",
+    });
+    expect(JSON.stringify(toast)).not.toContain("/tmp/wosm-test.sock");
   });
 });

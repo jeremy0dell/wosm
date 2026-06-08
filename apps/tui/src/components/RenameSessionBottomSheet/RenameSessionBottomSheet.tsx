@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { TuiScreen } from "../../state/screen.js";
 import { BottomSheetFrame, bottomSheetContentWidth } from "../BottomSheetFrame/BottomSheetFrame.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
+import { truncateCells } from "../WorktreeRow/layout.js";
 
 export type RenameSessionBottomSheetProps = {
   state: Extract<TuiScreen, { name: "renameSession"; step: "editName" }>;
@@ -28,6 +29,13 @@ function FooterLine({ children, width }: { children: string; width: number }) {
   return <Text>{text}</Text>;
 }
 
+function ValidationLine({ error, width }: { error: string | undefined; width: number }) {
+  if (error === undefined) {
+    return null;
+  }
+  return <Text color="red">{truncateCells(` ${error}`, width)}</Text>;
+}
+
 export function RenameSessionBottomSheet({ state, columns, rows }: RenameSessionBottomSheetProps) {
   const contentWidth = bottomSheetContentWidth(columns);
   return (
@@ -38,8 +46,9 @@ export function RenameSessionBottomSheet({ state, columns, rows }: RenameSession
       contentRows={4}
       minHeight={7}
     >
-      <BlankLine />
+      {state.validationError === undefined ? <BlankLine /> : null}
       <LabelValue label="Name" value={<EditableTextInput {...state.draftTitle} />} />
+      <ValidationLine error={state.validationError} width={contentWidth} />
       <FooterLine width={contentWidth}>{"Enter:rename   Esc:back"}</FooterLine>
     </BottomSheetFrame>
   );
