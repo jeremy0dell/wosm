@@ -24,7 +24,12 @@ import {
 import { prepareCommandForRuntime, withResolvedFocusOrigin } from "./operations/runtimeCommands.js";
 import { createInitialTuiState, replaceSnapshot } from "./screen.js";
 import { EVENT_STREAM_RECONNECT_DELAY_MS, OBSERVER_RECOVERY_TOAST_THRESHOLD_MS } from "./timing.js";
-import { addTuiToast, addTuiToasts, expireTuiToasts } from "./toasts.js";
+import {
+  addTuiToast,
+  addTuiToasts,
+  expireTuiToasts,
+  refreshActiveTuiToastExpiry,
+} from "./toasts.js";
 import { handleTuiKey, type TuiTransition } from "./transition.js";
 import type { CreateInitialTuiStateOptions, TuiState } from "./types.js";
 
@@ -35,6 +40,7 @@ export type TuiStore = TuiState & {
   setTerminalRows(rows: number): void;
   dismissToasts(): void;
   expireToasts(nowMs?: number): void;
+  refreshActiveToastExpiry(nowMs?: number): void;
 };
 
 export type TuiStoreOptions = {
@@ -105,6 +111,9 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
     },
     expireToasts: (nowMs = Date.now()): void => {
       set(expireTuiToasts(get(), nowMs));
+    },
+    refreshActiveToastExpiry: (nowMs = Date.now()): void => {
+      set(refreshActiveTuiToastExpiry(get(), nowMs));
     },
   }));
 

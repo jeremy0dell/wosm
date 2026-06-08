@@ -61,6 +61,25 @@ export function expireTuiToasts(state: TuiState, nowMs = Date.now()): TuiState {
   };
 }
 
+export function refreshActiveTuiToastExpiry(state: TuiState, nowMs = Date.now()): TuiState {
+  const active = activeTuiToast(state);
+  if (active === undefined || active.expiresAt === undefined) {
+    return state;
+  }
+  const expiresAt = nowMs + toastExpiryMs(active.toast.kind);
+  return {
+    ...state,
+    toasts: state.toasts.map((entry) =>
+      entry.id === active.id
+        ? {
+            ...entry,
+            expiresAt,
+          }
+        : entry,
+    ),
+  };
+}
+
 export function activeTuiToast(state: Pick<TuiState, "toasts">): TuiToastEntry | undefined {
   return state.toasts.at(-1);
 }

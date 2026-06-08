@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { TuiToast } from "../services/types.js";
 import { createInitialTuiState } from "./screen.js";
 import { toastExpiryMs } from "./timing.js";
-import { activeTuiToast, addTuiToast, expireTuiToasts, nextTuiToastExpiry } from "./toasts.js";
+import {
+  activeTuiToast,
+  addTuiToast,
+  expireTuiToasts,
+  nextTuiToastExpiry,
+  refreshActiveTuiToastExpiry,
+} from "./toasts.js";
 
 describe("TUI toast lifecycle state", () => {
   it("adds toast lifecycle metadata", () => {
@@ -81,5 +87,22 @@ describe("TUI toast lifecycle state", () => {
 
     expect(expireTuiToasts(withSuccess, 3_399).toasts).toHaveLength(1);
     expect(expireTuiToasts(withSuccess, 3_400).toasts).toHaveLength(0);
+  });
+
+  it("refreshes the active toast expiry when hidden presentation resumes", () => {
+    const state = addTuiToast(
+      createInitialTuiState(),
+      { kind: "success", message: "terminal.focus queued" },
+      1_000,
+    );
+
+    const resumed = refreshActiveTuiToastExpiry(state, 5_000);
+
+    expect(resumed.toasts[0]).toMatchObject({
+      createdAt: 1_000,
+      updatedAt: 1_000,
+      expiresAt: 7_400,
+    });
+    expect(nextTuiToastExpiry(resumed)).toBe(7_400);
   });
 });
