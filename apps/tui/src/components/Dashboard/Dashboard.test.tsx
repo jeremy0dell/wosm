@@ -207,7 +207,10 @@ describe("Dashboard", () => {
     const line = dashboardHeaderLine({
       productLabel: "wosm",
       columns: 72,
-      statusText: "observer reconnecting · display-only snapshot",
+      status: {
+        full: "observer reconnecting · display-only snapshot",
+        compact: "observer reconnecting",
+      },
       widgets: [{ id: "time:0", text: "10:42 AM" }],
     });
 
@@ -221,7 +224,10 @@ describe("Dashboard", () => {
     const line = dashboardHeaderLine({
       productLabel: "wosm",
       columns: 54,
-      statusText: "observer reconnecting · display-only snapshot",
+      status: {
+        full: "observer reconnecting · display-only snapshot",
+        compact: "observer reconnecting",
+      },
       widgets: [{ id: "time:0", text: "10:42 AM" }],
     });
 
@@ -233,7 +239,10 @@ describe("Dashboard", () => {
     const line = dashboardHeaderLine({
       productLabel: "wosm",
       columns: 28,
-      statusText: "observer reconnecting · display-only snapshot",
+      status: {
+        full: "observer reconnecting · display-only snapshot",
+        compact: "observer reconnecting",
+      },
       widgets: [],
     });
 
@@ -246,7 +255,10 @@ describe("Dashboard", () => {
       dashboardHeaderLine({
         productLabel: "wosm",
         columns: 18,
-        statusText: "observer reconnecting · display-only snapshot",
+        status: {
+          full: "observer reconnecting · display-only snapshot",
+          compact: "observer reconnecting",
+        },
         widgets: [{ id: "time:0", text: "10:42 AM" }],
       }),
     ).toBe("wosm");

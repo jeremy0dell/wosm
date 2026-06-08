@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { TuiToast } from "../services/types.js";
-import {
-  activeTuiToast,
-  addTuiToast,
-  createInitialTuiState,
-  expireTuiToasts,
-  nextTuiToastExpiry,
-  toastExpiryMs,
-} from "./screen.js";
+import { createInitialTuiState } from "./screen.js";
+import { toastExpiryMs } from "./timing.js";
+import { activeTuiToast, addTuiToast, expireTuiToasts, nextTuiToastExpiry } from "./toasts.js";
 
 describe("TUI toast lifecycle state", () => {
   it("adds toast lifecycle metadata", () => {

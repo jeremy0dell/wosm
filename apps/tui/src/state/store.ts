@@ -10,11 +10,8 @@ import type {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { applyWosmEvent } from "../eventReducer/eventReducer.js";
 import { sessionForWorktreeRow } from "../selectors/selectors.js";
-import {
-  isObserverConnectError,
-  safeErrorToToast,
-  toSafeError,
-} from "../services/errors/errors.js";
+import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
+import { isObserverConnectError } from "../services/errors/observerConnection.js";
 import { createNodeFolderService, type TuiFolderService } from "../services/folderService.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { buildFocusCommand } from "./commandBuilders.js";
@@ -25,19 +22,11 @@ import {
   type TuiLocalOperationRunner,
 } from "./operations/localOperationRunner.js";
 import { prepareCommandForRuntime, withResolvedFocusOrigin } from "./operations/runtimeCommands.js";
-import {
-  addTuiToast,
-  addTuiToasts,
-  type CreateInitialTuiStateOptions,
-  createInitialTuiState,
-  expireTuiToasts,
-  replaceSnapshot,
-  type TuiState,
-} from "./screen.js";
+import { createInitialTuiState, replaceSnapshot } from "./screen.js";
+import { EVENT_STREAM_RECONNECT_DELAY_MS, OBSERVER_RECOVERY_TOAST_THRESHOLD_MS } from "./timing.js";
+import { addTuiToast, addTuiToasts, expireTuiToasts } from "./toasts.js";
 import { handleTuiKey, type TuiTransition } from "./transition.js";
-
-const EVENT_STREAM_RECONNECT_DELAY_MS = 100;
-const OBSERVER_RECOVERY_TOAST_THRESHOLD_MS = 1_500;
+import type { CreateInitialTuiStateOptions, TuiState } from "./types.js";
 
 export type TuiStore = TuiState & {
   start(): () => void;

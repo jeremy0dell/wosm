@@ -1,5 +1,6 @@
 import type { SafeError } from "@wosm/contracts";
 import type { TuiToast } from "../types.js";
+import { isObserverConnectError, observerConnectErrorToast } from "./observerConnection.js";
 
 export function toSafeError(error: unknown): SafeError {
   if (isSafeError(error)) {
@@ -18,11 +19,7 @@ export function toSafeError(error: unknown): SafeError {
 
 export function safeErrorToToast(error: SafeError): TuiToast {
   if (isObserverConnectError(error)) {
-    return {
-      kind: "error",
-      message: "Observer is reconnecting.",
-      hint: "Try the command again when the observer is ready.",
-    };
+    return observerConnectErrorToast();
   }
 
   const toast: TuiToast = {
@@ -34,10 +31,6 @@ export function safeErrorToToast(error: SafeError): TuiToast {
   if (error.traceId !== undefined) toast.traceId = error.traceId;
   if (error.diagnosticId !== undefined) toast.diagnosticId = error.diagnosticId;
   return toast;
-}
-
-export function isObserverConnectError(error: SafeError): boolean {
-  return error.code === "PROTOCOL_CONNECT_FAILED" || error.code === "PROTOCOL_CONNECT_TIMEOUT";
 }
 
 function isSafeError(value: unknown): value is SafeError {

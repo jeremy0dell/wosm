@@ -1,7 +1,6 @@
 import type { WosmCommand } from "@wosm/contracts";
 import type { TuiKey } from "./keys.js";
 import type { TuiOperation } from "./operations/types.js";
-import type { TuiState } from "./screen.js";
 import { handleAddProjectKey } from "./screens/addProjectScreen.js";
 import { handleDashboardKey } from "./screens/dashboard.js";
 import { handleHelpKey } from "./screens/help.js";
@@ -10,6 +9,7 @@ import { handleProjectCollapseKey } from "./screens/projectCollapse.js";
 import { handleRemoveWorktreeKey } from "./screens/removeWorktree.js";
 import { handleRenameSessionKey } from "./screens/renameSession.js";
 import { handleSearchKey } from "./screens/search.js";
+import type { TuiState } from "./types.js";
 
 export type TuiTransition = {
   state: TuiState;

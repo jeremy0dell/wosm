@@ -10,7 +10,7 @@ import {
   removePendingRenameSessionTitle,
   removePendingStartAgentRow,
 } from "../localRows.js";
-import { addTuiToast, replaceSnapshot, type TuiState } from "../screen.js";
+import { replaceSnapshot } from "../screen.js";
 import {
   applyAddProjectFolderLoaded,
   applyAddProjectFolderLoadFailed,
@@ -22,6 +22,9 @@ import {
   applyAddProjectSubmitted,
 } from "../screens/addProjectScreen.js";
 import type { TuiStore } from "../store.js";
+import { FAILED_CREATE_ROW_TTL_MS } from "../timing.js";
+import { addTuiToast } from "../toasts.js";
+import type { TuiState } from "../types.js";
 import { runCreateSessionOperation } from "./createSession.js";
 import { runRemoveWorktreeOperation } from "./removeWorktree.js";
 import { runRenameSessionOperation } from "./renameSession.js";
@@ -46,8 +49,6 @@ type LocalCommandFailure =
   | { type: "removeWorktree"; localId: string }
   | { type: "startAgent"; localId: string }
   | { type: "renameSession"; sessionId: string };
-
-const FAILED_CREATE_ROW_TTL_MS = 4_000;
 
 function localCommandFailureForState(
   state: TuiState,

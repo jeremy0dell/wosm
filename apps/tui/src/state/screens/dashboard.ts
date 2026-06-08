@@ -11,8 +11,9 @@ import { buildFocusCommand, buildStartAgentCommand } from "../commandBuilders.js
 import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { addPendingStartAgentRow } from "../localRows.js";
-import { addTuiToast, type TuiState } from "../screen.js";
+import { addTuiToast } from "../toasts.js";
 import type { TuiKeyRuntimeContext, TuiTransition } from "../transition.js";
+import type { TuiState } from "../types.js";
 import { openAddProject } from "./addProjectScreen.js";
 
 export function handleDashboardKey(

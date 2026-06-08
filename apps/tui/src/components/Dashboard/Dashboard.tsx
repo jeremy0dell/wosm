@@ -7,7 +7,7 @@ import {
   selectDashboardViewport,
 } from "../../selectors/dashboardViewport.js";
 import type { KeyedChoice } from "../../selectors/selectors.js";
-import type { TuiScreen, TuiViewState } from "../../state/screen.js";
+import type { TuiScreen, TuiViewState } from "../../state/types.js";
 import { useTuiMode } from "../../tuiMode.js";
 import type { TopRowWidgetView } from "../../widgets/types.js";
 import {
@@ -29,7 +29,12 @@ export type DashboardProps = {
   quitActionLabel?: "close" | "quit";
   columns?: number;
   topRowWidgets?: readonly TopRowWidgetView[];
-  observerStatusText?: string;
+  observerStatus?: DashboardHeaderStatus;
+};
+
+export type DashboardHeaderStatus = {
+  full: string;
+  compact?: string;
 };
 
 export function Dashboard({
@@ -38,7 +43,7 @@ export function Dashboard({
   quitActionLabel = "quit",
   columns = 80,
   topRowWidgets = [],
-  observerStatusText,
+  observerStatus,
 }: DashboardProps) {
   const viewport = selectDashboardViewport(snapshot, viewState);
   const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
@@ -51,7 +56,7 @@ export function Dashboard({
         productLabel={productLabel}
         columns={contentColumns}
         widgets={topRowWidgets}
-        {...(observerStatusText === undefined ? {} : { statusText: observerStatusText })}
+        {...(observerStatus === undefined ? {} : { status: observerStatus })}
       />
       <DashboardDivider columns={contentColumns} />
       <ScrollIndicatorRow direction="above" hiddenCount={viewport.hiddenAbove} />
@@ -86,19 +91,19 @@ function DashboardLayout({ children }: { children: ReactNode }) {
 export function DashboardHeader({
   productLabel,
   columns,
-  statusText,
+  status,
   widgets,
 }: {
   productLabel: string;
   columns: number;
-  statusText?: string;
+  status?: DashboardHeaderStatus;
   widgets: readonly TopRowWidgetView[];
 }) {
   const headerLine = dashboardHeaderLine({
     productLabel,
     columns,
     widgets,
-    ...(statusText === undefined ? {} : { statusText }),
+    ...(status === undefined ? {} : { status }),
   });
   const suffix = headerLine.startsWith(productLabel) ? headerLine.slice(productLabel.length) : "";
   return (
@@ -114,12 +119,12 @@ export function DashboardHeader({
 export function dashboardHeaderLine({
   productLabel,
   columns,
-  statusText,
+  status,
   widgets,
 }: {
   productLabel: string;
   columns: number;
-  statusText?: string;
+  status?: DashboardHeaderStatus;
   widgets: readonly TopRowWidgetView[];
 }): string {
   const safeColumns = Math.max(1, columns);
@@ -128,12 +133,12 @@ export function dashboardHeaderLine({
     return productLabel;
   }
 
-  if (statusText !== undefined) {
+  if (status !== undefined) {
     return dashboardHeaderLineWithStatus({
       productLabel,
       productWidth,
       safeColumns,
-      statusText,
+      status,
       widgets,
     });
   }
@@ -158,10 +163,10 @@ function dashboardHeaderLineWithStatus(input: {
   productLabel: string;
   productWidth: number;
   safeColumns: number;
-  statusText: string;
+  status: DashboardHeaderStatus;
   widgets: readonly TopRowWidgetView[];
 }): string {
-  for (const statusText of statusTextCandidates(input.statusText)) {
+  for (const statusText of statusTextCandidates(input.status)) {
     for (let visibleCount = input.widgets.length; visibleCount >= 0; visibleCount -= 1) {
       const widgets = widgetStrip(input.widgets, visibleCount);
       const strip = widgets.length === 0 ? statusText : `${statusText}  ${widgets}`;
@@ -175,12 +180,11 @@ function dashboardHeaderLineWithStatus(input: {
   return input.productLabel;
 }
 
-function statusTextCandidates(statusText: string): string[] {
-  const compact =
-    statusText === "observer reconnecting · display-only snapshot"
-      ? "observer reconnecting"
-      : statusText;
-  return compact === statusText ? [statusText] : [statusText, compact];
+function statusTextCandidates(status: DashboardHeaderStatus): string[] {
+  if (status.compact === undefined || status.compact === status.full) {
+    return [status.full];
+  }
+  return [status.full, status.compact];
 }
 
 function widgetStrip(widgets: readonly TopRowWidgetView[], visibleCount: number): string {

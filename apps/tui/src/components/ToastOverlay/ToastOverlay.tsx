@@ -1,6 +1,6 @@
 import type { BoxProps } from "ink";
 import { Box, Text } from "ink";
-import type { TuiToastEntry } from "../../state/screen.js";
+import type { TuiToastEntry } from "../../state/types.js";
 import { FloatingBlankBackground } from "../FloatingBlankBackground/FloatingBlankBackground.js";
 import { truncateCells } from "../WorktreeRow/layout.js";
 import { toastOverlayLayout } from "./layout.js";

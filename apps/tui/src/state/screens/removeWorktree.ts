@@ -5,8 +5,8 @@ import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { isReturnKey } from "../keys.js";
 import { addPendingRemoveWorktreeRow } from "../localRows.js";
-import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
+import type { TuiState } from "../types.js";
 import { scrollDeltaForKey } from "./dashboard.js";
 
 export function handleRemoveWorktreeKey(state: TuiState, key: TuiKey): TuiTransition {
