@@ -8,7 +8,7 @@ import type {
   WosmSnapshot,
 } from "@wosm/contracts";
 import { pendingRenameTitles, type TuiLocalRows } from "../state/localRows.js";
-import type { TuiViewState } from "../state/screen.js";
+import type { TuiViewState } from "../state/types.js";
 
 export const SELECTION_KEYS = [
   "1",

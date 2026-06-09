@@ -176,6 +176,25 @@ export const ObserverReconcilePayloadSchema = z
 
 export type ObserverReconcilePayload = z.infer<typeof ObserverReconcilePayloadSchema>;
 
+export const AddProjectPayloadSchema = z
+  .object({
+    path: nonEmptyStringSchema,
+    id: ProjectIdSchema.optional(),
+    label: nonEmptyStringSchema.optional(),
+    allowNonGit: z.boolean().optional(),
+  })
+  .strict();
+
+export type AddProjectPayload = z.infer<typeof AddProjectPayloadSchema>;
+
+export const RemoveProjectPayloadSchema = z
+  .object({
+    projectId: ProjectIdSchema,
+  })
+  .strict();
+
+export type RemoveProjectPayload = z.infer<typeof RemoveProjectPayloadSchema>;
+
 export const InstallHooksPayloadSchema = z
   .object({
     provider: ProviderIdSchema,
@@ -196,6 +215,8 @@ export const WosmCommandTypeSchema = z.enum([
   "session.sendPrompt",
   "session.rename",
   "observer.reconcile",
+  "project.add",
+  "project.remove",
   "hooks.install",
 ]);
 
@@ -243,6 +264,14 @@ export const ObserverReconcileCommandSchema = z
   .object({ type: z.literal("observer.reconcile"), payload: ObserverReconcilePayloadSchema })
   .strict();
 
+export const AddProjectCommandSchema = z
+  .object({ type: z.literal("project.add"), payload: AddProjectPayloadSchema })
+  .strict();
+
+export const RemoveProjectCommandSchema = z
+  .object({ type: z.literal("project.remove"), payload: RemoveProjectPayloadSchema })
+  .strict();
+
 export const InstallHooksCommandSchema = z
   .object({ type: z.literal("hooks.install"), payload: InstallHooksPayloadSchema })
   .strict();
@@ -259,6 +288,8 @@ export const WosmCommandSchema = z.discriminatedUnion("type", [
   SendPromptCommandSchema,
   RenameSessionCommandSchema,
   ObserverReconcileCommandSchema,
+  AddProjectCommandSchema,
+  RemoveProjectCommandSchema,
   InstallHooksCommandSchema,
 ]);
 

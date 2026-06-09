@@ -1,9 +1,14 @@
 import type { SafeError } from "@wosm/contracts";
 import type { TuiToast } from "../types.js";
+import { isObserverConnectError, observerConnectErrorToast } from "./observerConnection.js";
 
 export function toSafeError(error: unknown): SafeError {
   if (isSafeError(error)) {
     return error;
+  }
+  const cause = safeErrorCause(error);
+  if (cause !== undefined) {
+    return cause;
   }
   return {
     tag: "TuiObserverError",
@@ -13,6 +18,10 @@ export function toSafeError(error: unknown): SafeError {
 }
 
 export function safeErrorToToast(error: SafeError): TuiToast {
+  if (isObserverConnectError(error)) {
+    return observerConnectErrorToast();
+  }
+
   const toast: TuiToast = {
     kind: "error",
     message: error.message,
@@ -37,4 +46,16 @@ function isSafeError(value: unknown): value is SafeError {
     typeof candidate.message === "string" &&
     candidate.message.length > 0
   );
+}
+
+function safeErrorCause(error: unknown, seen = new Set<unknown>()): SafeError | undefined {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return undefined;
+  }
+  seen.add(error);
+  const cause = (error as { cause?: unknown }).cause;
+  if (isSafeError(cause)) {
+    return cause;
+  }
+  return safeErrorCause(cause, seen);
 }

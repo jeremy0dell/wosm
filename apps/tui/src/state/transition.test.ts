@@ -262,8 +262,10 @@ describe("TUI screen transitions", () => {
     expect(transition.state.screen).toEqual({ name: "renameSession", step: "chooseSlot" });
     expect(transition.state.toasts).toEqual([
       expect.objectContaining({
-        kind: "error",
-        message: "No session exists for that row.",
+        toast: expect.objectContaining({
+          kind: "error",
+          message: "No session exists for that row.",
+        }),
       }),
     ]);
   });
@@ -288,7 +290,7 @@ describe("TUI screen transitions", () => {
     });
   });
 
-  it("keeps the rename sheet open for empty titles", () => {
+  it("keeps the rename sheet open with inline validation for empty titles", () => {
     const opened = handleTuiKey(
       handleTuiKey(createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }), {
         input: "R",
@@ -308,14 +310,46 @@ describe("TUI screen transitions", () => {
 
     const transition = handleTuiKey(state, { input: "\r", return: true });
 
-    expect(transition.state.screen).toEqual(state.screen);
-    expect(transition.state.toasts).toEqual([
-      expect.objectContaining({
-        kind: "error",
-        message: "Session title cannot be empty.",
-      }),
-    ]);
+    expect(transition.state.screen).toEqual({
+      ...state.screen,
+      validationError: "Session title cannot be empty.",
+    });
+    expect(transition.state.toasts).toEqual([]);
     expect(transition.operations).toBeUndefined();
+  });
+
+  it("clears rename validation when the title is edited", () => {
+    const opened = handleTuiKey(
+      handleTuiKey(createInitialTuiState({ initialSnapshot: createDashboardSnapshot() }), {
+        input: "R",
+      }).state,
+      { input: "5" },
+    ).state;
+    if (opened.screen.name !== "renameSession" || opened.screen.step !== "editName") {
+      throw new Error("expected rename edit screen");
+    }
+    const state = {
+      ...opened,
+      screen: {
+        ...opened.screen,
+        draftTitle: { value: "", cursor: 0 },
+        validationError: "Session title cannot be empty.",
+      },
+    };
+
+    const transition = handleTuiKey(state, { input: "a" });
+
+    expect(transition.state.screen).toMatchObject({
+      name: "renameSession",
+      step: "editName",
+      draftTitle: { value: "a", cursor: 1 },
+    });
+    expect(
+      transition.state.screen.name === "renameSession" &&
+        transition.state.screen.step === "editName"
+        ? transition.state.screen.validationError
+        : undefined,
+    ).toBeUndefined();
   });
 
   it("closes unchanged rename titles without dispatching", () => {
@@ -429,8 +463,10 @@ describe("TUI screen transitions", () => {
     expect(transition.state.screen).toEqual({ name: "dashboard" });
     expect(transition.state.toasts).toEqual([
       expect.objectContaining({
-        kind: "error",
-        message: "No project is configured for a new session.",
+        toast: expect.objectContaining({
+          kind: "error",
+          message: "No project is configured for a new session.",
+        }),
       }),
     ]);
   });

@@ -1,71 +1,6 @@
-import type { SessionId, TerminalFocusOrigin, WorktreeId, WosmSnapshot } from "@wosm/contracts";
-import type { EditableTextInputState } from "../components/EditableTextInput/editing.js";
-import type { NewSessionFlowState } from "../flows/newSession.js";
-import type { TuiToast } from "../services/types.js";
-import {
-  createEmptyTuiLocalRows,
-  pruneLocalRowsForSnapshot,
-  type TuiLocalRows,
-} from "./localRows.js";
-
-export type TuiRuntimeState = {
-  persistentPopup: boolean;
-  canDismissPopup: boolean;
-  exitOnFocusSuccess: boolean;
-  canResolveFocusOrigin: boolean;
-  hasFocusSuccessCallback: boolean;
-  focusOrigin?: TerminalFocusOrigin;
-};
-
-export type TuiViewState = {
-  searchQuery: string;
-  collapsedProjectIds: ReadonlySet<string>;
-  scrollOffset: number;
-  terminalRows: number;
-  localRows: TuiLocalRows;
-};
-
-export type TuiState = TuiViewState & {
-  snapshot?: WosmSnapshot;
-  loading: boolean;
-  screen: TuiScreen;
-  toasts: TuiToast[];
-  runtime: TuiRuntimeState;
-};
-
-export type TuiScreen =
-  | { name: "dashboard" }
-  | { name: "help" }
-  | { name: "search"; value: string }
-  | { name: "projectCollapse"; value: string }
-  | { name: "removeWorktree"; step: "chooseSlot" }
-  | {
-      name: "removeWorktree";
-      step: "confirm";
-      rowId: WorktreeId;
-      forceRequired: boolean;
-      label: string;
-    }
-  | { name: "renameSession"; step: "chooseSlot" }
-  | {
-      name: "renameSession";
-      step: "editName";
-      rowId: WorktreeId;
-      sessionId: SessionId;
-      currentTitle: string;
-      draftTitle: EditableTextInputState;
-    }
-  | { name: "newSession"; flow: NewSessionFlowState };
-
-export type CreateInitialTuiStateOptions = {
-  initialSnapshot?: WosmSnapshot;
-  searchQuery?: string;
-  collapsedProjectIds?: Iterable<string>;
-  scrollOffset?: number;
-  terminalRows?: number;
-  localRows?: TuiLocalRows;
-  runtime?: Partial<TuiRuntimeState>;
-};
+import type { WosmSnapshot } from "@wosm/contracts";
+import { createEmptyTuiLocalRows, pruneLocalRowsForSnapshot } from "./localRows.js";
+import type { CreateInitialTuiStateOptions, TuiRuntimeState, TuiState } from "./types.js";
 
 export function createInitialTuiState(options: CreateInitialTuiStateOptions = {}): TuiState {
   const runtime = createRuntimeState(options.runtime);
@@ -73,6 +8,7 @@ export function createInitialTuiState(options: CreateInitialTuiStateOptions = {}
     loading: options.initialSnapshot === undefined,
     screen: { name: "dashboard" },
     toasts: [],
+    observerConnectionStatus: { state: "connected" },
     searchQuery: options.searchQuery ?? "",
     collapsedProjectIds: new Set(options.collapsedProjectIds ?? []),
     scrollOffset: options.scrollOffset ?? 0,
@@ -92,23 +28,6 @@ export function replaceSnapshot(state: TuiState, snapshot: WosmSnapshot): TuiSta
     snapshot,
     loading: false,
     localRows: pruneLocalRowsForSnapshot(state.localRows, snapshot),
-  };
-}
-
-export function addTuiToast(state: TuiState, toast: TuiToast): TuiState {
-  return {
-    ...state,
-    toasts: [...state.toasts, toast],
-  };
-}
-
-export function addTuiToasts(state: TuiState, toasts: readonly TuiToast[]): TuiState {
-  if (toasts.length === 0) {
-    return state;
-  }
-  return {
-    ...state,
-    toasts: [...state.toasts, ...toasts],
   };
 }
 

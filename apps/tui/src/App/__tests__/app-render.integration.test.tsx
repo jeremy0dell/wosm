@@ -1,8 +1,11 @@
+import type { SafeError, WosmEvent, WosmSnapshot } from "@wosm/contracts";
 import { Box, renderToString } from "ink";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import {
+  createCommandSnapshot,
   createDashboardSnapshot,
+  createNoProjectsSnapshot,
   createZeroWorktreeSnapshot,
 } from "../../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
@@ -78,7 +81,7 @@ describe("TUI app rendering", () => {
     expect(lines.at(-3)?.trim()).toBe("");
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain(
-      "N:new R:rename Z:refresh 1-9/a-z:open X:remove /:search C:collapse H:help Q:quit",
+      "N:new A:add R:rename Z:refresh 1-9/a-z:open X:rm /:search C:fold H:help Q:quit",
     );
     expect(lines.slice(0, -1).join("\n")).not.toContain("N:new 1-9/a-z");
   });
@@ -115,8 +118,22 @@ describe("TUI app rendering", () => {
     expect(lines[1]).toMatch(/^─+$/);
     expect(lines.at(-2)).toMatch(/^─+$/);
     expect(lines.at(-1)).toContain("N:new");
+    expect(lines.at(-1)).toContain("A:add");
     expect(lines.at(-1)).toContain("H:help");
     expect(lines.at(-1)).toContain("Q/esc:close");
+  });
+
+  it("renders first-run empty state with Add Project", () => {
+    const snapshot = createNoProjectsSnapshot();
+    const instance = render(
+      <App initialSnapshot={snapshot} service={new FakeTuiObserverService(snapshot)} />,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("No projects configured yet.");
+    expect(frame).toContain("A:Add Project");
+    expect(frame).not.toContain("S:setup");
+    instance.unmount();
   });
 
   it("renders configured projects even when they have zero worktrees", () => {
@@ -188,6 +205,71 @@ describe("TUI app rendering", () => {
     expect(frame).toContain("wosm");
     expect(frame).toContain("10:42 AM  NYC --° ⏳");
     expect(frame).toContain("Loading observer snapshot...");
+    instance.unmount();
+  });
+
+  it("shows display-only observer status while keeping the last snapshot visible", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new SnapshotConnectFailingService(snapshot);
+    const instance = render(<App initialSnapshot={snapshot} service={service} />);
+
+    await waitFor(() => service.subscribeCount === 1);
+    service.failSubscriptions(wrappedConnectError());
+
+    await waitFor(
+      () =>
+        instance.lastFrame()?.includes("observer reconnecting · display-only snapshot") === true,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("fix-nav-mobile");
+    expect(frame).not.toContain("Could not connect to observer socket");
+    expect(frame).not.toContain("/tmp/wosm-test.sock");
+    instance.unmount();
+  });
+
+  it("shows cold-start reconnect copy without the raw socket path", async () => {
+    const service = new ColdStartConnectFailingService(createCommandSnapshot("idle"));
+    const instance = render(<App service={service} />);
+
+    await waitFor(() => instance.lastFrame()?.includes("waiting for observer") === true);
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("retrying connection");
+    expect(frame).toContain("The dashboard will appear when the observer is ready.");
+    expect(frame).not.toContain("display-only");
+    expect(frame).not.toContain("Could not connect to observer socket");
+    expect(frame).not.toContain("/tmp/wosm-test.sock");
+    instance.unmount();
+  });
+
+  it("shows cold-start non-connect snapshot failures as actionable toast details", async () => {
+    const service = new ColdStartSnapshotFailingService(snapshotValidationError());
+    const instance = render(<App service={service} />);
+
+    await waitFor(
+      () => instance.lastFrame()?.includes("Observer snapshot validation failed.") === true,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("observer snapshot unavailable");
+    expect(frame).toContain("needs attention");
+    expect(frame).toContain("Run wosm doctor.");
+    expect(frame).not.toContain("waiting for observer");
+    instance.unmount();
+  });
+
+  it("labels cold-start reconnect as close in persistent popup mode", async () => {
+    const service = new ColdStartConnectFailingService(createCommandSnapshot("idle"));
+    const instance = render(
+      <App service={service} persistentPopup={true} onDismiss={async () => undefined} />,
+    );
+
+    await waitFor(() => instance.lastFrame()?.includes("waiting for observer") === true);
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("Q/esc:close");
+    expect(frame).not.toContain("Q:quit");
     instance.unmount();
   });
 
@@ -342,6 +424,113 @@ function pendingObserverService(): TuiObserverService {
     }),
     reconcile: () => new Promise(() => undefined),
   };
+}
+
+class SnapshotConnectFailingService extends FakeTuiObserverService {
+  override async loadSnapshot(): Promise<WosmSnapshot> {
+    this.loadCount += 1;
+    throw wrappedConnectError();
+  }
+}
+
+class ColdStartConnectFailingService implements TuiObserverService {
+  subscribeCount = 0;
+
+  constructor(private readonly snapshot: WosmSnapshot) {}
+
+  async loadSnapshot(): Promise<WosmSnapshot> {
+    throw wrappedConnectError();
+  }
+
+  subscribeEvents(): AsyncIterable<WosmEvent> {
+    this.subscribeCount += 1;
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: async () => {
+          throw wrappedConnectError();
+        },
+        return: async () => ({ done: true, value: undefined }),
+      }),
+    };
+  }
+
+  async dispatch() {
+    return {
+      commandId: "cmd_tui_1",
+      accepted: true,
+      status: "accepted" as const,
+    };
+  }
+
+  async waitForCommandCompletion(commandId: string) {
+    return {
+      status: "succeeded" as const,
+      commandId,
+    };
+  }
+
+  async reconcile(): Promise<WosmSnapshot> {
+    return this.snapshot;
+  }
+}
+
+class ColdStartSnapshotFailingService implements TuiObserverService {
+  constructor(private readonly error: SafeError) {}
+
+  async loadSnapshot(): Promise<WosmSnapshot> {
+    throw this.error;
+  }
+
+  subscribeEvents(): AsyncIterable<WosmEvent> {
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: () => new Promise<IteratorResult<WosmEvent>>(() => undefined),
+        return: async () => ({ done: true, value: undefined }),
+      }),
+    };
+  }
+
+  async dispatch() {
+    return {
+      commandId: "cmd_tui_1",
+      accepted: true,
+      status: "accepted" as const,
+    };
+  }
+
+  async waitForCommandCompletion(commandId: string) {
+    return {
+      status: "succeeded" as const,
+      commandId,
+    };
+  }
+
+  async reconcile(): Promise<WosmSnapshot> {
+    throw this.error;
+  }
+}
+
+function connectSafeError(): SafeError {
+  return {
+    tag: "ProtocolError",
+    code: "PROTOCOL_CONNECT_FAILED",
+    message: "Could not connect to observer socket /tmp/wosm-test.sock.",
+  };
+}
+
+function snapshotValidationError(): SafeError {
+  return {
+    tag: "ProtocolError",
+    code: "PROTOCOL_VALIDATION_FAILED",
+    message: "Observer snapshot validation failed.",
+    hint: "Run wosm doctor.",
+  };
+}
+
+function wrappedConnectError(): Error {
+  const error = new Error("wrapped connect failure");
+  (error as Error & { cause?: unknown }).cause = connectSafeError();
+  return error;
 }
 
 async function waitFor(predicate: () => boolean, timeoutMs = 10_000): Promise<void> {

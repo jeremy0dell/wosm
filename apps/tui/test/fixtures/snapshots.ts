@@ -80,6 +80,37 @@ export function createZeroWorktreeSnapshot(): WosmSnapshot {
   return snapshotFromRows([]);
 }
 
+export function createNoProjectsSnapshot(): WosmSnapshot {
+  return {
+    schemaVersion: WOSM_SCHEMA_VERSION,
+    generatedAt: fixtureNow,
+    observer: {
+      pid: 4242,
+      startedAt: "2026-05-20T11:55:00.000Z",
+      version: "0.0.0",
+      healthy: true,
+    },
+    providerHealth: {},
+    harnesses: [
+      { id: "codex", label: "codex" },
+      { id: "opencode", label: "opencode" },
+    ],
+    projects: [],
+    rows: [],
+    sessions: [],
+    counts: {
+      projects: 0,
+      worktrees: 0,
+      agents: 0,
+      working: 0,
+      idle: 0,
+      attention: 0,
+      unknown: 0,
+    },
+    alerts: [],
+  };
+}
+
 export function row(input: {
   id: string;
   projectId: "web" | "api";

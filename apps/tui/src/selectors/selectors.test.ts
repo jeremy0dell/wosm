@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
-import { createInitialTuiState, type TuiViewState } from "../state/screen.js";
+import { createInitialTuiState } from "../state/screen.js";
+import type { TuiViewState } from "../state/types.js";
 import {
   choiceValueByKey,
   isSelectionKey,

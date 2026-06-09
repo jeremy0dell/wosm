@@ -34,8 +34,32 @@ export type RenameSessionOperation = {
   command: Extract<WosmCommand, { type: "session.rename" }>;
 };
 
+export type LoadProjectDirectoryOperation = {
+  type: "loadProjectDirectory";
+  path: string;
+};
+
+export type ReviewProjectFolderOperation = {
+  type: "reviewProjectFolder";
+  path: string;
+};
+
+export type SearchProjectDirectoriesOperation = {
+  type: "searchProjectDirectories";
+  query: string;
+};
+
+export type AddProjectOperation = {
+  type: "addProject";
+  command: Extract<WosmCommand, { type: "project.add" }>;
+};
+
 export type TuiOperation =
   | CreateSessionOperation
   | RemoveWorktreeOperation
   | StartAgentOperation
-  | RenameSessionOperation;
+  | RenameSessionOperation
+  | LoadProjectDirectoryOperation
+  | ReviewProjectFolderOperation
+  | SearchProjectDirectoriesOperation
+  | AddProjectOperation;
