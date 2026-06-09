@@ -34,7 +34,7 @@ describe("Worktrunk dependency preflight", () => {
     });
     expect(calls).toEqual([
       expect.objectContaining({
-        command: "wt",
+        command: "/opt/homebrew/bin/wt",
         args: ["--version"],
       }),
     ]);

@@ -33,7 +33,7 @@ describe("tmux dependency preflight", () => {
     });
     expect(calls).toEqual([
       expect.objectContaining({
-        command: "tmux",
+        command: "/opt/homebrew/bin/tmux",
         args: ["-V"],
       }),
     ]);

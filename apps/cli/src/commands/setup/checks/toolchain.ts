@@ -4,6 +4,7 @@ import {
   runExternalCommand,
 } from "@wosm/runtime";
 import type { CliEnv } from "../../../env.js";
+import { setupProbeTimeoutMs } from "./constants.js";
 import { commandEnv } from "./env.js";
 
 export type ToolchainStatus = "ok" | "missing" | "incompatible";
@@ -55,6 +56,7 @@ async function checkPnpmVersion(options: CheckToolchainOptions): Promise<Toolcha
     const input: ExternalCommandInput = {
       command: "pnpm",
       args: ["--version"],
+      timeoutMs: setupProbeTimeoutMs,
       maxOutputChars: 4096,
     };
     if (options.cwd !== undefined) input.cwd = options.cwd;

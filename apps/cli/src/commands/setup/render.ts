@@ -66,7 +66,7 @@ export function renderSetupApplyResult(plan: SetupPlan, options: SetupRenderOpti
       sectionHeading("Next", theme),
       "",
       `  ${theme.cyan("wosm doctor")}`,
-      `  ${theme.cyan("wosm tui")}`,
+      `  ${theme.cyan("wosm")}`,
       "",
     ].join("\n");
   }

@@ -257,7 +257,7 @@ Guided `wosm setup` can add the old-style prefix binding as a recommended step. 
 that binding manually, use:
 
 ```tmux
-bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID="#{client_name}" wosm-tmux-popup'
+bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID=#{q:client_name} wosm-tmux-popup'
 ```
 
 Use the stable `wosm-tmux-popup` entrypoint, or a stable checkout's `bin/wosm-popup`, for tmux

@@ -88,6 +88,9 @@ function createTerminalProvider(config: WosmConfig): TerminalProvider {
     const options: ConstructorParameters<typeof TmuxProvider>[0] = {};
     if (config.terminal?.tmux !== undefined) {
       options.config = config.terminal.tmux;
+      if (config.terminal.tmux.command !== undefined) {
+        options.command = config.terminal.tmux.command;
+      }
     }
     return new TmuxProvider(options);
   }

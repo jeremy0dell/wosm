@@ -35,6 +35,7 @@
     "test:contracts": "vitest run --config config/vitest/vitest.contracts.config.ts",
     "test:integration": "vitest run --config config/vitest/vitest.integration.config.ts",
     "test:diagnostics": "vitest run --config config/vitest/vitest.diagnostics.config.ts",
+    "test:e2e:setup": "vitest run --config config/vitest/vitest.setup-e2e.config.ts",
     "test:e2e": "vitest run --config config/vitest/vitest.e2e.config.ts",
     "test:e2e:real": "vitest run --config config/vitest/vitest.real-e2e.config.ts",
     "test:e2e:real:local": "node scripts/test-runners/run-real-e2e.mjs",
@@ -48,7 +49,7 @@
     "test:agent:scripted": "vitest run --config config/vitest/vitest.agent-scripted.config.ts",
     "test:agent:real": "pnpm test:e2e:codex:real",
     "smoke:release": "node scripts/test-runners/run-release-smoke.mjs",
-    "test:all": "pnpm build && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:contracts && pnpm test:integration && pnpm test:diagnostics && pnpm test:agent:scripted"
+    "test:all": "pnpm build && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:contracts && pnpm test:integration && pnpm test:diagnostics && pnpm test:agent:scripted && pnpm test:e2e:setup"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",

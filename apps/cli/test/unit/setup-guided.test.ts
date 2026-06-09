@@ -1,13 +1,21 @@
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { runSetupCommand, type SetupPromptAdapter } from "../../src/commands/setup/index.js";
 
 describe("guided setup command", () => {
+  const tempRoots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(
+      tempRoots.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+    );
+  });
+
   it("writes config after accepted prompts", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const calls: ExternalCommandInput[] = [];
@@ -46,7 +54,7 @@ describe("guided setup command", () => {
   });
 
   it("runs Worktrunk shell integration non-interactively after the WOSM prompt", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const calls: ExternalCommandInput[] = [];
@@ -85,7 +93,7 @@ describe("guided setup command", () => {
   });
 
   it("declining config write produces no writes", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const fs = fakeFs({});
@@ -116,7 +124,7 @@ describe("guided setup command", () => {
   });
 
   it("selects among multiple available harnesses", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const fs = fakeFs({});
@@ -147,7 +155,7 @@ describe("guided setup command", () => {
   });
 
   it("installs the optional tmux popup binding when accepted", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const fs = fakeFs({});
@@ -178,7 +186,7 @@ describe("guided setup command", () => {
   });
 
   it("installs a selected agent CLI when no harness is available, then continues", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const fs = fakeFs({});
@@ -228,7 +236,7 @@ describe("guided setup command", () => {
   });
 
   it("closes prompts and writes nothing when harness install choices are declined", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const fs = fakeFs({});
@@ -267,6 +275,12 @@ describe("guided setup command", () => {
   });
 });
 
+async function tempRoot(tempRoots: string[]): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+  tempRoots.push(root);
+  return root;
+}
+
 function prompt(input: { confirms: boolean[]; selects?: string[] }): SetupPromptAdapter {
   const confirms = [...input.confirms];
   const selects = [...(input.selects ?? [])];
@@ -287,12 +301,22 @@ function fakeRunner(
   return async (input) => {
     calls.push(input);
     const key = `${input.command} ${(input.args ?? []).join(" ")}`;
-    const stdout = outputs[key];
+    const stdout = outputs[key] ?? fakeBinOutput(input, outputs);
     if (stdout === undefined) {
       throw Object.assign(new Error(`missing fake command: ${key}`), { code: "ENOENT" });
     }
     return commandResult(input, stdout);
   };
+}
+
+function fakeBinOutput(
+  input: ExternalCommandInput,
+  outputs: Record<string, string>,
+): string | undefined {
+  if (!input.command.startsWith("/fake/bin/")) {
+    return undefined;
+  }
+  return outputs[`${basename(input.command)} ${(input.args ?? []).join(" ")}`];
 }
 
 function commandResult(input: ExternalCommandInput, stdout: string): ExternalCommandResult {

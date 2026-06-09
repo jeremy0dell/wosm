@@ -5,6 +5,7 @@ import {
 } from "@wosm/runtime";
 import type { CliEnv } from "../../../env.js";
 import type { SetupHarnessFact, SupportedHarnessId } from "../model.js";
+import { setupProbeTimeoutMs } from "./constants.js";
 import { commandEnv, setupEnv } from "./env.js";
 
 export type HarnessDefinition = {
@@ -54,6 +55,7 @@ async function checkHarness(
       const input: ExternalCommandInput = {
         command: candidate,
         args: ["--version"],
+        timeoutMs: setupProbeTimeoutMs,
         maxOutputChars: 4096,
       };
       if (options.cwd !== undefined) input.cwd = options.cwd;

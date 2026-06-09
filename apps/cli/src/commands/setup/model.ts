@@ -120,6 +120,20 @@ export type SetupHarnessFact = {
   message?: string;
 };
 
+export type SetupConfigProjectFact = {
+  id: string;
+  worktreeProvider: string;
+  worktrunkEnabled: boolean;
+  terminal: string;
+  harness: string;
+};
+
+export type SetupConfigDefaultsFact = {
+  worktreeProvider: string;
+  terminal: string;
+  harness: string;
+};
+
 export type SetupConfigFact =
   | {
       status: "missing";
@@ -132,6 +146,8 @@ export type SetupConfigFact =
       source: string;
       hasProjectForRoot: boolean;
       configuredHarnesses: readonly string[];
+      defaults: SetupConfigDefaultsFact;
+      matchedProject?: SetupConfigProjectFact;
     }
   | {
       status: "invalid";

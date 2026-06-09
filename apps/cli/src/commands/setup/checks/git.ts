@@ -6,6 +6,7 @@ import {
 } from "@wosm/runtime";
 import type { CliEnv } from "../../../env.js";
 import type { SetupGitFact } from "../model.js";
+import { setupProbeTimeoutMs } from "./constants.js";
 import { commandEnv } from "./env.js";
 
 export type CheckGitOptions = {
@@ -67,6 +68,7 @@ function git(options: CheckGitOptions, args: string[]) {
   const input: ExternalCommandInput = {
     command: "git",
     args,
+    timeoutMs: setupProbeTimeoutMs,
     maxOutputChars: 4096,
   };
   if (options.cwd !== undefined) input.cwd = options.cwd;

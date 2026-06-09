@@ -59,7 +59,7 @@ export function setupUsage(): string {
   return [
     "Usage:",
     "  wosm setup",
-    "  wosm setup check [--json]",
+    "  wosm setup check [--json] [--no-brew]",
     "  wosm setup plan [--json]",
     "  wosm setup apply --yes",
     "  wosm setup apply --dry-run",
@@ -79,6 +79,23 @@ function setupKind(value: string | undefined): SetupCommandKind {
 }
 
 function validateSetupArgs(args: SetupArgs): void {
+  if (args.kind === "guided") {
+    if (args.dryRun) {
+      throw new Error("wosm setup --dry-run is not supported. Use: wosm setup apply --dry-run.");
+    }
+    if (args.check) {
+      throw new Error("wosm setup --check is not supported. Use: wosm setup check.");
+    }
+    if (args.json) {
+      throw new Error("wosm setup --json is not supported. Use: wosm setup check --json.");
+    }
+    if (args.yes) {
+      throw new Error("wosm setup --yes is not supported. Use: wosm setup apply --yes.");
+    }
+    if (args.noBrew) {
+      throw new Error("wosm setup --no-brew is not supported. Use: wosm setup check --no-brew.");
+    }
+  }
   if (args.json && args.kind !== "check" && args.kind !== "plan") {
     throw new Error("--json is supported for wosm setup check and wosm setup plan.");
   }
@@ -93,6 +110,9 @@ function validateSetupArgs(args: SetupArgs): void {
   }
   if (args.kind === "system" && !args.check && !args.yes && !args.help) {
     throw new Error("wosm setup system requires --check or --yes.");
+  }
+  if (args.kind === "system" && args.check && args.yes) {
+    throw new Error("wosm setup system cannot use --check and --yes together.");
   }
   if ((args.kind === "check" || args.kind === "plan") && args.yes) {
     throw new Error(`wosm setup ${args.kind} cannot use --yes.`);

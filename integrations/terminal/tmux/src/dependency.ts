@@ -50,11 +50,27 @@ export async function checkTmuxDependency(
   if (options.pathEnv !== undefined) resolveOptions.pathEnv = options.pathEnv;
   if (options.access !== undefined) resolveOptions.access = options.access;
   const resolvedPath = await resolveExecutablePath(attemptedCommand, resolveOptions);
+  const requiresResolvedPath = options.pathEnv !== undefined || options.access !== undefined;
+  if (resolvedPath === undefined && requiresResolvedPath) {
+    return {
+      status: "unavailable",
+      attemptedCommand,
+      installHint,
+      error: {
+        tag: "ProviderUnavailableError",
+        code: "TMUX_UNAVAILABLE",
+        message: "tmux is not available.",
+        hint: installHint,
+        provider: "tmux",
+      },
+    };
+  }
+  const probeCommand = resolvedPath ?? attemptedCommand;
 
   try {
     const output = await runExternalCommand(
       {
-        command: attemptedCommand,
+        command: probeCommand,
         args: ["-V"],
         ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
         maxOutputChars: 4096,
@@ -85,7 +101,6 @@ export async function checkTmuxDependency(
         provider: "tmux",
       },
     };
-    if (resolvedPath !== undefined) status.resolvedPath = resolvedPath;
     return status;
   }
 }

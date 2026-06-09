@@ -1,13 +1,21 @@
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { runCli } from "@wosm/cli";
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 describe("CLI setup command", () => {
+  const tempRoots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(
+      tempRoots.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+    );
+  });
+
   it("returns deterministic JSON for setup check without loading observer config", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-cli-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const calls: ExternalCommandInput[] = [];
@@ -47,7 +55,7 @@ describe("CLI setup command", () => {
   });
 
   it("setup plan is read-only and includes a config write action", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-cli-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const chunks: string[] = [];
@@ -76,7 +84,7 @@ describe("CLI setup command", () => {
   });
 
   it("setup apply --dry-run performs no writes or external installs", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-cli-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const calls: ExternalCommandInput[] = [];
@@ -111,8 +119,56 @@ describe("CLI setup command", () => {
     );
   });
 
+  it("rejects bare setup --dry-run without writing files", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const fs = fakeFs({});
+
+    const result = await runCli(["--config", join(root, "config.toml"), "setup", "--dry-run"], {
+      setupDeps: {
+        cwd: repo,
+        homeDir: join(root, "home"),
+        fs,
+        writeStdout: () => undefined,
+      },
+    });
+
+    expect(result.code).toBe(2);
+    expect(Object.keys(fs.files)).toEqual([]);
+  });
+
+  it("setup check --json exits non-zero for invalid existing config", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    const configPath = join(root, "config.toml");
+    await mkdir(repo, { recursive: true });
+
+    const result = await runCli(["--config", configPath, "setup", "check", "--json"], {
+      setupDeps: {
+        cwd: repo,
+        homeDir: join(root, "home"),
+        env: { PATH: "/fake/bin" },
+        runner: fakeRunner([], {
+          "git rev-parse --show-toplevel": repo,
+          "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+          "wt --version": "worktrunk 1.2.3\n",
+          "tmux -V": "tmux 3.5a\n",
+          "codex --version": "codex 0.1.0\n",
+        }),
+        access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+        fs: readOnlyFs({ [configPath]: "schema_version = 1\n[defaults\n" }),
+      },
+    });
+
+    expect(result.code).toBe(1);
+    expect(result.output).toMatchObject({
+      summary: { requiredOk: false },
+    });
+  });
+
   it("setup system reports incompatible development toolchain versions without changing them", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-cli-"));
+    const root = await tempRoot(tempRoots);
     const chunks: string[] = [];
 
     const result = await runCli(["setup", "system", "--check"], {
@@ -136,7 +192,79 @@ describe("CLI setup command", () => {
     expect(output).toContain("corepack prepare pnpm@11.0.0 --activate");
     expect(output).toContain("WOSM setup does not change Node or pnpm automatically.");
   });
+
+  it("setup system --check --yes is invalid and performs no install calls", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const chunks: string[] = [];
+
+    const result = await runCli(["setup", "system", "--check", "--yes"], {
+      setupDeps: {
+        runner: fakeRunner(calls, {}),
+        writeStdout: (chunk) => chunks.push(chunk),
+      },
+    });
+
+    expect(result.code).toBe(2);
+    expect(chunks.join("")).toContain("cannot use --check and --yes together");
+    expect(calls).toEqual([]);
+  });
+
+  it("setup system --yes rechecks after fake installs and returns refreshed readiness", async () => {
+    const root = await tempRoot(tempRoots);
+    const calls: ExternalCommandInput[] = [];
+    const chunks: string[] = [];
+    const available = new Set<string>();
+
+    const result = await runCli(["setup", "system", "--yes"], {
+      setupDeps: {
+        cwd: root,
+        env: { PATH: "/fake/bin" },
+        runner: async (input) => {
+          calls.push(input);
+          const key = `${input.command} ${(input.args ?? []).join(" ")}`;
+          if (key === "brew install worktrunk") {
+            available.add("/fake/bin/wt");
+            return commandResult(input, "");
+          }
+          if (key === "brew install tmux") {
+            available.add("/fake/bin/tmux");
+            return commandResult(input, "");
+          }
+          return fakeRunner([], {
+            "brew --version": "Homebrew 4.0.0\n",
+            "pnpm --version": "11.0.0\n",
+            "wt --version": "worktrunk 1.2.3\n",
+            "tmux -V": "tmux 3.5a\n",
+          })(input);
+        },
+        access: async (path) => {
+          if (!available.has(path)) {
+            throw Object.assign(new Error(`missing path: ${path}`), { code: "ENOENT" });
+          }
+        },
+        writeStdout: (chunk) => chunks.push(chunk),
+      },
+    });
+
+    expect(result.code).toBe(0);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ command: "brew", args: ["install", "worktrunk"] }),
+        expect.objectContaining({ command: "brew", args: ["install", "tmux"] }),
+        expect.objectContaining({ command: "/fake/bin/wt", args: ["--version"] }),
+        expect.objectContaining({ command: "/fake/bin/tmux", args: ["-V"] }),
+      ]),
+    );
+    expect(chunks.join("")).toContain("wosm setup system final");
+    expect(chunks.join("")).toContain("ok Worktrunk / wt");
+  });
 });
+
+async function tempRoot(tempRoots: string[]): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "wosm-setup-cli-"));
+  tempRoots.push(root);
+  return root;
+}
 
 function fakeRunner(
   calls: ExternalCommandInput[],
@@ -145,7 +273,7 @@ function fakeRunner(
   return async (input) => {
     calls.push(input);
     const key = `${input.command} ${(input.args ?? []).join(" ")}`;
-    const stdout = outputs[key];
+    const stdout = outputs[key] ?? fakeBinOutput(input, outputs);
     if (stdout === undefined) {
       throw Object.assign(new Error(`missing fake command: ${key}`), { code: "ENOENT" });
     }
@@ -156,6 +284,26 @@ function fakeRunner(
       stderr: "",
       exitCode: 0,
     };
+  };
+}
+
+function fakeBinOutput(
+  input: ExternalCommandInput,
+  outputs: Record<string, string>,
+): string | undefined {
+  if (!input.command.startsWith("/fake/bin/")) {
+    return undefined;
+  }
+  return outputs[`${basename(input.command)} ${(input.args ?? []).join(" ")}`];
+}
+
+function commandResult(input: ExternalCommandInput, stdout: string): ExternalCommandResult {
+  return {
+    command: input.command,
+    args: input.args ?? [],
+    stdout,
+    stderr: "",
+    exitCode: 0,
   };
 }
 

@@ -17,8 +17,10 @@ export async function planSetupConfigWrite(
   facts: SetupFacts,
   options: PlanSetupConfigWriteOptions = {},
 ): Promise<ConfigWritePlan> {
-  const selectedHarness =
-    options.selectedHarness ?? selectSetupHarness(facts.harnesses, facts.selectedHarness);
+  const selectedHarness = resolveConfigWriteHarness(
+    facts,
+    options.selectedHarness ?? selectSetupHarness(facts.harnesses, facts.selectedHarness),
+  );
   if (selectedHarness === undefined) {
     return {
       operation: "blocked",
@@ -38,7 +40,7 @@ export async function planSetupConfigWrite(
     return {
       operation: "create",
       path: facts.configPath,
-      content: renderNewSetupConfig(facts.git, selectedHarness),
+      content: renderNewSetupConfig(facts.git, selectedHarness, facts),
     };
   }
 
@@ -56,9 +58,14 @@ export async function planSetupConfigWrite(
 export function renderNewSetupConfig(
   git: Extract<SetupGitFact, { status: "ok" }>,
   harness: SetupHarnessFact,
+  facts?: Pick<SetupFacts, "worktrunk" | "tmux">,
 ): string {
   const projectId = projectIdForGit(git);
   const defaultBranch = git.defaultBranch;
+  const worktrunkCommand =
+    facts?.worktrunk === undefined ? "wt" : detectedCommand(facts.worktrunk, "wt");
+  const tmuxCommand =
+    facts?.tmux === undefined ? undefined : detectedOptionalCommand(facts.tmux, "tmux");
   return [
     "schema_version = 1",
     "",
@@ -74,7 +81,7 @@ export function renderNewSetupConfig(
     `default_branch = ${tomlString(defaultBranch)}`,
     "",
     "[worktree.worktrunk]",
-    `command = ${tomlString("wt")}`,
+    `command = ${tomlString(worktrunkCommand)}`,
     'managed_root = "~/.worktrees"',
     `base = ${tomlString(defaultBranch)}`,
     "include_main = false",
@@ -83,6 +90,7 @@ export function renderNewSetupConfig(
     'hook_mode = "disabled"',
     "",
     "[terminal.tmux]",
+    ...(tmuxCommand === undefined ? [] : [`command = ${tomlString(tmuxCommand)}`]),
     'session_prefix = "wosm"',
     'topology = "workbench"',
     'workbench_session = "wosm"',
@@ -101,11 +109,34 @@ export function renderNewSetupConfig(
   ].join("\n");
 }
 
+function resolveConfigWriteHarness(
+  facts: SetupFacts,
+  fallback: SetupHarnessFact | undefined,
+): SetupHarnessFact | undefined {
+  if (facts.config.status !== "valid") {
+    return fallback;
+  }
+  const configuredHarness = facts.config.matchedProject?.harness ?? facts.config.defaults.harness;
+  return (
+    facts.harnesses.find(
+      (harness) => harness.id === configuredHarness && harness.status === "ok",
+    ) ?? fallback
+  );
+}
+
 function planExistingConfigAppend(
   config: Extract<SetupConfigFact, { status: "valid" }>,
   git: Extract<SetupGitFact, { status: "ok" }>,
   harness: SetupHarnessFact,
 ): ConfigWritePlan {
+  const coreProblem = existingConfigAppendCoreProblem(config, harness);
+  if (coreProblem !== undefined) {
+    return {
+      operation: "blocked",
+      path: config.path,
+      reason: coreProblem,
+    };
+  }
   const appendedText = renderAppendText({
     git,
     harness,
@@ -124,6 +155,38 @@ function planExistingConfigAppend(
     content: `${config.source.trimEnd()}\n${appendedText}`,
     appendedText,
   };
+}
+
+function existingConfigAppendCoreProblem(
+  config: Extract<SetupConfigFact, { status: "valid" }>,
+  harness: SetupHarnessFact,
+): string | undefined {
+  if (config.matchedProject === undefined) {
+    if (config.defaults.worktreeProvider !== "worktrunk") {
+      return `Config defaults use worktree provider ${config.defaults.worktreeProvider}; setup will not rewrite existing defaults.`;
+    }
+    if (config.defaults.terminal !== "tmux") {
+      return `Config defaults use terminal ${config.defaults.terminal}; setup will not rewrite existing defaults.`;
+    }
+    if (config.defaults.harness !== harness.id) {
+      return `Config defaults use harness ${config.defaults.harness}; setup will not rewrite existing defaults.`;
+    }
+    return undefined;
+  }
+
+  if (config.matchedProject.worktreeProvider !== "worktrunk") {
+    return `Project ${config.matchedProject.id} uses worktree provider ${config.matchedProject.worktreeProvider}; setup will not rewrite existing project defaults.`;
+  }
+  if (!config.matchedProject.worktrunkEnabled) {
+    return `Project ${config.matchedProject.id} disables Worktrunk; setup will not rewrite existing project defaults.`;
+  }
+  if (config.matchedProject.terminal !== "tmux") {
+    return `Project ${config.matchedProject.id} uses terminal ${config.matchedProject.terminal}; setup will not rewrite existing project defaults.`;
+  }
+  if (config.matchedProject.harness !== harness.id) {
+    return `Project ${config.matchedProject.id} uses harness ${config.matchedProject.harness}; setup will not rewrite existing project defaults.`;
+  }
+  return undefined;
 }
 
 function renderAppendText(input: {
@@ -166,4 +229,24 @@ function projectIdForGit(git: Extract<SetupGitFact, { status: "ok" }>): string {
 
 function tomlString(value: string): string {
   return JSON.stringify(value);
+}
+
+function detectedCommand(
+  fact: { command: string; resolvedPath?: string },
+  defaultCommand: string,
+): string {
+  if (fact.command !== defaultCommand || fact.command.includes("/")) {
+    return fact.command;
+  }
+  return fact.resolvedPath ?? defaultCommand;
+}
+
+function detectedOptionalCommand(
+  fact: { command: string; resolvedPath?: string },
+  defaultCommand: string,
+): string | undefined {
+  if (fact.command !== defaultCommand || fact.command.includes("/")) {
+    return fact.command;
+  }
+  return fact.resolvedPath;
 }

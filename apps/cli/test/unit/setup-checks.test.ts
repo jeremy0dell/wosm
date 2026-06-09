@@ -1,14 +1,24 @@
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setupProbeTimeoutMs } from "../../src/commands/setup/checks/constants.js";
 import { collectSetupFacts } from "../../src/commands/setup/checks/system.js";
+import { tmuxPopupBindingBlock } from "../../src/commands/setup/checks/tmuxBinding.js";
 import { buildSetupPlan } from "../../src/commands/setup/planner.js";
 
 describe("setup dependency checks", () => {
+  const tempRoots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(
+      tempRoots.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+    );
+  });
+
   it("collects core facts through injected effects only", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-checks-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const calls: ExternalCommandInput[] = [];
@@ -46,10 +56,19 @@ describe("setup dependency checks", () => {
     expect(calls.map((call) => `${call.command} ${(call.args ?? []).join(" ")}`)).not.toContain(
       "gh --version",
     );
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ command: "/fake/bin/wt", timeoutMs: setupProbeTimeoutMs }),
+        expect.objectContaining({ command: "/fake/bin/tmux", timeoutMs: setupProbeTimeoutMs }),
+        expect.objectContaining({ command: "git", timeoutMs: setupProbeTimeoutMs }),
+        expect.objectContaining({ command: "brew", timeoutMs: setupProbeTimeoutMs }),
+        expect.objectContaining({ command: "codex", timeoutMs: setupProbeTimeoutMs }),
+      ]),
+    );
   });
 
   it("marks missing Worktrunk and tmux as required failures", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-checks-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const calls: ExternalCommandInput[] = [];
@@ -76,7 +95,7 @@ describe("setup dependency checks", () => {
   });
 
   it("selects the first available harness from detection order", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-checks-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const calls: ExternalCommandInput[] = [];
@@ -104,7 +123,7 @@ describe("setup dependency checks", () => {
   });
 
   it("detects harness CLIs installed under the user local bin directory", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-checks-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     const home = join(root, "home");
     await mkdir(repo, { recursive: true });
@@ -132,7 +151,7 @@ describe("setup dependency checks", () => {
   });
 
   it("falls back to current branch and then main for git default branch", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-checks-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const calls: ExternalCommandInput[] = [];
@@ -155,7 +174,118 @@ describe("setup dependency checks", () => {
 
     expect(facts.git).toMatchObject({ status: "ok", defaultBranch: "feature/setup" });
   });
+
+  it("treats invalid config as a required setup failure", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const facts = await collectSetupFacts({
+      mode: "check",
+      cwd: repo,
+      homeDir: join(root, "home"),
+      env: { PATH: "/fake/bin" },
+      runner: fakeRunner([], {
+        "git rev-parse --show-toplevel": repo,
+        "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+        "wt --version": "worktrunk 1.2.3\n",
+        "tmux -V": "tmux 3.5a\n",
+        "codex --version": "codex 0.1.0\n",
+      }),
+      access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+      fs: readOnlyFs({
+        [join(root, "home/.config/wosm/config.toml")]: "schema_version = 1\n[defaults\n",
+      }),
+      noBrew: true,
+    });
+    const plan = buildSetupPlan(facts);
+
+    expect(plan.summary.requiredOk).toBe(false);
+    expect(plan.checks.find((check) => check.id === "config")).toMatchObject({
+      status: "missing",
+    });
+  });
+
+  it("fails readiness for existing config defaults outside the setup core path", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    const otherRepo = join(root, "other");
+    await mkdir(repo, { recursive: true });
+    await mkdir(otherRepo, { recursive: true });
+    const facts = await collectSetupFacts({
+      mode: "check",
+      cwd: repo,
+      homeDir: join(root, "home"),
+      env: { PATH: "/fake/bin" },
+      runner: fakeRunner([], {
+        "git rev-parse --show-toplevel": repo,
+        "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+        "wt --version": "worktrunk 1.2.3\n",
+        "tmux -V": "tmux 3.5a\n",
+        "codex --version": "codex 0.1.0\n",
+      }),
+      access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+      fs: readOnlyFs({
+        [join(root, "home/.config/wosm/config.toml")]: configToml(otherRepo, {
+          worktreeProvider: "noop-worktree",
+        }),
+      }),
+      noBrew: true,
+    });
+    const plan = buildSetupPlan(facts);
+
+    expect(plan.summary.requiredOk).toBe(false);
+    expect(plan.checks.find((check) => check.id === "config")?.message).toContain("noop-worktree");
+  });
+
+  it("fails readiness when an existing project uses an unsupported harness", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const facts = await collectSetupFacts({
+      mode: "check",
+      cwd: repo,
+      homeDir: join(root, "home"),
+      env: { PATH: "/fake/bin" },
+      runner: fakeRunner([], {
+        "git rev-parse --show-toplevel": repo,
+        "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+        "wt --version": "worktrunk 1.2.3\n",
+        "tmux -V": "tmux 3.5a\n",
+        "codex --version": "codex 0.1.0\n",
+      }),
+      access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+      fs: readOnlyFs({
+        [join(root, "home/.config/wosm/config.toml")]: configToml(repo, {
+          harness: "missing-harness",
+        }),
+      }),
+      noBrew: true,
+    });
+    const plan = buildSetupPlan(facts);
+
+    expect(plan.summary.requiredOk).toBe(false);
+    expect(plan.checks.find((check) => check.id === "config")?.message).toContain(
+      "missing-harness",
+    );
+  });
+
+  it("generates a tmux popup binding with tmux-format quoting for client names", () => {
+    const binding = tmuxPopupBindingBlock();
+    const clientNames = ["client one", "client'quote", "client;rm -rf", "client$(touch nope)"];
+
+    expect(binding).toContain("WOSM_FOCUS_CLIENT_ID=#{q:client_name}");
+    expect(binding).not.toContain('WOSM_FOCUS_CLIENT_ID="#{client_name}"');
+    for (const clientName of clientNames) {
+      expect(binding).not.toContain(clientName);
+    }
+  });
 });
+
+async function tempRoot(tempRoots: string[]): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "wosm-setup-checks-"));
+  tempRoots.push(root);
+  return root;
+}
 
 function fakeRunner(
   calls: ExternalCommandInput[],
@@ -164,7 +294,7 @@ function fakeRunner(
   return async (input) => {
     calls.push(input);
     const key = `${input.command} ${(input.args ?? []).join(" ")}`;
-    const stdout = outputs[key];
+    const stdout = outputs[key] ?? fakeBinOutput(input, outputs);
     if (stdout === undefined) {
       throw Object.assign(new Error(`missing fake command: ${key}`), { code: "ENOENT" });
     }
@@ -176,6 +306,16 @@ function fakeRunner(
       exitCode: 0,
     };
   };
+}
+
+function fakeBinOutput(
+  input: ExternalCommandInput,
+  outputs: Record<string, string>,
+): string | undefined {
+  if (!input.command.startsWith("/fake/bin/")) {
+    return undefined;
+  }
+  return outputs[`${basename(input.command)} ${(input.args ?? []).join(" ")}`];
 }
 
 function fakeAccess(paths: readonly string[]): (path: string) => Promise<void> {
@@ -199,7 +339,10 @@ function readOnlyFs(files: Record<string, string>) {
   };
 }
 
-function configToml(repo: string): string {
+function configToml(
+  repo: string,
+  options: { worktreeProvider?: string; terminal?: string; harness?: string } = {},
+): string {
   return [
     "schema_version = 1",
     "",
@@ -208,9 +351,9 @@ function configToml(repo: string): string {
     'state_dir = "~/.local/state/wosm"',
     "",
     "[defaults]",
-    'worktree_provider = "worktrunk"',
-    'terminal = "tmux"',
-    'harness = "codex"',
+    `worktree_provider = ${JSON.stringify(options.worktreeProvider ?? "worktrunk")}`,
+    `terminal = ${JSON.stringify(options.terminal ?? "tmux")}`,
+    `harness = ${JSON.stringify(options.harness ?? "codex")}`,
     'layout = "agent-shell"',
     "",
     "[[projects]]",

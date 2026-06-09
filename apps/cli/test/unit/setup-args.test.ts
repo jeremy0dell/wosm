@@ -16,6 +16,21 @@ describe("setup args", () => {
 
   it("validates unsupported flag combinations", () => {
     expect(() => parseSetupArgs(["bogus"])).toThrow("Unknown setup command: bogus");
+    expect(() => parseSetupArgs(["--dry-run"])).toThrow(
+      "wosm setup --dry-run is not supported. Use: wosm setup apply --dry-run.",
+    );
+    expect(() => parseSetupArgs(["--check"])).toThrow(
+      "wosm setup --check is not supported. Use: wosm setup check.",
+    );
+    expect(() => parseSetupArgs(["--json"])).toThrow(
+      "wosm setup --json is not supported. Use: wosm setup check --json.",
+    );
+    expect(() => parseSetupArgs(["--yes"])).toThrow(
+      "wosm setup --yes is not supported. Use: wosm setup apply --yes.",
+    );
+    expect(() => parseSetupArgs(["--no-brew"])).toThrow(
+      "wosm setup --no-brew is not supported. Use: wosm setup check --no-brew.",
+    );
     expect(() => parseSetupArgs(["check", "--yes"])).toThrow("wosm setup check cannot use --yes.");
     expect(() => parseSetupArgs(["apply"])).toThrow(
       "wosm setup apply requires --yes or --dry-run.",
@@ -25,6 +40,9 @@ describe("setup args", () => {
     );
     expect(() => parseSetupArgs(["apply", "--json"])).toThrow(
       "--json is supported for wosm setup check and wosm setup plan.",
+    );
+    expect(() => parseSetupArgs(["system", "--check", "--yes"])).toThrow(
+      "wosm setup system cannot use --check and --yes together.",
     );
   });
 });
