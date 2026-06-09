@@ -5,6 +5,7 @@ import {
 } from "@wosm/runtime";
 import type { CliEnv } from "../../../env.js";
 import type { SetupBrewFact } from "../model.js";
+import { setupProbeTimeoutMs } from "./constants.js";
 import { commandEnv } from "./env.js";
 
 export type CheckBrewOptions = {
@@ -26,6 +27,7 @@ export async function checkBrewDependency(options: CheckBrewOptions = {}): Promi
     const input: ExternalCommandInput = {
       command: "brew",
       args: ["--version"],
+      timeoutMs: setupProbeTimeoutMs,
       maxOutputChars: 4096,
     };
     if (options.cwd !== undefined) input.cwd = options.cwd;

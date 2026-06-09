@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { loadConfig } from "@wosm/config";
 import { describe, expect, it } from "vitest";
 
@@ -97,6 +97,183 @@ describe("setup core flow e2e", () => {
       }
     }
   });
+
+  it("preserves custom Worktrunk and tmux commands in generated config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-setup-e2e-"));
+    let passed = false;
+    try {
+      const home = join(root, "home");
+      const repo = join(root, "repo");
+      const bin = join(root, "bin");
+      const customWt = join(bin, "custom-wt");
+      const customTmux = join(bin, "custom-tmux");
+      const configPath = join(home, ".config", "wosm", "config.toml");
+      await mkdir(home, { recursive: true });
+      await mkdir(repo, { recursive: true });
+      await mkdir(bin, { recursive: true });
+      await writeShim(
+        bin,
+        "custom-wt",
+        'if [ "$1" = "--version" ]; then echo "worktrunk 1.2.3"; exit 0; fi\nexit 0\n',
+      );
+      await writeShim(
+        bin,
+        "custom-tmux",
+        'if [ "$1" = "-V" ]; then echo "tmux 3.5a"; exit 0; fi\nexit 0\n',
+      );
+      await writeShim(
+        bin,
+        "codex",
+        'if [ "$1" = "--version" ]; then echo "codex 0.1.0"; exit 0; fi\nexit 0\n',
+      );
+      run("git", ["init", "-b", "main"], { cwd: repo });
+
+      const env = {
+        ...process.env,
+        HOME: home,
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        WOSM_FAST_POPUP_NO_FALLBACK: "1",
+        WOSM_WORKTRUNK_BIN: customWt,
+        WOSM_TMUX_BIN: customTmux,
+      };
+
+      runWosm(["--config", configPath, "setup", "apply", "--yes", "--no-brew"], {
+        cwd: repo,
+        env,
+      });
+
+      const config = await readFile(configPath, "utf8");
+      expect(config).toContain(`command = ${JSON.stringify(customWt)}`);
+      expect(config).toContain(`[terminal.tmux]\ncommand = ${JSON.stringify(customTmux)}`);
+      passed = true;
+    } finally {
+      if (passed || process.env.WOSM_KEEP_SETUP_E2E_TEMP !== "1") {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("returns non-zero JSON for invalid existing config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-setup-e2e-"));
+    let passed = false;
+    try {
+      const home = join(root, "home");
+      const repo = join(root, "repo");
+      const bin = join(root, "bin");
+      const configPath = join(home, ".config", "wosm", "config.toml");
+      await mkdir(home, { recursive: true });
+      await mkdir(repo, { recursive: true });
+      await mkdir(bin, { recursive: true });
+      await mkdir(join(home, ".config", "wosm"), { recursive: true });
+      await writeFile(configPath, "schema_version = 1\n[defaults\n", "utf8");
+      await writeShim(
+        bin,
+        "wt",
+        'if [ "$1" = "--version" ]; then echo "worktrunk 1.2.3"; exit 0; fi\nexit 0\n',
+      );
+      await writeShim(
+        bin,
+        "tmux",
+        'if [ "$1" = "-V" ]; then echo "tmux 3.5a"; exit 0; fi\nexit 0\n',
+      );
+      await writeShim(
+        bin,
+        "codex",
+        'if [ "$1" = "--version" ]; then echo "codex 0.1.0"; exit 0; fi\nexit 0\n',
+      );
+      run("git", ["init", "-b", "main"], { cwd: repo });
+
+      const result = runWosm(["--config", configPath, "setup", "check", "--json"], {
+        cwd: repo,
+        env: {
+          ...process.env,
+          HOME: home,
+          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          WOSM_FAST_POPUP_NO_FALLBACK: "1",
+        },
+        allowFailure: true,
+      });
+      const output = JSON.parse(result.stdout);
+
+      expect(result.status).toBe(1);
+      expect(output.summary.requiredOk).toBe(false);
+      expect(output.checks).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: "config", status: "missing" })]),
+      );
+      passed = true;
+    } finally {
+      if (passed || process.env.WOSM_KEEP_SETUP_E2E_TEMP !== "1") {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it("compatibility wrapper bare setup:system dispatches apply mode", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-setup-e2e-"));
+    let passed = false;
+    try {
+      const bin = join(root, "bin");
+      const worktrunkBin = join(bin, "wt");
+      const tmuxBin = join(bin, "tmux");
+      const log = join(root, "brew.log");
+      await mkdir(bin, { recursive: true });
+      await writeShim(
+        bin,
+        "brew",
+        [
+          'if [ "$1" = "--version" ]; then echo "Homebrew 4.0.0"; exit 0; fi',
+          'if [ "$1 $2" = "install worktrunk" ]; then',
+          `  echo worktrunk >> ${shellQuote(log)}`,
+          `  cat > ${shellQuote(join(bin, "wt"))} <<'EOF'`,
+          "#!/bin/sh",
+          'if [ "$1" = "--version" ]; then echo "worktrunk 1.2.3"; exit 0; fi',
+          "exit 0",
+          "EOF",
+          `  chmod 700 ${shellQuote(join(bin, "wt"))}`,
+          "  exit 0",
+          "fi",
+          'if [ "$1 $2" = "install tmux" ]; then',
+          `  echo tmux >> ${shellQuote(log)}`,
+          `  cat > ${shellQuote(join(bin, "tmux"))} <<'EOF'`,
+          "#!/bin/sh",
+          'if [ "$1" = "-V" ]; then echo "tmux 3.5a"; exit 0; fi',
+          "exit 0",
+          "EOF",
+          `  chmod 700 ${shellQuote(join(bin, "tmux"))}`,
+          "  exit 0",
+          "fi",
+          'echo "unexpected brew $*" >&2',
+          "exit 2",
+          "",
+        ].join("\n"),
+      );
+      await writeShim(
+        bin,
+        "pnpm",
+        'if [ "$1" = "--version" ]; then echo "11.0.0"; exit 0; fi\nexit 2\n',
+      );
+
+      const result = run("scripts/setup/setup-system-dependencies.sh", [], {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,
+          WOSM_FAST_POPUP_NO_FALLBACK: "1",
+          WOSM_WORKTRUNK_BIN: worktrunkBin,
+          WOSM_TMUX_BIN: tmuxBin,
+        },
+      });
+
+      expect(result.stdout).toContain("wosm setup system final");
+      await expect(readFile(log, "utf8")).resolves.toContain("worktrunk");
+      await expect(readFile(log, "utf8")).resolves.toContain("tmux");
+      passed = true;
+    } finally {
+      if (passed || process.env.WOSM_KEEP_SETUP_E2E_TEMP !== "1") {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  });
 });
 
 async function writeShim(bin: string, name: string, body: string): Promise<void> {
@@ -132,4 +309,8 @@ function run(
     stderr: result.stderr,
     status: result.status,
   };
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }

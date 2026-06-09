@@ -40,3 +40,5 @@ jobs:
         run: pnpm test:diagnostics
       - name: Scripted-agent tests
         run: pnpm test:agent:scripted
+      - name: Setup e2e tests
+        run: pnpm test:e2e:setup

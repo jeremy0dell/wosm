@@ -17,7 +17,7 @@ From the repository root:
 ```bash
 pnpm install
 pnpm build
-wosm setup
+pnpm wosm setup
 pnpm smoke:release
 ```
 
@@ -54,7 +54,7 @@ pnpm wosm snapshot --json
 pnpm wosm
 ```
 
-or link the built CLI:
+or link the built CLI after setup:
 
 ```bash
 pnpm wosm:link

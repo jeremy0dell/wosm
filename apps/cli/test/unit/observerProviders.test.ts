@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WosmConfig } from "@wosm/config";
@@ -174,6 +174,38 @@ describe("observer providers", () => {
     });
 
     expect([...allBuiltIns.harnesses.keys()]).toEqual(["codex", "cursor", "pi", "opencode"]);
+  });
+
+  it("passes tmux command config into the tmux terminal provider", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "wosm-tmux-command-"));
+    try {
+      const tmuxCommand = join(tempDir, "custom-tmux");
+      await writeFile(
+        tmuxCommand,
+        '#!/bin/sh\nif [ "$1" = "-V" ]; then echo "tmux 3.5a"; exit 0; fi\nexit 2\n',
+        "utf8",
+      );
+      await chmod(tmuxCommand, 0o700);
+      const registry = createProviderRegistry({
+        ...config,
+        defaults: {
+          ...config.defaults,
+          terminal: "tmux",
+        },
+        terminal: {
+          tmux: {
+            command: tmuxCommand,
+          },
+        },
+      });
+
+      await expect(registry.terminal.health()).resolves.toMatchObject({
+        providerId: "tmux",
+        status: "healthy",
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("passes Cursor command config into the Cursor harness provider", async () => {

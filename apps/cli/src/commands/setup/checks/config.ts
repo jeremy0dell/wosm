@@ -46,15 +46,32 @@ export async function checkSetupConfig(
       homeDir: setupHomeDir(options),
     });
     const gitRoot = options.gitRoot;
-    return {
+    const matchedProject =
+      gitRoot === undefined
+        ? undefined
+        : loaded.config.projects.find((project) => pathIsSame(project.root, gitRoot));
+    const fact: SetupConfigFact = {
       status: "valid",
       path,
       source,
-      hasProjectForRoot:
-        gitRoot !== undefined &&
-        loaded.config.projects.some((project) => pathIsSame(project.root, gitRoot)),
+      hasProjectForRoot: matchedProject !== undefined,
       configuredHarnesses: Object.keys(loaded.config.harness ?? {}),
+      defaults: {
+        worktreeProvider: loaded.config.defaults.worktreeProvider,
+        terminal: loaded.config.defaults.terminal,
+        harness: loaded.config.defaults.harness,
+      },
     };
+    if (matchedProject !== undefined) {
+      fact.matchedProject = {
+        id: matchedProject.id,
+        worktreeProvider: loaded.config.defaults.worktreeProvider,
+        worktrunkEnabled: matchedProject.worktrunk.enabled,
+        terminal: matchedProject.defaults.terminal,
+        harness: matchedProject.defaults.harness,
+      };
+    }
+    return fact;
   } catch (error) {
     return {
       status: "invalid",

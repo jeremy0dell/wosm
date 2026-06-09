@@ -140,6 +140,7 @@ export type WorktreeProvidersConfig = z.infer<typeof WorktreeProvidersConfigSche
 
 export const TmuxConfigSchema = z
   .object({
+    command: nonEmptyStringSchema.optional(),
     sessionPrefix: nonEmptyStringSchema.optional(),
     topology: z.enum(["workbench"]).optional(),
     workbenchSession: nonEmptyStringSchema.optional(),

@@ -1,5 +1,6 @@
 import { checkTmuxDependency } from "@wosm/tmux";
 import type { SetupDependencyFact } from "../model.js";
+import { setupProbeTimeoutMs } from "./constants.js";
 import { setupEnv } from "./env.js";
 import type { SetupDependencyCheckOptions } from "./system.js";
 
@@ -10,6 +11,7 @@ export async function checkSetupTmux(
   const command = env.WOSM_TMUX_BIN ?? "tmux";
   const dependencyOptions: Parameters<typeof checkTmuxDependency>[0] = {
     command,
+    timeoutMs: setupProbeTimeoutMs,
   };
   if (options.runner !== undefined) dependencyOptions.runner = options.runner;
   if (options.access !== undefined) dependencyOptions.access = options.access;

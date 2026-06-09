@@ -5,7 +5,7 @@ import type { SetupFileSystemReader } from "./config.js";
 export const tmuxPopupBindingMarker = "# >>> wosm popup binding >>>";
 export const tmuxPopupBindingEndMarker = "# <<< wosm popup binding <<<";
 export const tmuxPopupBindingLine =
-  "bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID=\"#{client_name}\" wosm-tmux-popup'";
+  "bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID=#{q:client_name} wosm-tmux-popup'";
 
 export type CheckSetupTmuxBindingOptions = {
   homeDir: string;

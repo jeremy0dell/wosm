@@ -1,14 +1,22 @@
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfigFromToml } from "@wosm/config";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { planSetupConfigWrite } from "../../src/commands/setup/configWriter.js";
 import type { SetupFacts } from "../../src/commands/setup/model.js";
 
 describe("setup config writer", () => {
+  const tempRoots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(
+      tempRoots.splice(0).map((path) => rm(path, { recursive: true, force: true })),
+    );
+  });
+
   it("generates new config TOML that parses through the config loader", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-config-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const facts = setupFacts(repo, {
@@ -40,7 +48,7 @@ describe("setup config writer", () => {
   });
 
   it("appends only missing project and harness blocks to a valid existing config", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-config-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     const otherRepo = join(root, "other");
     await mkdir(repo, { recursive: true });
@@ -53,6 +61,11 @@ describe("setup config writer", () => {
         source,
         hasProjectForRoot: false,
         configuredHarnesses: [],
+        defaults: {
+          worktreeProvider: "worktrunk",
+          terminal: "tmux",
+          harness: "codex",
+        },
       },
     });
 
@@ -70,7 +83,7 @@ describe("setup config writer", () => {
   });
 
   it("does not plan broad rewrites for an already-covered config", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-config-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const source = existingConfigToml(root, { projectRoot: repo, includeHarness: true });
@@ -81,6 +94,18 @@ describe("setup config writer", () => {
         source,
         hasProjectForRoot: true,
         configuredHarnesses: ["codex"],
+        defaults: {
+          worktreeProvider: "worktrunk",
+          terminal: "tmux",
+          harness: "codex",
+        },
+        matchedProject: {
+          id: "repo",
+          worktreeProvider: "worktrunk",
+          worktrunkEnabled: true,
+          terminal: "tmux",
+          harness: "codex",
+        },
       },
     });
 
@@ -91,7 +116,7 @@ describe("setup config writer", () => {
   });
 
   it("blocks invalid existing config without a write action", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wosm-setup-config-"));
+    const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const facts = setupFacts(repo, {
@@ -109,7 +134,71 @@ describe("setup config writer", () => {
       reason: "WOSM config file is not valid TOML.",
     });
   });
+
+  it("preserves custom detected Worktrunk and tmux commands in new config", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const facts = setupFacts(repo, {
+      worktrunk: {
+        status: "ok",
+        command: "/custom/bin/wt",
+        resolvedPath: "/custom/bin/wt",
+      },
+      tmux: {
+        status: "ok",
+        command: "/custom/bin/tmux",
+        resolvedPath: "/custom/bin/tmux",
+      },
+      config: {
+        status: "missing",
+        path: join(root, "config.toml"),
+        message: "missing",
+      },
+    });
+
+    const write = await planSetupConfigWrite(facts);
+
+    expect(write.operation).toBe("create");
+    if (write.operation !== "create") throw new Error("expected create plan");
+    expect(write.content).toContain('command = "/custom/bin/wt"');
+    expect(write.content).toContain('[terminal.tmux]\ncommand = "/custom/bin/tmux"');
+  });
+
+  it("blocks appending a project that would inherit non-core defaults", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    const otherRepo = join(root, "other");
+    await mkdir(repo, { recursive: true });
+    await mkdir(otherRepo, { recursive: true });
+    const source = existingConfigToml(root, { projectRoot: otherRepo });
+    const facts = setupFacts(repo, {
+      config: {
+        status: "valid",
+        path: join(root, "config.toml"),
+        source,
+        hasProjectForRoot: false,
+        configuredHarnesses: ["codex"],
+        defaults: {
+          worktreeProvider: "noop-worktree",
+          terminal: "tmux",
+          harness: "codex",
+        },
+      },
+    });
+
+    await expect(planSetupConfigWrite(facts)).resolves.toMatchObject({
+      operation: "blocked",
+      reason: expect.stringContaining("noop-worktree"),
+    });
+  });
 });
+
+async function tempRoot(tempRoots: string[]): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "wosm-setup-config-"));
+  tempRoots.push(root);
+  return root;
+}
 
 function setupFacts(repo: string, overrides: Partial<SetupFacts>): SetupFacts {
   return {

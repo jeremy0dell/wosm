@@ -185,6 +185,45 @@ describe("setup planner", () => {
       selected: false,
     });
   });
+
+  it("does not report ready when a required check is a warning", () => {
+    const plan = buildSetupPlan({
+      ...facts(),
+      config: {
+        status: "invalid",
+        path: "/tmp/config.toml",
+        source: "schema_version = 1\n[defaults\n",
+        message: "WOSM config is not safe to update.",
+      },
+    });
+
+    expect(plan.summary.requiredOk).toBe(false);
+    expect(plan.checks.find((check) => check.id === "config")).toMatchObject({
+      tier: "required",
+      status: "missing",
+    });
+  });
+
+  it("fails readiness for existing projects outside the core setup path", () => {
+    const plan = buildSetupPlan(
+      facts({
+        config: validConfigFact({
+          matchedProject: {
+            id: "repo",
+            worktreeProvider: "worktrunk",
+            worktrunkEnabled: true,
+            terminal: "noop-terminal",
+            harness: "codex",
+          },
+        }),
+      }),
+    );
+
+    expect(plan.summary.requiredOk).toBe(false);
+    expect(plan.checks.find((check) => check.id === "config")?.message).toContain(
+      "uses terminal noop-terminal",
+    );
+  });
 });
 
 function facts(overrides: Partial<SetupFacts> = {}): SetupFacts {
@@ -216,17 +255,38 @@ function facts(overrides: Partial<SetupFacts> = {}): SetupFacts {
     },
     harnesses: harnesses(["codex"]),
     config: {
-      status: "valid",
-      path: "/tmp/config.toml",
-      source: "schema_version = 1\n",
-      hasProjectForRoot: true,
-      configuredHarnesses: ["codex"],
+      ...validConfigFact(),
     },
     tmuxBinding: {
       status: "missing",
       path: "/tmp/home/.tmux.conf",
       marker: "# >>> wosm popup binding >>>",
       message: "Optional tmux popup binding is not installed.",
+    },
+    ...overrides,
+  };
+}
+
+function validConfigFact(
+  overrides: Partial<Extract<SetupFacts["config"], { status: "valid" }>> = {},
+): Extract<SetupFacts["config"], { status: "valid" }> {
+  return {
+    status: "valid",
+    path: "/tmp/config.toml",
+    source: "schema_version = 1\n",
+    hasProjectForRoot: true,
+    configuredHarnesses: ["codex"],
+    defaults: {
+      worktreeProvider: "worktrunk",
+      terminal: "tmux",
+      harness: "codex",
+    },
+    matchedProject: {
+      id: "repo",
+      worktreeProvider: "worktrunk",
+      worktrunkEnabled: true,
+      terminal: "tmux",
+      harness: "codex",
     },
     ...overrides,
   };

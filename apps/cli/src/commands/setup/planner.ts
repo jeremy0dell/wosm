@@ -20,11 +20,11 @@ export function buildSetupPlan(facts: SetupFacts, options: BuildSetupPlanOptions
   const checks = setupChecks(facts, selectedHarness?.id);
   const actions = setupActions(facts, selectedHarness, options.configWrite);
   const requiredMissing = checks.filter(
-    (check) => check.tier === "required" && check.status === "missing",
+    (check) => check.tier === "required" && check.status !== "ok",
   ).length;
   const warnings = checks.filter((check) => check.status === "warning").length;
   const summary = {
-    requiredOk: requiredMissing === 0,
+    requiredOk: checks.every((check) => check.tier !== "required" || check.status === "ok"),
     requiredMissing,
     warnings,
     selectedActions: actions.filter((action) => action.selected).length,
@@ -198,13 +198,32 @@ function configCheck(facts: SetupFacts): SetupCheck {
     return {
       id: "config",
       tier: "required",
-      status: "warning",
+      status: "missing",
       label: "WOSM project config",
       message: facts.config.message,
       details: { path: facts.config.path },
     };
   }
+  const supportedHarnesses = new Set(
+    facts.harnesses.filter((harness) => harness.status === "ok").map((harness) => harness.id),
+  );
   if (!facts.config.hasProjectForRoot) {
+    const defaultCoreProblem = defaultConfigCoreProblem(facts.config, supportedHarnesses);
+    if (defaultCoreProblem !== undefined) {
+      return {
+        id: "config",
+        tier: "required",
+        status: "missing",
+        label: "WOSM project config",
+        message: defaultCoreProblem,
+        details: {
+          path: facts.config.path,
+          worktreeProvider: facts.config.defaults.worktreeProvider,
+          terminal: facts.config.defaults.terminal,
+          harness: facts.config.defaults.harness,
+        },
+      };
+    }
     return {
       id: "config",
       tier: "required",
@@ -212,6 +231,34 @@ function configCheck(facts: SetupFacts): SetupCheck {
       label: "WOSM project config",
       message: "Config exists but does not include the current git repository.",
       details: { path: facts.config.path },
+    };
+  }
+  const project = facts.config.matchedProject;
+  if (project === undefined) {
+    return {
+      id: "config",
+      tier: "required",
+      status: "missing",
+      label: "WOSM project config",
+      message: "Config includes the current git repository, but setup could not inspect it.",
+      details: { path: facts.config.path },
+    };
+  }
+  const projectCoreProblem = projectConfigCoreProblem(project, supportedHarnesses);
+  if (projectCoreProblem !== undefined) {
+    return {
+      id: "config",
+      tier: "required",
+      status: "missing",
+      label: "WOSM project config",
+      message: projectCoreProblem,
+      details: {
+        path: facts.config.path,
+        project: project.id,
+        worktreeProvider: project.worktreeProvider,
+        terminal: project.terminal,
+        harness: project.harness,
+      },
     };
   }
   return {
@@ -222,6 +269,41 @@ function configCheck(facts: SetupFacts): SetupCheck {
     message: "Config includes the current git repository.",
     details: { path: facts.config.path },
   };
+}
+
+function defaultConfigCoreProblem(
+  config: Extract<SetupFacts["config"], { status: "valid" }>,
+  supportedHarnesses: ReadonlySet<string>,
+): string | undefined {
+  if (config.defaults.worktreeProvider !== "worktrunk") {
+    return `Config defaults use worktree provider ${config.defaults.worktreeProvider}; set defaults.worktree_provider to "worktrunk" before setup can append this project safely.`;
+  }
+  if (config.defaults.terminal !== "tmux") {
+    return `Config defaults use terminal ${config.defaults.terminal}; set defaults.terminal to "tmux" before setup can append this project safely.`;
+  }
+  if (!supportedHarnesses.has(config.defaults.harness)) {
+    return `Config defaults use harness ${config.defaults.harness}, but setup did not detect that supported harness CLI.`;
+  }
+  return undefined;
+}
+
+function projectConfigCoreProblem(
+  project: NonNullable<Extract<SetupFacts["config"], { status: "valid" }>["matchedProject"]>,
+  supportedHarnesses: ReadonlySet<string>,
+): string | undefined {
+  if (project.worktreeProvider !== "worktrunk") {
+    return `Project ${project.id} uses worktree provider ${project.worktreeProvider}; set the effective provider to "worktrunk" for the setup core path.`;
+  }
+  if (!project.worktrunkEnabled) {
+    return `Project ${project.id} disables Worktrunk; enable project Worktrunk config for the setup core path.`;
+  }
+  if (project.terminal !== "tmux") {
+    return `Project ${project.id} uses terminal ${project.terminal}; set the effective terminal to "tmux" for the setup core path.`;
+  }
+  if (!supportedHarnesses.has(project.harness)) {
+    return `Project ${project.id} uses harness ${project.harness}, but setup did not detect that supported harness CLI.`;
+  }
+  return undefined;
 }
 
 function setupActions(
@@ -344,7 +426,7 @@ function configWriteActions(
 
 function nextSteps(requiredMissing: number, facts: SetupFacts): string[] {
   if (requiredMissing === 0) {
-    return ["wosm doctor", "wosm tui"];
+    return ["wosm doctor", "wosm"];
   }
   if (facts.worktrunk.status === "missing") {
     return ["Install Worktrunk, then run: wosm setup check"];

@@ -23,6 +23,7 @@ wosm setup plan --json
 wosm setup apply --yes
 wosm setup apply --dry-run
 wosm setup system --check
+wosm setup system --yes
 ```
 
 Exit codes:
@@ -31,7 +32,7 @@ Exit codes:
 - `1`: required core setup is missing or an apply action failed.
 - `2`: invalid setup command arguments.
 
-`wosm setup check` and `wosm setup plan` are read-only. `wosm setup apply --dry-run` performs no writes or installs.
+`wosm setup check` and `wosm setup plan` are read-only. `wosm setup apply --dry-run` performs no writes or installs. Direct `wosm setup system` also requires an explicit mode: use `--check` for read-only reporting or `--yes` to apply Homebrew installs for missing Worktrunk and tmux.
 
 ## Dependency Tiers
 
@@ -69,6 +70,13 @@ The tmux provider shells out to `tmux` for the workbench and popup local-use pat
 `wosm setup` can append a marked `Ctrl-b Space` binding to `~/.tmux.conf` when you accept the
 recommended popup binding step.
 
+Use `terminal.tmux.command` when tmux is installed but not on the observer or popup launcher PATH:
+
+```toml
+[terminal.tmux]
+command = "/opt/homebrew/bin/tmux"
+```
+
 On macOS, setup installs missing core tools directly when Homebrew is available:
 
 ```bash
@@ -79,9 +87,10 @@ The compatibility script remains available for development checkouts:
 
 ```bash
 pnpm setup:system:check
+pnpm setup:system
 ```
 
-It delegates to `wosm setup system --check`; dependency logic lives in the TypeScript CLI.
+`pnpm setup:system:check` delegates to `wosm setup system --check`. Bare `pnpm setup:system` is the development-checkout compatibility apply path and delegates to `wosm setup system --yes`. Dependency logic lives in the TypeScript CLI.
 
 If the system check reports Node.js 22.x or pnpm 8.x, switch them deliberately with your normal
 toolchain manager instead of letting setup mutate the machine:
@@ -144,4 +153,4 @@ pnpm setup:system --yes
 pnpm setup:system --no-brew
 ```
 
-Use `wosm setup` for user setup. Use `pnpm setup:system:check` only when validating a development checkout's system dependencies.
+Use `wosm setup` for user setup. Use `pnpm setup:system:check` when validating a development checkout's system dependencies, and `pnpm setup:system` when you want the compatibility wrapper to apply missing Homebrew installs.
