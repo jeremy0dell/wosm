@@ -1,8 +1,8 @@
-import { access as defaultAccess } from "node:fs/promises";
-import { delimiter, join } from "node:path";
 import type { SafeError } from "@wosm/contracts";
 import {
   type ExternalCommandRunner,
+  type ResolveExecutablePathOptions,
+  resolveExecutablePath,
   runExternalCommand,
   safeErrorFromUnknown,
 } from "@wosm/runtime";
@@ -49,7 +49,7 @@ export async function checkWorktrunkDependency(
   const attemptedCommand =
     options.command ?? process.env.WOSM_WORKTRUNK_BIN ?? defaultWorktrunkCommand;
   const installHint = worktrunkInstallHint(attemptedCommand);
-  const resolveOptions: Pick<CheckWorktrunkDependencyOptions, "access" | "pathEnv"> = {};
+  const resolveOptions: ResolveExecutablePathOptions = {};
   if (options.pathEnv !== undefined) resolveOptions.pathEnv = options.pathEnv;
   if (options.access !== undefined) resolveOptions.access = options.access;
   const resolvedPath = await resolveExecutablePath(attemptedCommand, resolveOptions);
@@ -101,36 +101,4 @@ export async function checkWorktrunkDependency(
 
 export function parseWorktrunkVersion(output: string): string | undefined {
   return output.match(/\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/)?.[1];
-}
-
-async function resolveExecutablePath(
-  command: string,
-  options: Pick<CheckWorktrunkDependencyOptions, "access" | "pathEnv">,
-): Promise<string | undefined> {
-  const access = options.access ?? defaultAccess;
-  if (isPathLikeCommand(command)) {
-    return (await canAccess(command, access)) ? command : undefined;
-  }
-
-  const pathEnv = options.pathEnv ?? process.env.PATH ?? "";
-  for (const directory of pathEnv.split(delimiter).filter((part) => part.length > 0)) {
-    const candidate = join(directory, command);
-    if (await canAccess(candidate, access)) {
-      return candidate;
-    }
-  }
-  return undefined;
-}
-
-async function canAccess(path: string, access: (path: string) => Promise<void>): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function isPathLikeCommand(command: string): boolean {
-  return command.includes("/") || command.includes("\\");
 }

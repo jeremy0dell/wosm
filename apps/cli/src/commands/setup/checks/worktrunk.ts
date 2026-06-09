@@ -1,5 +1,4 @@
 import { checkWorktrunkDependency } from "@wosm/worktrunk";
-import type { CliEnv } from "../../../env.js";
 import type { SetupDependencyFact } from "../model.js";
 import { setupEnv } from "./env.js";
 import type { SetupDependencyCheckOptions } from "./system.js";
@@ -32,8 +31,4 @@ export async function checkSetupWorktrunk(
     message: status.installHint,
     ...(status.resolvedPath === undefined ? {} : { resolvedPath: status.resolvedPath }),
   };
-}
-
-export function worktrunkCommandFromEnv(env: CliEnv | undefined): string {
-  return setupEnv(env).WOSM_WORKTRUNK_BIN ?? "wt";
 }

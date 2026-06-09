@@ -1,5 +1,4 @@
 import { checkTmuxDependency } from "@wosm/tmux";
-import type { CliEnv } from "../../../env.js";
 import type { SetupDependencyFact } from "../model.js";
 import { setupEnv } from "./env.js";
 import type { SetupDependencyCheckOptions } from "./system.js";
@@ -32,8 +31,4 @@ export async function checkSetupTmux(
     message: status.installHint,
     ...(status.resolvedPath === undefined ? {} : { resolvedPath: status.resolvedPath }),
   };
-}
-
-export function tmuxCommandFromEnv(env: CliEnv | undefined): string {
-  return setupEnv(env).WOSM_TMUX_BIN ?? "tmux";
 }

@@ -141,7 +141,6 @@ The same provider-health evidence is included in `wosm debug bundle`, so a faile
 pnpm setup:system:check
 pnpm setup:system
 pnpm setup:system --yes
-pnpm setup:system --skip-shell-integration
 pnpm setup:system --no-brew
 ```
 

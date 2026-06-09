@@ -1,6 +1,5 @@
 import { basename } from "node:path";
-import { loadConfigFromToml } from "@wosm/config";
-import { pathIsSame, stableName } from "@wosm/runtime";
+import { stableName } from "@wosm/runtime";
 import { selectSetupHarness } from "./harnessSelection.js";
 import type {
   ConfigWritePlan,
@@ -102,45 +101,29 @@ export function renderNewSetupConfig(
   ].join("\n");
 }
 
-async function planExistingConfigAppend(
+function planExistingConfigAppend(
   config: Extract<SetupConfigFact, { status: "valid" }>,
   git: Extract<SetupGitFact, { status: "ok" }>,
   harness: SetupHarnessFact,
-): Promise<ConfigWritePlan> {
-  try {
-    const loaded = await loadConfigFromToml(config.source, { configPath: config.path });
-    const hasProjectForRoot = loaded.config.projects.some((project) =>
-      pathIsSame(project.root, git.root),
-    );
-    const hasHarness = loaded.config.harness?.[harness.id] !== undefined;
-    const appendedText = renderAppendText({
-      git,
-      harness,
-      addProject: !hasProjectForRoot,
-      addHarness: !hasHarness,
-    });
-    if (appendedText.length === 0) {
-      return {
-        operation: "none",
-        reason: "Config already includes this repository and selected harness.",
-      };
-    }
+): ConfigWritePlan {
+  const appendedText = renderAppendText({
+    git,
+    harness,
+    addProject: !config.hasProjectForRoot,
+    addHarness: !config.configuredHarnesses.includes(harness.id),
+  });
+  if (appendedText.length === 0) {
     return {
-      operation: "append",
-      path: config.path,
-      content: `${config.source.trimEnd()}\n${appendedText}`,
-      appendedText,
-    };
-  } catch (error) {
-    return {
-      operation: "blocked",
-      path: config.path,
-      reason:
-        error instanceof Error
-          ? `WOSM config is not safe to update: ${error.message}`
-          : "WOSM config is not safe to update.",
+      operation: "none",
+      reason: "Config already includes this repository and selected harness.",
     };
   }
+  return {
+    operation: "append",
+    path: config.path,
+    content: `${config.source.trimEnd()}\n${appendedText}`,
+    appendedText,
+  };
 }
 
 function renderAppendText(input: {
