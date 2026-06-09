@@ -28,5 +28,8 @@ export function defaultPrompt(): SetupPromptAdapter {
       const index = Number(answer.trim()) - 1;
       return choices[index]?.value ?? choices[0]?.value ?? "";
     },
+    close() {
+      readline.close();
+    },
   };
 }

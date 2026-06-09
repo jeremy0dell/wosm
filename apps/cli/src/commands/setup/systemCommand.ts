@@ -37,7 +37,10 @@ export async function runSetupSystemCommand(
     const actions: SetupAction[] = [];
     if (worktrunk.status === "missing") actions.push(systemInstallAction("worktrunk"));
     if (tmux.status === "missing") actions.push(systemInstallAction("tmux"));
-    const result = await applySetupPlan(systemPlan(actions), applyOptions(deps, {}));
+    const result = await applySetupPlan(
+      systemPlan(actions),
+      applyOptions(deps, { announceActions: true, showCommandOutput: true }),
+    );
     if (result.failedAction !== undefined) {
       lines.push("Install failed. Run: wosm setup system --check", "");
       await write(deps, lines.join("\n"));

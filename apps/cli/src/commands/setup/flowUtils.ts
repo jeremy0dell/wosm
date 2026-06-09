@@ -5,7 +5,9 @@ import {
   collectSetupFacts,
   type SetupDependencyCheckOptions,
 } from "./checks/system.js";
+import { write } from "./io.js";
 import type { SetupAction, SetupFacts, SetupMode, SetupPlan } from "./model.js";
+import { formatCommand } from "./render.js";
 import type { SetupCommandDeps, SetupCommandOptions } from "./types.js";
 
 export function collectForCommand(
@@ -33,6 +35,8 @@ export function applyOptions(
   input: {
     dryRun?: boolean;
     actionFilter?: (action: SetupAction) => boolean;
+    showCommandOutput?: boolean;
+    announceActions?: boolean;
   },
 ): Parameters<typeof applySetupPlan>[1] {
   const options: Parameters<typeof applySetupPlan>[1] = {};
@@ -41,6 +45,21 @@ export function applyOptions(
   if (deps.now !== undefined) options.now = deps.now;
   if (input.dryRun !== undefined) options.dryRun = input.dryRun;
   if (input.actionFilter !== undefined) options.actionFilter = input.actionFilter;
+  if (input.showCommandOutput !== undefined) options.showCommandOutput = input.showCommandOutput;
+  if (input.announceActions === true) {
+    options.onActionStart = async (action) => {
+      if (action.command === undefined) return;
+      await write(deps, `Running: ${formatCommand(action.command)}\n`);
+    };
+    options.onActionComplete = async (action) => {
+      if (action.command === undefined) return;
+      await write(deps, `Completed: ${action.label}\n`);
+    };
+    options.onActionFailed = async (action) => {
+      if (action.command === undefined) return;
+      await write(deps, `Failed: ${action.label}\n`);
+    };
+  }
   return options;
 }
 

@@ -30,7 +30,11 @@ export async function runNonInteractiveApply(
 
   const installResult = await applySetupPlan(
     initialPlan,
-    applyOptions(deps, { actionFilter: isInstallAction }),
+    applyOptions(deps, {
+      actionFilter: isInstallAction,
+      announceActions: true,
+      showCommandOutput: true,
+    }),
   );
   if (installResult.failedAction !== undefined) {
     await write(deps, renderSetupApplyResult(markRequiredIncomplete(installResult.plan)));

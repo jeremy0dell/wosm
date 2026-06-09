@@ -1,6 +1,10 @@
 import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { type ExternalCommandRunner, runExternalCommand } from "@wosm/runtime";
+import {
+  type ExternalCommandInput,
+  type ExternalCommandRunner,
+  runExternalCommand,
+} from "@wosm/runtime";
 import type { SetupAction, SetupPlan } from "./model.js";
 
 export type SetupApplyFileSystem = {
@@ -17,6 +21,10 @@ export type ApplySetupPlanOptions = {
   dryRun?: boolean;
   now?: () => Date;
   actionFilter?: (action: SetupAction) => boolean;
+  showCommandOutput?: boolean;
+  onActionStart?: (action: SetupAction) => void | Promise<void>;
+  onActionComplete?: (action: SetupAction) => void | Promise<void>;
+  onActionFailed?: (action: SetupAction) => void | Promise<void>;
 };
 
 export type ApplySetupPlanResult = {
@@ -44,15 +52,22 @@ export async function applySetupPlan(
         fs: SetupApplyFileSystem;
         runner?: ExternalCommandRunner;
         now?: () => Date;
+        showCommandOutput?: boolean;
       } = {
         fs,
       };
       if (options.runner !== undefined) context.runner = options.runner;
       if (options.now !== undefined) context.now = options.now;
+      if (options.showCommandOutput !== undefined) {
+        context.showCommandOutput = options.showCommandOutput;
+      }
+      await options.onActionStart?.(action);
       await applyAction(action, context);
+      await options.onActionComplete?.(action);
       actions.push({ ...action, status: "completed" });
     } catch {
       const failed = { ...action, status: "failed" as const };
+      await options.onActionFailed?.(failed);
       actions.push(failed);
       return {
         plan: { ...plan, actions: [...actions, ...remainingSkipped(plan.actions, actions.length)] },
@@ -65,12 +80,17 @@ export async function applySetupPlan(
 
 async function applyAction(
   action: SetupAction,
-  options: { fs: SetupApplyFileSystem; runner?: ExternalCommandRunner; now?: () => Date },
+  options: {
+    fs: SetupApplyFileSystem;
+    runner?: ExternalCommandRunner;
+    now?: () => Date;
+    showCommandOutput?: boolean;
+  },
 ): Promise<void> {
   switch (action.kind) {
     case "brew-install":
     case "run-command":
-      await runActionCommand(action, options.runner);
+      await runActionCommand(action, options);
       return;
     case "mkdir":
       if (action.path === undefined) throw new Error("mkdir action requires path.");
@@ -87,7 +107,10 @@ async function applyAction(
   }
 }
 
-async function runActionCommand(action: SetupAction, runner: ExternalCommandRunner | undefined) {
+async function runActionCommand(
+  action: SetupAction,
+  options: { runner?: ExternalCommandRunner; showCommandOutput?: boolean },
+) {
   const command = action.command;
   if (command === undefined || command.length === 0) {
     throw new Error(`${action.id} action requires a command.`);
@@ -96,7 +119,9 @@ async function runActionCommand(action: SetupAction, runner: ExternalCommandRunn
   if (binary === undefined) {
     throw new Error(`${action.id} action requires a command.`);
   }
-  await runExternalCommand({ command: binary, args, maxOutputChars: 4096 }, runner);
+  const input: ExternalCommandInput = { command: binary, args, maxOutputChars: 4096 };
+  if (options.showCommandOutput === true) input.stdio = "inherit";
+  await runExternalCommand(input, options.runner);
 }
 
 async function writeConfigAction(

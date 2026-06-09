@@ -73,8 +73,19 @@ export function renderSetupApplyResult(plan: SetupPlan): string {
   ].join("\n");
 }
 
+export function formatCommand(command: readonly string[]): string {
+  return command.map((part) => quoteCommandPart(part)).join(" ");
+}
+
 function renderAction(action: SetupAction): string {
   const marker = action.selected ? "will" : "skip";
-  const command = action.command === undefined ? "" : ` (${action.command.join(" ")})`;
+  const command = action.command === undefined ? "" : ` (${formatCommand(action.command)})`;
   return `  ${marker.padEnd(4)} ${action.label} - ${action.message}${command}`;
+}
+
+function quoteCommandPart(part: string): string {
+  if (/^[A-Za-z0-9_./:=@%+-]+$/.test(part)) {
+    return part;
+  }
+  return `'${part.replaceAll("'", "'\\''")}'`;
 }

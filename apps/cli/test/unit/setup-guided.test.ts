@@ -136,12 +136,63 @@ describe("guided setup command", () => {
     expect(fs.files[join(root, "home/.tmux.conf")]).toContain("wosm-tmux-popup");
   });
 
-  it("stops without prompting for config when no harness is available", async () => {
+  it("installs a selected agent CLI when no harness is available, then continues", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
     const repo = join(root, "repo");
     await mkdir(repo, { recursive: true });
     const fs = fakeFs({});
-    let confirms = 0;
+    const calls: ExternalCommandInput[] = [];
+    const chunks: string[] = [];
+    let codexInstalled = false;
+
+    const result = await runSetupCommand(
+      [],
+      {},
+      {
+        cwd: repo,
+        homeDir: join(root, "home"),
+        env: { PATH: "/fake/bin" },
+        runner: async (input) => {
+          calls.push(input);
+          const key = `${input.command} ${(input.args ?? []).join(" ")}`;
+          if (key === "sh -c curl -fsSL https://chatgpt.com/codex/install.sh | sh") {
+            codexInstalled = true;
+            return commandResult(input, "");
+          }
+          if (key === "codex --version" && codexInstalled) {
+            return commandResult(input, "codex 0.1.0\n");
+          }
+          return fakeRunner([], {
+            "git rev-parse --show-toplevel": repo,
+            "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+            "wt --version": "worktrunk 1.2.3\n",
+            "tmux -V": "tmux 3.5a\n",
+          })(input);
+        },
+        access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+        fs,
+        prompt: prompt({ confirms: [true, false, false, false, true, false, false] }),
+        writeStdout: (chunk) => chunks.push(chunk),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(calls.find((call) => call.command === "sh")).toMatchObject({
+      args: ["-c", "curl -fsSL https://chatgpt.com/codex/install.sh | sh"],
+      stdio: "inherit",
+    });
+    expect(fs.files[join(root, "home/.config/wosm/config.toml")]).toContain("[harness.codex]");
+    expect(chunks.join("")).toContain("No supported agent CLI is available.");
+    expect(chunks.join("")).toContain("Running: sh -c");
+  });
+
+  it("closes prompts and writes nothing when harness install choices are declined", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const fs = fakeFs({});
+    const chunks: string[] = [];
+    let closed = false;
 
     const result = await runSetupCommand(
       [],
@@ -159,21 +210,19 @@ describe("guided setup command", () => {
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
         prompt: {
-          async confirm() {
-            confirms += 1;
-            return true;
-          },
-          async select() {
-            return "codex";
+          ...prompt({ confirms: [false, false, false, false] }),
+          close() {
+            closed = true;
           },
         },
-        writeStdout: () => undefined,
+        writeStdout: (chunk) => chunks.push(chunk),
       },
     );
 
     expect(result.code).toBe(1);
-    expect(confirms).toBe(0);
+    expect(closed).toBe(true);
     expect(Object.keys(fs.files)).toEqual([]);
+    expect(chunks.join("")).toContain("No agent CLI was installed.");
   });
 });
 
@@ -201,13 +250,17 @@ function fakeRunner(
     if (stdout === undefined) {
       throw Object.assign(new Error(`missing fake command: ${key}`), { code: "ENOENT" });
     }
-    return {
-      command: input.command,
-      args: input.args ?? [],
-      stdout,
-      stderr: "",
-      exitCode: 0,
-    };
+    return commandResult(input, stdout);
+  };
+}
+
+function commandResult(input: ExternalCommandInput, stdout: string): ExternalCommandResult {
+  return {
+    command: input.command,
+    args: input.args ?? [],
+    stdout,
+    stderr: "",
+    exitCode: 0,
   };
 }
 
