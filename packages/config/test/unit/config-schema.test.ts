@@ -152,6 +152,29 @@ describe("config schemas", () => {
     ).toBe(false);
   });
 
+  it("accepts terminal tmux command config", async () => {
+    const config = ParsedWosmConfigSchema.parse({
+      ...(await loadJson("valid-config.json")),
+      terminal: {
+        tmux: {
+          command: "/opt/homebrew/bin/tmux",
+        },
+      },
+    });
+
+    expect(config.terminal?.tmux?.command).toBe("/opt/homebrew/bin/tmux");
+    expect(
+      ParsedWosmConfigSchema.safeParse({
+        ...config,
+        terminal: {
+          tmux: {
+            command: "",
+          },
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts omitted and empty TUI widget config", async () => {
     const config = await loadJson("valid-config.json");
 

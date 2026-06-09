@@ -1,8 +1,61 @@
 # System Dependencies
 
-wosm ships Worktrunk, tmux, Codex, Cursor, Pi, and OpenCode as external provider integrations. They are not npm packages bundled into the workspace. The repo depends on them through provider contracts, runtime preflights, `wosm doctor`, and opt-in real-provider test lanes.
+wosm ships Worktrunk, tmux, Codex, Cursor, Pi, and OpenCode as external provider integrations. They are not npm packages bundled into the workspace. The primary first-run path is:
 
-The local checkout also expects Node.js 24.x and pnpm 11. `pnpm setup:system:check` verifies those versions, Worktrunk, and tmux. Real harness binaries such as Codex, Cursor, Pi, and OpenCode are checked by their opt-in lanes and provider health.
+```bash
+wosm setup
+```
+
+This configures the core local workflow: Worktrunk, tmux, one agent CLI, and your first project. Optional integrations can be added later.
+
+The local checkout also expects Node.js 24.x and pnpm 11 for development. Real-provider test lanes remain opt-in.
+`wosm setup system --check` reports those versions, but it does not change the active Node or pnpm
+installation automatically.
+
+## Setup Commands
+
+```bash
+wosm setup
+wosm setup check
+wosm setup check --json
+wosm setup plan
+wosm setup plan --json
+wosm setup apply --yes
+wosm setup apply --dry-run
+wosm setup system --check
+wosm setup system --yes
+```
+
+Exit codes:
+
+- `0`: required core setup is ready, or a read-only plan completed.
+- `1`: required core setup is missing or an apply action failed.
+- `2`: invalid setup command arguments.
+
+`wosm setup check` and `wosm setup plan` are read-only. `wosm setup apply --dry-run` performs no writes or installs. Direct `wosm setup system` also requires an explicit mode: use `--check` for read-only reporting or `--yes` to apply Homebrew installs for missing Worktrunk and tmux.
+
+## Dependency Tiers
+
+Required for the default useful workflow:
+
+- Worktrunk / `wt`
+- tmux
+- a git repository for the first project
+- one supported agent CLI: Codex, Cursor Agent, OpenCode, or Pi
+
+Recommended after setup:
+
+- tmux popup binding (`Ctrl-b Space`) for opening and closing the dashboard overlay
+- Worktrunk shell integration
+- `wosm doctor`
+
+Optional later:
+
+- GitHub integration
+- notifications
+- extra harness CLIs
+- provider hook installation
+- advanced tmux and popup tuning beyond the starter binding
 
 ## Worktrunk And Tmux
 
@@ -13,16 +66,43 @@ The Worktrunk provider shells out to `wt`. Install Worktrunk before using a conf
 worktree_provider = "worktrunk"
 ```
 
-The tmux provider shells out to `tmux` for the workbench and popup local-use path.
+The tmux provider shells out to `tmux` for the workbench and popup local-use path. Guided
+`wosm setup` can append a marked `Ctrl-b Space` binding to `~/.tmux.conf` when you accept the
+recommended popup binding step.
 
-On macOS, the repo `Brewfile` declares both dependencies:
+Use `terminal.tmux.command` when tmux is installed but not on the observer or popup launcher PATH:
+
+```toml
+[terminal.tmux]
+command = "/opt/homebrew/bin/tmux"
+```
+
+On macOS, setup installs missing core tools directly when Homebrew is available:
+
+```bash
+wosm setup apply --yes
+```
+
+The compatibility script remains available for development checkouts:
 
 ```bash
 pnpm setup:system:check
-pnpm setup:system --yes
+pnpm setup:system
 ```
 
-The setup command runs `brew bundle install` from the repo `Brewfile`, verifies `node --version`, `pnpm --version`, `wt --version`, and `tmux -V`, then runs `wt config shell install`. Omit `--yes` if you want to answer Worktrunk's shell integration prompt yourself.
+`pnpm setup:system:check` delegates to `wosm setup system --check`. Bare `pnpm setup:system` is the development-checkout compatibility apply path and delegates to `wosm setup system --yes`. Dependency logic lives in the TypeScript CLI.
+
+If the system check reports Node.js 22.x or pnpm 8.x, switch them deliberately with your normal
+toolchain manager instead of letting setup mutate the machine:
+
+```bash
+fnm install 24 && fnm use 24
+# or:
+nvm install 24 && nvm use 24
+
+corepack enable
+corepack prepare pnpm@11.0.0 --activate
+```
 
 The upstream Worktrunk install docs currently recommend:
 
@@ -64,14 +144,13 @@ diagnostics.installHint
 
 The same provider-health evidence is included in `wosm debug bundle`, so a failed `session.create` can be tied back to the missing external binary.
 
-## Script Options
+## Compatibility Script
 
 ```bash
 pnpm setup:system:check
 pnpm setup:system
 pnpm setup:system --yes
-pnpm setup:system --skip-shell-integration
 pnpm setup:system --no-brew
 ```
 
-Use `--check` before manual testing to verify the machine is ready without modifying shell configuration.
+Use `wosm setup` for user setup. Use `pnpm setup:system:check` when validating a development checkout's system dependencies, and `pnpm setup:system` when you want the compatibility wrapper to apply missing Homebrew installs.

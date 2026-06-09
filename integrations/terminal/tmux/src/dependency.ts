@@ -4,11 +4,9 @@ import {
   type ResolveExecutablePathOptions,
   resolveExecutablePath,
   runExternalCommand,
-  safeErrorFromUnknown,
 } from "@wosm/runtime";
-import { ProviderUnavailableError } from "./errors.js";
 
-export type WorktrunkDependencyStatus =
+export type TmuxDependencyStatus =
   | {
       status: "available";
       attemptedCommand: string;
@@ -25,7 +23,7 @@ export type WorktrunkDependencyStatus =
       error: SafeError;
     };
 
-export type CheckWorktrunkDependencyOptions = {
+export type CheckTmuxDependencyOptions = {
   command?: string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
@@ -33,44 +31,38 @@ export type CheckWorktrunkDependencyOptions = {
   access?: (path: string) => Promise<void>;
 };
 
-export const defaultWorktrunkCommand = "wt";
+export const defaultTmuxCommand = "tmux";
 
-export function worktrunkInstallHint(command = defaultWorktrunkCommand): string {
+export function tmuxInstallHint(command = defaultTmuxCommand): string {
   return [
-    "Install Worktrunk with brew install worktrunk && wt config shell install.",
+    "Install tmux with brew install tmux.",
     `wosm tried ${command}.`,
-    "Set worktree.worktrunk.command or WOSM_WORKTRUNK_BIN if the binary lives elsewhere.",
+    "Set terminal.tmux.command or WOSM_TMUX_BIN if the binary lives elsewhere.",
   ].join(" ");
 }
 
-export async function checkWorktrunkDependency(
-  options: CheckWorktrunkDependencyOptions = {},
-): Promise<WorktrunkDependencyStatus> {
-  const attemptedCommand =
-    options.command ?? process.env.WOSM_WORKTRUNK_BIN ?? defaultWorktrunkCommand;
-  const installHint = worktrunkInstallHint(attemptedCommand);
+export async function checkTmuxDependency(
+  options: CheckTmuxDependencyOptions = {},
+): Promise<TmuxDependencyStatus> {
+  const attemptedCommand = options.command ?? process.env.WOSM_TMUX_BIN ?? defaultTmuxCommand;
+  const installHint = tmuxInstallHint(attemptedCommand);
   const resolveOptions: ResolveExecutablePathOptions = {};
   if (options.pathEnv !== undefined) resolveOptions.pathEnv = options.pathEnv;
   if (options.access !== undefined) resolveOptions.access = options.access;
   const resolvedPath = await resolveExecutablePath(attemptedCommand, resolveOptions);
   const requiresResolvedPath = options.pathEnv !== undefined || options.access !== undefined;
   if (resolvedPath === undefined && requiresResolvedPath) {
-    const error = new ProviderUnavailableError("Worktrunk is not available.", {
-      hint: installHint,
-      command: attemptedCommand,
-      installHint,
-    });
     return {
       status: "unavailable",
       attemptedCommand,
       installHint,
-      error: safeErrorFromUnknown(error, {
+      error: {
         tag: "ProviderUnavailableError",
-        code: "WORKTRUNK_UNAVAILABLE",
-        message: "Worktrunk is not available.",
+        code: "TMUX_UNAVAILABLE",
+        message: "tmux is not available.",
         hint: installHint,
-        provider: "worktrunk",
-      }),
+        provider: "tmux",
+      },
     };
   }
   const probeCommand = resolvedPath ?? attemptedCommand;
@@ -79,46 +71,40 @@ export async function checkWorktrunkDependency(
     const output = await runExternalCommand(
       {
         command: probeCommand,
-        args: ["--version"],
+        args: ["-V"],
         ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
         maxOutputChars: 4096,
       },
       options.runner,
     );
     const rawVersion = `${output.stdout}${output.stderr}`.trim();
-    const status: WorktrunkDependencyStatus = {
+    const status: TmuxDependencyStatus = {
       status: "available",
       attemptedCommand,
       installHint,
     };
     if (resolvedPath !== undefined) status.resolvedPath = resolvedPath;
     if (rawVersion.length > 0) status.rawVersion = rawVersion;
-    const version = parseWorktrunkVersion(rawVersion);
+    const version = parseTmuxVersion(rawVersion);
     if (version !== undefined) status.version = version;
     return status;
-  } catch (cause) {
-    const error = new ProviderUnavailableError("Worktrunk is not available.", {
-      hint: installHint,
-      command: attemptedCommand,
-      installHint,
-      cause,
-    });
-    const status: WorktrunkDependencyStatus = {
+  } catch {
+    const status: TmuxDependencyStatus = {
       status: "unavailable",
       attemptedCommand,
       installHint,
-      error: safeErrorFromUnknown(error, {
+      error: {
         tag: "ProviderUnavailableError",
-        code: "WORKTRUNK_UNAVAILABLE",
-        message: "Worktrunk is not available.",
+        code: "TMUX_UNAVAILABLE",
+        message: "tmux is not available.",
         hint: installHint,
-        provider: "worktrunk",
-      }),
+        provider: "tmux",
+      },
     };
     return status;
   }
 }
 
-export function parseWorktrunkVersion(output: string): string | undefined {
-  return output.match(/\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/)?.[1];
+export function parseTmuxVersion(output: string): string | undefined {
+  return output.match(/\btmux\s+([0-9A-Za-z][0-9A-Za-z.+-]*)\b/)?.[1];
 }

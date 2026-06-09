@@ -1,48 +1,47 @@
 import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime";
-import { checkWorktrunkDependency, parseWorktrunkVersion } from "@wosm/worktrunk";
+import { checkTmuxDependency, parseTmuxVersion } from "@wosm/tmux";
 import { describe, expect, it } from "vitest";
 
-describe("Worktrunk dependency preflight", () => {
-  it("parses Worktrunk version output", () => {
-    expect(parseWorktrunkVersion("worktrunk 0.15.2\n")).toBe("0.15.2");
-    expect(parseWorktrunkVersion("wt 1.2.3-beta.1")).toBe("1.2.3-beta.1");
-    expect(parseWorktrunkVersion("unexpected output")).toBeUndefined();
+describe("tmux dependency preflight", () => {
+  it("parses tmux version output", () => {
+    expect(parseTmuxVersion("tmux 3.5a\n")).toBe("3.5a");
+    expect(parseTmuxVersion("unexpected output")).toBeUndefined();
   });
 
   it("reports the attempted command, resolved path, and version", async () => {
     const calls: ExternalCommandInput[] = [];
 
-    const status = await checkWorktrunkDependency({
-      command: "wt",
+    const status = await checkTmuxDependency({
+      command: "tmux",
       pathEnv: "/opt/homebrew/bin",
       access: async (path) => {
-        if (path !== "/opt/homebrew/bin/wt") {
+        if (path !== "/opt/homebrew/bin/tmux") {
           throw Object.assign(new Error("not found"), { code: "ENOENT" });
         }
       },
       runner: async (input) => {
         calls.push(input);
-        return result(input, "worktrunk 0.15.2\n");
+        return result(input, "tmux 3.5a\n");
       },
     });
 
     expect(status).toMatchObject({
       status: "available",
-      attemptedCommand: "wt",
-      resolvedPath: "/opt/homebrew/bin/wt",
-      version: "0.15.2",
+      attemptedCommand: "tmux",
+      resolvedPath: "/opt/homebrew/bin/tmux",
+      version: "3.5a",
     });
     expect(calls).toEqual([
       expect.objectContaining({
-        command: "/opt/homebrew/bin/wt",
-        args: ["--version"],
+        command: "/opt/homebrew/bin/tmux",
+        args: ["-V"],
       }),
     ]);
   });
 
-  it("returns an install hint when the wt binary is missing", async () => {
-    const status = await checkWorktrunkDependency({
-      command: "missing-wt",
+  it("returns an install hint when tmux is missing", async () => {
+    const status = await checkTmuxDependency({
+      command: "missing-tmux",
       pathEnv: "",
       access: async () => {
         throw Object.assign(new Error("not found"), { code: "ENOENT" });
@@ -54,12 +53,11 @@ describe("Worktrunk dependency preflight", () => {
 
     expect(status).toMatchObject({
       status: "unavailable",
-      attemptedCommand: "missing-wt",
-      installHint: expect.stringContaining("brew install worktrunk"),
+      attemptedCommand: "missing-tmux",
+      installHint: expect.stringContaining("brew install tmux"),
       error: {
         tag: "ProviderUnavailableError",
-        code: "WORKTRUNK_UNAVAILABLE",
-        provider: "worktrunk",
+        code: "TMUX_UNAVAILABLE",
       },
     });
   });

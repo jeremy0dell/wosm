@@ -15,11 +15,11 @@ pnpm smoke:release
 Install external provider dependencies before using the real Worktrunk path:
 
 ```bash
-pnpm setup:system:check
-pnpm setup:system --yes
+wosm setup
+wosm setup check
 ```
 
-See [system-dependencies.md](system-dependencies.md) for the external dependency contract and command resolution order.
+See [system-dependencies.md](system-dependencies.md) for setup commands, exit codes, dependency tiers, and command resolution order. GitHub, notifications, extra harnesses, and provider hook installation are optional real-provider lanes, not part of the core first-run path.
 
 Use the repo-local command while developing:
 
@@ -75,7 +75,7 @@ include_external = false
 
 With this policy, wosm derives a per-project root under `~/.worktrees`, adding a stable suffix only when project IDs would otherwise collide, then gives each create command a concrete `WORKTRUNK_WORKTREE_PATH` with a collision-resistant branch segment.
 
-A minimal config for the current manual test target is:
+`wosm setup` writes a minimal config like this for the current repository:
 
 ```toml
 schema_version = 1
@@ -253,10 +253,11 @@ Inside tmux, bare `wosm` defaults to the popup dashboard. `wosm popup` is the ex
 
 wosm-created tmux workbench sessions set `mouse on`, `history-limit 100000`, and `set-clipboard on` on the workbench session so scrolling, mouse selection, and copy behavior are closer to a normal Ghostty terminal without changing global tmux defaults.
 
-To make the old-style prefix binding call that same path, add a tmux binding and reload tmux:
+Guided `wosm setup` can add the old-style prefix binding as a recommended step. To add or inspect
+that binding manually, use:
 
 ```tmux
-bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID="#{client_name}" wosm-tmux-popup'
+bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID=#{q:client_name} wosm-tmux-popup'
 ```
 
 Use the stable `wosm-tmux-popup` entrypoint, or a stable checkout's `bin/wosm-popup`, for tmux
