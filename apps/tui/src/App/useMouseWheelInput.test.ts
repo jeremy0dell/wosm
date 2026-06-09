@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseSgrMouseScroll, SGR_MOUSE_DISABLE } from "./useMouseWheelInput.js";
+import {
+  mouseTrackingSetupSequence,
+  parseSgrMouseScroll,
+  SGR_MOUSE_DISABLE,
+  SGR_MOUSE_ENABLE,
+} from "./useMouseWheelInput.js";
 
 describe("mouse wheel input", () => {
   it("parses SGR mouse wheel button sequences", () => {
@@ -20,5 +25,11 @@ describe("mouse wheel input", () => {
     expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1005l");
     expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1006l");
     expect(SGR_MOUSE_DISABLE).toContain("\u001B[?1015l");
+  });
+
+  it("does not enable terminal mouse tracking when disabled", () => {
+    expect(mouseTrackingSetupSequence(false)).toBe(SGR_MOUSE_DISABLE);
+    expect(mouseTrackingSetupSequence(false)).not.toContain(SGR_MOUSE_ENABLE);
+    expect(mouseTrackingSetupSequence(true)).toContain(SGR_MOUSE_ENABLE);
   });
 });
