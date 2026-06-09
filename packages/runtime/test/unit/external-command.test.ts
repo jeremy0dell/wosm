@@ -88,6 +88,22 @@ describe("runtime external command boundary", () => {
     });
   });
 
+  it("supports inherited stdio for visible long-running commands", async () => {
+    await expect(
+      runExternalCommand({
+        command: process.execPath,
+        args: ["-e", "process.exit(0)"],
+        stdio: "inherit",
+      }),
+    ).resolves.toMatchObject({
+      command: process.execPath,
+      args: ["-e", "process.exit(0)"],
+      stdout: "",
+      stderr: "",
+      exitCode: 0,
+    });
+  });
+
   it("keeps external command normalization idempotent", () => {
     const first = externalCommandErrorFromUnknown(
       {

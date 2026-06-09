@@ -242,7 +242,7 @@ async function runPopupDisplay(input: PopupDisplayInput): Promise<PopupDisplayRe
 }
 
 export async function openTmuxPopup(options: TmuxPopupOptions = {}): Promise<TmuxPopupResult> {
-  const command = defaultTmuxCommand(options.command);
+  const command = defaultTmuxCommand(options.command ?? options.config?.command);
   const persistent = options.persistent !== false;
   const clientInput = currentClientInput(options, command);
   const requestedFocusClientId =

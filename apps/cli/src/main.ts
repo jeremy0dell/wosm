@@ -40,6 +40,7 @@ import {
   runProjectCommand,
 } from "./commands/project.js";
 import { runReconcileCommand } from "./commands/reconcile.js";
+import { runSetupCommand, type SetupCommandDeps } from "./commands/setup/index.js";
 import { runSnapshotCommand } from "./commands/snapshot.js";
 import { runTuiCommand, type TuiCommandDeps } from "./commands/tui.js";
 import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
@@ -60,6 +61,7 @@ export type CliRunOptions = {
   tuiDeps?: TuiCommandDeps;
   notifyDeps?: NotifyCommandDeps;
   observeDeps?: ObserveCommandDeps;
+  setupDeps?: SetupCommandDeps;
 };
 
 const configBackedCommands = [
@@ -77,7 +79,7 @@ const configBackedCommands = [
   "worktrunk",
 ] as const;
 
-const topLevelCommands = ["debug", "notify", ...configBackedCommands] as const;
+const topLevelCommands = ["debug", "notify", "setup", ...configBackedCommands] as const;
 
 export async function runCli(
   argv = process.argv.slice(2),
@@ -156,6 +158,14 @@ export async function runCli(
     }
     const result = await runNotifyCommand(commandArgs, notifyOptions, options.notifyDeps);
     return { code: 0, output: result };
+  }
+
+  if (command === "setup") {
+    const setupOptions: Parameters<typeof runSetupCommand>[1] = {};
+    if (configPath !== undefined) setupOptions.configPath = configPath;
+    if (options.env !== undefined) setupOptions.env = options.env;
+    const result = await runSetupCommand(commandArgs, setupOptions, options.setupDeps);
+    return result;
   }
 
   if (command === "event-hooks") {

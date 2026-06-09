@@ -1,7 +1,7 @@
-import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
+import { access as defaultAccess, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
 import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "./boundary.js";
 import {
@@ -40,6 +40,12 @@ export type ExternalCommandInput = {
   stdin?: string;
   signal?: AbortSignal;
   allowedExitCodes?: number[];
+  stdio?: "pipe" | "inherit";
+};
+
+export type ResolveExecutablePathOptions = {
+  pathEnv?: string;
+  access?: (path: string) => Promise<void>;
 };
 
 type ExternalCommandErrorLike = {
@@ -110,6 +116,9 @@ export async function runExternalCommand(
 export async function nodeExternalCommandRunner(
   input: ExternalCommandInput,
 ): Promise<ExternalCommandResult> {
+  if (input.stdio === "inherit") {
+    return nodeExternalCommandRunnerWithInheritedStdio(input);
+  }
   if (input.stdin !== undefined) {
     return nodeExternalCommandRunnerWithStdin(input);
   }
@@ -127,6 +136,55 @@ export async function nodeExternalCommandRunner(
     stderr: result.stderr,
     exitCode: 0,
   };
+}
+
+async function nodeExternalCommandRunnerWithInheritedStdio(
+  input: ExternalCommandInput,
+): Promise<ExternalCommandResult> {
+  if (input.stdin !== undefined) {
+    throw new Error("External command inherited stdio runner does not support stdin input.");
+  }
+  const args = input.args ?? [];
+  return new Promise((resolve, reject) => {
+    const child = spawn(input.command, args, {
+      cwd: input.cwd,
+      env: input.env === undefined ? process.env : { ...process.env, ...input.env },
+      signal: input.signal,
+      stdio: "inherit",
+    });
+
+    let settled = false;
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      callback();
+    };
+
+    child.on("error", (error) => {
+      settle(() => reject(error));
+    });
+    child.on("close", (exitCode, signal) => {
+      settle(() => {
+        if (exitCode === 0) {
+          resolve({
+            command: input.command,
+            args,
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+          });
+          return;
+        }
+        const error = Object.assign(new Error("External command failed."), {
+          ...(exitCode === null ? {} : { exitCode }),
+          ...(signal === null ? {} : { signal }),
+          stdout: "",
+          stderr: "",
+        });
+        reject(error);
+      });
+    });
+  });
 }
 
 async function nodeExternalCommandRunnerWithStdin(
@@ -174,6 +232,25 @@ export function createFakeExternalCommandRunner(
   handler: (input: ExternalCommandInput) => ExternalCommandResult | Promise<ExternalCommandResult>,
 ): ExternalCommandRunner {
   return async (input) => handler(input);
+}
+
+export async function resolveExecutablePath(
+  command: string,
+  options: ResolveExecutablePathOptions = {},
+): Promise<string | undefined> {
+  const access = options.access ?? defaultAccess;
+  if (isPathLikeCommand(command)) {
+    return (await canAccess(command, access)) ? command : undefined;
+  }
+
+  const pathEnv = options.pathEnv ?? process.env.PATH ?? "";
+  for (const directory of pathEnv.split(delimiter).filter((part) => part.length > 0)) {
+    const candidate = join(directory, command);
+    if (await canAccess(candidate, access)) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 export function externalCommandErrorFromUnknown(
@@ -358,6 +435,19 @@ function isSecretFlag(value: string): boolean {
 
 function isSecretAssignmentKey(value: string): boolean {
   return secretAssignmentKeyPattern.test(value);
+}
+
+async function canAccess(path: string, access: (path: string) => Promise<void>): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isPathLikeCommand(command: string): boolean {
+  return command.includes("/") || command.includes("\\");
 }
 
 function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {
