@@ -122,29 +122,31 @@ export function App({
   if (loading || snapshot === undefined) {
     return (
       <TuiFrame columns={columns} rows={rows}>
-        <Box flexDirection="column" flexGrow={1} height="100%" overflow="hidden" paddingRight={1}>
-          <DashboardHeader
-            productLabel={productLabel}
-            columns={contentColumns}
-            widgets={topRowWidgets}
-          />
-          <Text color="gray">{"─".repeat(contentColumns)}</Text>
-          <Box flexDirection="column" flexGrow={1} overflow="hidden">
-            {observerConnectionStatus.state === "reconnecting" ? (
-              <>
-                <Text> </Text>
-                <Text>waiting for observer</Text>
-                <Text color="gray">retrying connection</Text>
-                <Text> </Text>
-                <Text color="gray">The dashboard will appear when the observer is ready.</Text>
-              </>
-            ) : (
-              <Text color="gray">Loading observer snapshot...</Text>
-            )}
+        <TuiShell>
+          <Box flexDirection="column" flexGrow={1} height="100%" overflow="hidden" paddingRight={1}>
+            <DashboardHeader
+              productLabel={productLabel}
+              columns={contentColumns}
+              widgets={topRowWidgets}
+            />
+            <Text color="gray">{"─".repeat(contentColumns)}</Text>
+            <Box flexDirection="column" flexGrow={1} overflow="hidden">
+              <SnapshotLoadingBody
+                loading={loading}
+                observerConnectionStatus={observerConnectionStatus}
+              />
+            </Box>
+            <Text color="gray">{"─".repeat(contentColumns)}</Text>
+            <Text color="gray">{quitHint}</Text>
           </Box>
-          <Text color="gray">{"─".repeat(contentColumns)}</Text>
-          <Text color="gray">{quitHint}</Text>
-        </Box>
+          <ToastOverlay
+            columns={columns}
+            rows={rows}
+            toast={activeToast}
+            promptRows={0}
+            hiddenByModal={toastHiddenByModal}
+          />
+        </TuiShell>
       </TuiFrame>
     );
   }
@@ -183,6 +185,38 @@ function FixedStatusLayer({ children }: { children: ReactNode }) {
       {children}
     </Box>
   );
+}
+
+function SnapshotLoadingBody({
+  loading,
+  observerConnectionStatus,
+}: {
+  loading: boolean;
+  observerConnectionStatus: TuiObserverConnectionStatus;
+}) {
+  if (observerConnectionStatus.state === "reconnecting") {
+    return (
+      <>
+        <Text> </Text>
+        <Text>waiting for observer</Text>
+        <Text color="gray">retrying connection</Text>
+        <Text> </Text>
+        <Text color="gray">The dashboard will appear when the observer is ready.</Text>
+      </>
+    );
+  }
+
+  if (!loading) {
+    return (
+      <>
+        <Text> </Text>
+        <Text>observer snapshot unavailable</Text>
+        <Text color="gray">Check the error details and try refreshing when ready.</Text>
+      </>
+    );
+  }
+
+  return <Text color="gray">Loading observer snapshot...</Text>;
 }
 
 function observerHeaderStatusForConnection(
