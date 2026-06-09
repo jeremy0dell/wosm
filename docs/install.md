@@ -16,9 +16,21 @@ From the repository root:
 
 ```bash
 pnpm install
-pnpm setup:system:check
 pnpm build
+wosm setup
 pnpm smoke:release
+```
+
+After WOSM is installed:
+
+```text
+WOSM is installed.
+
+Next:
+  wosm setup
+
+This configures the core local workflow: Worktrunk, tmux, one agent CLI, and your first project.
+Optional integrations can be added later.
 ```
 
 `pnpm smoke:release` builds by default, creates an isolated temporary config, runs `bin/wosm doctor`, `reconcile`, `snapshot --json`, `debug bundle`, and the scripted-agent lane, then stops the observer and removes the temp state.
@@ -51,7 +63,7 @@ wosm doctor
 
 ## Local Real Config
 
-Use [examples/local-real-config.toml](../examples/local-real-config.toml) as the safe real-tool starting point. Copy it to `~/.config/wosm/config.toml`, update the project root, and keep the managed Worktrunk root policy unless you intentionally want to show main or external worktrees.
+Prefer `wosm setup` for a first real config. Use [examples/local-real-config.toml](../examples/local-real-config.toml) only when you want to manually edit a fuller real-tool starting point. Copy it to `~/.config/wosm/config.toml`, update the project root, and keep the managed Worktrunk root policy unless you intentionally want to show main or external worktrees.
 
 ```bash
 mkdir -p ~/.config/wosm

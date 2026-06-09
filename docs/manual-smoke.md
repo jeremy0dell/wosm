@@ -15,11 +15,11 @@ pnpm smoke:release
 Install external provider dependencies before using the real Worktrunk path:
 
 ```bash
-pnpm setup:system:check
-pnpm setup:system --yes
+wosm setup
+wosm setup check
 ```
 
-See [system-dependencies.md](system-dependencies.md) for the external dependency contract and command resolution order.
+See [system-dependencies.md](system-dependencies.md) for setup commands, exit codes, dependency tiers, and command resolution order. GitHub, notifications, extra harnesses, and provider hook installation are optional real-provider lanes, not part of the core first-run path.
 
 Use the repo-local command while developing:
 
@@ -75,7 +75,7 @@ include_external = false
 
 With this policy, wosm derives a per-project root under `~/.worktrees`, adding a stable suffix only when project IDs would otherwise collide, then gives each create command a concrete `WORKTRUNK_WORKTREE_PATH` with a collision-resistant branch segment.
 
-A minimal config for the current manual test target is:
+`wosm setup` writes a minimal config like this for the current repository:
 
 ```toml
 schema_version = 1
