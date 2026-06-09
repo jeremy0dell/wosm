@@ -12,7 +12,7 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 
 ## Operational References
 
-- [Diagnostics](diagnostics.md) is the detailed operational reference for `wosm doctor`, debug bundles, redaction, retention, hook setup, and diagnostic evidence.
+- [Diagnostics](diagnostics.md) is the detailed operational reference for `wosm doctor`, `wosm debug trace`, `wosm debug logs`, debug bundles, redaction, retention, hook setup, and diagnostic evidence.
 - [Harness ingress](harness-ingress.md) is the current guidance for provider harness event admission and allow-listing.
 - [Manual smoke testing](manual-smoke.md) is the detailed reference for runnable CLI/TUI smoke loops, real provider lanes, popup behavior, and cleanup smoke.
 - [Install](install.md) is the current local-checkout setup path for Node.js 24.x, pnpm 11, system dependency checks, build, smoke, and local CLI use.

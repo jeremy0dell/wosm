@@ -4,17 +4,87 @@ This document describes the current local diagnostic surface for observer runs, 
 
 ## Commands
 
+Existing-state lookup:
+
 ```bash
-wosm doctor
-wosm observe --include-snapshot --duration 3s
-wosm debug bundle
+wosm debug trace <id>
+wosm debug trace --latest-failure
+wosm debug logs [query]
+wosm debug logs [query] --component hook
 ```
+
+Live observer checks:
+
+```bash
+wosm observer status
+wosm doctor [--project <projectId>] [--deep]
+wosm snapshot --json [--include-debug]
+wosm observe --include-snapshot --duration 3s
+wosm observe --json --include-snapshot --duration 3s
+wosm observe --json --failed --limit 20
+wosm observe --json --trace <traceId>
+wosm observe --json --command <commandId>
+wosm command get <commandId>
+```
+
+Evidence capture:
+
+```bash
+wosm debug bundle
+wosm debug bundle --trace <traceId>
+wosm debug bundle --command <commandId>
+wosm debug bundle --latest-failure
+wosm debug bundle --last 30m
+wosm debug bundle --since <isoTimestamp>
+```
+
+Setup and hook checks:
+
+```bash
+wosm setup check --json
+wosm setup system --check
+pnpm setup:system:check
+wosm hooks doctor worktrunk
+wosm hooks doctor codex
+wosm hooks doctor cursor
+wosm hooks doctor opencode
+wosm event-hooks doctor
+```
+
+`wosm debug trace` reads existing diagnostic bundles and structured logs to
+correlate trace ids, command ids, diagnostic ids, root-cause codes, and suggested
+next commands without contacting the observer.
+
+`wosm debug logs` reads structured JSONL logs from the configured state
+directory without contacting the observer. By default it searches `observer`,
+`cli`, and `tui` logs, excludes noisy hook logs, returns recent `warn`/`error`
+records when no query is supplied, and searches all levels when a query is
+supplied. Use `--component hook` or `--all-components` only when hook delivery
+or provider-ingress noise is relevant.
+
+`wosm observer status` checks the configured observer process/socket state. It is
+non-mutating, but it is still a live status check rather than an existing-state
+log read.
 
 `wosm doctor` connects to the observer, asks the observer for runtime health, and reports config, SQLite, provider health, hook spool, snapshot, logs, local state usage, and retention status. If the config cannot be loaded, `doctor` does not start the observer; it returns a local SafeError report with diagnostic id `config-load`.
 
-`wosm observe` streams the observer's current snapshot and live events. Use `--json` for JSONL envelopes, `--pane` for an alternate-screen terminal tail, and bounded flags such as `--duration 3s` for smoke checks.
+`wosm snapshot --json` asks the observer for the current normalized graph. Use
+`--include-debug` when row-level diagnostic fields are needed for support
+evidence.
+
+`wosm observe` streams the observer's current snapshot and live events. Use
+`--json` for JSONL envelopes, `--pane` for an alternate-screen terminal tail,
+`--failed` for failure-focused streams, `--trace` / `--command` for correlation
+filters, and bounded flags such as `--duration 3s` for smoke checks.
+
+`wosm command get <commandId>` asks the observer for a command lifecycle record.
+`wosm command dispatch --stdin` intentionally submits a command; use it only when
+the task calls for a runtime action.
 
 `wosm debug bundle` asks the observer for a diagnostic snapshot, then writes a redacted bundle under the configured state directory. If the config cannot be loaded, it writes a local invalid-config bundle next to the failing config instead of contacting the observer.
+
+`wosm setup check --json`, `wosm setup system --check`, and
+`pnpm setup:system:check` report local tool readiness. They are read-only.
 
 Provider hooks are diagnosed as delivery hints, not runtime truth. `wosm-ingress` assigns stable event ids, tries bounded delivery to the observer, attempts bounded observer auto-start when enabled, and writes a spool record only when startup or delivery fails. Harness reports are accepted into an observer-owned ingress queue before slower persistence, projection, and reconcile work. Queue depth, coalescing, drop/failure counts, and last spool-drain stats appear in observer health and diagnostic snapshots. Hook delivery decisions are written to `logs/hooks.jsonl`; hook payload attributes are redacted before they appear in logs or debug bundles.
 
@@ -143,6 +213,31 @@ wosm --config /path/to/config.toml hooks doctor worktrunk
 wosm --config /path/to/config.toml hooks install worktrunk --yes
 wosm --config /path/to/config.toml hooks uninstall worktrunk --yes
 ```
+
+Other provider and event hook setup surfaces use the same reversible pattern:
+
+```bash
+wosm --config /path/to/config.toml hooks plan codex
+wosm --config /path/to/config.toml hooks doctor codex
+wosm --config /path/to/config.toml hooks install codex --yes
+wosm --config /path/to/config.toml hooks uninstall codex --yes
+
+wosm --config /path/to/config.toml hooks plan cursor
+wosm --config /path/to/config.toml hooks doctor cursor
+wosm --config /path/to/config.toml hooks install cursor --yes
+wosm --config /path/to/config.toml hooks uninstall cursor --yes
+
+wosm --config /path/to/config.toml hooks plan opencode
+wosm --config /path/to/config.toml hooks doctor opencode
+wosm --config /path/to/config.toml hooks install opencode --yes
+wosm --config /path/to/config.toml hooks uninstall opencode --yes
+
+wosm --config /path/to/config.toml event-hooks doctor
+```
+
+Hook `plan` and `doctor` commands are diagnostic/planning surfaces. Hook
+`install` and `uninstall` mutate external tool configuration and require
+explicit `--yes`.
 
 Real Worktrunk E2E coverage is opt-in:
 
