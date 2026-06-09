@@ -83,6 +83,14 @@ export function actionById(plan: SetupPlan, id: string): SetupAction | undefined
   return plan.actions.find((action) => action.id === id);
 }
 
+export function isHookSetupAction(action: SetupAction): boolean {
+  return action.data?.setupRole === "hook";
+}
+
+export function isTmuxPopupBindingAction(action: SetupAction): boolean {
+  return action.id === "tmux-popup-binding" || action.id === "tmux-live-popup-binding";
+}
+
 export function markRequiredIncomplete(plan: SetupPlan): SetupPlan {
   return {
     ...plan,

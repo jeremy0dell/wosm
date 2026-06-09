@@ -11,6 +11,8 @@ import type {
 
 export type PlanSetupConfigWriteOptions = {
   selectedHarness?: SetupHarnessFact;
+  installWorktrunkHooks?: boolean;
+  installHarnessHooks?: boolean;
 };
 
 export async function planSetupConfigWrite(
@@ -40,7 +42,7 @@ export async function planSetupConfigWrite(
     return {
       operation: "create",
       path: facts.configPath,
-      content: renderNewSetupConfig(facts.git, selectedHarness, facts),
+      content: renderNewSetupConfig(facts.git, selectedHarness, facts, options),
     };
   }
 
@@ -52,13 +54,14 @@ export async function planSetupConfigWrite(
     };
   }
 
-  return planExistingConfigAppend(facts.config, facts.git, selectedHarness);
+  return planExistingConfigAppend(facts.config, facts.git, selectedHarness, options);
 }
 
 export function renderNewSetupConfig(
   git: Extract<SetupGitFact, { status: "ok" }>,
   harness: SetupHarnessFact,
   facts?: Pick<SetupFacts, "worktrunk" | "tmux">,
+  options: Pick<PlanSetupConfigWriteOptions, "installWorktrunkHooks" | "installHarnessHooks"> = {},
 ): string {
   const projectId = projectIdForGit(git);
   const defaultBranch = git.defaultBranch;
@@ -66,6 +69,7 @@ export function renderNewSetupConfig(
     facts?.worktrunk === undefined ? "wt" : detectedCommand(facts.worktrunk, "wt");
   const tmuxCommand =
     facts?.tmux === undefined ? undefined : detectedOptionalCommand(facts.tmux, "tmux");
+  const installWorktrunkHooks = options.installWorktrunkHooks === true;
   return [
     "schema_version = 1",
     "",
@@ -86,8 +90,8 @@ export function renderNewSetupConfig(
     `base = ${tomlString(defaultBranch)}`,
     "include_main = false",
     "include_external = false",
-    "use_lifecycle_hooks = false",
-    'hook_mode = "disabled"',
+    `use_lifecycle_hooks = ${installWorktrunkHooks ? "true" : "false"}`,
+    `hook_mode = ${tomlString(installWorktrunkHooks ? "required-for-mvp" : "disabled")}`,
     "",
     "[terminal.tmux]",
     ...(tmuxCommand === undefined ? [] : [`command = ${tomlString(tmuxCommand)}`]),
@@ -100,6 +104,9 @@ export function renderNewSetupConfig(
     `[harness.${harness.id}]`,
     "enabled = true",
     `command = ${tomlString(harness.command)}`,
+    ...(options.installHarnessHooks === true && harnessSupportsHooks(harness.id)
+      ? ["install_hooks = true"]
+      : []),
     "",
     "[[projects]]",
     `id = ${tomlString(projectId)}`,
@@ -128,6 +135,7 @@ function planExistingConfigAppend(
   config: Extract<SetupConfigFact, { status: "valid" }>,
   git: Extract<SetupGitFact, { status: "ok" }>,
   harness: SetupHarnessFact,
+  options: Pick<PlanSetupConfigWriteOptions, "installHarnessHooks">,
 ): ConfigWritePlan {
   const coreProblem = existingConfigAppendCoreProblem(config, harness);
   if (coreProblem !== undefined) {
@@ -142,6 +150,7 @@ function planExistingConfigAppend(
     harness,
     addProject: !config.hasProjectForRoot,
     addHarness: !config.configuredHarnesses.includes(harness.id),
+    installHarnessHooks: options.installHarnessHooks === true,
   });
   if (appendedText.length === 0) {
     return {
@@ -194,6 +203,7 @@ function renderAppendText(input: {
   harness: SetupHarnessFact;
   addProject: boolean;
   addHarness: boolean;
+  installHarnessHooks: boolean;
 }): string {
   const blocks: string[] = [];
   if (input.addHarness) {
@@ -202,6 +212,9 @@ function renderAppendText(input: {
         `[harness.${input.harness.id}]`,
         "enabled = true",
         `command = ${tomlString(input.harness.command)}`,
+        ...(input.installHarnessHooks && harnessSupportsHooks(input.harness.id)
+          ? ["install_hooks = true"]
+          : []),
       ].join("\n"),
     );
   }
@@ -229,6 +242,10 @@ function projectIdForGit(git: Extract<SetupGitFact, { status: "ok" }>): string {
 
 function tomlString(value: string): string {
   return JSON.stringify(value);
+}
+
+function harnessSupportsHooks(harness: string): boolean {
+  return harness === "codex" || harness === "cursor" || harness === "opencode";
 }
 
 function detectedCommand(

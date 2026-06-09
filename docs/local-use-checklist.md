@@ -10,6 +10,9 @@ Use this checklist before relying on wosm for day-to-day local agent work.
 - `codex login status` succeeds.
 - `wt --version`, `tmux -V`, and `bin/wosm doctor` succeed for the local-real config.
 - `examples/local-real-config.toml` has been copied and edited for the local use project root.
+- Guided `wosm setup` has either linked global launchers or generated tmux/hook commands with checkout launcher paths.
+- Worktrunk lifecycle hooks and the selected agent hooks were accepted during setup, or intentionally deferred.
+- Inside tmux, `Ctrl-b Space` opens the WOSM popup without needing to restart tmux.
 - The local-real config uses `managed_root = "~/.worktrees"` and omits `profile = "default"` unless
   that Codex profile has been created locally.
 - `pnpm agent:cleanup` and `pnpm agent:reset` have been dry-run before destructive real E2E cleanup;
@@ -49,6 +52,7 @@ Confirm:
 - Press `n`, create a branch/session, and confirm the TUI stays visible while the tmux workbench window opens in the background.
 - Verify the worktree appears in snapshots and the primary pane current command is Codex or the Codex runtime, not an idle shell with a typed `cd && env && codex` command.
 - Launch bare `wosm` from inside the workbench, or the `Ctrl-b Space` binding if installed, and select the agent row; the popup should close only after focus succeeds.
+- If bare `wosm` is not linked, use the setup-reported checkout launcher path or run `pnpm wosm:link` before testing from arbitrary directories.
 - Exercise focus and cleanup keys only on disposable rows.
 - Stop the observer with `wosm observer stop`.
 
