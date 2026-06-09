@@ -1,6 +1,8 @@
 import stringWidth from "string-width";
 
-export type RowColor = "blue" | "gray" | "green" | "red" | "yellow";
+export const ROW_COLOR_PURPLE = "#d2a8ff";
+
+export type RowColor = "blue" | "gray" | "green" | "red" | "yellow" | typeof ROW_COLOR_PURPLE;
 
 export type RowSegment =
   | {
