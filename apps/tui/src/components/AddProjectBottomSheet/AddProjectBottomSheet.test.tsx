@@ -119,4 +119,41 @@ describe("AddProjectBottomSheet", () => {
     expect(frame).toContain("Adding project.");
     expect(frame).not.toContain("Enter:add project");
   });
+
+  it("renders safe error metadata on failed project adds", () => {
+    const frame = renderToString(
+      <Box flexDirection="column" width={80} height={18}>
+        <AddProjectBottomSheet
+          columns={80}
+          rows={18}
+          state={{
+            mode: "failed",
+            stepHistory: [],
+            selectedPath: "/Users/example/Desktop/projects/GermStack",
+            error: {
+              tag: "ProtocolError",
+              code: "PROTOCOL_VALIDATION_FAILED",
+              message: "Observer protocol payload failed validation.",
+              hint: "Restart the observer so it loads the current schema.",
+              traceId: "trc_add_project_1",
+              commandId: "cmd_add_project_1",
+              diagnosticId: "diag_add_project_1",
+            },
+          }}
+        />
+      </Box>,
+      { columns: 80 },
+    );
+
+    expect(frame).toContain("Could not update config.toml.");
+    expect(frame).toContain("Observer protocol payload failed validation.");
+    expect(frame).toContain("Code");
+    expect(frame).toContain("PROTOCOL_VALIDATION_FAILED");
+    expect(frame).toContain("Trace");
+    expect(frame).toContain("trc_add_project_1");
+    expect(frame).toContain("Command");
+    expect(frame).toContain("cmd_add_project_1");
+    expect(frame).toContain("Diag");
+    expect(frame).toContain("diag_add_project_1");
+  });
 });
