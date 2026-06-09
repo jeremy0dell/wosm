@@ -10,8 +10,8 @@ import type {
 } from "../../services/folderService.js";
 import type { TuiKey } from "../keys.js";
 import { isReturnKey } from "../keys.js";
-import type { TuiState } from "../screen.js";
 import type { TuiTransition } from "../transition.js";
+import type { TuiState } from "../types.js";
 
 export function openAddProject(state: TuiState, input: { cwd: string; homeDir: string }): TuiState {
   return {

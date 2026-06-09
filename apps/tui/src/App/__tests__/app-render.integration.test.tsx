@@ -243,6 +243,22 @@ describe("TUI app rendering", () => {
     instance.unmount();
   });
 
+  it("shows cold-start non-connect snapshot failures as actionable toast details", async () => {
+    const service = new ColdStartSnapshotFailingService(snapshotValidationError());
+    const instance = render(<App service={service} />);
+
+    await waitFor(
+      () => instance.lastFrame()?.includes("Observer snapshot validation failed.") === true,
+    );
+    const frame = instance.lastFrame() ?? "";
+
+    expect(frame).toContain("observer snapshot unavailable");
+    expect(frame).toContain("needs attention");
+    expect(frame).toContain("Run wosm doctor.");
+    expect(frame).not.toContain("waiting for observer");
+    instance.unmount();
+  });
+
   it("labels cold-start reconnect as close in persistent popup mode", async () => {
     const service = new ColdStartConnectFailingService(createCommandSnapshot("idle"));
     const instance = render(
@@ -458,11 +474,56 @@ class ColdStartConnectFailingService implements TuiObserverService {
   }
 }
 
+class ColdStartSnapshotFailingService implements TuiObserverService {
+  constructor(private readonly error: SafeError) {}
+
+  async loadSnapshot(): Promise<WosmSnapshot> {
+    throw this.error;
+  }
+
+  subscribeEvents(): AsyncIterable<WosmEvent> {
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: () => new Promise<IteratorResult<WosmEvent>>(() => undefined),
+        return: async () => ({ done: true, value: undefined }),
+      }),
+    };
+  }
+
+  async dispatch() {
+    return {
+      commandId: "cmd_tui_1",
+      accepted: true,
+      status: "accepted" as const,
+    };
+  }
+
+  async waitForCommandCompletion(commandId: string) {
+    return {
+      status: "succeeded" as const,
+      commandId,
+    };
+  }
+
+  async reconcile(): Promise<WosmSnapshot> {
+    throw this.error;
+  }
+}
+
 function connectSafeError(): SafeError {
   return {
     tag: "ProtocolError",
     code: "PROTOCOL_CONNECT_FAILED",
     message: "Could not connect to observer socket /tmp/wosm-test.sock.",
+  };
+}
+
+function snapshotValidationError(): SafeError {
+  return {
+    tag: "ProtocolError",
+    code: "PROTOCOL_VALIDATION_FAILED",
+    message: "Observer snapshot validation failed.",
+    hint: "Run wosm doctor.",
   };
 }
 
