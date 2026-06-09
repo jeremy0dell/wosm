@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,6 +40,7 @@ export type ExternalCommandInput = {
   stdin?: string;
   signal?: AbortSignal;
   allowedExitCodes?: number[];
+  stdio?: "pipe" | "inherit";
 };
 
 type ExternalCommandErrorLike = {
@@ -110,6 +111,9 @@ export async function runExternalCommand(
 export async function nodeExternalCommandRunner(
   input: ExternalCommandInput,
 ): Promise<ExternalCommandResult> {
+  if (input.stdio === "inherit") {
+    return nodeExternalCommandRunnerWithInheritedStdio(input);
+  }
   if (input.stdin !== undefined) {
     return nodeExternalCommandRunnerWithStdin(input);
   }
@@ -127,6 +131,55 @@ export async function nodeExternalCommandRunner(
     stderr: result.stderr,
     exitCode: 0,
   };
+}
+
+async function nodeExternalCommandRunnerWithInheritedStdio(
+  input: ExternalCommandInput,
+): Promise<ExternalCommandResult> {
+  if (input.stdin !== undefined) {
+    throw new Error("External command inherited stdio runner does not support stdin input.");
+  }
+  const args = input.args ?? [];
+  return new Promise((resolve, reject) => {
+    const child = spawn(input.command, args, {
+      cwd: input.cwd,
+      env: input.env === undefined ? process.env : { ...process.env, ...input.env },
+      signal: input.signal,
+      stdio: "inherit",
+    });
+
+    let settled = false;
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      callback();
+    };
+
+    child.on("error", (error) => {
+      settle(() => reject(error));
+    });
+    child.on("close", (exitCode, signal) => {
+      settle(() => {
+        if (exitCode === 0) {
+          resolve({
+            command: input.command,
+            args,
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+          });
+          return;
+        }
+        const error = Object.assign(new Error("External command failed."), {
+          ...(exitCode === null ? {} : { exitCode }),
+          ...(signal === null ? {} : { signal }),
+          stdout: "",
+          stderr: "",
+        });
+        reject(error);
+      });
+    });
+  });
 }
 
 async function nodeExternalCommandRunnerWithStdin(

@@ -20,6 +20,23 @@ describe("setup apply engine", () => {
     expect(result.plan.actions[0]).toMatchObject({ status: "completed" });
   });
 
+  it("announces command actions and can request visible command output", async () => {
+    const calls: ExternalCommandInput[] = [];
+    const events: string[] = [];
+
+    const result = await applySetupPlan(plan([brewAction("install-worktrunk", "worktrunk")]), {
+      runner: fakeRunner(calls),
+      showCommandOutput: true,
+      onActionStart: (action) => events.push(`start:${action.id}`),
+      onActionComplete: (action) => events.push(`complete:${action.id}`),
+      onActionFailed: (action) => events.push(`failed:${action.id}`),
+    });
+
+    expect(result.failedAction).toBeUndefined();
+    expect(calls[0]).toMatchObject({ command: "brew", stdio: "inherit" });
+    expect(events).toEqual(["start:install-worktrunk", "complete:install-worktrunk"]);
+  });
+
   it("dry-run records zero writes and zero external commands", async () => {
     const calls: ExternalCommandInput[] = [];
     const fs = fakeFs();

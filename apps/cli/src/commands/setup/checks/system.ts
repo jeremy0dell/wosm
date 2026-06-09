@@ -40,7 +40,12 @@ export async function collectSetupFacts(options: CollectSetupFactsOptions): Prom
   const cwd = options.cwd ?? process.cwd();
   const homeDir = options.homeDir ?? env.HOME ?? homedir();
   const generatedAt = (options.now ?? (() => new Date()))().toISOString();
-  const commandInput: { runner?: ExternalCommandRunner; env: CliEnv; cwd: string } = { env, cwd };
+  const commandInput: {
+    runner?: ExternalCommandRunner;
+    env: CliEnv;
+    cwd: string;
+    homeDir: string;
+  } = { env, cwd, homeDir };
   if (options.runner !== undefined) commandInput.runner = options.runner;
   const commandOptions = commandCheckOptions(commandInput);
   const dependencyInput: {
@@ -113,12 +118,14 @@ function commandCheckOptions(input: {
   runner?: ExternalCommandRunner;
   env: CliEnv;
   cwd: string;
+  homeDir?: string;
 }): CheckGitOptions & CheckHarnessesOptions {
   const options: CheckGitOptions & CheckHarnessesOptions = {
     env: input.env,
     cwd: input.cwd,
   };
   if (input.runner !== undefined) options.runner = input.runner;
+  if (input.homeDir !== undefined) options.homeDir = input.homeDir;
   return options;
 }
 

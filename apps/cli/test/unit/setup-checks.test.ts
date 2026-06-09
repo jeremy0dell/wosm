@@ -103,6 +103,34 @@ describe("setup dependency checks", () => {
     expect(plan.summary.selectedHarness).toBe("cursor");
   });
 
+  it("detects harness CLIs installed under the user local bin directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-setup-checks-"));
+    const repo = join(root, "repo");
+    const home = join(root, "home");
+    await mkdir(repo, { recursive: true });
+    const facts = await collectSetupFacts({
+      mode: "check",
+      cwd: repo,
+      homeDir: home,
+      env: { PATH: "/fake/bin" },
+      runner: fakeRunner([], {
+        "git rev-parse --show-toplevel": repo,
+        "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+        "wt --version": "worktrunk 1.2.3\n",
+        "tmux -V": "tmux 3.5a\n",
+        [`${home}/.local/bin/agent --version`]: "cursor-agent 1.0.0\n",
+      }),
+      access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+      fs: readOnlyFs({}),
+      noBrew: true,
+    });
+
+    expect(facts.harnesses.find((harness) => harness.id === "cursor")).toMatchObject({
+      status: "ok",
+      command: `${home}/.local/bin/agent`,
+    });
+  });
+
   it("falls back to current branch and then main for git default branch", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-setup-checks-"));
     const repo = join(root, "repo");

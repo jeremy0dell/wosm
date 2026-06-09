@@ -25,6 +25,7 @@ export type CheckHarnessesOptions = {
   runner?: ExternalCommandRunner;
   env?: CliEnv;
   cwd?: string;
+  homeDir?: string;
 };
 
 export async function checkSetupHarnesses(
@@ -48,38 +49,46 @@ async function checkHarness(
   options: CheckHarnessesOptions,
 ): Promise<SetupHarnessFact> {
   const command = harnessCommand(definition, env);
-  try {
-    const input: ExternalCommandInput = {
-      command,
-      args: ["--version"],
-      maxOutputChars: 4096,
-    };
-    if (options.cwd !== undefined) input.cwd = options.cwd;
-    const externalEnv = commandEnv(options.env);
-    if (externalEnv !== undefined) input.env = externalEnv;
-    const output = await runExternalCommand(input, options.runner);
-    const rawVersion = `${output.stdout}${output.stderr}`.trim();
-    const fact: SetupHarnessFact = {
-      id: definition.id,
-      label: definition.label,
-      status: "ok",
-      command,
-    };
-    if (rawVersion.length > 0) fact.rawVersion = rawVersion;
-    const version = parseHarnessVersion(rawVersion);
-    if (version !== undefined) fact.version = version;
-    return fact;
-  } catch {
-    return {
-      id: definition.id,
-      label: definition.label,
-      status: "missing",
-      command,
-      message: `${definition.label} CLI is not available.`,
-    };
+  for (const candidate of harnessCommandCandidates(command, options.homeDir)) {
+    try {
+      const input: ExternalCommandInput = {
+        command: candidate,
+        args: ["--version"],
+        maxOutputChars: 4096,
+      };
+      if (options.cwd !== undefined) input.cwd = options.cwd;
+      const externalEnv = commandEnv(options.env);
+      if (externalEnv !== undefined) input.env = externalEnv;
+      const output = await runExternalCommand(input, options.runner);
+      const rawVersion = `${output.stdout}${output.stderr}`.trim();
+      const fact: SetupHarnessFact = {
+        id: definition.id,
+        label: definition.label,
+        status: "ok",
+        command: candidate,
+      };
+      if (rawVersion.length > 0) fact.rawVersion = rawVersion;
+      const version = parseHarnessVersion(rawVersion);
+      if (version !== undefined) fact.version = version;
+      return fact;
+    } catch {}
   }
+  return {
+    id: definition.id,
+    label: definition.label,
+    status: "missing",
+    command,
+    message: `${definition.label} CLI is not available.`,
+  };
 }
 
 function parseHarnessVersion(output: string): string | undefined {
   return output.match(/\b(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\b/)?.[1];
+}
+
+function harnessCommandCandidates(command: string, homeDir: string | undefined): string[] {
+  if (command.includes("/") || homeDir === undefined) {
+    return [command];
+  }
+  return [command, `${homeDir}/.local/bin/${command}`];
 }
