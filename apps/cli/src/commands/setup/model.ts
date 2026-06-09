@@ -1,0 +1,188 @@
+import { z } from "zod";
+
+export const setupTiers = ["required", "recommended", "optional"] as const;
+export const setupStatuses = ["ok", "missing", "warning", "skipped"] as const;
+export const setupModes = ["check", "plan", "apply"] as const;
+export const setupActionKinds = [
+  "brew-install",
+  "run-command",
+  "write-config",
+  "mkdir",
+  "noop",
+] as const;
+export const setupActionStatuses = ["pending", "completed", "failed", "skipped"] as const;
+export const supportedHarnessIds = ["codex", "cursor", "opencode", "pi"] as const;
+
+export const SetupTierSchema = z.enum(setupTiers);
+export const SetupStatusSchema = z.enum(setupStatuses);
+export const SetupModeSchema = z.enum(setupModes);
+export const SetupActionKindSchema = z.enum(setupActionKinds);
+export const SetupActionStatusSchema = z.enum(setupActionStatuses);
+export const SupportedHarnessIdSchema = z.enum(supportedHarnessIds);
+
+export type SetupTier = z.infer<typeof SetupTierSchema>;
+export type SetupStatus = z.infer<typeof SetupStatusSchema>;
+export type SetupMode = z.infer<typeof SetupModeSchema>;
+export type SetupActionKind = z.infer<typeof SetupActionKindSchema>;
+export type SetupActionStatus = z.infer<typeof SetupActionStatusSchema>;
+export type SupportedHarnessId = z.infer<typeof SupportedHarnessIdSchema>;
+
+export const SetupCheckSchema = z
+  .object({
+    id: z.string().min(1),
+    tier: SetupTierSchema,
+    status: SetupStatusSchema,
+    label: z.string().min(1),
+    message: z.string().min(1),
+    details: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();
+
+export const SetupActionSchema = z
+  .object({
+    id: z.string().min(1),
+    kind: SetupActionKindSchema,
+    tier: SetupTierSchema,
+    selected: z.boolean(),
+    label: z.string().min(1),
+    message: z.string().min(1),
+    command: z.array(z.string()).optional(),
+    path: z.string().optional(),
+    status: SetupActionStatusSchema.optional(),
+    data: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();
+
+export const SetupSummarySchema = z
+  .object({
+    requiredOk: z.boolean(),
+    requiredMissing: z.number().int().nonnegative(),
+    warnings: z.number().int().nonnegative(),
+    selectedActions: z.number().int().nonnegative(),
+    selectedHarness: SupportedHarnessIdSchema.optional(),
+    configPath: z.string(),
+  })
+  .strict();
+
+export const SetupPlanSchema = z
+  .object({
+    generatedAt: z.string().min(1),
+    mode: SetupModeSchema,
+    checks: z.array(SetupCheckSchema),
+    actions: z.array(SetupActionSchema),
+    summary: SetupSummarySchema,
+    nextSteps: z.array(z.string()),
+  })
+  .strict();
+
+export type SetupCheck = z.infer<typeof SetupCheckSchema>;
+export type SetupAction = z.infer<typeof SetupActionSchema>;
+export type SetupSummary = z.infer<typeof SetupSummarySchema>;
+export type SetupPlan = z.infer<typeof SetupPlanSchema>;
+
+export type SetupDependencyFact = {
+  status: "ok" | "missing";
+  command: string;
+  version?: string;
+  rawVersion?: string;
+  resolvedPath?: string;
+  message?: string;
+};
+
+export type SetupBrewFact = {
+  status: "ok" | "missing" | "skipped";
+  command: string;
+  version?: string;
+  message?: string;
+};
+
+export type SetupGitFact =
+  | {
+      status: "ok";
+      root: string;
+      defaultBranch: string;
+      repoName: string;
+    }
+  | {
+      status: "missing";
+      defaultBranch: string;
+      message: string;
+    };
+
+export type SetupHarnessFact = {
+  id: SupportedHarnessId;
+  label: string;
+  status: "ok" | "missing";
+  command: string;
+  version?: string;
+  rawVersion?: string;
+  message?: string;
+};
+
+export type SetupConfigFact =
+  | {
+      status: "missing";
+      path: string;
+      message: string;
+    }
+  | {
+      status: "valid";
+      path: string;
+      source: string;
+      hasProjectForRoot: boolean;
+      configuredHarnesses: readonly string[];
+    }
+  | {
+      status: "invalid";
+      path: string;
+      source: string;
+      message: string;
+    };
+
+export type SetupFacts = {
+  generatedAt: string;
+  mode: SetupMode;
+  configPath: string;
+  worktrunk: SetupDependencyFact;
+  tmux: SetupDependencyFact;
+  brew: SetupBrewFact;
+  git: SetupGitFact;
+  harnesses: readonly SetupHarnessFact[];
+  config: SetupConfigFact;
+  selectedHarness?: SupportedHarnessId;
+  includeSystemActions?: boolean;
+};
+
+export type ConfigWritePlan =
+  | {
+      operation: "none";
+      reason: string;
+    }
+  | {
+      operation: "create";
+      path: string;
+      content: string;
+      backupPath?: string;
+    }
+  | {
+      operation: "append";
+      path: string;
+      content: string;
+      appendedText: string;
+      backupPath?: string;
+    }
+  | {
+      operation: "blocked";
+      path: string;
+      reason: string;
+    };
+
+export function okDependency(command: string, version?: string): SetupDependencyFact {
+  const fact: SetupDependencyFact = { status: "ok", command };
+  if (version !== undefined) fact.version = version;
+  return fact;
+}
+
+export function missingDependency(command: string, message: string): SetupDependencyFact {
+  return { status: "missing", command, message };
+}

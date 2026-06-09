@@ -11,6 +11,7 @@ export * from "./commands/observer.js";
 export * from "./commands/opencodeHooks.js";
 export * from "./commands/popup.js";
 export * from "./commands/reconcile.js";
+export * from "./commands/setup/index.js";
 export * from "./commands/snapshot.js";
 export * from "./commands/tui.js";
 export * from "./commands/worktrunkHooks.js";

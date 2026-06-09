@@ -1,4 +1,5 @@
 export * from "./command.js";
+export * from "./dependency.js";
 export * from "./errors.js";
 export * from "./launch.js";
 export * from "./parse.js";
