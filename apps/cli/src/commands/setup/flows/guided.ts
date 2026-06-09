@@ -1,12 +1,13 @@
 import { applySetupPlan } from "../apply.js";
 import { planSetupConfigWrite } from "../configWriter.js";
 import {
-  actionById,
   applyOptions,
   collectForCommand,
   coreReadyForConfigWrite,
   isConfigAction,
+  isHookSetupAction,
   isInstallAction,
+  isTmuxPopupBindingAction,
   markRequiredIncomplete,
 } from "../flowUtils.js";
 import {
@@ -14,7 +15,7 @@ import {
   isHarnessInstallAction,
   missingHarnessInstallActions,
 } from "../harnessInstall.js";
-import { isSupportedHarnessId } from "../harnessSelection.js";
+import { isSupportedHarnessId, selectSetupHarness } from "../harnessSelection.js";
 import { defaultPrompt, renderOptions, write } from "../io.js";
 import type { SetupAction, SetupFacts } from "../model.js";
 import { buildSetupPlan } from "../planner.js";
@@ -95,8 +96,11 @@ async function runGuidedSetupWithPrompt(
     }
   }
 
-  const configWrite = await planSetupConfigWrite(facts);
-  plan = buildSetupPlan(facts, { configWrite });
+  facts = await maybeLinkWosmLaunchers(facts, options, deps, prompt);
+
+  const hookPreferences = await promptHookPreferences(facts, prompt);
+  const configWrite = await planSetupConfigWrite(facts, hookPreferences);
+  plan = buildSetupPlan(facts, { configWrite, ...hookPreferences });
   if (!coreReadyForConfigWrite(plan)) {
     await write(deps, renderSetupApplyResult(plan, renderOptions(deps)));
     return { code: 1 };
@@ -119,6 +123,22 @@ async function runGuidedSetupWithPrompt(
     }
   }
 
+  const hookActions = plan.actions.filter(isHookSetupAction).filter((action) => action.selected);
+  if (hookActions.length > 0) {
+    const hookResult = await applySetupPlan(
+      plan,
+      applyOptions(deps, {
+        actionFilter: isHookSetupAction,
+        announceActions: true,
+        showCommandOutput: true,
+      }),
+    );
+    if (hookResult.failedAction !== undefined) {
+      await write(deps, "Hook install failed. Fix the install error, then run: wosm setup\n");
+      return { code: 1 };
+    }
+  }
+
   const shellIntegration = plan.actions.find(
     (action) => action.id === "worktrunk-shell-integration",
   );
@@ -132,13 +152,16 @@ async function runGuidedSetupWithPrompt(
     }
   }
 
-  const tmuxPopupBinding = actionById(plan, "tmux-popup-binding");
-  if (tmuxPopupBinding !== undefined) {
-    const accepted = await prompt.confirm("Install tmux popup binding?");
+  const tmuxPopupBindingActions = plan.actions.filter(isTmuxPopupBindingAction);
+  if (tmuxPopupBindingActions.length > 0) {
+    const accepted = await prompt.confirm("Install or load tmux popup binding?");
     if (accepted) {
       await applySetupPlan(
-        { ...plan, actions: [{ ...tmuxPopupBinding, selected: true }] },
-        applyOptions(deps, { announceActions: true }),
+        {
+          ...plan,
+          actions: tmuxPopupBindingActions.map((action) => ({ ...action, selected: true })),
+        },
+        applyOptions(deps, { announceActions: true, showCommandOutput: true }),
       );
     }
   }
@@ -151,6 +174,74 @@ async function runGuidedSetupWithPrompt(
     ),
   );
   return { code: 0 };
+}
+
+type HookPreferences = {
+  installWorktrunkHooks?: boolean;
+  installHarnessHooks?: boolean;
+};
+
+async function maybeLinkWosmLaunchers(
+  facts: SetupFacts,
+  options: SetupCommandOptions,
+  deps: SetupCommandDeps,
+  prompt: SetupPromptAdapter,
+): Promise<SetupFacts> {
+  const plan = buildSetupPlan(facts, { configWrite: await planSetupConfigWrite(facts) });
+  const action = plan.actions.find((candidate) => candidate.id === "link-wosm-launchers");
+  if (action === undefined || !shouldPromptLauncherLink(facts)) return facts;
+
+  const accepted = await prompt.confirm("Link WOSM launchers globally?");
+  if (!accepted) return facts;
+
+  const result = await applySetupPlan(
+    { ...plan, actions: [{ ...action, selected: true }] },
+    applyOptions(deps, { announceActions: true, showCommandOutput: true }),
+  );
+  if (result.failedAction !== undefined) {
+    await write(deps, "WOSM launcher link failed. Continuing with checkout launcher paths.\n");
+    return facts;
+  }
+
+  return collectForCommand("apply", options, deps, {});
+}
+
+async function promptHookPreferences(
+  facts: SetupFacts,
+  prompt: SetupPromptAdapter,
+): Promise<HookPreferences> {
+  const preferences: HookPreferences = {};
+  const selectedHarness = selectSetupHarness(facts.harnesses, facts.selectedHarness);
+  if (facts.config.status === "missing" && facts.worktrunk.status === "ok") {
+    preferences.installWorktrunkHooks = await prompt.confirm("Install Worktrunk lifecycle hooks?");
+  }
+  if (
+    selectedHarness !== undefined &&
+    harnessSupportsHooks(selectedHarness.id) &&
+    canWriteHarnessHookFlag(facts, selectedHarness.id)
+  ) {
+    preferences.installHarnessHooks = await prompt.confirm(
+      `Install ${selectedHarness.label} agent hooks?`,
+    );
+  }
+  return preferences;
+}
+
+function canWriteHarnessHookFlag(facts: SetupFacts, harnessId: string): boolean {
+  return (
+    facts.config.status === "missing" ||
+    (facts.config.status === "valid" && !facts.config.configuredHarnesses.includes(harnessId))
+  );
+}
+
+function harnessSupportsHooks(harness: string): boolean {
+  return harness === "codex" || harness === "cursor" || harness === "opencode";
+}
+
+function shouldPromptLauncherLink(facts: SetupFacts): boolean {
+  return [facts.launchers.wosm, facts.launchers.ingress, facts.launchers.tmuxPopup].some(
+    (launcher) => launcher.source === "checkout",
+  );
 }
 
 async function ensureHarnessAvailable(

@@ -23,8 +23,11 @@ describe("setup planner", () => {
       ["git-project", "ok"],
       ["harness", "ok"],
       ["config", "ok"],
+      ["wosm-launchers", "ok"],
       ["worktrunk-shell-integration", "warning"],
       ["tmux-popup-binding", "warning"],
+      ["worktrunk-hooks", "ok"],
+      ["harness-hooks", "warning"],
       ["doctor", "warning"],
     ]);
   });
@@ -247,6 +250,30 @@ function facts(overrides: Partial<SetupFacts> = {}): SetupFacts {
       command: "brew",
       version: "4.0.0",
     },
+    launchers: {
+      packageRoot: "/tmp/wosm",
+      wosm: {
+        status: "ok",
+        source: "path",
+        command: "wosm",
+        resolvedPath: "/tmp/bin/wosm",
+        checkoutPath: "/tmp/wosm/bin/wosm",
+      },
+      ingress: {
+        status: "ok",
+        source: "path",
+        command: "wosm-ingress",
+        resolvedPath: "/tmp/bin/wosm-ingress",
+        checkoutPath: "/tmp/wosm/bin/wosm-ingress",
+      },
+      tmuxPopup: {
+        status: "ok",
+        source: "path",
+        command: "wosm-tmux-popup",
+        resolvedPath: "/tmp/bin/wosm-tmux-popup",
+        checkoutPath: "/tmp/wosm/integrations/terminal/tmux/bin/wosm-popup",
+      },
+    },
     git: {
       status: "ok",
       root: "/tmp/repo",
@@ -261,6 +288,11 @@ function facts(overrides: Partial<SetupFacts> = {}): SetupFacts {
       status: "missing",
       path: "/tmp/home/.tmux.conf",
       marker: "# >>> wosm popup binding >>>",
+      launcherCommand: "wosm-tmux-popup",
+      runShellCommand:
+        "env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID=#{q:client_name} 'wosm-tmux-popup'",
+      insideTmux: false,
+      liveStatus: "unknown",
       message: "Optional tmux popup binding is not installed.",
     },
     ...overrides,
@@ -276,11 +308,13 @@ function validConfigFact(
     source: "schema_version = 1\n",
     hasProjectForRoot: true,
     configuredHarnesses: ["codex"],
+    configuredHookHarnesses: [],
     defaults: {
       worktreeProvider: "worktrunk",
       terminal: "tmux",
       harness: "codex",
     },
+    worktrunkUseLifecycleHooks: true,
     matchedProject: {
       id: "repo",
       worktreeProvider: "worktrunk",

@@ -47,6 +47,30 @@ describe("setup config writer", () => {
     });
   });
 
+  it("writes hook flags when guided setup accepts hooks", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const facts = setupFacts(repo, {
+      config: {
+        status: "missing",
+        path: join(root, "config.toml"),
+        message: "missing",
+      },
+    });
+
+    const write = await planSetupConfigWrite(facts, {
+      installWorktrunkHooks: true,
+      installHarnessHooks: true,
+    });
+
+    expect(write.operation).toBe("create");
+    if (write.operation !== "create") throw new Error("expected create plan");
+    expect(write.content).toContain("use_lifecycle_hooks = true");
+    expect(write.content).toContain('hook_mode = "required-for-mvp"');
+    expect(write.content).toContain("install_hooks = true");
+  });
+
   it("appends only missing project and harness blocks to a valid existing config", async () => {
     const root = await tempRoot(tempRoots);
     const repo = join(root, "repo");
@@ -61,6 +85,7 @@ describe("setup config writer", () => {
         source,
         hasProjectForRoot: false,
         configuredHarnesses: [],
+        configuredHookHarnesses: [],
         defaults: {
           worktreeProvider: "worktrunk",
           terminal: "tmux",
@@ -94,6 +119,7 @@ describe("setup config writer", () => {
         source,
         hasProjectForRoot: true,
         configuredHarnesses: ["codex"],
+        configuredHookHarnesses: [],
         defaults: {
           worktreeProvider: "worktrunk",
           terminal: "tmux",
@@ -179,6 +205,7 @@ describe("setup config writer", () => {
         source,
         hasProjectForRoot: false,
         configuredHarnesses: ["codex"],
+        configuredHookHarnesses: [],
         defaults: {
           worktreeProvider: "noop-worktree",
           terminal: "tmux",
@@ -209,6 +236,30 @@ function setupFacts(repo: string, overrides: Partial<SetupFacts>): SetupFacts {
     worktrunk: { status: "ok", command: "wt" },
     tmux: { status: "ok", command: "tmux" },
     brew: { status: "ok", command: "brew" },
+    launchers: {
+      packageRoot: "/tmp/wosm",
+      wosm: {
+        status: "ok",
+        source: "path",
+        command: "wosm",
+        resolvedPath: "/tmp/bin/wosm",
+        checkoutPath: "/tmp/wosm/bin/wosm",
+      },
+      ingress: {
+        status: "ok",
+        source: "path",
+        command: "wosm-ingress",
+        resolvedPath: "/tmp/bin/wosm-ingress",
+        checkoutPath: "/tmp/wosm/bin/wosm-ingress",
+      },
+      tmuxPopup: {
+        status: "ok",
+        source: "path",
+        command: "wosm-tmux-popup",
+        resolvedPath: "/tmp/bin/wosm-tmux-popup",
+        checkoutPath: "/tmp/wosm/integrations/terminal/tmux/bin/wosm-popup",
+      },
+    },
     git: {
       status: "ok",
       root: repo,
@@ -230,6 +281,11 @@ function setupFacts(repo: string, overrides: Partial<SetupFacts>): SetupFacts {
       status: "missing",
       path: "/tmp/home/.tmux.conf",
       marker: "# >>> wosm popup binding >>>",
+      launcherCommand: "wosm-tmux-popup",
+      runShellCommand:
+        "env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID=#{q:client_name} 'wosm-tmux-popup'",
+      insideTmux: false,
+      liveStatus: "unknown",
       message: "Optional tmux popup binding is not installed.",
     },
     ...overrides,

@@ -56,12 +56,18 @@ export async function checkSetupConfig(
       source,
       hasProjectForRoot: matchedProject !== undefined,
       configuredHarnesses: Object.keys(loaded.config.harness ?? {}),
+      configuredHookHarnesses: Object.entries(loaded.config.harness ?? {})
+        .filter(([, providerConfig]) => providerConfig.installHooks === true)
+        .map(([id]) => id),
       defaults: {
         worktreeProvider: loaded.config.defaults.worktreeProvider,
         terminal: loaded.config.defaults.terminal,
         harness: loaded.config.defaults.harness,
       },
     };
+    if (loaded.config.worktree?.worktrunk?.useLifecycleHooks !== undefined) {
+      fact.worktrunkUseLifecycleHooks = loaded.config.worktree.worktrunk.useLifecycleHooks;
+    }
     if (matchedProject !== undefined) {
       fact.matchedProject = {
         id: matchedProject.id,
