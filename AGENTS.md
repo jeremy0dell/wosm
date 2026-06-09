@@ -36,12 +36,26 @@ Observer/core code should not scrape provider-specific keys out of generic `prov
 
 This convention comes from `docs/planning/completed/code_smell_remediation_p1_p2.md`.
 
-## Runtime Trace Debugging
+## Runtime Debugging
 
 For runtime trace IDs, command IDs, and diagnostic IDs, do not start by grepping checked-in source. Runtime evidence lives under the configured observer state directory, defaulting to `~/.local/state/wosm`.
 
-First use `wosm debug trace <id>` or `wosm debug trace --latest-failure`. If a redacted bundle is needed, use `wosm debug bundle --trace <traceId>`, `wosm debug bundle --command <commandId>`, or `wosm debug bundle --latest-failure`.
+Start with the narrowest matching tool:
 
-If the user says "no action", treat debugging as read-only: do not start/restart observer, retry commands, kill processes, or write a new bundle unless explicitly asked.
+- trace, command, or diagnostic id: `wosm debug trace <id>`
+- no id yet, historical/local symptom: `wosm debug logs [query]`
+- latest known failure: `wosm debug trace --latest-failure`
+- process status only: `wosm observer status`
+- current runtime health: `wosm doctor`
+- current graph truth: `wosm snapshot --json`
+- live event stream: `wosm observe --include-snapshot --duration 3s`, with `--json` for agent-readable output
+- command lifecycle record: `wosm command get <commandId>`
+- redacted shareable evidence: `wosm debug bundle --trace <traceId>`, `wosm debug bundle --command <commandId>`, or `wosm debug bundle --latest-failure`
+- provider hook setup: `wosm hooks doctor worktrunk|codex|cursor|opencode` or `wosm event-hooks doctor`
+- setup/tool readiness: `wosm setup check --json`, `wosm setup system --check`, or `pnpm setup:system:check`
 
-Key runtime files are `logs/observer.jsonl`, `logs/hooks.jsonl`, latest `diagnostics/*/diagnostic-index.json`, `commands.jsonl`, and `errors.jsonl`.
+If the user says "no action", treat debugging as read-only: inspect only existing logs, existing bundles, existing command/error records, and `wosm debug trace` / `wosm debug logs` output. Do not start/restart observer, run commands that call or auto-start the observer, retry commands, kill processes, mutate setup/hooks/config, or write a new bundle unless explicitly asked.
+
+Provider hooks are delivery hints, not runtime truth. Use hook logs and hook doctors to diagnose delivery/setup, then use observer health, reconcile output, and snapshots for current truth.
+
+Key runtime files are `logs/observer.jsonl`, `logs/hooks.jsonl`, `logs/cli.jsonl`, `logs/tui.jsonl`, latest `diagnostics/*/diagnostic-index.json`, `diagnostics/*/commands.jsonl`, `diagnostics/*/errors.jsonl`, and `spool/hooks/`.
