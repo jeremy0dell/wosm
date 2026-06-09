@@ -1,3 +1,4 @@
+import { tmuxPopupBindingBlock } from "./checks/tmuxBinding.js";
 import { selectSetupHarness } from "./harnessSelection.js";
 import type {
   ConfigWritePlan,
@@ -70,6 +71,24 @@ function setupChecks(
         facts.worktrunk.status === "ok"
           ? "Recommended after core setup: wt config shell install."
           : "Skipped until Worktrunk is available.",
+    },
+    {
+      id: "tmux-popup-binding",
+      tier: "recommended",
+      status:
+        facts.tmux.status === "ok"
+          ? facts.tmuxBinding.status === "ok"
+            ? "ok"
+            : "warning"
+          : "skipped",
+      label: "tmux popup binding",
+      message:
+        facts.tmux.status === "ok"
+          ? facts.tmuxBinding.status === "ok"
+            ? "tmux popup binding is installed."
+            : "Recommended: add Ctrl-b Space binding for the WOSM popup dashboard."
+          : "Skipped until tmux is available.",
+      details: { path: facts.tmuxBinding.path },
     },
     {
       id: "doctor",
@@ -226,6 +245,21 @@ function setupActions(
     message: "Run wt config shell install after core setup if you want Worktrunk shell helpers.",
     command: [facts.worktrunk.command, "config", "shell", "install"],
   });
+  if (facts.tmux.status === "ok" && facts.tmuxBinding.status === "missing") {
+    actions.push({
+      id: "tmux-popup-binding",
+      kind: "append-file",
+      tier: "recommended",
+      selected: false,
+      label: "Install tmux popup binding",
+      message: "Append a Ctrl-b Space binding for the WOSM popup dashboard to ~/.tmux.conf.",
+      path: facts.tmuxBinding.path,
+      data: {
+        marker: facts.tmuxBinding.marker,
+        appendedText: tmuxPopupBindingBlock(),
+      },
+    });
+  }
 
   const configActions = configWriteActions(facts, selectedHarness, configWrite);
   actions.push(...configActions);

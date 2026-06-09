@@ -7,6 +7,7 @@ export const setupActionKinds = [
   "brew-install",
   "run-command",
   "write-config",
+  "append-file",
   "mkdir",
   "noop",
 ] as const;
@@ -139,16 +140,31 @@ export type SetupConfigFact =
       message: string;
     };
 
+export type SetupTmuxBindingFact =
+  | {
+      status: "ok";
+      path: string;
+      marker: string;
+    }
+  | {
+      status: "missing";
+      path: string;
+      marker: string;
+      message: string;
+    };
+
 export type SetupFacts = {
   generatedAt: string;
   mode: SetupMode;
   configPath: string;
+  homeDir: string;
   worktrunk: SetupDependencyFact;
   tmux: SetupDependencyFact;
   brew: SetupBrewFact;
   git: SetupGitFact;
   harnesses: readonly SetupHarnessFact[];
   config: SetupConfigFact;
+  tmuxBinding: SetupTmuxBindingFact;
   selectedHarness?: SupportedHarnessId;
   includeSystemActions?: boolean;
 };

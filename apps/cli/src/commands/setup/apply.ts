@@ -79,6 +79,9 @@ async function applyAction(
     case "write-config":
       await writeConfigAction(action, options);
       return;
+    case "append-file":
+      await appendFileAction(action, options);
+      return;
     case "noop":
       return;
   }
@@ -105,13 +108,52 @@ async function writeConfigAction(
   if (path === undefined || content === undefined) {
     throw new Error("write-config action requires path and content.");
   }
+  const backupPath = await writeFileAtomically(path, content, options);
+  if (backupPath !== undefined) {
+    action.data = { ...(action.data ?? {}), backupPath };
+  }
+}
+
+async function appendFileAction(
+  action: SetupAction,
+  options: { fs: SetupApplyFileSystem; now?: () => Date },
+): Promise<void> {
+  const path = action.path;
+  const appendedText = action.data?.appendedText;
+  const marker = action.data?.marker;
+  if (path === undefined || appendedText === undefined) {
+    throw new Error("append-file action requires path and appendedText.");
+  }
+  let existing = "";
+  try {
+    existing = await options.fs.readFile(path);
+  } catch {
+    existing = "";
+  }
+  if (marker !== undefined && existing.includes(marker)) {
+    return;
+  }
+  const nextContent =
+    existing.trim().length === 0
+      ? ensureTrailingNewline(appendedText)
+      : `${existing.trimEnd()}\n\n${ensureTrailingNewline(appendedText)}`;
+  const backupPath = await writeFileAtomically(path, nextContent, options);
+  if (backupPath !== undefined) {
+    action.data = { ...(action.data ?? {}), backupPath };
+  }
+}
+
+async function writeFileAtomically(
+  path: string,
+  content: string,
+  options: { fs: SetupApplyFileSystem; now?: () => Date },
+): Promise<string | undefined> {
+  await options.fs.mkdir(dirname(path), { recursive: true });
   const backupPath = await backupExistingConfig(path, options);
   const tempPath = `${path}.tmp-${process.pid}-${Date.now()}`;
   await options.fs.writeFile(tempPath, content);
   await options.fs.rename(tempPath, path);
-  if (backupPath !== undefined) {
-    action.data = { ...(action.data ?? {}), backupPath };
-  }
+  return backupPath;
 }
 
 async function backupExistingConfig(
@@ -128,6 +170,10 @@ async function backupExistingConfig(
   const backupPath = `${path}.${stamp}.bak`;
   await options.fs.writeFile(backupPath, content);
   return backupPath;
+}
+
+function ensureTrailingNewline(value: string): string {
+  return value.endsWith("\n") ? value : `${value}\n`;
 }
 
 function remainingSkipped(actions: readonly SetupAction[], completedCount: number): SetupAction[] {

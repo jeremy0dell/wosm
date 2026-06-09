@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import type { ExternalCommandRunner } from "@wosm/runtime";
 import type { CliEnv } from "../../../env.js";
 import type { SetupFacts, SetupMode } from "../model.js";
@@ -12,6 +13,7 @@ import { setupEnv } from "./env.js";
 import { type CheckGitOptions, checkSetupGit } from "./git.js";
 import { type CheckHarnessesOptions, checkSetupHarnesses } from "./harnesses.js";
 import { checkSetupTmux } from "./tmux.js";
+import { checkSetupTmuxBinding } from "./tmuxBinding.js";
 import { checkSetupWorktrunk } from "./worktrunk.js";
 
 export type SetupDependencyCheckOptions = {
@@ -36,6 +38,7 @@ export type CollectSetupFactsOptions = {
 export async function collectSetupFacts(options: CollectSetupFactsOptions): Promise<SetupFacts> {
   const env = setupEnv(options.env);
   const cwd = options.cwd ?? process.cwd();
+  const homeDir = options.homeDir ?? env.HOME ?? homedir();
   const generatedAt = (options.now ?? (() => new Date()))().toISOString();
   const commandInput: { runner?: ExternalCommandRunner; env: CliEnv; cwd: string } = { env, cwd };
   if (options.runner !== undefined) commandInput.runner = options.runner;
@@ -59,7 +62,7 @@ export async function collectSetupFacts(options: CollectSetupFactsOptions): Prom
   if (gitRoot !== undefined) setupConfigInput.gitRoot = gitRoot;
   const configPathOptions = setupConfigOptions(setupConfigInput);
   const configPath = setupConfigPath(configPathOptions);
-  const [worktrunk, tmux, brew, harnesses, config] = await Promise.all([
+  const [worktrunk, tmux, brew, harnesses, config, tmuxBinding] = await Promise.all([
     checkSetupWorktrunk(dependencyOptions),
     checkSetupTmux(dependencyOptions),
     checkBrewDependency({
@@ -68,18 +71,24 @@ export async function collectSetupFacts(options: CollectSetupFactsOptions): Prom
     }),
     checkSetupHarnesses(commandOptions),
     checkSetupConfig({ ...configPathOptions, configPath }),
+    checkSetupTmuxBinding({
+      homeDir,
+      ...(options.fs === undefined ? {} : { fs: options.fs }),
+    }),
   ]);
 
   return {
     generatedAt,
     mode: options.mode,
     configPath,
+    homeDir,
     worktrunk,
     tmux,
     brew,
     git,
     harnesses,
     config,
+    tmuxBinding,
   };
 }
 
