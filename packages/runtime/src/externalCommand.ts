@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access as defaultAccess, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
 import { runRuntimeBoundary, runRuntimeBoundaryWithTimeout } from "./boundary.js";
 import {
@@ -41,6 +41,11 @@ export type ExternalCommandInput = {
   signal?: AbortSignal;
   allowedExitCodes?: number[];
   stdio?: "pipe" | "inherit";
+};
+
+export type ResolveExecutablePathOptions = {
+  pathEnv?: string;
+  access?: (path: string) => Promise<void>;
 };
 
 type ExternalCommandErrorLike = {
@@ -229,6 +234,25 @@ export function createFakeExternalCommandRunner(
   return async (input) => handler(input);
 }
 
+export async function resolveExecutablePath(
+  command: string,
+  options: ResolveExecutablePathOptions = {},
+): Promise<string | undefined> {
+  const access = options.access ?? defaultAccess;
+  if (isPathLikeCommand(command)) {
+    return (await canAccess(command, access)) ? command : undefined;
+  }
+
+  const pathEnv = options.pathEnv ?? process.env.PATH ?? "";
+  for (const directory of pathEnv.split(delimiter).filter((part) => part.length > 0)) {
+    const candidate = join(directory, command);
+    if (await canAccess(candidate, access)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 export function externalCommandErrorFromUnknown(
   error: unknown,
   input: Pick<ExternalCommandInput, "command" | "args" | "cwd">,
@@ -411,6 +435,19 @@ function isSecretFlag(value: string): boolean {
 
 function isSecretAssignmentKey(value: string): boolean {
   return secretAssignmentKeyPattern.test(value);
+}
+
+async function canAccess(path: string, access: (path: string) => Promise<void>): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isPathLikeCommand(command: string): boolean {
+  return command.includes("/") || command.includes("\\");
 }
 
 function linkAbortSignals(...signals: Array<AbortSignal | undefined>): {

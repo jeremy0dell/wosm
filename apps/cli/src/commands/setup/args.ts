@@ -7,7 +7,6 @@ export type SetupArgs = {
   dryRun: boolean;
   check: boolean;
   noBrew: boolean;
-  skipShellIntegration: boolean;
   help: boolean;
 };
 
@@ -22,7 +21,6 @@ export function parseSetupArgs(argv: readonly string[]): SetupArgs {
     dryRun: false,
     check: false,
     noBrew: false,
-    skipShellIntegration: false,
     help: false,
   };
 
@@ -43,9 +41,6 @@ export function parseSetupArgs(argv: readonly string[]): SetupArgs {
         break;
       case "--no-brew":
         parsed.noBrew = true;
-        break;
-      case "--skip-shell-integration":
-        parsed.skipShellIntegration = true;
         break;
       case "--help":
       case "-h":

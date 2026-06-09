@@ -166,7 +166,6 @@ export type SetupFacts = {
   config: SetupConfigFact;
   tmuxBinding: SetupTmuxBindingFact;
   selectedHarness?: SupportedHarnessId;
-  includeSystemActions?: boolean;
 };
 
 export type ConfigWritePlan =
@@ -192,13 +191,3 @@ export type ConfigWritePlan =
       path: string;
       reason: string;
     };
-
-export function okDependency(command: string, version?: string): SetupDependencyFact {
-  const fact: SetupDependencyFact = { status: "ok", command };
-  if (version !== undefined) fact.version = version;
-  return fact;
-}
-
-export function missingDependency(command: string, message: string): SetupDependencyFact {
-  return { status: "missing", command, message };
-}

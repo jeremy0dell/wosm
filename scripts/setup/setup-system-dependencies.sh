@@ -15,9 +15,6 @@ while [[ $# -gt 0 ]]; do
     --no-brew)
       args+=(--no-brew)
       ;;
-    --skip-shell-integration)
-      args+=(--skip-shell-integration)
-      ;;
     -h|--help)
       "$repo_root/bin/wosm" setup system --help
       exit 0
