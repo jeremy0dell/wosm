@@ -169,5 +169,21 @@ export function observerEventHookMatches(hook: ObserverEventHookConfig, event: W
       return false;
     }
   }
+  if (hook.filter.changeSource !== undefined) {
+    if (
+      event.type !== "worktree.agentStateChanged" ||
+      event.changeSource !== hook.filter.changeSource
+    ) {
+      return false;
+    }
+  }
+  if (hook.filter.harnessEventType !== undefined) {
+    if (
+      event.type !== "worktree.agentStateChanged" ||
+      event.harnessEventType !== hook.filter.harnessEventType
+    ) {
+      return false;
+    }
+  }
   return true;
 }

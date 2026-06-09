@@ -41,6 +41,9 @@ describe("live harness status projection", () => {
       expect.objectContaining({
         type: "worktree.agentStateChanged",
         worktreeId: "wt_web_task",
+        changeSource: "harness_event_report",
+        harnessEventType: "PreToolUse",
+        reportId: "report_codex_1",
         agent: expect.objectContaining({ state: "working" }),
       }),
       expect.objectContaining({
@@ -139,6 +142,32 @@ describe("live harness status projection", () => {
     expect(unknown.projected).toBe(false);
     expect(mismatchedRun.projected).toBe(false);
     expect(ambiguous.projected).toBe(false);
+  });
+
+  it("updates same-state status refreshes without emitting state-change events", () => {
+    const result = projectHarnessEventReportOntoSnapshot({
+      snapshot: snapshotFor({
+        state: "idle",
+        confidence: "high",
+        now: "2026-05-21T12:00:00.000Z",
+      }),
+      report: report({
+        status: status("idle", "high", "Codex turn completed.", "2026-05-21T12:00:02.000Z"),
+        correlation: {
+          harnessRunId: "run_web_task",
+        },
+      }),
+      projectedAt: "2026-05-21T12:00:02.000Z",
+    });
+
+    expect(result.projected).toBe(true);
+    expect(result.snapshot.rows[0]?.agent).toMatchObject({
+      state: "idle",
+      updatedAt: "2026-05-21T12:00:02.000Z",
+    });
+    expect(result.events).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "worktree.agentStateChanged" })]),
+    );
   });
 
   it("does not overwrite a newer high-confidence exited state with older hook activity", () => {

@@ -52,6 +52,7 @@ export function projectHarnessEventReportOntoSnapshot(input: {
 
   const nextAgent = projectAgent(currentAgent, status);
   const nextRow = projectRow(currentRow, nextAgent, status);
+  const agentStateValueChanged = currentAgent.state !== nextAgent.state;
   const rowChanged = !agentsEqual(currentAgent, nextAgent) || !displayEqual(currentRow, nextRow);
   const sessionProjection = projectSession(input.snapshot.sessions, nextAgent, status);
   const snapshotChanged = rowChanged || sessionProjection.changed;
@@ -69,11 +70,14 @@ export function projectHarnessEventReportOntoSnapshot(input: {
   });
 
   const events: WosmEvent[] = [];
-  if (rowChanged) {
+  if (agentStateValueChanged) {
     events.push({
       type: "worktree.agentStateChanged",
       worktreeId: nextRow.id,
       agent: nextAgent,
+      changeSource: "harness_event_report",
+      harnessEventType: input.report.eventType,
+      reportId: input.report.reportId,
     });
   }
   if (sessionProjection.event !== undefined) {

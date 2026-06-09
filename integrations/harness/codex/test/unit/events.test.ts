@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { compactCodexHookPayload } from "../../src/compaction";
 import { CodexHarnessProviderError } from "../../src/errors";
 import {
+  codexHookPayloadReportId,
   codexHookPayloadToHarnessEventReport,
   normalizeCodexRawEvent,
   parseCodexHookEvent,
@@ -438,6 +439,9 @@ describe("Codex hook event parsing", () => {
     });
     expect(JSON.stringify(report)).not.toContain(rawOutput);
     expect(JSON.stringify(report)).not.toContain("pnpm test");
+    expect(codexHookPayloadReportId(compacted.payload)).toBe(
+      "codex:codex_session_123:PostToolUse:turn_1:tool%3Acall_test",
+    );
   });
 
   it("maps Stop to idle even when stop_hook_active is true", () => {

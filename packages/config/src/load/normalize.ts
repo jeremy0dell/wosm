@@ -149,6 +149,8 @@ function normalizeEventHookConfig(value: unknown): unknown {
 function normalizeEventHookFilter(value: unknown): unknown {
   return normalizeObject(value, {
     agent_state: "agentState",
+    change_source: "changeSource",
+    harness_event_type: "harnessEventType",
   });
 }
 

@@ -13,6 +13,9 @@ import { ProviderHealthSchema } from "./providers.js";
 import { nonEmptyStringSchema } from "./shared.js";
 import { SessionViewSchema, WorktreeAgentSchema, WorktreeRowSchema } from "./snapshot.js";
 
+export const WorktreeAgentStateChangeSourceSchema = z.enum(["harness_event_report", "reconcile"]);
+export type WorktreeAgentStateChangeSource = z.infer<typeof WorktreeAgentStateChangeSourceSchema>;
+
 export const WosmEventTypeSchema = z.enum([
   "observer.started",
   "observer.reconciled",
@@ -119,6 +122,9 @@ export const WorktreeAgentStateChangedEventSchema = z
     type: z.literal("worktree.agentStateChanged"),
     worktreeId: WorktreeIdSchema,
     agent: WorktreeAgentSchema.optional(),
+    changeSource: WorktreeAgentStateChangeSourceSchema.optional(),
+    harnessEventType: nonEmptyStringSchema.optional(),
+    reportId: nonEmptyStringSchema.optional(),
   })
   .strict();
 
