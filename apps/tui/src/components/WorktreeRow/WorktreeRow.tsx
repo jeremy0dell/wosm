@@ -4,6 +4,7 @@ import { Link } from "../Link/Link.js";
 import { Throbber } from "../Throbber/Throbber.js";
 import {
   layoutWorktreeRowGrid,
+  ROW_COLOR_PURPLE,
   type RowColor,
   type RowGridCell,
   type RowGridCellImportance,
@@ -183,7 +184,7 @@ type MetadataSegment = {
   url?: string;
 };
 
-type MetadataColor = "green" | "red" | "blue" | "yellow" | "gray";
+type MetadataColor = RowColor;
 
 function Segments({ segments }: { segments: readonly RowSegment[] }) {
   return (
@@ -243,7 +244,7 @@ export function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
   segments.push({
     text: `#${pr.number}`,
     stale: pr.stale === true,
-    color: "blue",
+    color: prMetadataColor(pr),
     underline: true,
     ...(pr.url === undefined ? {} : { url: pr.url }),
   });
@@ -251,7 +252,7 @@ export function metadataSegments(row: WorktreeRowModel): MetadataSegment[] {
     segments.push({
       text: checksStateGlyph(checks),
       stale: checks.stale === true,
-      color: checksStateColor(checks),
+      color: checksStateColor(checks, pr),
     });
   }
   return segments;
@@ -305,9 +306,15 @@ function checksStateGlyph(checks: NonNullable<WorktreeRowModel["worktree"]["chec
   return "-";
 }
 
+function prMetadataColor(pr: NonNullable<WorktreeRowModel["worktree"]["pr"]>): MetadataColor {
+  return pr.state === "merged" ? ROW_COLOR_PURPLE : "blue";
+}
+
 function checksStateColor(
   checks: NonNullable<WorktreeRowModel["worktree"]["checks"]>,
+  pr: NonNullable<WorktreeRowModel["worktree"]["pr"]>,
 ): MetadataColor {
+  if (pr.state === "merged" && checks.state === "pass") return ROW_COLOR_PURPLE;
   if (checks.state === "pass") return "green";
   if (checks.state === "fail" || checks.state === "cancelled") return "red";
   if (checks.state === "running") return "yellow";

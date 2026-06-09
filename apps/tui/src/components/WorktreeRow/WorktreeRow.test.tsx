@@ -7,6 +7,7 @@ import {
   cellWidth,
   layoutWorktreeRow,
   layoutWorktreeRowGrid,
+  ROW_COLOR_PURPLE,
   type RowGridRowInput,
   type RowSegment,
   segmentsWidth,
@@ -122,6 +123,28 @@ describe("WorktreeRow", () => {
         url: "https://github.com/example/web/pull/123",
       },
       { text: "✓", stale: true, color: "green" },
+    ]);
+  });
+
+  it("colors merged PR links and passing checks purple", () => {
+    const candidate = withWorktree(makeRow("working", "merged-pr"), {
+      pr: {
+        number: 456,
+        url: "https://github.com/example/web/pull/456",
+        state: "merged",
+      },
+      checks: checksSummary("pass"),
+    });
+
+    expect(metadataSegments(candidate)).toEqual([
+      {
+        text: "#456",
+        stale: false,
+        color: ROW_COLOR_PURPLE,
+        underline: true,
+        url: "https://github.com/example/web/pull/456",
+      },
+      { text: "✓", stale: false, color: ROW_COLOR_PURPLE },
     ]);
   });
 
@@ -301,6 +324,25 @@ describe("WorktreeRow", () => {
               url: "https://github.com/example/web/pull/123",
             }),
             textSegment("✓", { color: "green" }),
+          ],
+        },
+      }),
+      worktreeStyleRowGridInput({
+        id: "merged-linked-metadata",
+        slot: "b",
+        marker: { kind: "text", text: "○" },
+        title: "merged-pr",
+        agent: "codex",
+        activity: "idle",
+        metadataGroups: {
+          diff: [],
+          pr: [
+            textSegment("#456", {
+              color: ROW_COLOR_PURPLE,
+              underline: true,
+              url: "https://github.com/example/web/pull/456",
+            }),
+            textSegment("✓", { color: ROW_COLOR_PURPLE }),
           ],
         },
       }),
