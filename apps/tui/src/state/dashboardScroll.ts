@@ -1,6 +1,6 @@
 import { clampDashboardScrollOffset, dashboardBodyRows } from "../components/Dashboard/layout.js";
 import { selectDashboardItems } from "../selectors/dashboardViewport.js";
-import type { TuiState } from "./screen.js";
+import type { TuiState } from "./types.js";
 
 export function scrollDashboard(state: TuiState, delta: number): TuiState {
   return clampDashboardStateScroll({

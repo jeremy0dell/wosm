@@ -6,7 +6,7 @@ import type {
   PendingRemoveWorktreeRow,
   PendingStartAgentRow,
 } from "../state/localRows.js";
-import type { TuiViewState } from "../state/screen.js";
+import type { TuiViewState } from "../state/types.js";
 import {
   type KeyedChoice,
   keyChoices,

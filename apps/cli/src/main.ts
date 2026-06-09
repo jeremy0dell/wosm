@@ -34,6 +34,11 @@ import {
   type PopupCommandOptions,
   runPopupCommand,
 } from "./commands/popup.js";
+import {
+  type ProjectCommandOptions,
+  projectCommandExitCode,
+  runProjectCommand,
+} from "./commands/project.js";
 import { runReconcileCommand } from "./commands/reconcile.js";
 import { runSetupCommand, type SetupCommandDeps } from "./commands/setup/index.js";
 import { runSnapshotCommand } from "./commands/snapshot.js";
@@ -67,6 +72,7 @@ const configBackedCommands = [
   "observer",
   "observe",
   "popup",
+  "project",
   "reconcile",
   "snapshot",
   "tui",
@@ -268,6 +274,12 @@ export async function runCli(
       options.observerDeps,
     );
     return { code: 0, output: result };
+  }
+
+  if (command === "project") {
+    const projectOptions: ProjectCommandOptions = loadedCommandOptions(config, resolvedConfigPath);
+    const result = await runProjectCommand(commandArgs, projectOptions, options.observerDeps);
+    return { code: projectCommandExitCode(result), output: result };
   }
 
   if (command === "worktrunk" && commandArgs[0] === "hooks") {

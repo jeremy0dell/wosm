@@ -49,6 +49,8 @@ export type ObserverCoreHealth = {
 export type ObserverCore = {
   reconcile(reason?: string): Promise<WosmSnapshot>;
   projectHarnessEventStatus(report: HarnessEventReport): Promise<StatusProjectionResult>;
+  updateConfig(config: WosmConfig): void;
+  getProjects(): readonly ProviderProjectConfig[];
   getSnapshot(): WosmSnapshot;
   getHealth(): ObserverCoreHealth;
 };
@@ -74,8 +76,8 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
   const version = input.version ?? "0.0.0";
   const providerTimeoutMs = input.providerTimeoutMs ?? 5000;
   const providerReadRetries = input.providerReadRetries ?? 1;
-  const retentionDays = providerObservationRetentionDays(input.config.observability?.retention);
-  const projects = providerProjectsFromConfig(input.config);
+  let config = input.config;
+  let projects = providerProjectsFromConfig(config);
   let reconcileChain: Promise<void> = Promise.resolve();
   let providerHealth: Record<string, ProviderHealth> = {};
   let lastReconcile: ReconcileTiming | undefined;
@@ -108,7 +110,9 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
           providers: input.providers,
           read,
           ...(input.persistence === undefined ? {} : { persistence: input.persistence }),
-          providerObservationRetentionDays: retentionDays,
+          providerObservationRetentionDays: providerObservationRetentionDays(
+            config.observability?.retention,
+          ),
           ...(input.featureFlags === undefined
             ? {}
             : { featureFlags: input.featureFlags.clientSnapshot() }),
@@ -135,6 +139,11 @@ export function createObserverCore(input: CreateObserverCoreInput): ObserverCore
       }
       return result;
     },
+    updateConfig: (nextConfig) => {
+      config = nextConfig;
+      projects = providerProjectsFromConfig(nextConfig);
+    },
+    getProjects: () => projects,
     getSnapshot: () => snapshot,
     getHealth: () => ({
       status: snapshot.observer.healthy ? "healthy" : "degraded",
