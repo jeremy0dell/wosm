@@ -1,3 +1,4 @@
+import { selectSetupHarness } from "./harnessSelection.js";
 import type {
   ConfigWritePlan,
   SetupAction,
@@ -7,14 +8,14 @@ import type {
   SetupPlan,
   SupportedHarnessId,
 } from "./model.js";
-import { SetupPlanSchema, supportedHarnessIds } from "./model.js";
+import { SetupPlanSchema } from "./model.js";
 
 export type BuildSetupPlanOptions = {
   configWrite?: ConfigWritePlan;
 };
 
 export function buildSetupPlan(facts: SetupFacts, options: BuildSetupPlanOptions = {}): SetupPlan {
-  const selectedHarness = selectHarness(facts.harnesses, facts.selectedHarness);
+  const selectedHarness = selectSetupHarness(facts.harnesses, facts.selectedHarness);
   const checks = setupChecks(facts, selectedHarness?.id);
   const actions = setupActions(facts, selectedHarness, options.configWrite);
   const requiredMissing = checks.filter(
@@ -38,22 +39,6 @@ export function buildSetupPlan(facts: SetupFacts, options: BuildSetupPlanOptions
     nextSteps: nextSteps(requiredMissing, facts),
   };
   return SetupPlanSchema.parse(plan);
-}
-
-export function selectHarness(
-  harnesses: readonly SetupHarnessFact[],
-  selectedHarness?: SupportedHarnessId,
-): SetupHarnessFact | undefined {
-  if (selectedHarness !== undefined) {
-    return harnesses.find((harness) => harness.id === selectedHarness && harness.status === "ok");
-  }
-  for (const id of supportedHarnessIds) {
-    const harness = harnesses.find((candidate) => candidate.id === id && candidate.status === "ok");
-    if (harness !== undefined) {
-      return harness;
-    }
-  }
-  return undefined;
 }
 
 function setupChecks(

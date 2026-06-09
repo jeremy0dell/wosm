@@ -1,6 +1,7 @@
 import { basename } from "node:path";
 import { loadConfigFromToml } from "@wosm/config";
 import { pathIsSame, stableName } from "@wosm/runtime";
+import { selectSetupHarness } from "./harnessSelection.js";
 import type {
   ConfigWritePlan,
   SetupConfigFact,
@@ -8,7 +9,6 @@ import type {
   SetupGitFact,
   SetupHarnessFact,
 } from "./model.js";
-import { selectHarness } from "./planner.js";
 
 export type PlanSetupConfigWriteOptions = {
   selectedHarness?: SetupHarnessFact;
@@ -19,7 +19,7 @@ export async function planSetupConfigWrite(
   options: PlanSetupConfigWriteOptions = {},
 ): Promise<ConfigWritePlan> {
   const selectedHarness =
-    options.selectedHarness ?? selectHarness(facts.harnesses, facts.selectedHarness);
+    options.selectedHarness ?? selectSetupHarness(facts.harnesses, facts.selectedHarness);
   if (selectedHarness === undefined) {
     return {
       operation: "blocked",
