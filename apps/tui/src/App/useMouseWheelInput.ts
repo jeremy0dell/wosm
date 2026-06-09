@@ -7,26 +7,43 @@ export const SGR_MOUSE_DISABLE =
 
 export type MouseScrollDirection = "up" | "down";
 
-export function useMouseWheelInput(onScroll: (direction: MouseScrollDirection) => void): void {
+export type MouseWheelInputOptions = {
+  enabled?: boolean;
+};
+
+export function useMouseWheelInput(
+  onScroll: (direction: MouseScrollDirection) => void,
+  options: MouseWheelInputOptions = {},
+): void {
   const { stdout, write } = useStdout();
+  const enabled = options.enabled ?? true;
 
   useEffect(() => {
     if (!stdout.isTTY) {
       return;
     }
-    write(SGR_MOUSE_DISABLE);
-    write(SGR_MOUSE_ENABLE);
+    write(mouseTrackingSetupSequence(enabled));
+    if (!enabled) {
+      return;
+    }
     return () => {
       write(SGR_MOUSE_DISABLE);
     };
-  }, [stdout, write]);
+  }, [enabled, stdout, write]);
 
   useInput((input) => {
+    if (!enabled) {
+      return;
+    }
     const direction = parseSgrMouseScroll(input);
     if (direction !== undefined) {
       onScroll(direction);
     }
   });
+}
+
+export function mouseTrackingSetupSequence(enabled: boolean): string {
+  return enabled ? `${SGR_MOUSE_DISABLE}${SGR_MOUSE_ENABLE}` : SGR_MOUSE_DISABLE;
 }
 
 export function parseSgrMouseScroll(input: string): MouseScrollDirection | undefined {

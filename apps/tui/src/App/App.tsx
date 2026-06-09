@@ -115,9 +115,12 @@ export function App({
     }
     store.getState().handleKey(normalizeTuiKey(input, key));
   });
-  useMouseWheelInput((direction) => {
-    store.getState().handleKey({ input: "", mouseScroll: direction });
-  });
+  useMouseWheelInput(
+    (direction) => {
+      store.getState().handleKey({ input: "", mouseScroll: direction });
+    },
+    { enabled: !persistentPopup },
+  );
 
   if (loading || snapshot === undefined) {
     return (
