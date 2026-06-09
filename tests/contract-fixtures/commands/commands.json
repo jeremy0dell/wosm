@@ -112,6 +112,21 @@
       "reason": "contract-fixture"
     }
   },
+  "projectAdd": {
+    "type": "project.add",
+    "payload": {
+      "path": "/tmp/wosm/web",
+      "id": "web",
+      "label": "web",
+      "allowNonGit": false
+    }
+  },
+  "projectRemove": {
+    "type": "project.remove",
+    "payload": {
+      "projectId": "web"
+    }
+  },
   "hooksInstall": {
     "type": "hooks.install",
     "payload": {

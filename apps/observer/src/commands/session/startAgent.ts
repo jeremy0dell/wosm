@@ -33,7 +33,7 @@ import {
 } from "./shared.js";
 
 export type CreateSessionStartAgentHandlerOptions = {
-  projects: readonly ProviderProjectConfig[];
+  getProjects: () => readonly ProviderProjectConfig[];
   providers: ProviderRegistry;
   core: ObserverCore;
   persistence: ObserverPersistence;
@@ -57,7 +57,7 @@ export function createSessionStartAgentHandler(
     throwIfAborted(context.signal);
 
     const payload = context.command.payload;
-    const project = findProjectOrThrow(options.projects, payload.projectId);
+    const project = findProjectOrThrow(options.getProjects(), payload.projectId);
     const terminalProviderId = payload.terminal?.provider ?? project.defaults.terminal;
     resolveTerminalProviderOrThrow(options.providers, terminalProviderId);
     const snapshot = options.core.getSnapshot();

@@ -52,14 +52,22 @@ export function Dashboard({
       />
       <DashboardDivider columns={contentColumns} />
       <ScrollIndicatorRow direction="above" hiddenCount={viewport.hiddenAbove} />
-      <DashboardBody
-        columns={contentColumns}
-        items={viewport.visibleItems}
-        choices={viewport.displayRowChoices}
-      />
+      {snapshot.projects.length === 0 ? (
+        <FirstRunBody columns={contentColumns} />
+      ) : (
+        <DashboardBody
+          columns={contentColumns}
+          items={viewport.visibleItems}
+          choices={viewport.displayRowChoices}
+        />
+      )}
       <ScrollIndicatorRow direction="below" hiddenCount={viewport.hiddenBelow} />
       <DashboardDivider columns={contentColumns} />
-      <DashboardFooter columns={contentColumns} quitHint={quitHint} />
+      <DashboardFooter
+        columns={contentColumns}
+        quitHint={quitHint}
+        firstRun={snapshot.projects.length === 0}
+      />
     </DashboardLayout>
   );
 }
@@ -142,6 +150,14 @@ function ScrollIndicatorRow({
   return (
     <Box flexShrink={0} height={1}>
       {hiddenCount > 0 ? <Text color="gray">{`${marker} ${hiddenCount} hidden`}</Text> : null}
+    </Box>
+  );
+}
+
+function FirstRunBody({ columns }: { columns: number }) {
+  return (
+    <Box flexDirection="column" flexGrow={1} flexShrink={1} overflowY="hidden">
+      <Text>{truncateCells("No projects configured yet.", columns)}</Text>
     </Box>
   );
 }
@@ -285,9 +301,19 @@ function EmptyProjectRow({ columns, project }: { columns: number; project: Proje
   );
 }
 
-function DashboardFooter({ columns, quitHint }: { columns: number; quitHint: string }) {
-  const full = `N:new R:rename Z:refresh 1-9/a-z:open X:remove /:search C:collapse H:help ${quitHint}`;
-  const compactClose = `Q/esc:close N:new Z:refresh 1-9/a-z:open X:remove /:search H:help`;
+function DashboardFooter({
+  columns,
+  quitHint,
+  firstRun = false,
+}: {
+  columns: number;
+  quitHint: string;
+  firstRun?: boolean;
+}) {
+  const full = firstRun
+    ? `A:Add Project ${quitHint}`
+    : `N:new A:add R:rename Z:refresh 1-9/a-z:open X:rm /:search C:fold H:help ${quitHint}`;
+  const compactClose = `Q/esc:close N:new A:add Z:refresh 1-9/a-z:open X:remove /:search H:help`;
   const label = quitHint === "Q/esc:close" && full.length > columns ? compactClose : full;
   return (
     <Box flexShrink={0}>

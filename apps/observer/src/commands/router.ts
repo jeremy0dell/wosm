@@ -5,6 +5,7 @@ import type { ObserverPersistence } from "../persistence/index.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverCore } from "../reconcile/core.js";
 import type { ObserverEventBus } from "../runtime/eventBus.js";
+import { createProjectAddHandler, createProjectRemoveHandler } from "./project.js";
 import type { CommandQueue } from "./queue.js";
 import { createObserverReconcileHandler } from "./reconcile.js";
 import { createSessionCloseHandler } from "./session/close.js";
@@ -21,17 +22,21 @@ export type RegisterObserverCommandHandlersOptions = {
   core: ObserverCore;
   providers: ProviderRegistry;
   projects: readonly ProviderProjectConfig[];
+  getProjects?: (() => readonly ProviderProjectConfig[]) | undefined;
   persistence: ObserverPersistence;
   eventBus?: ObserverEventBus | undefined;
   clock?: RuntimeClock | undefined;
   logger?: JsonlLogger | undefined;
   idFactory?: Partial<SessionCommandIdFactory> | undefined;
   commandTimeoutMs?: number | undefined;
+  configPath?: string | undefined;
+  homeDir?: string | undefined;
 };
 
 export function registerObserverCommandHandlers(
   options: RegisterObserverCommandHandlersOptions,
 ): void {
+  const getProjects = options.getProjects ?? (() => options.projects);
   options.queue.registerHandler(
     "observer.reconcile",
     createObserverReconcileHandler({
@@ -62,7 +67,7 @@ export function registerObserverCommandHandlers(
   options.queue.registerHandler(
     "session.create",
     createSessionCreateHandler({
-      projects: options.projects,
+      getProjects,
       providers: options.providers,
       core: options.core,
       persistence: options.persistence,
@@ -76,7 +81,7 @@ export function registerObserverCommandHandlers(
   options.queue.registerHandler(
     "session.startAgent",
     createSessionStartAgentHandler({
-      projects: options.projects,
+      getProjects,
       providers: options.providers,
       core: options.core,
       persistence: options.persistence,
@@ -90,7 +95,6 @@ export function registerObserverCommandHandlers(
   options.queue.registerHandler(
     "session.close",
     createSessionCloseHandler({
-      projects: options.projects,
       providers: options.providers,
       core: options.core,
       persistence: options.persistence,
@@ -102,7 +106,6 @@ export function registerObserverCommandHandlers(
   options.queue.registerHandler(
     "session.remove",
     createSessionRemoveHandler({
-      projects: options.projects,
       providers: options.providers,
       core: options.core,
       persistence: options.persistence,
@@ -131,6 +134,26 @@ export function registerObserverCommandHandlers(
       commandTimeoutMs: options.commandTimeoutMs,
     }),
   );
+  options.queue.registerHandler(
+    "project.add",
+    createProjectAddHandler({
+      core: options.core,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
+      ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
+    }),
+  );
+  options.queue.registerHandler(
+    "project.remove",
+    createProjectRemoveHandler({
+      core: options.core,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      ...(options.configPath === undefined ? {} : { configPath: options.configPath }),
+      ...(options.homeDir === undefined ? {} : { homeDir: options.homeDir }),
+    }),
+  );
 
   void options.logger?.info("Observer command handlers registered.", {
     commandTypes: [
@@ -143,6 +166,8 @@ export function registerObserverCommandHandlers(
       "session.remove",
       "session.rename",
       "worktree.remove",
+      "project.add",
+      "project.remove",
     ],
   });
 }

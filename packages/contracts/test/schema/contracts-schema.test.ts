@@ -625,6 +625,8 @@ describe("contract schemas", () => {
     expect(commandTypes).toEqual([
       "hooks.install",
       "observer.reconcile",
+      "project.add",
+      "project.remove",
       "session.close",
       "session.create",
       "session.remove",

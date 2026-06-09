@@ -1,7 +1,7 @@
 import { Text } from "ink";
 import { memo, useCallback, useSyncExternalStore } from "react";
 
-export type ThrobberVariant = "circle" | "braille" | "attention";
+export type ThrobberVariant = "circle" | "braille" | "attention" | "dots";
 
 export type ThrobberProps = {
   variant: ThrobberVariant;
@@ -22,6 +22,7 @@ const BRAILLE_FRAMES = [
   "⠇",
   "⠏",
 ] as const satisfies NonEmptyList<string>;
+const DOT_FRAMES = [".  ", ".. ", "..."] as const satisfies NonEmptyList<string>;
 const ATTENTION_STYLES = [
   { color: "red", dimColor: true },
   { color: "red" },
@@ -37,7 +38,8 @@ export const Throbber = memo(function Throbber({ variant }: ThrobberProps) {
     return <Text {...style}>!</Text>;
   }
 
-  const frames = variant === "circle" ? CIRCLE_FRAMES : BRAILLE_FRAMES;
+  const frames =
+    variant === "dots" ? DOT_FRAMES : variant === "circle" ? CIRCLE_FRAMES : BRAILLE_FRAMES;
   return <Text>{cycle(frames, frameTick)}</Text>;
 });
 
