@@ -1,6 +1,7 @@
 import { applySetupPlan } from "../apply.js";
 import { planSetupConfigWrite } from "../configWriter.js";
 import {
+  actionById,
   applyOptions,
   collectForCommand,
   coreReadyForConfigWrite,
@@ -90,6 +91,17 @@ export async function runGuidedSetup(
     if (accepted) {
       await applySetupPlan(
         { ...plan, actions: [{ ...shellIntegration, selected: true }] },
+        applyOptions(deps, {}),
+      );
+    }
+  }
+
+  const tmuxPopupBinding = actionById(plan, "tmux-popup-binding");
+  if (tmuxPopupBinding !== undefined) {
+    const accepted = await prompt.confirm("Install tmux popup binding?");
+    if (accepted) {
+      await applySetupPlan(
+        { ...plan, actions: [{ ...tmuxPopupBinding, selected: true }] },
         applyOptions(deps, {}),
       );
     }

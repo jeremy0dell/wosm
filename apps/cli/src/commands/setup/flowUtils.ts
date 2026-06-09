@@ -63,6 +63,10 @@ export function isConfigAction(action: SetupAction): boolean {
   return action.kind === "mkdir" || action.kind === "write-config";
 }
 
+export function actionById(plan: SetupPlan, id: string): SetupAction | undefined {
+  return plan.actions.find((action) => action.id === id);
+}
+
 export function markRequiredIncomplete(plan: SetupPlan): SetupPlan {
   return {
     ...plan,

@@ -24,6 +24,7 @@ describe("setup planner", () => {
       ["harness", "ok"],
       ["config", "ok"],
       ["worktrunk-shell-integration", "warning"],
+      ["tmux-popup-binding", "warning"],
       ["doctor", "warning"],
     ]);
   });
@@ -124,6 +125,20 @@ describe("setup planner", () => {
     ]);
   });
 
+  it("plans the optional tmux popup binding when it is missing", () => {
+    const plan = buildSetupPlan(facts());
+
+    expect(plan.actions.find((action) => action.id === "tmux-popup-binding")).toMatchObject({
+      kind: "append-file",
+      tier: "recommended",
+      selected: false,
+      path: "/tmp/home/.tmux.conf",
+      data: {
+        marker: "# >>> wosm popup binding >>>",
+      },
+    });
+  });
+
   it("plans a safe append for an existing config", () => {
     const plan = buildSetupPlan(facts(), {
       configWrite: {
@@ -165,6 +180,7 @@ function facts(overrides: Partial<SetupFacts> = {}): SetupFacts {
     generatedAt: "2026-06-08T12:00:00.000Z",
     mode: "plan",
     configPath: "/tmp/config.toml",
+    homeDir: "/tmp/home",
     worktrunk: {
       status: "ok",
       command: "wt",
@@ -193,6 +209,12 @@ function facts(overrides: Partial<SetupFacts> = {}): SetupFacts {
       source: "schema_version = 1\n",
       hasProjectForRoot: true,
       configuredHarnesses: ["codex"],
+    },
+    tmuxBinding: {
+      status: "missing",
+      path: "/tmp/home/.tmux.conf",
+      marker: "# >>> wosm popup binding >>>",
+      message: "Optional tmux popup binding is not installed.",
     },
     ...overrides,
   };

@@ -15,7 +15,21 @@ describe("setup model", () => {
           message: "Worktrunk is available.",
         },
       ],
-      actions: [],
+      actions: [
+        {
+          id: "tmux-popup-binding",
+          kind: "append-file",
+          tier: "recommended",
+          selected: false,
+          label: "Install tmux popup binding",
+          message: "Append binding.",
+          path: "/tmp/home/.tmux.conf",
+          data: {
+            marker: "# >>> wosm popup binding >>>",
+            appendedText: "# >>> wosm popup binding >>>\n",
+          },
+        },
+      ],
       summary: {
         requiredOk: true,
         requiredMissing: 0,

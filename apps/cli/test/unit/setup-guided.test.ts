@@ -31,7 +31,7 @@ describe("guided setup command", () => {
         }),
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [true, false] }),
+        prompt: prompt({ confirms: [true, false, false] }),
         writeStdout: (chunk) => chunks.push(chunk),
         now: () => new Date("2026-06-08T12:00:00.000Z"),
       },
@@ -97,12 +97,43 @@ describe("guided setup command", () => {
         }),
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [true, false], selects: ["opencode"] }),
+        prompt: prompt({ confirms: [true, false, false], selects: ["opencode"] }),
         writeStdout: () => undefined,
       },
     );
 
     expect(fs.files[join(root, "home/.config/wosm/config.toml")]).toContain("[harness.opencode]");
+  });
+
+  it("installs the optional tmux popup binding when accepted", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const fs = fakeFs({});
+
+    const result = await runSetupCommand(
+      [],
+      {},
+      {
+        cwd: repo,
+        homeDir: join(root, "home"),
+        env: { PATH: "/fake/bin" },
+        runner: fakeRunner([], {
+          "git rev-parse --show-toplevel": repo,
+          "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+          "wt --version": "worktrunk 1.2.3\n",
+          "tmux -V": "tmux 3.5a\n",
+          "codex --version": "codex 0.1.0\n",
+        }),
+        access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+        fs,
+        prompt: prompt({ confirms: [true, false, true] }),
+        writeStdout: () => undefined,
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(fs.files[join(root, "home/.tmux.conf")]).toContain("wosm-tmux-popup");
   });
 
   it("stops without prompting for config when no harness is available", async () => {

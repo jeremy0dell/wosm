@@ -42,6 +42,7 @@ Required for the default useful workflow:
 
 Recommended after setup:
 
+- tmux popup binding (`Ctrl-b Space`) for opening and closing the dashboard overlay
 - Worktrunk shell integration
 - `wosm doctor`
 
@@ -51,7 +52,7 @@ Optional later:
 - notifications
 - extra harness CLIs
 - provider hook installation
-- advanced tmux and popup tuning
+- advanced tmux and popup tuning beyond the starter binding
 
 ## Worktrunk And Tmux
 
@@ -62,7 +63,9 @@ The Worktrunk provider shells out to `wt`. Install Worktrunk before using a conf
 worktree_provider = "worktrunk"
 ```
 
-The tmux provider shells out to `tmux` for the workbench and popup local-use path.
+The tmux provider shells out to `tmux` for the workbench and popup local-use path. Guided
+`wosm setup` can append a marked `Ctrl-b Space` binding to `~/.tmux.conf` when you accept the
+recommended popup binding step.
 
 On macOS, setup installs missing core tools directly when Homebrew is available:
 

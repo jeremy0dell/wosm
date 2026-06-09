@@ -253,7 +253,8 @@ Inside tmux, bare `wosm` defaults to the popup dashboard. `wosm popup` is the ex
 
 wosm-created tmux workbench sessions set `mouse on`, `history-limit 100000`, and `set-clipboard on` on the workbench session so scrolling, mouse selection, and copy behavior are closer to a normal Ghostty terminal without changing global tmux defaults.
 
-To make the old-style prefix binding call that same path, add a tmux binding and reload tmux:
+Guided `wosm setup` can add the old-style prefix binding as a recommended step. To add or inspect
+that binding manually, use:
 
 ```tmux
 bind-key Space run-shell -b 'env WOSM_FOCUS_PROVIDER=tmux WOSM_FOCUS_CLIENT_ID="#{client_name}" wosm-tmux-popup'

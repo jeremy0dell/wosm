@@ -116,6 +116,7 @@ function setupFacts(repo: string, overrides: Partial<SetupFacts>): SetupFacts {
     generatedAt: "2026-06-08T12:00:00.000Z",
     mode: "plan",
     configPath: "/tmp/config.toml",
+    homeDir: "/tmp/home",
     worktrunk: { status: "ok", command: "wt" },
     tmux: { status: "ok", command: "tmux" },
     brew: { status: "ok", command: "brew" },
@@ -135,6 +136,12 @@ function setupFacts(repo: string, overrides: Partial<SetupFacts>): SetupFacts {
       status: "missing",
       path: "/tmp/config.toml",
       message: "missing",
+    },
+    tmuxBinding: {
+      status: "missing",
+      path: "/tmp/home/.tmux.conf",
+      marker: "# >>> wosm popup binding >>>",
+      message: "Optional tmux popup binding is not installed.",
     },
     ...overrides,
   };

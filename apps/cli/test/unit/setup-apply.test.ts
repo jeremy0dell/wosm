@@ -104,6 +104,45 @@ describe("setup apply engine", () => {
     expect(fs.writes["/tmp/config.toml"]).toBe("schema_version = 1\n");
     expect(fs.writes["/tmp/config.toml.2026-06-08T12-00-00-000Z.bak"]).toBe("old = true\n");
   });
+
+  it("appends marked files atomically and skips an existing marker", async () => {
+    const fs = fakeFs({ "/tmp/home/.tmux.conf": "set -g mouse on\n" });
+
+    const result = await applySetupPlan(
+      plan([
+        {
+          id: "tmux-popup-binding",
+          kind: "append-file",
+          tier: "recommended",
+          selected: true,
+          label: "Install tmux popup binding",
+          message: "Install tmux popup binding",
+          path: "/tmp/home/.tmux.conf",
+          data: {
+            marker: "# >>> wosm popup binding >>>",
+            appendedText:
+              "# >>> wosm popup binding >>>\nbind-key Space run-shell -b 'wosm-tmux-popup'\n# <<< wosm popup binding <<<\n",
+          },
+        },
+      ]),
+      {
+        fs,
+        now: () => new Date("2026-06-08T12:00:00.000Z"),
+      },
+    );
+
+    expect(result.failedAction).toBeUndefined();
+    expect(fs.writes["/tmp/home/.tmux.conf"]).toContain("set -g mouse on");
+    expect(fs.writes["/tmp/home/.tmux.conf"]).toContain("wosm-tmux-popup");
+    expect(fs.writes["/tmp/home/.tmux.conf.2026-06-08T12-00-00-000Z.bak"]).toBe(
+      "set -g mouse on\n",
+    );
+
+    const idempotent = await applySetupPlan(result.plan, { fs });
+
+    expect(idempotent.failedAction).toBeUndefined();
+    expect(fs.writes["/tmp/home/.tmux.conf"]?.match(/wosm-tmux-popup/g)).toHaveLength(1);
+  });
 });
 
 function plan(actions: SetupPlan["actions"]): SetupPlan {
