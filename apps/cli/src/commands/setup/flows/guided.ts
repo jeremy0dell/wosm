@@ -108,7 +108,7 @@ async function runGuidedSetupWithPrompt(
     }
     const writeResult = await applySetupPlan(
       plan,
-      applyOptions(deps, { actionFilter: isConfigAction }),
+      applyOptions(deps, { actionFilter: isConfigAction, announceActions: true }),
     );
     if (writeResult.failedAction !== undefined) {
       await write(deps, "Config write failed. Run: wosm setup plan\n");
@@ -135,7 +135,7 @@ async function runGuidedSetupWithPrompt(
     if (accepted) {
       await applySetupPlan(
         { ...plan, actions: [{ ...tmuxPopupBinding, selected: true }] },
-        applyOptions(deps, {}),
+        applyOptions(deps, { announceActions: true }),
       );
     }
   }

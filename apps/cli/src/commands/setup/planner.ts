@@ -243,7 +243,7 @@ function setupActions(
     selected: false,
     label: "Install Worktrunk shell integration",
     message: "Run wt config shell install after core setup if you want Worktrunk shell helpers.",
-    command: [facts.worktrunk.command, "config", "shell", "install"],
+    command: [facts.worktrunk.command, "-y", "config", "shell", "install"],
   });
   if (facts.tmux.status === "ok" && facts.tmuxBinding.status === "missing") {
     actions.push({

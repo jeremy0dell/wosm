@@ -9,6 +9,8 @@ wosm setup
 This configures the core local workflow: Worktrunk, tmux, one agent CLI, and your first project. Optional integrations can be added later.
 
 The local checkout also expects Node.js 24.x and pnpm 11 for development. Real-provider test lanes remain opt-in.
+`wosm setup system --check` reports those versions, but it does not change the active Node or pnpm
+installation automatically.
 
 ## Setup Commands
 
@@ -80,6 +82,18 @@ pnpm setup:system:check
 ```
 
 It delegates to `wosm setup system --check`; dependency logic lives in the TypeScript CLI.
+
+If the system check reports Node.js 22.x or pnpm 8.x, switch them deliberately with your normal
+toolchain manager instead of letting setup mutate the machine:
+
+```bash
+fnm install 24 && fnm use 24
+# or:
+nvm install 24 && nvm use 24
+
+corepack enable
+corepack prepare pnpm@11.0.0 --activate
+```
 
 The upstream Worktrunk install docs currently recommend:
 
