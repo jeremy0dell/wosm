@@ -8,7 +8,7 @@ import {
   isInstallAction,
   markRequiredIncomplete,
 } from "../flowUtils.js";
-import { write } from "../io.js";
+import { renderOptions, write } from "../io.js";
 import { buildSetupPlan } from "../planner.js";
 import { renderSetupApplyResult, renderSetupPlan } from "../render.js";
 import type { SetupCommandDeps, SetupCommandOptions, SetupCommandResult } from "../types.js";
@@ -24,7 +24,7 @@ export async function runNonInteractiveApply(
 
   if (flags.dryRun) {
     const dryRun = await applySetupPlan(initialPlan, applyOptions(deps, { dryRun: true }));
-    await write(deps, renderSetupPlan(dryRun.plan));
+    await write(deps, renderSetupPlan(dryRun.plan, renderOptions(deps)));
     return { code: 0 };
   }
 
@@ -37,7 +37,10 @@ export async function runNonInteractiveApply(
     }),
   );
   if (installResult.failedAction !== undefined) {
-    await write(deps, renderSetupApplyResult(markRequiredIncomplete(installResult.plan)));
+    await write(
+      deps,
+      renderSetupApplyResult(markRequiredIncomplete(installResult.plan), renderOptions(deps)),
+    );
     return { code: 1 };
   }
 
@@ -45,7 +48,7 @@ export async function runNonInteractiveApply(
   const configWrite = await planSetupConfigWrite(refreshedFacts);
   const refreshedPlan = buildSetupPlan(refreshedFacts, { configWrite });
   if (!coreReadyForConfigWrite(refreshedPlan)) {
-    await write(deps, renderSetupApplyResult(refreshedPlan));
+    await write(deps, renderSetupApplyResult(refreshedPlan, renderOptions(deps)));
     return { code: 1 };
   }
 
@@ -57,6 +60,6 @@ export async function runNonInteractiveApply(
     writeResult.failedAction === undefined
       ? { ...writeResult.plan, summary: { ...writeResult.plan.summary, requiredOk: true } }
       : writeResult.plan;
-  await write(deps, renderSetupApplyResult(outputPlan));
+  await write(deps, renderSetupApplyResult(outputPlan, renderOptions(deps)));
   return { code: writeResult.failedAction === undefined ? 0 : 1 };
 }

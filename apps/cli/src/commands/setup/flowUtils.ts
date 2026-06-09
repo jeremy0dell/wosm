@@ -5,9 +5,9 @@ import {
   collectSetupFacts,
   type SetupDependencyCheckOptions,
 } from "./checks/system.js";
-import { write } from "./io.js";
+import { renderOptions, write } from "./io.js";
 import type { SetupAction, SetupFacts, SetupMode, SetupPlan } from "./model.js";
-import { formatCommand } from "./render.js";
+import { renderActionComplete, renderActionFailed, renderActionStart } from "./render.js";
 import type { SetupCommandDeps, SetupCommandOptions } from "./types.js";
 
 export function collectForCommand(
@@ -48,13 +48,13 @@ export function applyOptions(
   if (input.showCommandOutput !== undefined) options.showCommandOutput = input.showCommandOutput;
   if (input.announceActions === true) {
     options.onActionStart = async (action) => {
-      await write(deps, `${actionStartMessage(action)}\n`);
+      await write(deps, `${renderActionStart(action, renderOptions(deps))}\n`);
     };
     options.onActionComplete = async (action) => {
-      await write(deps, `Completed: ${action.label}\n`);
+      await write(deps, `${renderActionComplete(action, renderOptions(deps))}\n`);
     };
     options.onActionFailed = async (action) => {
-      await write(deps, `Failed: ${action.label}\n`);
+      await write(deps, `${renderActionFailed(action, renderOptions(deps))}\n`);
     };
   }
   return options;
@@ -109,14 +109,4 @@ export function coreReadyForConfigWrite(plan: SetupPlan): boolean {
     config?.status === "missing" &&
     plan.actions.some((action) => isConfigAction(action) && action.selected)
   );
-}
-
-function actionStartMessage(action: SetupAction): string {
-  if (action.command !== undefined) {
-    return `Running: ${formatCommand(action.command)}`;
-  }
-  if (action.path !== undefined) {
-    return `Applying: ${action.label} (${action.path})`;
-  }
-  return `Applying: ${action.label}`;
 }

@@ -1,4 +1,5 @@
 import { createInterface } from "node:readline/promises";
+import type { SetupRenderOptions } from "./theme.js";
 import type { SetupCommandDeps, SetupPromptAdapter } from "./types.js";
 
 export async function write(deps: SetupCommandDeps, chunk: string): Promise<void> {
@@ -13,6 +14,13 @@ export function defaultWriteStdout(chunk: string): Promise<void> {
       else resolve();
     });
   });
+}
+
+export function renderOptions(deps: SetupCommandDeps): SetupRenderOptions {
+  if (deps.writeStdout !== undefined) return { color: false };
+  const env = deps.env ?? process.env;
+  if (env.NO_COLOR !== undefined || env.TERM === "dumb") return { color: false };
+  return { color: process.stdout.isTTY === true };
 }
 
 export function defaultPrompt(): SetupPromptAdapter {
