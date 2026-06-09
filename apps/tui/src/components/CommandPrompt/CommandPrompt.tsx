@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import type { TuiScreen } from "../../state/screen.js";
+import type { TuiScreen } from "../../state/types.js";
 
 export type CommandPromptProps = {
   screen: TuiScreen;

@@ -1,4 +1,4 @@
-import type { WosmEvent } from "@wosm/contracts";
+import type { SafeError, WosmEvent, WosmSnapshot } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import {
   createCommandSnapshot,
@@ -8,6 +8,7 @@ import {
 } from "../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../test/support/fakeObserverService.js";
 import type { TuiFolderService } from "../services/folderService.js";
+import type { TuiObserverService } from "../services/types.js";
 import { createTuiStore, type TuiStore } from "./store.js";
 
 describe("TUI store", () => {
@@ -70,8 +71,82 @@ describe("TUI store", () => {
     await waitFor(
       () =>
         store.getState().snapshot?.rows.length === 0 &&
-        store.getState().toasts.some((toast) => toast.diagnosticId === "diag_terminal_missing"),
+        store
+          .getState()
+          .toasts.some((entry) => entry.toast.diagnosticId === "diag_terminal_missing"),
     );
+    stop();
+  });
+
+  it("marks an existing snapshot as display-only on observer connect failures without a toast", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new SnapshotConnectFailingService(snapshot);
+    const store = createTuiStore({ service, initialSnapshot: snapshot });
+    const stop = store.getState().start();
+
+    await waitFor(() => service.subscribeCount === 1);
+    service.failSubscriptions(wrappedConnectError());
+
+    await waitFor(() => store.getState().observerConnectionStatus.state === "displayOnly");
+    expect(store.getState().snapshot?.rows).toHaveLength(1);
+    expect(store.getState().toasts).toEqual([]);
+    stop();
+  });
+
+  it("marks cold starts as reconnecting on observer connect failures without a toast", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new ColdStartConnectFailingService(snapshot);
+    const store = createTuiStore({ service });
+    const stop = store.getState().start();
+
+    await waitFor(() => store.getState().observerConnectionStatus.state === "reconnecting");
+    expect(store.getState().snapshot).toBeUndefined();
+    expect(store.getState().toasts).toEqual([]);
+    stop();
+  });
+
+  it("clears reconnect status after a successful snapshot and shows delayed recovery feedback", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new FakeTuiObserverService(snapshot);
+    const store = createTuiStore({ service, initialSnapshot: snapshot });
+    const stop = store.getState().start();
+
+    await waitFor(() => service.subscribeCount === 1);
+    store.setState({
+      observerConnectionStatus: {
+        state: "displayOnly",
+        since: Date.now() - 1_501,
+        lastError: connectSafeError(),
+      },
+    });
+    service.endSubscriptions();
+
+    await waitFor(
+      () =>
+        store.getState().observerConnectionStatus.state === "connected" &&
+        store.getState().toasts.some((entry) => entry.toast.message === "Observer reconnected."),
+    );
+    stop();
+  });
+
+  it("does not show recovery feedback for brief reconnect states", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new FakeTuiObserverService(snapshot);
+    const store = createTuiStore({ service, initialSnapshot: snapshot });
+    const stop = store.getState().start();
+
+    await waitFor(() => service.subscribeCount === 1);
+    store.setState({
+      observerConnectionStatus: {
+        state: "displayOnly",
+        since: Date.now() - 100,
+        lastError: connectSafeError(),
+      },
+    });
+    service.endSubscriptions();
+
+    await waitFor(() => store.getState().observerConnectionStatus.state === "connected");
+    expect(store.getState().toasts).toEqual([]);
     stop();
   });
 
@@ -295,6 +370,71 @@ function addProjectSearchResultCount(state: TuiStore) {
   return state.screen.name === "addProject" && state.screen.flow.mode === "choose"
     ? state.screen.flow.searchEntries.length
     : 0;
+}
+
+class SnapshotConnectFailingService extends FakeTuiObserverService {
+  override async loadSnapshot(): Promise<WosmSnapshot> {
+    this.loadCount += 1;
+    throw wrappedConnectError();
+  }
+}
+
+class ColdStartConnectFailingService implements TuiObserverService {
+  readonly dispatched = [];
+  loadCount = 0;
+  subscribeCount = 0;
+
+  constructor(private readonly snapshot: WosmSnapshot) {}
+
+  async loadSnapshot(): Promise<WosmSnapshot> {
+    this.loadCount += 1;
+    throw wrappedConnectError();
+  }
+
+  subscribeEvents(): AsyncIterable<WosmEvent> {
+    this.subscribeCount += 1;
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: async () => {
+          throw wrappedConnectError();
+        },
+        return: async () => ({ done: true, value: undefined }),
+      }),
+    };
+  }
+
+  async dispatch() {
+    return {
+      commandId: "cmd_tui_1",
+      accepted: true,
+      status: "accepted" as const,
+    };
+  }
+
+  async waitForCommandCompletion(commandId: string) {
+    return {
+      status: "succeeded" as const,
+      commandId,
+    };
+  }
+
+  async reconcile(): Promise<WosmSnapshot> {
+    return this.snapshot;
+  }
+}
+
+function connectSafeError(): SafeError {
+  return {
+    tag: "ProtocolError",
+    code: "PROTOCOL_CONNECT_FAILED",
+    message: "Could not connect to observer socket /tmp/wosm-test.sock.",
+  };
+}
+
+function wrappedConnectError(): Error {
+  const error = new Error("wrapped connect failure");
+  (error as Error & { cause?: unknown }).cause = connectSafeError();
+  return error;
 }
 
 async function waitFor(assertion: () => boolean): Promise<void> {

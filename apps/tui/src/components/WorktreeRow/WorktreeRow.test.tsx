@@ -2,6 +2,7 @@ import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
 import { Box, renderToString } from "ink";
 import { describe, expect, it } from "vitest";
 import { fixtureNow, row } from "../../../test/fixtures/snapshots.js";
+import { stripTerminalLinks } from "../Link/Link.js";
 import {
   cellWidth,
   layoutWorktreeRow,
@@ -774,10 +775,5 @@ function uniqueStarts(rendered: readonly string[], needles: readonly string[]): 
 }
 
 function visibleCellWidth(text: string): number {
-  return cellWidth(stripOsc8(text));
-}
-
-function stripOsc8(text: string): string {
-  const pattern = ["\\u001B]8;[^\\u0007]*\\u0007"].join("");
-  return text.replace(new RegExp(pattern, "g"), "");
+  return cellWidth(stripTerminalLinks(text));
 }
