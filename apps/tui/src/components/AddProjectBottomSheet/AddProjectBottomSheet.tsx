@@ -49,7 +49,7 @@ function renderState(state: AddProjectFlowState, width: number, contentRows: num
   if (state.mode === "success") {
     return <Success state={state} width={width} />;
   }
-  return <Failure state={state} width={width} />;
+  return <Failure state={state} width={width} contentRows={contentRows} />;
 }
 
 function StartChoices({
@@ -246,10 +246,17 @@ function Success({
 function Failure({
   state,
   width,
+  contentRows,
 }: {
   state: Extract<AddProjectFlowState, { mode: "failed" }>;
   width: number;
+  contentRows: number;
 }) {
+  const staticRows = state.error.hint === undefined ? 5 : 6;
+  const metadataRows = failureMetadataRows(state.error).slice(
+    0,
+    Math.max(0, contentRows - staticRows),
+  );
   return (
     <>
       <MessageLine width={width} tone="danger">
@@ -262,10 +269,25 @@ function Failure({
           {state.error.hint}
         </MessageLine>
       )}
+      {metadataRows.map((row) => (
+        <MetaLine key={row.label} width={width} label={row.label} value={row.value} />
+      ))}
       <Line width={width}> </Line>
       <Footer width={width}>R:retry B:choose folder Esc:cancel</Footer>
     </>
   );
+}
+
+function failureMetadataRows(
+  error: Extract<AddProjectFlowState, { mode: "failed" }>["error"],
+): Array<{ label: string; value: string }> {
+  const rows = [{ label: "Code", value: error.code }];
+  if (error.traceId !== undefined) rows.push({ label: "Trace", value: error.traceId });
+  if (error.commandId !== undefined) rows.push({ label: "Command", value: error.commandId });
+  if (error.diagnosticId !== undefined) {
+    rows.push({ label: "Diag", value: error.diagnosticId });
+  }
+  return rows;
 }
 
 function reviewFooter(state: Extract<AddProjectFlowState, { mode: "review" }>): string {
