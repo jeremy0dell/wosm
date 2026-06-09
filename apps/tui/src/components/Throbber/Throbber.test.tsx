@@ -30,10 +30,19 @@ describe("Throbber", () => {
     expect(renderThrobberAtTick(tick, "braille")).toBe(frame);
   });
 
+  it.each([
+    [0, ".  "],
+    [1, ".. "],
+    [2, "..."],
+  ])("renders dot frame %s", (tick, frame) => {
+    expect(renderThrobberAtTick(tick, "dots")).toBe(frame);
+  });
+
   it("uses tick zero before the animation clock starts", () => {
     expect(renderToString(<Throbber variant="circle" />)).toBe("◜");
     expect(renderToString(<Throbber variant="braille" />)).toBe("⠋");
     expect(renderToString(<Throbber variant="attention" />)).toBe("!");
+    expect(renderToString(<Throbber variant="dots" />)).toBe(".");
   });
 
   it.each([
@@ -110,7 +119,7 @@ describe("Throbber", () => {
   });
 });
 
-type Variant = "circle" | "braille" | "attention";
+type Variant = "circle" | "braille" | "attention" | "dots";
 
 function renderThrobberAtTick(tick: number, variant: Variant): string {
   return renderThrobberPropsAtTick(tick, variant).children;

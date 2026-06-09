@@ -1,6 +1,7 @@
 import type { WosmSnapshot } from "@wosm/contracts";
 import { Box } from "ink";
 import type { TuiScreen } from "../../state/screen.js";
+import { AddProjectBottomSheet } from "../AddProjectBottomSheet/AddProjectBottomSheet.js";
 import { HelpOverlay } from "../HelpOverlay/HelpOverlay.js";
 import { NewSessionBottomSheet } from "../NewSessionBottomSheet/NewSessionBottomSheet.js";
 import { RenameSessionBottomSheet } from "../RenameSessionBottomSheet/RenameSessionBottomSheet.js";
@@ -15,6 +16,7 @@ export type OverlayHostProps = {
 export function OverlayHost({ snapshot, screen, columns, rows }: OverlayHostProps) {
   if (
     screen.name !== "help" &&
+    screen.name !== "addProject" &&
     screen.name !== "newSession" &&
     !(screen.name === "renameSession" && screen.step === "editName")
   ) {
@@ -38,6 +40,9 @@ export function OverlayHost({ snapshot, screen, columns, rows }: OverlayHostProp
 function renderOverlay(snapshot: WosmSnapshot, screen: TuiScreen, columns: number, rows: number) {
   if (screen.name === "help") {
     return <HelpOverlay columns={columns} rows={rows} />;
+  }
+  if (screen.name === "addProject") {
+    return <AddProjectBottomSheet columns={columns} rows={rows} state={screen.flow} />;
   }
   if (screen.name !== "newSession") {
     if (screen.name === "renameSession" && screen.step === "editName") {

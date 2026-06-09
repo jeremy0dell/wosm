@@ -1,4 +1,3 @@
-import type { ProviderProjectConfig } from "@wosm/contracts";
 import type { RuntimeClock } from "@wosm/runtime";
 import type { ObserverPersistence } from "../../persistence/index.js";
 import type { ProviderRegistry } from "../../providers/registry.js";
@@ -17,7 +16,6 @@ import { reconcileAndPublish } from "../reconcile.js";
 import { throwIfAborted } from "./shared.js";
 
 export type CreateSessionCloseHandlerOptions = {
-  projects: readonly ProviderProjectConfig[];
   providers: ProviderRegistry;
   core: ObserverCore;
   persistence: ObserverPersistence;

@@ -127,6 +127,8 @@ function fakeCore(reconcileDelayMs: number): ObserverCore {
       return snapshot();
     },
     projectHarnessEventStatus: async () => ({ projected: false, events: [] }),
+    updateConfig: () => undefined,
+    getProjects: () => [],
     getSnapshot: snapshot,
     getHealth: () => ({
       status: "healthy",

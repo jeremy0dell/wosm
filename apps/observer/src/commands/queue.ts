@@ -355,6 +355,8 @@ function commandScope(command: WosmCommand): string {
     case "session.create":
       return `project:${command.payload.projectId}`;
     case "observer.reconcile":
+    case "project.add":
+    case "project.remove":
     case "hooks.install":
       return "global";
   }
