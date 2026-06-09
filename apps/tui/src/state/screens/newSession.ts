@@ -8,8 +8,9 @@ import { safeErrorToToast } from "../../services/errors/errors.js";
 import { buildCreateSessionCommand } from "../commandBuilders.js";
 import type { TuiKey } from "../keys.js";
 import { addPendingCreateSessionRow } from "../localRows.js";
-import type { TuiState } from "../screen.js";
+import { addTuiToast } from "../toasts.js";
 import type { TuiTransition } from "../transition.js";
+import type { TuiState } from "../types.js";
 
 export function handleNewSessionKey(state: TuiState, key: TuiKey): TuiTransition {
   if (state.screen.name !== "newSession") {
@@ -70,11 +71,13 @@ function submitNewSession(state: TuiState): TuiTransition {
   const validation = validateNewSessionCreate(state.snapshot, state.screen.flow);
   if (!validation.ok) {
     return {
-      state: {
-        ...state,
-        screen: { name: "dashboard" },
-        toasts: [...state.toasts, safeErrorToToast(validation.error)],
-      },
+      state: addTuiToast(
+        {
+          ...state,
+          screen: { name: "dashboard" },
+        },
+        safeErrorToToast(validation.error),
+      ),
     };
   }
 

@@ -47,6 +47,7 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 - [OpenCode harness integration plan](planning/completed/opencode_harness_integration_plan.md) is a completed planning record for real OpenCode launch, plugin event capture, observer-shaped event reports, contract changes, and deterministic plus real-provider tests.
 - [Provider hook scope guard plan](planning/completed/provider_hook_scope_guard_plan.md) is a completed planning record for provider hook ownership guards and ignored out-of-scope hooks.
 - [TUI screen-driven state transition](planning/completed/tui_screen_driven_state_transition.md) is a completed simplification plan for TUI state, keys, and screen-owned transitions.
+- [TUI toast overlay and observer status plan](planning/completed/tui_toast_overlay_status_plan.md) is a completed planning record for lifecycle toast presentation, display-only reconnect status, and cold-start observer feedback.
 - [TypeScript braid remediation plan](planning/completed/typescript_braid_audit_plan.md) is an executed remediation record and follow-up inventory, not a current broad refactor mandate.
 - [Branch PR/CI metadata research](planning/completed/branch/branch_pr_ci_metadata_research.md) is a research record for branch metadata sources and tradeoffs; current metadata code/tests are authoritative.
 - [PR 1 branch metadata plan](planning/completed/branch/pr1_contracts_worktrunk_tui_plan.md) is a completed planning record for normalized metadata contracts, Worktrunk parsing, and TUI row display.

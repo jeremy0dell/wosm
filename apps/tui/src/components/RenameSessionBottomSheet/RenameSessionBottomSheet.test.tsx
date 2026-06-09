@@ -57,6 +57,32 @@ describe("RenameSessionBottomSheet", () => {
     expect(frame).toContain("Rename Session");
     expect(frame).toContain("Enter:rename");
   });
+
+  it("renders validation feedback inside the sheet", () => {
+    const frame = stripAnsi(
+      renderToString(
+        <Box position="relative" width={72} height={14}>
+          <RenameSessionBottomSheet
+            columns={72}
+            rows={14}
+            state={{
+              name: "renameSession",
+              step: "editName",
+              rowId: "wt_web_idle",
+              sessionId: "ses_wt_web_idle",
+              currentTitle: "Readable feature task",
+              draftTitle: createEditableTextInputState("   "),
+              validationError: "Session title cannot be empty.",
+            }}
+          />
+        </Box>,
+        { columns: 72 },
+      ),
+    );
+
+    expect(frame).toContain("Session title cannot be empty.");
+    expect(frame).toContain("Enter:rename   Esc:back");
+  });
 });
 
 function stripAnsi(value: string): string {

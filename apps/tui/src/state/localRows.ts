@@ -6,7 +6,7 @@ import type {
   WorktreeId,
   WosmSnapshot,
 } from "@wosm/contracts";
-import type { TuiState } from "./screen.js";
+import type { TuiState } from "./types.js";
 
 export type PendingCreateSessionRow = {
   localId: string;

@@ -11,8 +11,9 @@ import { buildFocusCommand, buildStartAgentCommand } from "../commandBuilders.js
 import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { addPendingStartAgentRow } from "../localRows.js";
-import type { TuiState } from "../screen.js";
+import { addTuiToast } from "../toasts.js";
 import type { TuiKeyRuntimeContext, TuiTransition } from "../transition.js";
+import type { TuiState } from "../types.js";
 import { openAddProject } from "./addProjectScreen.js";
 
 export function handleDashboardKey(
@@ -142,18 +143,15 @@ function openNewSession(state: TuiState): TuiTransition {
   const flow = createNewSessionFlow(state.snapshot, createNewSessionNameToken());
   if (flow === undefined) {
     return {
-      state: {
-        ...state,
-        toasts: [
-          ...state.toasts,
-          safeErrorToToast({
-            tag: "CommandValidationError",
-            code: "PROJECT_NOT_CONFIGURED",
-            message: "No project is configured for a new session.",
-            hint: "Add a project to config.toml and run wosm reconcile.",
-          }),
-        ],
-      },
+      state: addTuiToast(
+        state,
+        safeErrorToToast({
+          tag: "CommandValidationError",
+          code: "PROJECT_NOT_CONFIGURED",
+          message: "No project is configured for a new session.",
+          hint: "Add a project to config.toml and run wosm reconcile.",
+        }),
+      ),
     };
   }
 
@@ -187,17 +185,14 @@ function startAgentForRow(
   const project = state.snapshot?.projects.find((candidate) => candidate.id === row.projectId);
   if (project === undefined) {
     return {
-      state: {
-        ...state,
-        toasts: [
-          ...state.toasts,
-          safeErrorToToast({
-            tag: "CommandValidationError",
-            code: "PROJECT_NOT_FOUND",
-            message: `Project not found for worktree ${row.id}.`,
-          }),
-        ],
-      },
+      state: addTuiToast(
+        state,
+        safeErrorToToast({
+          tag: "CommandValidationError",
+          code: "PROJECT_NOT_FOUND",
+          message: `Project not found for worktree ${row.id}.`,
+        }),
+      ),
     };
   }
 
