@@ -311,7 +311,7 @@ function DashboardFooter({
   firstRun?: boolean;
 }) {
   const full = firstRun
-    ? `A:Add Project S:setup ${quitHint}`
+    ? `A:Add Project ${quitHint}`
     : `N:new A:add R:rename Z:refresh 1-9/a-z:open X:rm /:search C:fold H:help ${quitHint}`;
   const compactClose = `Q/esc:close N:new A:add Z:refresh 1-9/a-z:open X:remove /:search H:help`;
   const label = quitHint === "Q/esc:close" && full.length > columns ? compactClose : full;
