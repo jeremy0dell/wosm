@@ -130,7 +130,7 @@ describe("TUI app rendering", () => {
 
     expect(frame).toContain("No projects configured yet.");
     expect(frame).toContain("A:Add Project");
-    expect(frame).toContain("S:setup");
+    expect(frame).not.toContain("S:setup");
     instance.unmount();
   });
 
