@@ -11,6 +11,7 @@ Use:
 ```bash
 wosm debug trace <id>
 wosm debug trace --latest-failure
+wosm debug logs [query]
 ```
 
 If a redacted bundle is needed, use:
@@ -19,6 +20,19 @@ If a redacted bundle is needed, use:
 wosm debug bundle --trace <traceId>
 wosm debug bundle --command <commandId>
 wosm debug bundle --latest-failure
+```
+
+Use `wosm debug logs [query]` for bounded historical log inspection when there is no
+trace, command, or diagnostic ID yet. It reads structured JSONL logs from the
+configured state directory without contacting the observer. By default it searches
+`observer`, `cli`, and `tui` logs, excludes noisy hook logs, returns recent
+`warn`/`error` records when no query is supplied, and searches all levels when a
+query is supplied. Opt into hook logs explicitly:
+
+```bash
+wosm debug logs protocol
+wosm debug logs --min-level error --limit 20
+wosm debug logs timeout --component hook
 ```
 
 ## No-Action Mode

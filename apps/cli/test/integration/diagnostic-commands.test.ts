@@ -331,6 +331,107 @@ describe("CLI diagnostic commands", () => {
     });
   });
 
+  it("filters runtime logs without searching hook logs by default", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    await mkdir(join(fixture.stateDir, "logs"), { recursive: true });
+    await writeFile(
+      join(fixture.stateDir, "logs", "observer.jsonl"),
+      `${[
+        JSON.stringify({
+          timestamp: "2026-05-20T12:00:00.000Z",
+          level: "info",
+          component: "observer",
+          message: "Reconcile finished.",
+        }),
+        JSON.stringify({
+          timestamp: "2026-05-20T12:01:00.000Z",
+          level: "error",
+          component: "observer",
+          message: "Observer protocol payload failed validation.",
+          attributes: {
+            error: {
+              tag: "ProtocolError",
+              code: "PROTOCOL_VALIDATION_FAILED",
+              message: "Observer protocol payload failed validation.",
+            },
+          },
+        }),
+      ].join("\n")}\n`,
+    );
+    await writeFile(
+      join(fixture.stateDir, "logs", "hooks.jsonl"),
+      `${JSON.stringify({
+        timestamp: "2026-05-20T12:02:00.000Z",
+        level: "warn",
+        component: "hook",
+        message: "Observer protocol request timed out.",
+      })}\n`,
+    );
+
+    const result = await runCli(["--config", configPath, "debug", "logs", "protocol"], {
+      observerDeps: {
+        clientFactory: () => {
+          throw new Error("debug logs should not contact observer");
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      code: 0,
+      output: {
+        query: "protocol",
+        components: ["observer", "cli", "tui"],
+        matched: 1,
+        records: [
+          {
+            component: "observer",
+            level: "error",
+            message: "Observer protocol payload failed validation.",
+            error: {
+              code: "PROTOCOL_VALIDATION_FAILED",
+            },
+          },
+        ],
+      },
+    });
+    const filesSearched = (result.output as { evidence: { filesSearched: string[] } }).evidence
+      .filesSearched;
+    expect(filesSearched).not.toContain(join(fixture.stateDir, "logs", "hooks.jsonl"));
+  });
+
+  it("can opt into hook log filtering", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    await mkdir(join(fixture.stateDir, "logs"), { recursive: true });
+    await writeFile(
+      join(fixture.stateDir, "logs", "hooks.jsonl"),
+      `${JSON.stringify({
+        timestamp: "2026-05-20T12:02:00.000Z",
+        level: "warn",
+        component: "hook",
+        message: "Observer protocol request timed out.",
+        provider: "codex",
+      })}\n`,
+    );
+
+    await expect(
+      runCli(["--config", configPath, "debug", "logs", "protocol", "--component", "hook"]),
+    ).resolves.toMatchObject({
+      code: 0,
+      output: {
+        components: ["hook"],
+        records: [
+          {
+            component: "hook",
+            provider: "codex",
+            message: "Observer protocol request timed out.",
+          },
+        ],
+      },
+    });
+  });
+
   it("returns doctor diagnostics for an invalid config without starting the observer", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-invalid-config-"));
     const configPath = join(root, "config.toml");

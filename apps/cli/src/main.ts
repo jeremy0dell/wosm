@@ -15,6 +15,7 @@ import {
 import type { CursorHooksCommandOptions } from "./commands/cursorHooks.js";
 import { runCursorHooksCommand } from "./commands/cursorHooks.js";
 import { runDebugBundleCommand } from "./commands/debugBundle.js";
+import { runDebugLogsCommand } from "./commands/debugLogs.js";
 import { runDebugTraceCommand } from "./commands/debugTrace.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import type { EventHooksCommandOptions } from "./commands/eventHooks.js";
@@ -145,6 +146,11 @@ export async function runCli(
   if (command === "debug" && commandArgs[0] === "trace") {
     const result = await runDebugTraceCommand(commandArgs.slice(1), loadedCommandOptions(config));
     return { code: result.matched ? 0 : 1, output: result };
+  }
+
+  if (command === "debug" && commandArgs[0] === "logs") {
+    const result = await runDebugLogsCommand(commandArgs.slice(1), loadedCommandOptions(config));
+    return { code: result.matched > 0 ? 0 : 1, output: result };
   }
 
   if (command === "notify") {
@@ -491,7 +497,7 @@ function parseGlobalOptions(argv: string[]): { args: string[]; configPath?: stri
 
 function commandRequiresConfig(command: string, args: string[]): boolean {
   if (command === "debug") {
-    return args[0] === "bundle" || args[0] === "trace";
+    return args[0] === "bundle" || args[0] === "trace" || args[0] === "logs";
   }
   return configBackedCommands.includes(command as (typeof configBackedCommands)[number]);
 }

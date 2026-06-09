@@ -2,6 +2,7 @@ export * from "./commands/codexHooks.js";
 export * from "./commands/command.js";
 export * from "./commands/configDiagnostics.js";
 export * from "./commands/debugBundle.js";
+export * from "./commands/debugLogs.js";
 export * from "./commands/debugTrace.js";
 export * from "./commands/doctor.js";
 export * from "./commands/eventHooks.js";
