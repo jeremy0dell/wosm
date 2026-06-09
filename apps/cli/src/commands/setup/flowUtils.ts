@@ -48,15 +48,12 @@ export function applyOptions(
   if (input.showCommandOutput !== undefined) options.showCommandOutput = input.showCommandOutput;
   if (input.announceActions === true) {
     options.onActionStart = async (action) => {
-      if (action.command === undefined) return;
-      await write(deps, `Running: ${formatCommand(action.command)}\n`);
+      await write(deps, `${actionStartMessage(action)}\n`);
     };
     options.onActionComplete = async (action) => {
-      if (action.command === undefined) return;
       await write(deps, `Completed: ${action.label}\n`);
     };
     options.onActionFailed = async (action) => {
-      if (action.command === undefined) return;
       await write(deps, `Failed: ${action.label}\n`);
     };
   }
@@ -112,4 +109,14 @@ export function coreReadyForConfigWrite(plan: SetupPlan): boolean {
     config?.status === "missing" &&
     plan.actions.some((action) => isConfigAction(action) && action.selected)
   );
+}
+
+function actionStartMessage(action: SetupAction): string {
+  if (action.command !== undefined) {
+    return `Running: ${formatCommand(action.command)}`;
+  }
+  if (action.path !== undefined) {
+    return `Applying: ${action.label} (${action.path})`;
+  }
+  return `Applying: ${action.label}`;
 }

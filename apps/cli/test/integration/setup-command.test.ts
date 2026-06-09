@@ -110,6 +110,32 @@ describe("CLI setup command", () => {
       false,
     );
   });
+
+  it("setup system reports incompatible development toolchain versions without changing them", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-setup-cli-"));
+    const chunks: string[] = [];
+
+    const result = await runCli(["setup", "system", "--check"], {
+      setupDeps: {
+        cwd: root,
+        env: { PATH: "/fake/bin" },
+        runner: fakeRunner([], {
+          "wt --version": "worktrunk 1.2.3\n",
+          "tmux -V": "tmux 3.5a\n",
+          "brew --version": "Homebrew 4.0.0\n",
+          "pnpm --version": "8.15.0\n",
+        }),
+        access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+        writeStdout: (chunk) => chunks.push(chunk),
+      },
+    });
+
+    const output = chunks.join("");
+    expect(result.code).toBe(1);
+    expect(output).toContain("incompatible pnpm 8.15.0 (expected 11.x)");
+    expect(output).toContain("corepack prepare pnpm@11.0.0 --activate");
+    expect(output).toContain("WOSM setup does not change Node or pnpm automatically.");
+  });
 });
 
 function fakeRunner(

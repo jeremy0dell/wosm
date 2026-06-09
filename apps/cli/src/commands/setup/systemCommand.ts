@@ -1,6 +1,7 @@
 import { applySetupPlan } from "./apply.js";
 import { checkBrewDependency } from "./checks/brew.js";
 import { checkSetupTmux } from "./checks/tmux.js";
+import { checkSetupToolchain, type ToolchainFact } from "./checks/toolchain.js";
 import { checkSetupWorktrunk } from "./checks/worktrunk.js";
 import { applyOptions, dependencyOptionsForCommand } from "./flowUtils.js";
 import { write } from "./io.js";
@@ -14,7 +15,7 @@ export async function runSetupSystemCommand(
 ): Promise<SetupCommandResult> {
   const env = deps.env ?? options.env;
   const dependencyOptions = dependencyOptionsForCommand(deps, env);
-  const [worktrunk, tmux, brew] = await Promise.all([
+  const [worktrunk, tmux, brew, toolchain] = await Promise.all([
     checkSetupWorktrunk(dependencyOptions),
     checkSetupTmux(dependencyOptions),
     checkBrewDependency({
@@ -23,15 +24,31 @@ export async function runSetupSystemCommand(
       ...(deps.cwd === undefined ? {} : { cwd: deps.cwd }),
       noBrew: args.noBrew,
     }),
+    checkSetupToolchain({
+      ...(deps.runner === undefined ? {} : { runner: deps.runner }),
+      ...(env === undefined ? {} : { env }),
+      ...(deps.cwd === undefined ? {} : { cwd: deps.cwd }),
+    }),
   ]);
+  const systemReady =
+    worktrunk.status === "ok" &&
+    tmux.status === "ok" &&
+    toolchain.node.status === "ok" &&
+    toolchain.pnpm.status === "ok";
   const lines = [
     "wosm setup system",
     "",
     `  ${worktrunk.status === "ok" ? "ok" : "missing"} Worktrunk / wt`,
     `  ${tmux.status === "ok" ? "ok" : "missing"} tmux`,
     `  ${brew.status === "ok" ? "ok" : brew.status} Homebrew`,
+    `  ${toolchainStatusLabel(toolchain.node)} Node.js ${toolchainVersionLabel(toolchain.node)}`,
+    `  ${toolchainStatusLabel(toolchain.pnpm)} pnpm ${toolchainVersionLabel(toolchain.pnpm)}`,
     "",
   ];
+  const toolchainHints = runtimeToolchainHints(toolchain);
+  if (toolchainHints.length > 0) {
+    lines.push("Development runtime:", ...toolchainHints, "");
+  }
 
   if (args.yes && brew.status === "ok") {
     const actions: SetupAction[] = [];
@@ -49,7 +66,7 @@ export async function runSetupSystemCommand(
   }
 
   await write(deps, lines.join("\n"));
-  return { code: worktrunk.status === "ok" && tmux.status === "ok" ? 0 : 1 };
+  return { code: systemReady ? 0 : 1 };
 }
 
 function systemInstallAction(formula: "worktrunk" | "tmux"): SetupAction {
@@ -80,4 +97,35 @@ function systemPlan(actions: SetupAction[]): SetupPlan {
     },
     nextSteps: [],
   };
+}
+
+function toolchainStatusLabel(fact: ToolchainFact): string {
+  return fact.status === "ok" ? "ok" : fact.status;
+}
+
+function toolchainVersionLabel(fact: ToolchainFact): string {
+  const actual = fact.actual ?? "not found";
+  return `${actual} (expected ${fact.expected})`;
+}
+
+function runtimeToolchainHints(toolchain: { node: ToolchainFact; pnpm: ToolchainFact }): string[] {
+  const hints: string[] = [];
+  if (toolchain.node.status !== "ok") {
+    hints.push(
+      "  Use your Node version manager to install and select Node.js 24.x, for example:",
+      "    fnm install 24 && fnm use 24",
+      "    nvm install 24 && nvm use 24",
+    );
+  }
+  if (toolchain.pnpm.status !== "ok") {
+    hints.push(
+      "  After Node.js 24 is active, enable the repo-pinned package manager with:",
+      "    corepack enable",
+      "    corepack prepare pnpm@11.0.0 --activate",
+    );
+  }
+  if (hints.length > 0) {
+    hints.push("  WOSM setup does not change Node or pnpm automatically.");
+  }
+  return hints;
 }

@@ -51,7 +51,7 @@ export async function runNonInteractiveApply(
 
   const writeResult = await applySetupPlan(
     refreshedPlan,
-    applyOptions(deps, { actionFilter: isConfigAction }),
+    applyOptions(deps, { actionFilter: isConfigAction, announceActions: true }),
   );
   const outputPlan =
     writeResult.failedAction === undefined

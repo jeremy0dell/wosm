@@ -139,6 +139,18 @@ describe("setup planner", () => {
     });
   });
 
+  it("plans Worktrunk shell integration with Worktrunk's approval prompt disabled", () => {
+    const plan = buildSetupPlan(facts());
+
+    expect(
+      plan.actions.find((action) => action.id === "worktrunk-shell-integration"),
+    ).toMatchObject({
+      kind: "run-command",
+      selected: false,
+      command: ["wt", "-y", "config", "shell", "install"],
+    });
+  });
+
   it("plans a safe append for an existing config", () => {
     const plan = buildSetupPlan(facts(), {
       configWrite: {

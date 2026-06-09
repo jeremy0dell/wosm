@@ -40,7 +40,48 @@ describe("guided setup command", () => {
     expect(result.code).toBe(0);
     const configPath = join(root, "home/.config/wosm/config.toml");
     expect(fs.files[configPath]).toContain("[[projects]]");
+    expect(chunks.join("")).toContain(`Applying: Write WOSM config (${configPath})`);
+    expect(chunks.join("")).toContain("Completed: Write WOSM config");
     expect(chunks.join("")).toContain("Core setup complete.");
+  });
+
+  it("runs Worktrunk shell integration non-interactively after the WOSM prompt", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-setup-guided-"));
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const calls: ExternalCommandInput[] = [];
+    const fs = fakeFs({});
+    const chunks: string[] = [];
+
+    const result = await runSetupCommand(
+      [],
+      {},
+      {
+        cwd: repo,
+        homeDir: join(root, "home"),
+        env: { PATH: "/fake/bin" },
+        runner: fakeRunner(calls, {
+          "git rev-parse --show-toplevel": repo,
+          "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+          "wt --version": "worktrunk 1.2.3\n",
+          "tmux -V": "tmux 3.5a\n",
+          "codex --version": "codex 0.1.0\n",
+          "wt -y config shell install": "",
+        }),
+        access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
+        fs,
+        prompt: prompt({ confirms: [true, true, false] }),
+        writeStdout: (chunk) => chunks.push(chunk),
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(calls.find((call) => call.command === "wt" && call.args?.[0] === "-y")).toMatchObject({
+      args: ["-y", "config", "shell", "install"],
+      stdio: "inherit",
+    });
+    expect(chunks.join("")).toContain("Running: wt -y config shell install");
+    expect(chunks.join("")).toContain("Completed: Install Worktrunk shell integration");
   });
 
   it("declining config write produces no writes", async () => {
