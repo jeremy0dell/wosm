@@ -33,6 +33,7 @@ export async function showMacNotification(
           input.group,
           "-execute",
           input.clickAction,
+          "-ignoreDnD",
         ],
         timeoutMs: 3000,
       },

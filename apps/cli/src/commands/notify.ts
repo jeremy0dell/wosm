@@ -91,6 +91,9 @@ export async function runNotifyCommand(
   if (invocation.event.type !== "worktree.agentStateChanged") {
     return { notified: false, skipped: true, reason: "unsupported-event" };
   }
+  if (invocation.event.changeSource === "reconcile") {
+    return { notified: false, skipped: true, reason: "non-hook-agent-state-change" };
+  }
   const notifiable = notifiableAgentEvent(invocation.event);
   if (notifiable === undefined) {
     return { notified: false, skipped: true, reason: "agent-not-notifiable" };

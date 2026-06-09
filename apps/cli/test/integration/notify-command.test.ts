@@ -59,6 +59,7 @@ describe("CLI notify command", () => {
         "wosm:ses_web_task",
         "-execute",
         expect.any(String),
+        "-ignoreDnD",
       ],
     });
     const executeCommand = calls[1]?.args[7];
@@ -180,11 +181,27 @@ describe("CLI notify command", () => {
       },
     });
   });
+
+  it("skips reconcile-driven idle state changes", async () => {
+    const result = await runCli(["notify", "turn-completion"], {
+      stdin: JSON.stringify(invocation("idle", { changeSource: "reconcile" })),
+      notifyDeps: { platform: "darwin" },
+    });
+
+    expect(result).toMatchObject({
+      code: 0,
+      output: {
+        notified: false,
+        skipped: true,
+        reason: "non-hook-agent-state-change",
+      },
+    });
+  });
 });
 
 function invocation(
   state: "idle" | "working" | "needs_attention",
-  options: { sessionId?: string } = {},
+  options: { sessionId?: string; changeSource?: "harness_event_report" | "reconcile" } = {},
 ) {
   const agent: Record<string, unknown> = {
     harness: "codex",
@@ -201,14 +218,21 @@ function invocation(
   if (options.sessionId !== undefined) {
     agent.sessionId = options.sessionId;
   }
+  const event: Record<string, unknown> = {
+    type: "worktree.agentStateChanged",
+    worktreeId: "wt_web_task",
+    agent,
+  };
+  if (options.changeSource !== undefined) {
+    event.changeSource = options.changeSource;
+  }
+  if (options.changeSource === "harness_event_report") {
+    event.harnessEventType = state === "idle" ? "Stop" : "PermissionRequest";
+  }
   return {
     schemaVersion: WOSM_SCHEMA_VERSION,
     hookId: "notify-agent-idle",
     observedAt: "2026-06-01T12:00:00.000Z",
-    event: {
-      type: "worktree.agentStateChanged",
-      worktreeId: "wt_web_task",
-      agent,
-    },
+    event,
   };
 }

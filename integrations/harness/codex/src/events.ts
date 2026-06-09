@@ -237,6 +237,10 @@ export function codexHookPayloadToHarnessEventReport(
   return HarnessEventReportSchema.parse(report);
 }
 
+export function codexHookPayloadReportId(payload: unknown): string {
+  return codexHookEventReportId(parseCodexHookEvent(payload));
+}
+
 export function statusFromCodexHookEvent(
   event: CodexHookEvent,
   observedAt: string,
@@ -443,6 +447,28 @@ function reportCoalesceKeyFromCodexEvent(event: CodexHookEvent): string | undefi
     parts.push(`tool:${event.tool_name}`);
   }
   return parts.length === 0 ? undefined : parts.join(":");
+}
+
+function codexHookEventReportId(event: CodexHookEvent): string {
+  const parts = ["codex", event.session_id, event.hook_event_name];
+  if ("turn_id" in event) {
+    parts.push(event.turn_id);
+  }
+  if ("tool_use_id" in event) {
+    parts.push(`tool:${event.tool_use_id}`);
+  } else if ("tool_name" in event) {
+    parts.push(`tool:${event.tool_name}`);
+  }
+  if ("agent_id" in event && event.agent_id !== undefined) {
+    parts.push(`agent:${event.agent_id}`);
+  }
+  if ("trigger" in event) {
+    parts.push(`trigger:${event.trigger}`);
+  }
+  if ("source" in event) {
+    parts.push(`source:${event.source}`);
+  }
+  return parts.map((part) => encodeURIComponent(part)).join(":");
 }
 
 function correlateCodexEvent(

@@ -9,7 +9,7 @@ import type {
 } from "@wosm/contracts";
 import { ProviderHookEventSchema } from "@wosm/contracts";
 import { compactCodexHookPayload } from "./compaction.js";
-import { codexHookPayloadToHarnessEventReport } from "./events.js";
+import { codexHookPayloadReportId, codexHookPayloadToHarnessEventReport } from "./events.js";
 import { extractCodexHookScopeContext } from "./scope.js";
 
 export const codexHookAdapter: ProviderHookAdapter = {
@@ -76,7 +76,7 @@ function codexHookEventReport(input: ProviderHookReportInput): HarnessEventRepor
     return {
       ok: true as const,
       report: codexHookPayloadToHarnessEventReport({
-        reportId: input.event.hookId ?? input.fallbackReportId(),
+        reportId: codexHookPayloadReportId(input.event.payload),
         observedAt: input.event.receivedAt,
         payload: input.event.payload,
         diagnostics: {

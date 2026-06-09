@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { SafeErrorSchema } from "./errors.js";
-import { WosmEventSchema, WosmEventTypeArrayInputSchema } from "./events.js";
+import {
+  WorktreeAgentStateChangeSourceSchema,
+  WosmEventSchema,
+  WosmEventTypeArrayInputSchema,
+} from "./events.js";
 import {
   HarnessRunIdSchema,
   ProjectIdSchema,
@@ -259,6 +263,8 @@ export const ObserverEventHookFilterSchema = z
   .object({
     agentState: ObservedStatusSchema.shape.value.optional(),
     harness: ProviderIdSchema.optional(),
+    changeSource: WorktreeAgentStateChangeSourceSchema.optional(),
+    harnessEventType: nonEmptyStringSchema.optional(),
   })
   .strict();
 
