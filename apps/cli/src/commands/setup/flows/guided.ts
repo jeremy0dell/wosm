@@ -15,7 +15,7 @@ import {
   missingHarnessInstallActions,
 } from "../harnessInstall.js";
 import { isSupportedHarnessId } from "../harnessSelection.js";
-import { defaultPrompt, write } from "../io.js";
+import { defaultPrompt, renderOptions, write } from "../io.js";
 import type { SetupAction, SetupFacts } from "../model.js";
 import { buildSetupPlan } from "../planner.js";
 import { formatCommand, renderSetupApplyResult, renderSetupPlan } from "../render.js";
@@ -46,7 +46,7 @@ async function runGuidedSetupWithPrompt(
   await write(deps, "Core setup: Worktrunk + tmux + one agent + first project.\n\n");
   let facts = await collectForCommand("apply", options, deps, {});
   let plan = buildSetupPlan(facts, { configWrite: await planSetupConfigWrite(facts) });
-  await write(deps, renderSetupPlan(plan));
+  await write(deps, renderSetupPlan(plan, renderOptions(deps)));
 
   const installActions = plan.actions.filter(isInstallAction).filter((action) => action.selected);
   if (installActions.length > 0) {
@@ -64,7 +64,10 @@ async function runGuidedSetupWithPrompt(
       }),
     );
     if (installResult.failedAction !== undefined) {
-      await write(deps, renderSetupApplyResult(markRequiredIncomplete(installResult.plan)));
+      await write(
+        deps,
+        renderSetupApplyResult(markRequiredIncomplete(installResult.plan), renderOptions(deps)),
+      );
       return { code: 1 };
     }
     facts = await collectForCommand("apply", options, deps, {});
@@ -79,7 +82,7 @@ async function runGuidedSetupWithPrompt(
   const availableHarnesses = facts.harnesses.filter((harness) => harness.status === "ok");
   if (availableHarnesses.length === 0) {
     const noHarnessPlan = buildSetupPlan(facts);
-    await write(deps, renderSetupApplyResult(noHarnessPlan));
+    await write(deps, renderSetupApplyResult(noHarnessPlan, renderOptions(deps)));
     return { code: 1 };
   }
   if (availableHarnesses.length > 1) {
@@ -95,7 +98,7 @@ async function runGuidedSetupWithPrompt(
   const configWrite = await planSetupConfigWrite(facts);
   plan = buildSetupPlan(facts, { configWrite });
   if (!coreReadyForConfigWrite(plan)) {
-    await write(deps, renderSetupApplyResult(plan));
+    await write(deps, renderSetupApplyResult(plan, renderOptions(deps)));
     return { code: 1 };
   }
 
@@ -142,7 +145,10 @@ async function runGuidedSetupWithPrompt(
 
   await write(
     deps,
-    renderSetupApplyResult({ ...plan, summary: { ...plan.summary, requiredOk: true } }),
+    renderSetupApplyResult(
+      { ...plan, summary: { ...plan.summary, requiredOk: true } },
+      renderOptions(deps),
+    ),
   );
   return { code: 0 };
 }
