@@ -1,4 +1,4 @@
-import { tmuxPopupBindingBlock } from "./checks/tmuxBinding.js";
+import { tmuxPopupBindingBlock, tmuxPopupBindingEndMarker } from "./checks/tmuxBinding.js";
 import { selectSetupHarness } from "./harnessSelection.js";
 import type {
   ConfigWritePlan,
@@ -472,6 +472,7 @@ function setupActions(
       path: facts.tmuxBinding.path,
       data: {
         marker: facts.tmuxBinding.marker,
+        endMarker: tmuxPopupBindingEndMarker,
         appendedText: tmuxPopupBindingBlock(facts.tmuxBinding.launcherCommand),
       },
     });

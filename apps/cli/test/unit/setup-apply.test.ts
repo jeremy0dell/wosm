@@ -137,6 +137,7 @@ describe("setup apply engine", () => {
           path: "/tmp/home/.tmux.conf",
           data: {
             marker: "# >>> wosm popup binding >>>",
+            endMarker: "# <<< wosm popup binding <<<",
             appendedText:
               "# >>> wosm popup binding >>>\nbind-key Space run-shell -b 'wosm-tmux-popup'\n# <<< wosm popup binding <<<\n",
           },
@@ -159,6 +160,53 @@ describe("setup apply engine", () => {
 
     expect(idempotent.failedAction).toBeUndefined();
     expect(fs.writes["/tmp/home/.tmux.conf"]?.match(/wosm-tmux-popup/g)).toHaveLength(1);
+  });
+
+  it("replaces stale marked blocks when a new end marker and block are supplied", async () => {
+    const fs = fakeFs({
+      "/tmp/home/.tmux.conf": [
+        "set -g mouse on",
+        "",
+        "# >>> wosm popup binding >>>",
+        "bind-key Space run-shell -b 'wosm-tmux-popup'",
+        "# <<< wosm popup binding <<<",
+        "",
+        "set -g status on",
+        "",
+      ].join("\n"),
+    });
+
+    const result = await applySetupPlan(
+      plan([
+        {
+          id: "tmux-popup-binding",
+          kind: "append-file",
+          tier: "recommended",
+          selected: true,
+          label: "Install tmux popup binding",
+          message: "Install tmux popup binding",
+          path: "/tmp/home/.tmux.conf",
+          data: {
+            marker: "# >>> wosm popup binding >>>",
+            endMarker: "# <<< wosm popup binding <<<",
+            appendedText:
+              "# >>> wosm popup binding >>>\nbind-key Space run-shell -b '/tmp/wosm/integrations/terminal/tmux/bin/wosm-popup'\n# <<< wosm popup binding <<<\n",
+          },
+        },
+      ]),
+      {
+        fs,
+        now: () => new Date("2026-06-08T12:00:00.000Z"),
+      },
+    );
+
+    expect(result.failedAction).toBeUndefined();
+    expect(fs.writes["/tmp/home/.tmux.conf"]).toContain("set -g mouse on");
+    expect(fs.writes["/tmp/home/.tmux.conf"]).toContain("set -g status on");
+    expect(fs.writes["/tmp/home/.tmux.conf"]).toContain(
+      "/tmp/wosm/integrations/terminal/tmux/bin/wosm-popup",
+    );
+    expect(fs.writes["/tmp/home/.tmux.conf"]).not.toContain("'wosm-tmux-popup'");
   });
 });
 
