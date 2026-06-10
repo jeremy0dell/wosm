@@ -134,6 +134,22 @@ export type SetupConfigDefaultsFact = {
   harness: string;
 };
 
+export type SetupLauncherFact = {
+  status: "ok" | "missing";
+  source: "path" | "checkout" | "missing";
+  command: string;
+  checkoutPath: string;
+  resolvedPath?: string;
+  message?: string;
+};
+
+export type SetupLaunchersFact = {
+  packageRoot: string;
+  wosm: SetupLauncherFact;
+  ingress: SetupLauncherFact;
+  tmuxPopup: SetupLauncherFact;
+};
+
 export type SetupConfigFact =
   | {
       status: "missing";
@@ -146,7 +162,9 @@ export type SetupConfigFact =
       source: string;
       hasProjectForRoot: boolean;
       configuredHarnesses: readonly string[];
+      configuredHookHarnesses: readonly string[];
       defaults: SetupConfigDefaultsFact;
+      worktrunkUseLifecycleHooks?: boolean;
       matchedProject?: SetupConfigProjectFact;
     }
   | {
@@ -161,11 +179,19 @@ export type SetupTmuxBindingFact =
       status: "ok";
       path: string;
       marker: string;
+      launcherCommand: string;
+      runShellCommand: string;
+      insideTmux: boolean;
+      liveStatus: "loaded" | "missing" | "unknown";
     }
   | {
       status: "missing";
       path: string;
       marker: string;
+      launcherCommand: string;
+      runShellCommand: string;
+      insideTmux: boolean;
+      liveStatus: "loaded" | "missing" | "unknown";
       message: string;
     };
 
@@ -177,6 +203,7 @@ export type SetupFacts = {
   worktrunk: SetupDependencyFact;
   tmux: SetupDependencyFact;
   brew: SetupBrewFact;
+  launchers: SetupLaunchersFact;
   git: SetupGitFact;
   harnesses: readonly SetupHarnessFact[];
   config: SetupConfigFact;

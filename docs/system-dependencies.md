@@ -54,7 +54,7 @@ Optional later:
 - GitHub integration
 - notifications
 - extra harness CLIs
-- provider hook installation
+- provider hook installation, when not accepted during guided setup
 - advanced tmux and popup tuning beyond the starter binding
 
 ## Worktrunk And Tmux
@@ -68,7 +68,13 @@ worktree_provider = "worktrunk"
 
 The tmux provider shells out to `tmux` for the workbench and popup local-use path. Guided
 `wosm setup` can append a marked `Ctrl-b Space` binding to `~/.tmux.conf` when you accept the
-recommended popup binding step.
+recommended popup binding step. Inside tmux, setup can also load that binding into the current
+tmux server so a restart or manual `tmux source-file ~/.tmux.conf` is not required.
+
+The generated binding uses a resolved `wosm-tmux-popup` launcher. In a development checkout this
+may be the checkout's `integrations/terminal/tmux/bin/wosm-popup` path rather than a bare command.
+Run `pnpm wosm:link` only when you want bare `wosm`, `wosm-ingress`, and `wosm-tmux-popup` commands
+available globally.
 
 Use `terminal.tmux.command` when tmux is installed but not on the observer or popup launcher PATH:
 
@@ -143,6 +149,30 @@ diagnostics.installHint
 ```
 
 The same provider-health evidence is included in `wosm debug bundle`, so a failed `session.create` can be tied back to the missing external binary.
+
+## Hooks
+
+Guided `wosm setup` can enable and install Worktrunk lifecycle hooks plus the selected Codex,
+Cursor, or OpenCode agent hooks. The hook commands are generated with the resolved WOSM config path,
+observer socket, state directory, spool directory, and `wosm-ingress` launcher. If you decline hook
+setup, install later with:
+
+```bash
+wosm hooks install worktrunk --yes
+wosm hooks install codex --yes
+wosm hooks install cursor --yes
+wosm hooks install opencode --yes
+```
+
+Use the matching doctor commands to verify hook files and config intent:
+
+```bash
+wosm hooks doctor worktrunk
+wosm hooks doctor codex
+wosm hooks doctor cursor
+wosm hooks doctor opencode
+wosm event-hooks doctor
+```
 
 ## Compatibility Script
 

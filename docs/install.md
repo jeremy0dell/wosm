@@ -35,6 +35,8 @@ Optional integrations can be added later.
 
 `pnpm smoke:release` builds by default, creates an isolated temporary config, runs `bin/wosm doctor`, `reconcile`, `snapshot --json`, `debug bundle`, and the scripted-agent lane, then stops the observer and removes the temp state.
 
+Guided setup writes a first-project config, can enable Worktrunk and selected-agent hooks, and can install the tmux popup binding. When bare `wosm` launchers are not on `PATH`, setup uses launcher paths from the current checkout for generated tmux and hook commands and offers `pnpm --dir <checkout> link --global` as the convenience path for bare terminal commands.
+
 Useful smoke options:
 
 ```bash
@@ -60,6 +62,8 @@ or link the built CLI after setup:
 pnpm wosm:link
 wosm doctor
 ```
+
+The tmux popup binding and generated provider hooks no longer require a global link when setup can resolve the current checkout launchers. Linking is still useful when you want to type bare `wosm` from arbitrary directories.
 
 ## Local Real Config
 

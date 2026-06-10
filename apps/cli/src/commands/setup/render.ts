@@ -60,13 +60,13 @@ export function renderSetupPlan(plan: SetupPlan, options: SetupRenderOptions = {
 export function renderSetupApplyResult(plan: SetupPlan, options: SetupRenderOptions = {}): string {
   const theme = setupTheme(options);
   if (plan.summary.requiredOk) {
+    const nextSteps = plan.nextSteps.length > 0 ? plan.nextSteps : ["wosm doctor", "wosm"];
     return [
       theme.bold(theme.green("Core setup complete.")),
       "",
       sectionHeading("Next", theme),
       "",
-      `  ${theme.cyan("wosm doctor")}`,
-      `  ${theme.cyan("wosm")}`,
+      ...nextSteps.map((step) => `  ${theme.cyan(step)}`),
       "",
     ].join("\n");
   }
@@ -154,6 +154,9 @@ function detailLines(details: SetupCheck["details"], theme: SetupTheme): string[
     "defaultBranch",
     "selected",
     "available",
+    "wosm",
+    "ingress",
+    "tmuxPopup",
     "resolvedPath",
   ];
   const lines: string[] = [];

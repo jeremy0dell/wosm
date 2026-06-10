@@ -39,7 +39,7 @@ describe("guided setup command", () => {
         }),
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [true, false, false] }),
+        prompt: prompt({ confirms: [false, false, true, false, false] }),
         writeStdout: (chunk) => chunks.push(chunk),
         now: () => new Date("2026-06-08T12:00:00.000Z"),
       },
@@ -78,7 +78,7 @@ describe("guided setup command", () => {
         }),
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [true, true, false] }),
+        prompt: prompt({ confirms: [false, false, true, true, false] }),
         writeStdout: (chunk) => chunks.push(chunk),
       },
     );
@@ -114,7 +114,7 @@ describe("guided setup command", () => {
         }),
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [false] }),
+        prompt: prompt({ confirms: [false, false, false] }),
         writeStdout: () => undefined,
       },
     );
@@ -146,7 +146,7 @@ describe("guided setup command", () => {
         }),
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [true, false, false], selects: ["opencode"] }),
+        prompt: prompt({ confirms: [false, false, true, false, false], selects: ["opencode"] }),
         writeStdout: () => undefined,
       },
     );
@@ -176,13 +176,87 @@ describe("guided setup command", () => {
         }),
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [true, false, true] }),
+        prompt: prompt({ confirms: [false, false, true, false, true] }),
         writeStdout: () => undefined,
       },
     );
 
     expect(result.code).toBe(0);
     expect(fs.files[join(root, "home/.tmux.conf")]).toContain("wosm-tmux-popup");
+  });
+
+  it("installs accepted Worktrunk and agent hooks with resolved ingress launcher", async () => {
+    const root = await tempRoot(tempRoots);
+    const repo = join(root, "repo");
+    await mkdir(repo, { recursive: true });
+    const fs = fakeFs({});
+    const calls: ExternalCommandInput[] = [];
+    const configPath = join(root, "home/.config/wosm/config.toml");
+
+    const result = await runSetupCommand(
+      [],
+      {},
+      {
+        cwd: repo,
+        homeDir: join(root, "home"),
+        env: { PATH: "/fake/bin" },
+        runner: fakeRunner(calls, {
+          "git rev-parse --show-toplevel": repo,
+          "git symbolic-ref --quiet --short refs/remotes/origin/HEAD": "origin/main\n",
+          "wt --version": "worktrunk 1.2.3\n",
+          "tmux -V": "tmux 3.5a\n",
+          "codex --version": "codex 0.1.0\n",
+          [`wosm --config ${configPath} hooks install worktrunk --yes --hook-bin wosm-ingress`]: "",
+          [`wosm --config ${configPath} hooks install codex --yes --hook-bin wosm-ingress`]: "",
+        }),
+        access: fakeAccess([
+          "/fake/bin/wt",
+          "/fake/bin/tmux",
+          "/fake/bin/wosm",
+          "/fake/bin/wosm-ingress",
+          "/fake/bin/wosm-tmux-popup",
+        ]),
+        fs,
+        prompt: prompt({ confirms: [true, true, true, false, false] }),
+        writeStdout: () => undefined,
+      },
+    );
+
+    expect(result.code).toBe(0);
+    expect(fs.files[configPath]).toContain("use_lifecycle_hooks = true");
+    expect(fs.files[configPath]).toContain("install_hooks = true");
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          command: "wosm",
+          args: [
+            "--config",
+            configPath,
+            "hooks",
+            "install",
+            "worktrunk",
+            "--yes",
+            "--hook-bin",
+            "wosm-ingress",
+          ],
+          stdio: "inherit",
+        }),
+        expect.objectContaining({
+          command: "wosm",
+          args: [
+            "--config",
+            configPath,
+            "hooks",
+            "install",
+            "codex",
+            "--yes",
+            "--hook-bin",
+            "wosm-ingress",
+          ],
+          stdio: "inherit",
+        }),
+      ]),
+    );
   });
 
   it("installs a selected agent CLI when no harness is available, then continues", async () => {
@@ -220,7 +294,7 @@ describe("guided setup command", () => {
         },
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [true, false, false, false, true, false, false] }),
+        prompt: prompt({ confirms: [true, false, false, false, false, false, true, false, false] }),
         writeStdout: (chunk) => chunks.push(chunk),
       },
     );
