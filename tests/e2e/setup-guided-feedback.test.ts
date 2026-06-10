@@ -30,11 +30,14 @@ describe("setup guided feedback e2e", () => {
       const result = await runWosm(["--config", fixture.configPath, "setup"], {
         cwd: fixture.repo,
         env: fixture.env,
-        answers: ["y", "y", "n"],
+        answers: ["n", "n", "n", "y", "y", "n"],
       });
 
       expect(result.timedOut).toBe(false);
       expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("Link WOSM launchers globally?");
+      expect(result.stdout).toContain("Install Worktrunk lifecycle hooks?");
+      expect(result.stdout).toContain("Install Codex agent hooks?");
       expect(result.stdout).toContain(`Applying: Write WOSM config (${fixture.configPath})`);
       expect(result.stdout).toContain("Completed: Write WOSM config");
       expect(result.stdout).toContain("Running: wt -y config shell install");
@@ -53,7 +56,7 @@ describe("setup guided feedback e2e", () => {
       const result = await runWosm(["--config", fixture.configPath, "setup"], {
         cwd: fixture.repo,
         env: fixture.env,
-        answers: ["y", "n", "n", "n", "y", "n", "n"],
+        answers: ["y", "n", "n", "n", "n", "n", "n", "y", "n", "n"],
       });
 
       expect(result.timedOut).toBe(false);
@@ -61,6 +64,9 @@ describe("setup guided feedback e2e", () => {
       expect(result.stdout).toContain("No supported agent CLI is available.");
       expect(result.stdout).toContain("Running: sh -c");
       expect(result.stdout).toContain("fake codex installer ran");
+      expect(result.stdout).toContain("Link WOSM launchers globally?");
+      expect(result.stdout).toContain("Install Worktrunk lifecycle hooks?");
+      expect(result.stdout).toContain("Install Codex agent hooks?");
       expect(result.stdout).toContain("Applying: Write WOSM config");
       expect(result.stdout).toContain("Core setup complete.");
       await expect(readFile(fixture.configPath, "utf8")).resolves.toContain("[harness.codex]");
