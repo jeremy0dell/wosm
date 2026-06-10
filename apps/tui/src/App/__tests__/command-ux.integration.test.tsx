@@ -16,6 +16,7 @@ import { FakeTuiObserverService } from "../../../test/support/fakeObserverServic
 import { App } from "../../App/App.js";
 import { createFakeDashboardSnapshot } from "../../dev/fakeDashboard.js";
 import type { TuiCommandCompletion } from "../../services/types.js";
+import { toastExpiryMs } from "../../state/timing.js";
 
 describe("TUI command UX", () => {
   it("dispatches terminal.focus from numeric slot mappings", async () => {
@@ -473,7 +474,10 @@ describe("TUI command UX", () => {
         instance.lastFrame()?.includes("Session renamed.") === true,
     );
     expect(instance.lastFrame()).toContain("saved");
-    await waitFor(() => instance.lastFrame()?.includes("Session renamed.") === false, 4_000);
+    await waitFor(
+      () => instance.lastFrame()?.includes("Session renamed.") === false,
+      toastExpiryMs("success") + 6_000,
+    );
     expect(instance.lastFrame()).not.toContain("session.rename queued");
     instance.unmount();
   });
