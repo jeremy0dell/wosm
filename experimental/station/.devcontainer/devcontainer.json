@@ -1,0 +1,19 @@
+{
+  "name": "WOSM Station Experiment",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspace/experimental/station",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/experimental/station,type=bind,consistency=cached",
+  "mounts": [
+    "source=wosm-station-node-modules,target=/workspace/experimental/station/node_modules,type=volume",
+    "source=wosm-station-bun-cache,target=/home/bun/.bun/install/cache,type=volume"
+  ],
+  "postCreateCommand": "bun install --frozen-lockfile || bun install",
+  "customizations": {
+    "vscode": {
+      "extensions": []
+    }
+  }
+}
