@@ -41,6 +41,7 @@ describe("live harness status projection", () => {
       expect.objectContaining({
         type: "worktree.agentStateChanged",
         worktreeId: "wt_web_task",
+        sessionTitle: "task",
         changeSource: "harness_event_report",
         harnessEventType: "PreToolUse",
         reportId: "report_codex_1",

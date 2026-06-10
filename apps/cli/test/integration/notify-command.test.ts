@@ -37,7 +37,7 @@ describe("CLI notify command", () => {
       code: 0,
       output: {
         notified: true,
-        title: "ses_web_task finished",
+        title: "Fix checkout notifications",
         notifier: "terminal-notifier",
         sound: "played",
         clickAction: true,
@@ -52,7 +52,7 @@ describe("CLI notify command", () => {
       command: "terminal-notifier",
       args: [
         "-title",
-        "ses_web_task finished",
+        "Fix checkout notifications",
         "-message",
         "Codex turn completed.",
         "-group",
@@ -223,6 +223,9 @@ function invocation(
     worktreeId: "wt_web_task",
     agent,
   };
+  if (options.sessionId !== undefined) {
+    event.sessionTitle = "Fix checkout notifications";
+  }
   if (options.changeSource !== undefined) {
     event.changeSource = options.changeSource;
   }

@@ -71,14 +71,19 @@ export function projectHarnessEventReportOntoSnapshot(input: {
 
   const events: WosmEvent[] = [];
   if (agentStateValueChanged) {
-    events.push({
+    const event: WosmEvent = {
       type: "worktree.agentStateChanged",
       worktreeId: nextRow.id,
       agent: nextAgent,
       changeSource: "harness_event_report",
       harnessEventType: input.report.eventType,
       reportId: input.report.reportId,
-    });
+    };
+    const sessionTitle = sessionTitleForAgent(sessionProjection.sessions, nextAgent);
+    if (sessionTitle !== undefined) {
+      event.sessionTitle = sessionTitle;
+    }
+    events.push(event);
   }
   if (sessionProjection.event !== undefined) {
     events.push(sessionProjection.event);
@@ -95,6 +100,16 @@ export function projectHarnessEventReportOntoSnapshot(input: {
     result.sessionId = sessionProjection.sessionId;
   }
   return result;
+}
+
+function sessionTitleForAgent(
+  sessions: readonly SessionView[],
+  agent: WorktreeAgent,
+): string | undefined {
+  if (agent.sessionId === undefined) {
+    return undefined;
+  }
+  return sessions.find((session) => session.id === agent.sessionId)?.title;
 }
 
 function unprojected(snapshot: WosmSnapshot): StatusProjectionResult {

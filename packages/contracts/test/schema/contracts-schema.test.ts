@@ -1012,6 +1012,7 @@ describe("contract schemas", () => {
         event: {
           type: "worktree.agentStateChanged",
           worktreeId: "wt_web_task",
+          sessionTitle: "Readable web task",
           changeSource: "harness_event_report",
           harnessEventType: "Stop",
           reportId: "report_codex_stop",
