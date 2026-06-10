@@ -49,13 +49,16 @@ function notificationMessage(agent: WorktreeAgent): string {
   return agent.reason === undefined ? `${harness} is idle.` : agent.reason;
 }
 
-function notificationSubject(event: WorktreeAgentStateChangedEvent, agent: WorktreeAgent): string {
+function notificationIdentity(event: WorktreeAgentStateChangedEvent, agent: WorktreeAgent): string {
   return agent.sessionId ?? event.worktreeId;
 }
 
 function notificationTitle(input: NotifiableAgentEvent): string {
-  const subject = notificationSubject(input.event, input.agent);
-  return input.kind === "needs_attention" ? `${subject} needs attention` : `${subject} finished`;
+  if (input.event.sessionTitle !== undefined) {
+    return input.event.sessionTitle;
+  }
+  const identity = notificationIdentity(input.event, input.agent);
+  return input.kind === "needs_attention" ? `${identity} needs attention` : `${identity} finished`;
 }
 
 function notifiableAgentEvent(
@@ -114,7 +117,7 @@ export async function runNotifyCommand(
     clickActionInput.configPath = options.configPath;
   }
   const clickAction = buildClickFocusShellCommand(clickActionInput);
-  const group = `wosm:${notificationSubject(notifiable.event, notifiable.agent)}`;
+  const group = `wosm:${notificationIdentity(notifiable.event, notifiable.agent)}`;
   const soundInput: Parameters<typeof playMacNotificationSound>[0] = {
     kind: notifiable.kind,
   };

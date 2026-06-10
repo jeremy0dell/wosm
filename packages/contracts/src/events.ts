@@ -122,6 +122,7 @@ export const WorktreeAgentStateChangedEventSchema = z
     type: z.literal("worktree.agentStateChanged"),
     worktreeId: WorktreeIdSchema,
     agent: WorktreeAgentSchema.optional(),
+    sessionTitle: nonEmptyStringSchema.optional(),
     changeSource: WorktreeAgentStateChangeSourceSchema.optional(),
     harnessEventType: nonEmptyStringSchema.optional(),
     reportId: nonEmptyStringSchema.optional(),
