@@ -14,6 +14,14 @@ PR titles should be semantic and reviewer-oriented, using a type/domain shape li
 
 WOSM is terminal/TUI-first. Ignore generic web, frontend, site, image, and browser guidance unless the task explicitly targets a web frontend or browser-rendered UI.
 
+## Code Comments
+
+This codebase should stay terse, but not silent. Add short comments when they protect intent that is easy to break and not obvious from names alone: ordering constraints, fallbacks, invariants, cancellation or concurrency behavior, external tool quirks, and boundary translations.
+
+Prefer one precise comment near the protected code over leaving the rationale only in a planning doc or review thread. Do not add comments that restate the branch condition, variable name, or TypeScript type. If a comment would need to narrate several steps of ordinary code, simplify or extract the code first.
+
+For a scoped list of high-value comment targets, see `docs/planning/active/light_commenting_audit.md`.
+
 ## Optional Object Construction
 
 `exactOptionalPropertyTypes` is intentional. Preserve the difference between absent optional fields and fields set to `undefined`.
