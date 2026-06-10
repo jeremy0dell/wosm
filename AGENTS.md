@@ -16,9 +16,9 @@ WOSM is terminal/TUI-first. Ignore generic web, frontend, site, image, and brows
 
 ## Code Comments
 
-This codebase should stay terse, but not silent. Add short comments when they protect intent that is easy to break and not obvious from names alone: ordering constraints, fallbacks, invariants, cancellation or concurrency behavior, external tool quirks, and boundary translations.
+Prefer self-documenting code. Add a comment when it protects non-obvious intent that future edits could plausibly break: ordering constraints, fallbacks, invariants, cancellation or concurrency behavior, external tool quirks, boundary translations, or other concerns in that realm.
 
-Prefer one precise comment near the protected code over leaving the rationale only in a planning doc or review thread. Do not add comments that restate the branch condition, variable name, or TypeScript type. If a comment would need to narrate several steps of ordinary code, simplify or extract the code first.
+Prefer one precise comment near the protected code over leaving the rationale in a planning doc or review thread. Do not add comments that restate the branch condition, variable name, or TypeScript type. If a comment would need to narrate several steps of ordinary code, simplify or extract the code first.
 
 For a scoped list of high-value comment targets, see `docs/planning/active/light_commenting_audit.md`.
 
