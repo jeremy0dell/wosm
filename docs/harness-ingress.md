@@ -21,7 +21,7 @@ The policy follows common overload and messaging guidance:
 
 ## Contract Shape
 
-Contracts define provider-specific allowed ingress rules. A rule identifies the native provider event type and optional normalized status metadata. Absence from the provider rule table means implicit drop.
+Contracts define the generic ingress rule shape. Provider integrations own their provider-specific rule tables beside their adapters/parsers. A rule identifies the native provider event type and optional normalized status metadata. Absence from the provider rule table means implicit drop.
 
 ```ts
 export type HarnessIngressRule<Provider extends string, EventType extends string> = {
@@ -32,15 +32,15 @@ export type HarnessIngressRule<Provider extends string, EventType extends string
 };
 ```
 
-Provider integrations derive their forwarding allow-list from these rules. Generated plugins must serialize the derived allow-list rather than maintaining local copies.
+Provider integrations derive their forwarding allow-list from their local rules. Generated plugins must serialize the derived allow-list rather than maintaining independent copies.
 
 ## Rollout
 
-OpenCode is the first provider using contract-derived ingress filtering. Codex and Pi must keep current behavior until each has provider-specific ingress rules and no-regression tests proving required events are still admitted.
+OpenCode is the first provider using a rule-derived ingress filter. Codex and Pi must keep current behavior until each has provider-specific ingress rules and no-regression tests proving required events are still admitted.
 
 When adding a provider:
 
-- Add provider-specific rules in `packages/contracts`.
+- Add provider-specific rules beside the provider adapter/parser.
 - Derive the provider hook/plugin allow-list from those rules.
 - Add tests that noisy stream events are not forwarded when omitted.
 - Add tests that every status-producing normalizer branch maps to an allowed rule.

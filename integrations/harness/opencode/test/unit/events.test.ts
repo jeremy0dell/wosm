@@ -1,16 +1,13 @@
-import {
-  HarnessEventObservationSchema,
-  OpenCodeCompactEventSchema,
-  openCodeForwardedEventTypes,
-  openCodeIngressRules,
-} from "@wosm/contracts";
+import { HarnessEventObservationSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { compactOpenCodeHookPayload } from "../../src/compaction";
+import { OpenCodeCompactEventSchema } from "../../src/eventSchemas";
 import {
   normalizeOpenCodeRawEvent,
   openCodeHookPayloadToHarnessEventReport,
   parseOpenCodeCompactEvent,
 } from "../../src/events";
+import { openCodeForwardedEventTypes, openCodeIngressRules } from "../../src/ingressRules";
 
 const now = "2026-05-20T12:00:00.000Z";
 
