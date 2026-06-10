@@ -310,6 +310,8 @@ timeout_ms = 3000
 [hooks.event.filter]
 agent_state = "idle"
 harness = "codex"
+change_source = "harness_event_report"
+harness_event_type = "Stop"
 
 ${projectToml("web", root)}
 `,
@@ -326,6 +328,8 @@ ${projectToml("web", root)}
         filter: {
           agentState: "idle",
           harness: "codex",
+          changeSource: "harness_event_report",
+          harnessEventType: "Stop",
         },
       },
     ]);

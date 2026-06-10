@@ -57,8 +57,11 @@ describe("CLI event hook commands", () => {
       `args = ["--config", ${JSON.stringify(configPath)}, "notify", "turn-completion"]`,
     );
     expect(after).toContain("timeout_ms = 8000");
-    expect(after).not.toContain("[hooks.event.filter]");
-    expect(after).not.toContain('agent_state = "idle"');
+    expect(after).toContain("[hooks.event.filter]");
+    expect(after).toContain('agent_state = "idle"');
+    expect(after).not.toContain('[hooks.event.filter]\nharness = "codex"');
+    expect(after).toContain('change_source = "harness_event_report"');
+    expect(after).toContain('harness_event_type = "Stop"');
 
     const doctor = await runCli(["--config", configPath, "event-hooks", "doctor"], { env });
     expect(doctor).toMatchObject({
@@ -105,6 +108,67 @@ describe("CLI event hook commands", () => {
     });
   });
 
+  it("updates stale built-in notification hooks in place", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wosm-cli-event-hooks-update-"));
+    const configPath = await writeConfig(root, [
+      "",
+      "[[hooks.event]]",
+      'id = "notify-agent-idle"',
+      'events = ["worktree.agentStateChanged"]',
+      'command = "osascript"',
+      'args = ["-e", "display notification \\"Agent turn complete.\\" with title \\"wosm\\""]',
+      "timeout_ms = 3000",
+      "",
+      "[hooks.event.filter]",
+      'agent_state = "idle"',
+    ]);
+
+    const doctor = await runCli(["--config", configPath, "event-hooks", "doctor"]);
+
+    expect(doctor).toMatchObject({
+      code: 1,
+      output: {
+        category: "observer-event-hook",
+        status: "warn",
+        installed: true,
+        commandCheck: {
+          status: "warn",
+          command: 'osascript -e display notification "Agent turn complete." with title "wosm"',
+        },
+      },
+    });
+
+    const install = await runCli([
+      "--config",
+      configPath,
+      "event-hooks",
+      "install",
+      "notify-turn-completion",
+      "--yes",
+    ]);
+
+    expect(install).toMatchObject({
+      code: 0,
+      output: {
+        category: "observer-event-hook",
+        hookId: "notify-agent-idle",
+        changed: true,
+        installed: true,
+      },
+    });
+    const after = await readFile(configPath, "utf8");
+    expect(after.match(/id = "notify-agent-idle"/g)).toHaveLength(1);
+    expect(after).not.toContain('command = "osascript"');
+    expect(after).not.toContain("display notification");
+    expect(after).toContain("[hooks.event.filter]");
+    expect(after).toContain('change_source = "harness_event_report"');
+    expect(after).toContain('harness_event_type = "Stop"');
+    expect(after).toContain('command = "wosm"');
+    expect(after).toContain(
+      `args = ["--config", ${JSON.stringify(configPath)}, "notify", "turn-completion"]`,
+    );
+  });
+
   it("keeps the legacy hooks event route as a compatibility alias", async () => {
     const root = await mkdtemp(join(tmpdir(), "wosm-cli-event-hooks-legacy-"));
     const configPath = await writeConfig(root);
@@ -146,7 +210,7 @@ async function envWithoutCommand(root: string): Promise<Record<string, string | 
   return { ...process.env, PATH: binDir };
 }
 
-async function writeConfig(root: string): Promise<string> {
+async function writeConfig(root: string, extraLines: string[] = []): Promise<string> {
   const configPath = join(root, "config.toml");
   await mkdir(join(root, "state"), { recursive: true });
   await writeFile(
@@ -164,6 +228,7 @@ async function writeConfig(root: string): Promise<string> {
       'terminal = "tmux"',
       'harness = "codex"',
       'layout = "agent-shell"',
+      ...extraLines,
       "",
     ].join("\n"),
     "utf8",

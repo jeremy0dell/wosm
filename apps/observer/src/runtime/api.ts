@@ -486,6 +486,7 @@ export function agentStateChangedEventsFromReconcile(
     const event: WosmEvent = {
       type: "worktree.agentStateChanged",
       worktreeId: row.id,
+      changeSource: "reconcile",
     };
     if (row.agent !== undefined) event.agent = row.agent;
     events.push(event);
