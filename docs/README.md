@@ -31,6 +31,7 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 - [Light commenting audit](planning/active/light_commenting_audit.md) is a scoped planning addendum for adding sparse comments to non-obvious runtime, provider, protocol, and correlation code paths.
 - [Package and app boundary cleanup audit](planning/active/package_app_boundary_cleanup_audit.md) is an active cleanup audit for package/app boundaries, dead placeholders, provider-hook adapters, and observer event subscriber queue risk.
 - [Worktree provider partial failure isolation](planning/active/worktree_provider_partial_failure_isolation.md) is an exploration plan for keeping one slow Worktrunk project from poisoning the whole worktree-provider scan or blocking unrelated session creation.
+- [WOSM Station spike](planning/active/wosm_station_spike.md) is the active spike plan for testing a full-screen WOSM-owned workspace that hosts real PTY-backed terminal panes without replacing tmux/classic mode.
 - [WOSM competitive backlog](planning/active/wosm_competitive_backlog.md) is the active product-priority note for differentiating WOSM from adjacent terminal-agent tools.
 - [TUI dashboard visual notes](planning/active/tui_dashboard_visual_notes.md) are active product notes for TUI row layout and visual direction, not contract authority.
 
