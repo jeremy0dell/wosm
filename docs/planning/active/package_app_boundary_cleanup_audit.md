@@ -30,6 +30,29 @@ testing owns shared fake providers and fixtures
 
 The useful cleanup is smaller and more concrete: remove dead symbols, finish or delete half-wired abstractions, trim generic helper exports, and tighten boundary tests.
 
+## 0. Completed During Follow-Up: OpenCode Contract Boundary
+
+Files:
+
+```text
+packages/contracts/src/opencode.ts
+integrations/harness/opencode/src/*
+docs/harness-ingress.md
+```
+
+Decision:
+
+OpenCode-native event schemas, compact OpenCode payload schemas, and OpenCode ingress allow-list rules are provider-private. They belong beside the OpenCode adapter/parser, not in `packages/contracts`.
+
+Outcome:
+
+```text
+Keep the generic HarnessIngressRule type in contracts.
+Move OpenCode-specific schemas and rule tables into @wosm/opencode.
+Update harness ingress guidance so provider-specific rule tables stay provider-local.
+Leave harnessTerminalBinding discovery for a separate observer/provider-interface decision.
+```
+
 ## 1. Straight Delete: Step 0 Testing Placeholders
 
 File:

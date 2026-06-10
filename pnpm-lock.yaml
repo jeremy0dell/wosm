@@ -182,6 +182,9 @@ importers:
       '@wosm/runtime':
         specifier: workspace:*
         version: link:../../../packages/runtime
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
 
   integrations/harness/pi:
     dependencies:
