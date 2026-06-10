@@ -4,7 +4,7 @@ Status: current guidance for harness event admission into the observer.
 
 ## Allow-List Policy
 
-Harness integrations should admit only contract-allowed event types into observer ingress. Unknown or unlisted provider events are dropped at the earliest provider boundary, before delivery, spool, queueing, normalization, or reconcile scheduling.
+Harness integrations should admit only provider-rule-allowed event types into observer ingress. Unknown or unlisted provider events are dropped at the earliest provider boundary, before delivery, spool, queueing, normalization, or reconcile scheduling.
 
 This is intentionally an allow-list, not a catalog of dropped events. Provider event streams can include high-frequency or diagnostic events that do not contribute useful observer state. Requiring every dropped event to be modeled would couple WOSM to provider internals and make the boundary harder to maintain.
 
