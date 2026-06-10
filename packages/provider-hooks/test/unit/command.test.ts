@@ -194,6 +194,53 @@ describe("provider hook ingress command", () => {
     expect(JSON.stringify(observedReport)).not.toContain("person@example.com");
   });
 
+  it("uses stable Codex report ids when no explicit hook id is provided", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let observedReport: HarnessEventReport | undefined;
+
+    const receipt = await runProviderIngressCommand(
+      [
+        "--socket",
+        fixture.socketPath,
+        "--state-dir",
+        fixture.stateDir,
+        "--config",
+        configPath,
+        "codex",
+      ],
+      {
+        stdin: JSON.stringify(codexPayload()),
+        env: wosmEnv(),
+      },
+      {
+        clock: { now: () => new Date(now) },
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => {
+              observedReport = report;
+              return {
+                schemaVersion: "0.4.0",
+                reportId: report.reportId,
+                provider: report.provider,
+                eventType: report.eventType,
+                accepted: true,
+                status: "accepted",
+                receivedAt: report.observedAt,
+                projected: false,
+                scheduledReconcile: true,
+              };
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt.status).toBe("ingested");
+    expect(observedReport?.reportId).toBe(
+      "codex:codex_session_1:PreToolUse:turn_1:tool%3Acall_test",
+    );
+  });
+
   it("passes the delivery timeout to the observer protocol client", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);

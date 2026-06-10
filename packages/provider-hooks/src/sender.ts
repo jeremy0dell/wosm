@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { codexHookPayloadToHarnessEventReport, compactCodexHookPayload } from "@wosm/codex";
+import {
+  codexHookPayloadReportId,
+  codexHookPayloadToHarnessEventReport,
+  compactCodexHookPayload,
+} from "@wosm/codex";
 import type { ObserverPaths } from "@wosm/config";
 import type {
   HarnessEventReport,
@@ -168,8 +172,9 @@ export async function sendCodexHookPayload(
 
   const compaction = compactCodexHookPayload(enrichedPayload);
   try {
+    const reportId = deps.hookId?.() ?? codexHookPayloadReportId(compaction.payload);
     const report = codexHookPayloadToHarnessEventReport({
-      reportId: deps.hookId?.() ?? defaultHookId(),
+      reportId,
       observedAt: toIsoTimestamp(clock.now()),
       payload: compaction.payload,
       diagnostics: diagnosticsFromCompaction(compaction),

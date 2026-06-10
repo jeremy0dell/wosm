@@ -23,6 +23,24 @@ describe("observer event hooks", () => {
     expect(observerEventHookMatches(hook, { type: "observer.started", at: now })).toBe(false);
   });
 
+  it("matches hook-reported Codex Stop filters", () => {
+    const hook = notifyCodexStopHook();
+
+    expect(observerEventHookMatches(hook, hookReportedStopEvent())).toBe(true);
+    expect(
+      observerEventHookMatches(hook, {
+        ...hookReportedStopEvent(),
+        changeSource: "reconcile",
+      }),
+    ).toBe(false);
+    expect(
+      observerEventHookMatches(hook, {
+        ...hookReportedStopEvent(),
+        harnessEventType: "PermissionRequest",
+      }),
+    ).toBe(false);
+  });
+
   it("runs matching hooks with invocation JSON on stdin", async () => {
     const eventBus = createObserverEventBus();
     const calls: ExternalCommandInput[] = [];
@@ -95,12 +113,14 @@ describe("observer event hooks", () => {
       {
         type: "worktree.agentStateChanged",
         worktreeId: "wt_web_task",
+        changeSource: "reconcile",
       },
     ]);
     expect(agentStateChangedEventsFromReconcile(working, idle)).toMatchObject([
       {
         type: "worktree.agentStateChanged",
         worktreeId: "wt_web_task",
+        changeSource: "reconcile",
         agent: {
           state: "idle",
           harness: "codex",
@@ -126,6 +146,18 @@ function notifyIdleHook(): ObserverEventHookConfig {
   };
 }
 
+function notifyCodexStopHook(): ObserverEventHookConfig {
+  return {
+    ...notifyIdleHook(),
+    filter: {
+      agentState: "idle",
+      harness: "codex",
+      changeSource: "harness_event_report",
+      harnessEventType: "Stop",
+    },
+  };
+}
+
 function agentEvent(state: "idle" | "working"): WosmEvent {
   return {
     type: "worktree.agentStateChanged",
@@ -137,6 +169,15 @@ function agentEvent(state: "idle" | "working"): WosmEvent {
       reason: state === "idle" ? "Codex turn completed." : "Codex is working.",
       updatedAt: now,
     },
+  };
+}
+
+function hookReportedStopEvent(): WosmEvent {
+  return {
+    ...agentEvent("idle"),
+    changeSource: "harness_event_report",
+    harnessEventType: "Stop",
+    reportId: "report_codex_stop",
   };
 }
 
