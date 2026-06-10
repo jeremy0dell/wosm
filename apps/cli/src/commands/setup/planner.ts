@@ -1,4 +1,4 @@
-import { tmuxPopupBindingBlock } from "./checks/tmuxBinding.js";
+import { tmuxPopupBindingBlock, tmuxPopupBindingEndMarker } from "./checks/tmuxBinding.js";
 import { selectSetupHarness } from "./harnessSelection.js";
 import type {
   ConfigWritePlan,
@@ -13,12 +13,14 @@ import { SetupPlanSchema } from "./model.js";
 
 export type BuildSetupPlanOptions = {
   configWrite?: ConfigWritePlan;
+  installWorktrunkHooks?: boolean;
+  installHarnessHooks?: boolean;
 };
 
 export function buildSetupPlan(facts: SetupFacts, options: BuildSetupPlanOptions = {}): SetupPlan {
   const selectedHarness = selectSetupHarness(facts.harnesses, facts.selectedHarness);
   const checks = setupChecks(facts, selectedHarness?.id);
-  const actions = setupActions(facts, selectedHarness, options.configWrite);
+  const actions = setupActions(facts, selectedHarness, options.configWrite, options);
   const requiredMissing = checks.filter(
     (check) => check.tier === "required" && check.status !== "ok",
   ).length;
@@ -62,6 +64,7 @@ function setupChecks(
     gitCheck(facts),
     harnessCheck(facts, selectedHarness),
     configCheck(facts),
+    launcherCheck(facts),
     {
       id: "worktrunk-shell-integration",
       tier: "recommended",
@@ -90,6 +93,8 @@ function setupChecks(
           : "Skipped until tmux is available.",
       details: { path: facts.tmuxBinding.path },
     },
+    worktrunkHooksCheck(facts),
+    harnessHooksCheck(facts, selectedHarness),
     {
       id: "doctor",
       tier: "recommended",
@@ -98,6 +103,123 @@ function setupChecks(
       message: "Run wosm doctor after setup to validate the observer runtime.",
     },
   ];
+}
+
+function launcherCheck(facts: SetupFacts): SetupCheck {
+  const launchers = [facts.launchers.wosm, facts.launchers.ingress, facts.launchers.tmuxPopup];
+  const missing = launchers.filter((launcher) => launcher.status === "missing");
+  const checkout = launchers.filter((launcher) => launcher.source === "checkout");
+  const details = {
+    wosm: facts.launchers.wosm.command,
+    ingress: facts.launchers.ingress.command,
+    tmuxPopup: facts.launchers.tmuxPopup.command,
+  };
+  if (missing.length > 0) {
+    return {
+      id: "wosm-launchers",
+      tier: "recommended",
+      status: "warning",
+      label: "WOSM launchers",
+      message: `Some WOSM launchers are missing: ${missing.map((launcher) => launcher.command).join(", ")}.`,
+      details,
+    };
+  }
+  if (checkout.length > 0) {
+    return {
+      id: "wosm-launchers",
+      tier: "recommended",
+      status: "warning",
+      label: "WOSM launchers",
+      message:
+        "Bare wosm launchers are not on PATH; setup will use current-checkout launcher paths.",
+      details,
+    };
+  }
+  return {
+    id: "wosm-launchers",
+    tier: "recommended",
+    status: "ok",
+    label: "WOSM launchers",
+    message: "wosm, wosm-ingress, and wosm-tmux-popup are available on PATH.",
+    details,
+  };
+}
+
+function worktrunkHooksCheck(facts: SetupFacts): SetupCheck {
+  if (facts.worktrunk.status !== "ok") {
+    return {
+      id: "worktrunk-hooks",
+      tier: "recommended",
+      status: "skipped",
+      label: "Worktrunk hooks",
+      message: "Skipped until Worktrunk is available.",
+    };
+  }
+  if (facts.config.status !== "valid") {
+    return {
+      id: "worktrunk-hooks",
+      tier: "recommended",
+      status: "warning",
+      label: "Worktrunk hooks",
+      message: "Recommended: install Worktrunk lifecycle hooks during setup.",
+    };
+  }
+  if (facts.config.worktrunkUseLifecycleHooks === false) {
+    return {
+      id: "worktrunk-hooks",
+      tier: "recommended",
+      status: "warning",
+      label: "Worktrunk hooks",
+      message: "Worktrunk lifecycle hooks are disabled in WOSM config.",
+    };
+  }
+  return {
+    id: "worktrunk-hooks",
+    tier: "recommended",
+    status: "ok",
+    label: "Worktrunk hooks",
+    message: "Worktrunk lifecycle hooks are requested; wosm doctor verifies installed files.",
+  };
+}
+
+function harnessHooksCheck(
+  facts: SetupFacts,
+  selectedHarness: SupportedHarnessId | undefined,
+): SetupCheck {
+  if (selectedHarness === undefined || !harnessSupportsHooks(selectedHarness)) {
+    return {
+      id: "harness-hooks",
+      tier: "recommended",
+      status: "skipped",
+      label: "Agent hooks",
+      message: "Selected agent does not have guided hook setup.",
+    };
+  }
+  if (facts.config.status !== "valid") {
+    return {
+      id: "harness-hooks",
+      tier: "recommended",
+      status: "warning",
+      label: "Agent hooks",
+      message: `Recommended: install ${selectedHarness} hooks during setup.`,
+    };
+  }
+  if (facts.config.configuredHookHarnesses.includes(selectedHarness)) {
+    return {
+      id: "harness-hooks",
+      tier: "recommended",
+      status: "ok",
+      label: "Agent hooks",
+      message: `${selectedHarness} hooks are requested; wosm doctor verifies installed files.`,
+    };
+  }
+  return {
+    id: "harness-hooks",
+    tier: "recommended",
+    status: "warning",
+    label: "Agent hooks",
+    message: `${selectedHarness} hooks are not enabled in WOSM config.`,
+  };
 }
 
 function dependencyCheck(input: {
@@ -310,6 +432,7 @@ function setupActions(
   facts: SetupFacts,
   selectedHarness: SetupHarnessFact | undefined,
   configWrite: ConfigWritePlan | undefined,
+  options: BuildSetupPlanOptions,
 ): SetupAction[] {
   const actions: SetupAction[] = [];
   if (facts.worktrunk.status === "missing") {
@@ -317,6 +440,17 @@ function setupActions(
   }
   if (facts.tmux.status === "missing") {
     actions.push(installAction("install-tmux", "tmux", "tmux", facts.brew));
+  }
+  if (wosmLaunchersNeedLink(facts)) {
+    actions.push({
+      id: "link-wosm-launchers",
+      kind: "run-command",
+      tier: "recommended",
+      selected: false,
+      label: "Link WOSM launchers",
+      message: "Link wosm, wosm-ingress, and wosm-tmux-popup globally for bare terminal commands.",
+      command: ["pnpm", "--dir", facts.launchers.packageRoot, "link", "--global"],
+    });
   }
   actions.push({
     id: "worktrunk-shell-integration",
@@ -338,14 +472,111 @@ function setupActions(
       path: facts.tmuxBinding.path,
       data: {
         marker: facts.tmuxBinding.marker,
-        appendedText: tmuxPopupBindingBlock(),
+        endMarker: tmuxPopupBindingEndMarker,
+        appendedText: tmuxPopupBindingBlock(facts.tmuxBinding.launcherCommand),
       },
     });
   }
+  if (
+    facts.tmux.status === "ok" &&
+    facts.tmuxBinding.insideTmux &&
+    facts.tmuxBinding.liveStatus !== "loaded"
+  ) {
+    actions.push({
+      id: "tmux-live-popup-binding",
+      kind: "run-command",
+      tier: "recommended",
+      selected: false,
+      label: "Load tmux popup binding",
+      message: "Install the Ctrl-b Space WOSM popup binding in the current tmux server.",
+      command: [
+        facts.tmux.command,
+        "bind-key",
+        "Space",
+        "run-shell",
+        "-b",
+        facts.tmuxBinding.runShellCommand,
+      ],
+    });
+  }
+
+  actions.push(...hookSetupActions(facts, selectedHarness, options));
 
   const configActions = configWriteActions(facts, selectedHarness, configWrite);
   actions.push(...configActions);
   return actions;
+}
+
+function wosmLaunchersNeedLink(facts: SetupFacts): boolean {
+  return [facts.launchers.wosm, facts.launchers.ingress, facts.launchers.tmuxPopup].some(
+    (launcher) => launcher.source !== "path",
+  );
+}
+
+function hookSetupActions(
+  facts: SetupFacts,
+  selectedHarness: SetupHarnessFact | undefined,
+  options: BuildSetupPlanOptions,
+): SetupAction[] {
+  if (facts.launchers.wosm.status !== "ok" || facts.launchers.ingress.status !== "ok") {
+    return [];
+  }
+  const actions: SetupAction[] = [];
+  if (facts.worktrunk.status === "ok") {
+    actions.push({
+      id: "worktrunk-hooks",
+      kind: "run-command",
+      tier: "recommended",
+      selected: options.installWorktrunkHooks === true,
+      label: "Install Worktrunk hooks",
+      message: "Install Worktrunk lifecycle hooks that report worktree changes to WOSM.",
+      command: [
+        facts.launchers.wosm.command,
+        "--config",
+        facts.configPath,
+        "hooks",
+        "install",
+        "worktrunk",
+        "--yes",
+        "--hook-bin",
+        facts.launchers.ingress.command,
+      ],
+      data: { setupRole: "hook" },
+    });
+  }
+  if (selectedHarness !== undefined && harnessSupportsHooks(selectedHarness.id)) {
+    actions.push({
+      id: `${selectedHarness.id}-hooks`,
+      kind: "run-command",
+      tier: "recommended",
+      selected: options.installHarnessHooks === true,
+      label: `Install ${selectedHarness.label} hooks`,
+      message: `Install ${selectedHarness.label} hooks that report agent activity to WOSM.`,
+      command: harnessHookInstallCommand(facts, selectedHarness.id),
+      data: { setupRole: "hook", harness: selectedHarness.id },
+    });
+  }
+  return actions;
+}
+
+function harnessHookInstallCommand(facts: SetupFacts, harness: SupportedHarnessId): string[] {
+  const command = [
+    facts.launchers.wosm.command,
+    "--config",
+    facts.configPath,
+    "hooks",
+    "install",
+    harness,
+    "--yes",
+  ];
+  if (harness === "codex" || harness === "cursor") {
+    command.push("--hook-bin", facts.launchers.ingress.command);
+  }
+  return command;
+}
+
+function harnessSupportsHooks(harness: string): harness is "codex" | "cursor" | "opencode" {
+  return harness === "codex" || harness === "cursor" || harness === "opencode";
 }
 
 function installAction(
@@ -426,7 +657,8 @@ function configWriteActions(
 
 function nextSteps(requiredMissing: number, facts: SetupFacts): string[] {
   if (requiredMissing === 0) {
-    return ["wosm doctor", "wosm"];
+    const wosmCommand = quoteCommandPart(facts.launchers.wosm.command);
+    return [`${wosmCommand} doctor`, wosmCommand];
   }
   if (facts.worktrunk.status === "missing") {
     return ["Install Worktrunk, then run: wosm setup check"];
@@ -438,4 +670,11 @@ function nextSteps(requiredMissing: number, facts: SetupFacts): string[] {
     return ["Run wosm setup from inside the git repository you want to manage."];
   }
   return ["Resolve the missing required setup items, then run: wosm setup check"];
+}
+
+function quoteCommandPart(part: string): string {
+  if (/^[A-Za-z0-9_./:=@%+-]+$/.test(part)) {
+    return part;
+  }
+  return `'${part.replaceAll("'", "'\\''")}'`;
 }

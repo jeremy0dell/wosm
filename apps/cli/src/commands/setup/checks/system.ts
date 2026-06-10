@@ -12,6 +12,7 @@ import {
 import { setupEnv } from "./env.js";
 import { type CheckGitOptions, checkSetupGit } from "./git.js";
 import { type CheckHarnessesOptions, checkSetupHarnesses } from "./harnesses.js";
+import { checkSetupLaunchers } from "./launchers.js";
 import { checkSetupTmux } from "./tmux.js";
 import { checkSetupTmuxBinding } from "./tmuxBinding.js";
 import { checkSetupWorktrunk } from "./worktrunk.js";
@@ -67,7 +68,7 @@ export async function collectSetupFacts(options: CollectSetupFactsOptions): Prom
   if (gitRoot !== undefined) setupConfigInput.gitRoot = gitRoot;
   const configPathOptions = setupConfigOptions(setupConfigInput);
   const configPath = setupConfigPath(configPathOptions);
-  const [worktrunk, tmux, brew, harnesses, config, tmuxBinding] = await Promise.all([
+  const [worktrunk, tmux, brew, harnesses, config, launchers] = await Promise.all([
     checkSetupWorktrunk(dependencyOptions),
     checkSetupTmux(dependencyOptions),
     checkBrewDependency({
@@ -76,11 +77,16 @@ export async function collectSetupFacts(options: CollectSetupFactsOptions): Prom
     }),
     checkSetupHarnesses(commandOptions),
     checkSetupConfig({ ...configPathOptions, configPath }),
-    checkSetupTmuxBinding({
-      homeDir,
-      ...(options.fs === undefined ? {} : { fs: options.fs }),
-    }),
+    checkSetupLaunchers(dependencyOptions),
   ]);
+  const tmuxBinding = await checkSetupTmuxBinding({
+    homeDir,
+    env,
+    ...(options.fs === undefined ? {} : { fs: options.fs }),
+    launcherCommand: launchers.tmuxPopup.command,
+    ...(options.runner === undefined ? {} : { runner: options.runner }),
+    tmuxCommand: tmux.command,
+  });
 
   return {
     generatedAt,
@@ -90,6 +96,7 @@ export async function collectSetupFacts(options: CollectSetupFactsOptions): Prom
     worktrunk,
     tmux,
     brew,
+    launchers,
     git,
     harnesses,
     config,

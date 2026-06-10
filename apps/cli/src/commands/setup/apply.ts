@@ -146,6 +146,7 @@ async function appendFileAction(
   const path = action.path;
   const appendedText = action.data?.appendedText;
   const marker = action.data?.marker;
+  const endMarker = action.data?.endMarker;
   if (path === undefined || appendedText === undefined) {
     throw new Error("append-file action requires path and appendedText.");
   }
@@ -156,6 +157,14 @@ async function appendFileAction(
     existing = "";
   }
   if (marker !== undefined && existing.includes(marker)) {
+    const replaced = replaceMarkedBlock(existing, marker, endMarker, appendedText);
+    if (replaced === undefined || replaced === existing) {
+      return;
+    }
+    const backupPath = await writeFileAtomically(path, replaced, options);
+    if (backupPath !== undefined) {
+      action.data = { ...(action.data ?? {}), backupPath };
+    }
     return;
   }
   const nextContent =
@@ -199,6 +208,36 @@ async function backupExistingConfig(
 
 function ensureTrailingNewline(value: string): string {
   return value.endsWith("\n") ? value : `${value}\n`;
+}
+
+function replaceMarkedBlock(
+  existing: string,
+  marker: string,
+  endMarker: string | undefined,
+  appendedText: string,
+): string | undefined {
+  if (endMarker === undefined) {
+    return undefined;
+  }
+  const start = existing.indexOf(marker);
+  if (start === -1) {
+    return undefined;
+  }
+  const end = existing.indexOf(endMarker, start + marker.length);
+  if (end === -1) {
+    return undefined;
+  }
+  const endLineIndex = existing.indexOf("\n", end + endMarker.length);
+  const blockEnd = endLineIndex === -1 ? existing.length : endLineIndex + 1;
+  const currentBlock = existing.slice(start, blockEnd).trimEnd();
+  const nextBlock = ensureTrailingNewline(appendedText).trimEnd();
+  if (currentBlock === nextBlock) {
+    return existing;
+  }
+  const before = existing.slice(0, start).trimEnd();
+  const after = existing.slice(blockEnd).trimStart();
+  const parts = [before, nextBlock, after].filter((part) => part.length > 0);
+  return `${parts.join("\n\n")}\n`;
 }
 
 function remainingSkipped(actions: readonly SetupAction[], completedCount: number): SetupAction[] {
