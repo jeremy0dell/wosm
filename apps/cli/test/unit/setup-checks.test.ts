@@ -5,7 +5,10 @@ import type { ExternalCommandInput, ExternalCommandResult } from "@wosm/runtime"
 import { afterEach, describe, expect, it } from "vitest";
 import { setupProbeTimeoutMs } from "../../src/commands/setup/checks/constants.js";
 import { collectSetupFacts } from "../../src/commands/setup/checks/system.js";
-import { tmuxPopupBindingBlock } from "../../src/commands/setup/checks/tmuxBinding.js";
+import {
+  checkSetupTmuxBinding,
+  tmuxPopupBindingBlock,
+} from "../../src/commands/setup/checks/tmuxBinding.js";
 import { buildSetupPlan } from "../../src/commands/setup/planner.js";
 
 describe("setup dependency checks", () => {
@@ -278,6 +281,23 @@ describe("setup dependency checks", () => {
     for (const clientName of clientNames) {
       expect(binding).not.toContain(clientName);
     }
+  });
+
+  it("reports old tmux popup bindings as missing when setup resolved a checkout launcher", async () => {
+    const root = await tempRoot(tempRoots);
+    const homeDir = join(root, "home");
+    const binding = await checkSetupTmuxBinding({
+      homeDir,
+      launcherCommand: "/tmp/wosm/integrations/terminal/tmux/bin/wosm-popup",
+      fs: readOnlyFs({
+        [join(homeDir, ".tmux.conf")]: tmuxPopupBindingBlock(),
+      }),
+    });
+
+    expect(binding).toMatchObject({
+      status: "missing",
+      message: "tmux popup binding is installed but uses an outdated WOSM launcher command.",
+    });
   });
 });
 

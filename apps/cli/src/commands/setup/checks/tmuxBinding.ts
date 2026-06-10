@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { type ExternalCommandRunner, runExternalCommand } from "@wosm/runtime";
 import type { SetupTmuxBindingFact } from "../model.js";
 import type { SetupFileSystemReader } from "./config.js";
@@ -41,6 +41,16 @@ export async function checkSetupTmuxBinding(
   try {
     const source = await fs.readFile(path);
     if (source.includes(tmuxPopupBindingMarker) || source.includes("wosm-tmux-popup")) {
+      if (!source.includes(launcherCommand)) {
+        return missingTmuxBinding({
+          path,
+          launcherCommand,
+          runShellCommand,
+          insideTmux,
+          liveStatus,
+          message: "tmux popup binding is installed but uses an outdated WOSM launcher command.",
+        });
+      }
       if (insideTmux && liveStatus === "missing") {
         return missingTmuxBinding({
           path,
@@ -126,10 +136,7 @@ async function checkLiveTmuxBinding(input: {
       },
       input.runner,
     );
-    const launcherName = basename(input.launcherCommand);
-    return result.stdout.includes("wosm-tmux-popup") || result.stdout.includes(launcherName)
-      ? "loaded"
-      : "missing";
+    return result.stdout.includes(input.launcherCommand) ? "loaded" : "missing";
   } catch {
     return "unknown";
   }
