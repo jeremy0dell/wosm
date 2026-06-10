@@ -1,0 +1,17 @@
+{
+  "name": "@wosm/station-experiment",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun run --cwd apps/station dev",
+    "doctor": "./scripts/doctor.sh",
+    "station": "bun run --cwd apps/station station",
+    "station:hot": "bun run --cwd apps/station dev",
+    "typecheck": "bun run --cwd apps/station typecheck"
+  }
+}
