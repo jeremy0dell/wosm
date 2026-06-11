@@ -2,6 +2,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "${root}/../.." && pwd)"
 image="wosm-station-experiment:local"
 script="station"
 source="${WOSM_STATION_SOURCE:-}"
@@ -43,8 +44,10 @@ docker build \
   -f "${root}/.devcontainer/Dockerfile" \
   "${root}"
 
+# The whole repo is mounted (not just the Station tree) so the @wosm package
+# links resolve against the host-built dists and the host pnpm node_modules.
 docker run --rm -it \
-  --mount "type=bind,src=${root},dst=/workspace/experimental/station" \
+  --mount "type=bind,src=${repo_root},dst=/workspace" \
   --mount "type=volume,src=wosm-station-node-modules,dst=/workspace/experimental/station/node_modules" \
   --mount "type=volume,src=wosm-station-bun-cache,dst=/home/bun/.bun/install/cache" \
   --workdir /workspace/experimental/station \

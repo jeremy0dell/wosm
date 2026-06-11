@@ -1,3 +1,5 @@
+import type { WosmSnapshot } from "@wosm/contracts";
+
 const fixtureNow = "2026-06-11T12:00:00.000Z";
 
 const harnessCapabilities = {
@@ -91,8 +93,12 @@ export const mockObserverSnapshot = {
           headRef: "station-design",
         },
         checks: {
-          state: "pending",
-          summary: "1 check running",
+          state: "running",
+          source: "github",
+          checkedAt: fixtureNow,
+          total: 1,
+          passed: 0,
+          failed: 0,
         },
       },
       terminal: {
@@ -270,4 +276,4 @@ export const mockObserverSnapshot = {
       createdAt: fixtureNow,
     },
   ],
-} as const;
+} satisfies WosmSnapshot;

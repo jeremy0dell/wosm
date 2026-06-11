@@ -41,13 +41,24 @@ Host mode requires Bun `1.3.14` and Node to already be active. Set
 `WOSM_STATION_NODE=/path/to/node` to override the Node executable used by the
 PTY sidecar. Host mode is for explicit local lab work only.
 
-## Snapshot Source
+## WOSM State Source
 
-Station reads one snapshot at startup from `WOSM_STATION_SOURCE`.
+`Ctrl-O` toggles the read-only WOSM mode overlay above the shell pane: live
+projects, worktrees, sessions, and agent statuses plus a calm connection
+status line. While the overlay is up, input is swallowed (the hidden shell
+cannot receive keystrokes) until `Ctrl-O` returns to the pane.
 
-- unset, empty, or `observer`: render the not-yet-connected observer source as
-  formatted `{}`
-- `mock`: render the Station-owned fake observer snapshot fixture
+`WOSM_STATION_SOURCE` selects where that state comes from.
+
+- unset, empty, or `observer`: connect to the local observer through the
+  shared `@wosm/client` runtime. The socket path is
+  `WOSM_OBSERVER_SOCKET_PATH` if set, else `$XDG_RUNTIME_DIR/wosm/observer.sock`,
+  else `~/.local/state/wosm/run/observer.sock` (mirrors the repo's
+  `@wosm/config` resolution). With no observer running, the overlay shows a
+  calm `reconnecting since …` line; if the observer goes away later, the last
+  good snapshot stays visible with a `display-only` status.
+- `mock`: serve the Station-owned, contract-shaped fixture without touching
+  any socket.
 
 Examples:
 
@@ -58,6 +69,28 @@ experimental/station/scripts/run-container.sh --mock
 
 Bun also loads local env files, so `experimental/station/.env.local` can hold
 `WOSM_STATION_SOURCE=mock` for local Station lab work.
+
+## Consuming The Shared @wosm Packages
+
+Live observer mode consumes the repo's built packages: `@wosm/client` plus its
+`@wosm/contracts`, `@wosm/protocol`, and `@wosm/runtime` graph. Build them at
+the repo root before running Station:
+
+```bash
+pnpm install
+pnpm build
+```
+
+`scripts/link-wosm-packages.sh` symlinks `@wosm/client` and `@wosm/contracts`
+into `apps/station/node_modules`; the linked packages resolve their own
+dependencies through the repo's pnpm layout. Bun's `file:` dependencies copy
+the package without its transitive graph and Bun's `link:` protocol routes
+through the global `bun link` registry, so neither works from this isolated
+workspace — the symlink script is the proven mechanism. `bun install` prunes
+the links, so every package script that needs them (`station`, `dev`, `test`,
+`typecheck`) re-runs the link script first, and `scripts/doctor.sh` checks the
+dists exist. The container lane mounts the repo root so the same links resolve
+inside the container.
 
 ## Terminal PTY Spike
 
