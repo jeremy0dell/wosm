@@ -5,8 +5,11 @@ import { createStationWosmStateSource } from "./sources/createStationWosmStateSo
 import { TerminalPane, writeToStationTerminal } from "./terminal/index.js";
 import { WosmOverlay } from "./wosm/WosmOverlay.js";
 
-const STATION_EXIT_SEQUENCE = "\x11";
-const WOSM_OVERLAY_TOGGLE_SEQUENCE = "\x0f";
+// Each chord is matched in both its legacy control-byte form and its kitty
+// keyboard protocol CSI-u form: terminals with the kitty protocol active
+// report Ctrl-O as ESC[111;5u, which a bare \x0f comparison misses.
+const STATION_EXIT_SEQUENCES = new Set(["\x11", "\x1b[113;5u"]);
+const WOSM_OVERLAY_TOGGLE_SEQUENCES = new Set(["\x0f", "\x1b[111;5u"]);
 
 const overlayStore = createOverlayStore();
 const wosmSource = createStationWosmStateSource();
@@ -21,8 +24,23 @@ function App() {
 
   return (
     <box width="100%" height="100%" flexDirection="column" backgroundColor="#101316">
-      <box width="100%" height={1} backgroundColor="#20252b">
+      {/* The whole header is a click target for toggling WOSM mode: some
+          terminal setups never deliver Ctrl-O (tty discard char, custom
+          bindings), so the mouse path must not depend on the keyboard one. */}
+      <box
+        width="100%"
+        height={1}
+        backgroundColor="#20252b"
+        flexDirection="row"
+        justifyContent="space-between"
+        onMouseDown={() => {
+          overlayStore.toggle();
+        }}
+      >
         <text fg="#f4f4f5">{headerText(overlayVisible)}</text>
+        <text fg={overlayVisible ? "#101316" : "#f4f4f5"} bg={overlayVisible ? "#4ade80" : "#3f4750"}>
+          {overlayVisible ? " [ shell ] " : " [ wosm ] "}
+        </text>
       </box>
       {overlayVisible ? <WosmOverlay source={wosmSource} /> : null}
       {/* The pane stays mounted while the overlay is up so the shell process
@@ -41,9 +59,9 @@ function App() {
 
 function headerText(overlayVisible: boolean): string {
   if (overlayVisible) {
-    return " WOSM Station | WOSM mode (read-only) | Ctrl-O returns to shell | Ctrl-Q exits ";
+    return " WOSM Station | WOSM mode (read-only) | click header or Ctrl-O for shell | Ctrl-Q exits ";
   }
-  return " WOSM Station | shell pane | Ctrl-O opens WOSM | Ctrl-Q exits | Ctrl-C passes to shell ";
+  return " WOSM Station | shell pane | click header or Ctrl-O for WOSM | Ctrl-Q exits | Ctrl-C → shell ";
 }
 
 function createOverlayStore() {
@@ -75,12 +93,12 @@ const renderer = await createCliRenderer({
   exitOnCtrlC: false,
   prependInputHandlers: [
     (sequence) => {
-      if (sequence === STATION_EXIT_SEQUENCE) {
+      if (STATION_EXIT_SEQUENCES.has(sequence)) {
         shutdownStation();
         return true;
       }
 
-      if (sequence === WOSM_OVERLAY_TOGGLE_SEQUENCE) {
+      if (WOSM_OVERLAY_TOGGLE_SEQUENCES.has(sequence)) {
         overlayStore.toggle();
         return true;
       }
