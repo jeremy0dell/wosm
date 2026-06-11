@@ -1,18 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "jsx": "react-jsx",
     "rootDir": "src",
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
-      "@wosm/client": ["../../packages/client/dist/index.d.ts"],
-      "@wosm/config": ["../../packages/config/dist/index.d.ts"],
       "@wosm/contracts": ["../../packages/contracts/dist/index.d.ts"],
       "@wosm/protocol": ["../../packages/protocol/dist/index.d.ts"],
       "@wosm/runtime": ["../../packages/runtime/dist/index.d.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/__tests__/**"]
+  "include": ["src/**/*.ts"]
 }

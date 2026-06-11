@@ -19,6 +19,7 @@
       "@wosm/observer": ["apps/observer/src/index.ts"],
       "@wosm/observer/internal": ["apps/observer/src/internal.ts"],
       "@wosm/tui": ["apps/tui/src/index.ts"],
+      "@wosm/client": ["packages/client/src/index.ts"],
       "@wosm/config": ["packages/config/src/index.ts"],
       "@wosm/contracts": ["packages/contracts/src/index.ts"],
       "@wosm/codex": ["integrations/harness/codex/src/index.ts"],

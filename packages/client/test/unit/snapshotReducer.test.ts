@@ -1,9 +1,9 @@
+import { applyWosmEvent } from "@wosm/client";
 import type { WosmEvent } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
-import { createCommandSnapshot, fixtureNow, row } from "../../test/fixtures/snapshots.js";
-import { applyWosmEvent } from "./eventReducer.js";
+import { createCommandSnapshot, fixtureNow, row } from "../support/snapshots.js";
 
-describe("TUI event reducer", () => {
+describe("client snapshot reducer", () => {
   it("applies direct worktree row updates without requesting a snapshot refresh", () => {
     const snapshot = createCommandSnapshot("idle");
     const event: WosmEvent = {
@@ -65,7 +65,7 @@ describe("TUI event reducer", () => {
     });
   });
 
-  it("turns command failures into safe diagnostic toasts", () => {
+  it("turns command failures into safe diagnostic notices", () => {
     const snapshot = createCommandSnapshot("idle");
     const result = applyWosmEvent(snapshot, {
       type: "command.failed",
@@ -80,7 +80,7 @@ describe("TUI event reducer", () => {
       },
     });
 
-    expect(result.toasts).toEqual([
+    expect(result.notices).toEqual([
       expect.objectContaining({
         kind: "error",
         message: "The terminal target for this worktree no longer exists.",

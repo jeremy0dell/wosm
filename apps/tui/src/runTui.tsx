@@ -1,8 +1,8 @@
+import { createObserverService } from "@wosm/client";
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
 import { render } from "ink";
 import type { ComponentProps } from "react";
 import { App } from "./App/App.js";
-import { createTuiObserverService } from "./services/observerService.js";
 import type { TuiObserverService, TuiRunResult } from "./services/types.js";
 import { resolveTuiModeFromEnv, TuiModeProvider } from "./tuiMode.js";
 import type { TopRowWidgetRuntimeDeps, TuiConfig } from "./widgets/types.js";
@@ -30,7 +30,7 @@ function createObserverServiceFromOptions(options: RunTuiOptions): TuiObserverSe
   if (options.socketPath === undefined) {
     throw new Error("runTui requires socketPath unless a service is provided.");
   }
-  return createTuiObserverService({ socketPath: options.socketPath });
+  return createObserverService({ socketPath: options.socketPath });
 }
 
 function runInkApp(options: RunTuiOptions, service: TuiObserverService): Promise<TuiRunResult> {

@@ -113,6 +113,9 @@ importers:
 
   apps/tui:
     dependencies:
+      '@wosm/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@wosm/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -260,6 +263,18 @@ importers:
       zod:
         specifier: ^4.1.12
         version: 4.4.3
+
+  packages/client:
+    dependencies:
+      '@wosm/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@wosm/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@wosm/runtime':
+        specifier: workspace:*
+        version: link:../runtime
 
   packages/config:
     dependencies:

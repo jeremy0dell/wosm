@@ -1,3 +1,4 @@
+import { createObserverService } from "@wosm/client";
 import type {
   CommandId,
   CommandRecord,
@@ -23,11 +24,10 @@ import {
   type TerminalCommandRecord,
 } from "@wosm/protocol";
 import { describe, expect, it } from "vitest";
-import { createTempSocketPath } from "../../../../../tests/support/sockets";
-import { createCommandSnapshot, fixtureNow } from "../../../test/fixtures/snapshots.js";
-import { createTuiObserverService } from "../observerService.js";
+import { createTempSocketPath } from "../../../../tests/support/sockets";
+import { createCommandSnapshot, fixtureNow } from "../support/snapshots.js";
 
-describe("TUI observer service", () => {
+describe("observer client service", () => {
   it("loads snapshots and dispatches commands through the observer protocol", async () => {
     const { socketPath } = await createTempSocketPath();
     const snapshot = createCommandSnapshot("idle");
@@ -42,7 +42,7 @@ describe("TUI observer service", () => {
         },
       }),
     });
-    const service = createTuiObserverService({ socketPath, requestId: ids("tui") });
+    const service = createObserverService({ socketPath, requestId: ids("tui") });
 
     await expect(service.loadSnapshot()).resolves.toMatchObject({
       counts: { worktrees: 1 },
@@ -71,7 +71,7 @@ describe("TUI observer service", () => {
         },
       }),
     });
-    const service = createTuiObserverService({ socketPath, requestId: ids("err") });
+    const service = createObserverService({ socketPath, requestId: ids("err") });
 
     await expect(
       service.dispatch({ type: "observer.reconcile", payload: { reason: "safe-error-test" } }),
@@ -89,7 +89,7 @@ describe("TUI observer service", () => {
       socketPath,
       onConnection: () => undefined,
     });
-    const service = createTuiObserverService({
+    const service = createObserverService({
       socketPath,
       timeoutMs: 10,
       requestId: ids("timeout"),
@@ -122,7 +122,7 @@ describe("TUI observer service", () => {
         },
       }),
     });
-    const service = createTuiObserverService({
+    const service = createObserverService({
       socketPath,
       timeoutMs: 10,
       reconcileTimeoutMs: 100,
@@ -140,7 +140,7 @@ describe("TUI observer service", () => {
 
   it("returns the underlying subscription iterator for cleanup", async () => {
     let returned = false;
-    const service = createTuiObserverService({
+    const service = createObserverService({
       client: {
         health: async () => fakeHealth(),
         stop: async () => ({ schemaVersion: WOSM_SCHEMA_VERSION, stopped: true, at: fixtureNow }),
@@ -194,7 +194,7 @@ describe("TUI observer service", () => {
   });
 
   it("maps succeeded terminal command records", async () => {
-    const service = createTuiObserverService({
+    const service = createObserverService({
       client: fakeClient({
         waitForCommand: async (commandId) =>
           commandRecord(commandId, "succeeded") as TerminalCommandRecord,
@@ -209,7 +209,7 @@ describe("TUI observer service", () => {
 
   it("uses a longer default timeout for command completion waits than request calls", async () => {
     let observedTimeoutMs: number | undefined;
-    const service = createTuiObserverService({
+    const service = createObserverService({
       timeoutMs: 10,
       client: fakeClient({
         waitForCommand: async (commandId, options) => {
@@ -225,7 +225,7 @@ describe("TUI observer service", () => {
   });
 
   it("maps failed terminal command records and preserves SafeError diagnostic context", async () => {
-    const service = createTuiObserverService({
+    const service = createObserverService({
       client: fakeClient({
         waitForCommand: async (commandId) =>
           commandRecord(commandId, "failed") as TerminalCommandRecord,
@@ -244,8 +244,8 @@ describe("TUI observer service", () => {
     });
   });
 
-  it("maps failed terminal command records without error payloads to a TUI-safe error", async () => {
-    const service = createTuiObserverService({
+  it("maps failed terminal command records without error payloads to a client-safe error", async () => {
+    const service = createObserverService({
       client: fakeClient({
         waitForCommand: async (commandId) => {
           const record = commandRecord(commandId, "failed");
@@ -259,16 +259,16 @@ describe("TUI observer service", () => {
       status: "failed",
       commandId: "cmd_missing_error",
       error: {
-        tag: "TuiObserverError",
-        code: "TUI_COMMAND_FAILED_WITHOUT_ERROR",
+        tag: "ClientObserverError",
+        code: "CLIENT_COMMAND_FAILED_WITHOUT_ERROR",
         message: "The observer command failed without an error payload.",
         commandId: "cmd_missing_error",
       },
     });
   });
 
-  it("wraps protocol wait failures in TUI command wait errors", async () => {
-    const service = createTuiObserverService({
+  it("wraps protocol wait failures in client command wait errors", async () => {
+    const service = createObserverService({
       client: fakeClient({
         waitForCommand: async () => {
           throw {
@@ -281,12 +281,12 @@ describe("TUI observer service", () => {
     });
 
     await expect(service.waitForCommandCompletion("cmd_closed")).rejects.toMatchObject({
-      code: "TUI_COMMAND_WAIT_FAILED",
+      code: "CLIENT_COMMAND_WAIT_FAILED",
     });
   });
 
   it("times out while waiting for command completion", async () => {
-    const service = createTuiObserverService({
+    const service = createObserverService({
       timeoutMs: 10,
       client: fakeClient({
         waitForCommand: async () => {
@@ -300,7 +300,7 @@ describe("TUI observer service", () => {
     });
 
     await expect(service.waitForCommandCompletion("cmd_hung")).rejects.toMatchObject({
-      code: "TUI_COMMAND_WAIT_TIMEOUT",
+      code: "CLIENT_COMMAND_WAIT_TIMEOUT",
     });
   });
 });
