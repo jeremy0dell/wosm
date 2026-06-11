@@ -1,6 +1,9 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
-import { mockObserverSnapshot } from "./mocks/mockObserverSnapshot.js";
+import { createStationSnapshotSource } from "./sources/createStationSnapshotSource.js";
+
+const snapshotSource = createStationSnapshotSource();
+const snapshot = await snapshotSource.getSnapshot();
 
 function App() {
   return (
@@ -8,8 +11,8 @@ function App() {
       <box width="100%" height={1} backgroundColor="#20252b">
         <text fg="#f4f4f5"> WOSM Station </text>
       </box>
-      <box width="100%" flexGrow={1} border title="mock observer snapshot" padding={1}>
-        <text fg="#d4d4d8">{JSON.stringify(mockObserverSnapshot, null, 2)}</text>
+      <box width="100%" flexGrow={1} border title="observer snapshot" padding={1}>
+        <text fg="#d4d4d8">{JSON.stringify(snapshot, null, 2)}</text>
       </box>
     </box>
   );
