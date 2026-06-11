@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run repair:node-pty && bun --hot src/main.tsx",
+    "dev": "bun run link:wosm && bun run repair:node-pty && bun --hot src/main.tsx",
+    "link:wosm": "../../scripts/link-wosm-packages.sh",
     "repair:node-pty": "../../scripts/repair-node-pty.sh",
-    "station": "bun run repair:node-pty && bun src/main.tsx",
-    "test": "bun test",
+    "station": "bun run link:wosm && bun run repair:node-pty && bun src/main.tsx",
+    "test": "bun run link:wosm && bun test",
     "test:pty": "bun run repair:node-pty && WOSM_STATION_PTY_SMOKE=1 bun test src/terminal/nodePtyTerminal.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "bun run link:wosm && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@opentui/core": "0.4.0",
