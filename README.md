@@ -1,178 +1,139 @@
 # wosm
 
-wosm is a local, terminal-native control plane for AI-agent worktree sessions.
+**A local, terminal-native control plane for AI-agent worktree sessions.**
 
-It is built for developers who run more than one agent, branch, worktree, or terminal
-workspace at a time and want the whole system to stay legible. Instead of spreading
-agent state across shell history, tmux panes, ad hoc scripts, and memory, wosm gives
-those moving parts one local command surface and one live TUI.
+When you run more than one AI agent at a time, things get messy fast: worktrees multiply, tmux panes lose their names, you forget which branch has the agent that's been running for twenty minutes. wosm solves this. It keeps your projects, worktrees, terminal workspaces, and agent harnesses connected — and shows you the live picture in a single TUI.
 
-The goal is simple: keep your projects, Worktrunk worktrees, tmux workspaces, and
-agent harnesses connected without turning your development machine into a black box.
-wosm tracks what it can prove, reports what it cannot prove, and keeps diagnostics
-close enough that a failed session can be understood without spelunking through every
-terminal tab.
+![wosm TUI — live worktree dashboard](docs/images/wosm-tui-general.png)
 
-## Why wosm?
+---
 
-AI coding tools are most useful when they can work in real project environments, but
-that also makes them easy to lose track of. A few parallel tasks can quickly become a
-pile of worktrees, panes, background processes, and half-remembered prompts.
+## What it does
 
-wosm treats that as an orchestration problem. It keeps the core state in a local
-observer, exposes operational commands through the CLI, and presents the current
-picture in a terminal UI. The system is intentionally local-first: your repositories,
-terminals, provider tools, and diagnostic state stay on your machine.
+wosm tracks the runtime state of your local agent workflow and makes it visible:
 
-Use wosm when you want to:
+- **Live TUI** — see every project, worktree, and agent session at a glance, updated in real time
+- **Observer** — a local background process that owns runtime truth, reconciles Worktrunk state, and serves snapshots over a local socket
+- **CLI** — `wosm doctor`, `wosm reconcile`, `wosm snapshot`, `wosm debug bundle`, and more
+- **Session creation** — start a new agent session from the TUI with project, branch, and harness already wired up
+- **Hook ingress** — Claude Code, Codex, Cursor, Pi, and OpenCode emit structured events that wosm receives and records
+- **Diagnostics** — trace IDs, debug bundles, bounded log retention, and provider health checks built in from day one
 
-- see configured projects and active worktrees in one place
-- reconcile real Worktrunk state instead of guessing from directory names
-- open tmux workspaces with stable identity attached
-- launch agent harnesses such as Claude Code, Codex, or OpenCode from a consistent flow
-- inspect snapshots, provider health, hooks, logs, and debug bundles when something
-  feels off
+![wosm TUI — create session](docs/images/wosm-tui-create.png)
 
-## Apps
+---
 
-The repo is organized around three local apps that work together.
+## Getting started
 
-### CLI
-
-`@wosm/cli` provides the `wosm` command. It is the entry point for setup checks,
-observer lifecycle, reconciliation, snapshots, live event observation, hooks,
-diagnostics, and launching the TUI. During development you can run it through
-`pnpm wosm`, or link it globally with `pnpm wosm:link`.
-
-Useful commands include:
+**Requirements:** Node.js 24.x, pnpm 11. External tools (Worktrunk `wt`, tmux, agent CLIs) are optional and checked by `wosm doctor`.
 
 ```sh
-wosm doctor
-wosm reconcile --reason manual
-wosm snapshot --json
-wosm observe --include-snapshot --duration 3s
-wosm debug bundle
-wosm observer stop
-```
-
-### Provider Hook Ingress
-
-`@wosm/provider-hooks` provides the tiny `wosm-ingress` sender used by generated
-command-style provider hooks. It sends compact provider reports directly to the
-observer socket with bounded delivery and spools locally if the observer is unavailable.
-Pi extension hooks report in-process without spawning a hook command for every event.
-
-### Observer
-
-`@wosm/observer` is the local background process that owns runtime truth. It talks to
-configured providers, reconciles project state, records bounded diagnostic evidence,
-and serves snapshots/events/commands over the protocol layer.
-
-The observer is deliberately the place where orchestration lives. The CLI and TUI ask
-it questions and submit commands; they do not independently invent runtime state.
-That boundary is what lets wosm stay debuggable as more providers and workflows are
-added.
-
-### TUI
-
-`@wosm/tui` is the terminal UI. It is built for the moment when you want to stop
-remembering which pane belongs to which agent and just look at the live system.
-
-The TUI connects to the observer, refreshes from snapshots and events, and gives a
-provider-neutral view of projects, worktrees, sessions, terminal targets, and agent
-status. Running `wosm` with no subcommand launches it.
-
-## Integrations
-
-wosm is designed around provider boundaries so each external tool can stay in its own
-lane.
-
-- Worktrunk provides the real worktree backend through `wt`.
-- tmux provides terminal workspaces and pane/window identity.
-- Claude Code, Codex, and OpenCode are harness providers for agent sessions.
-- Scripted providers are used for deterministic tests and local contract coverage.
-
-External tools are not bundled into the npm workspace. wosm checks and reports their
-availability through `wosm doctor`, provider health, and debug bundles.
-
-## Status
-
-wosm is under active development. The current build supports local setup, diagnostics,
-Worktrunk reconciliation, JSON snapshots, hook ingestion, debug bundles, and the TUI
-shell. It is ready for manual smoke testing and early local use, but interfaces may
-still change.
-
-## Requirements
-
-- Node.js 24.x
-- pnpm 11
-- Worktrunk, when using the Worktrunk provider
-- tmux, when opening terminal workspaces
-- Claude Code, Codex, or OpenCode, when using those harness providers
-
-On macOS, the repo includes a `Brewfile` and setup script for external tools.
-
-## Quick Start
-
-Install dependencies, check system tools, build the workspace, and ask wosm to inspect
-the local environment:
-
-```sh
+# Install dependencies and build
 pnpm install
-pnpm setup:system:check
-pnpm setup:system --yes
 pnpm build
+
+# Run the smoke suite to verify the build
 pnpm smoke:release
+
+# Guided setup: writes a config, enables hooks, installs the tmux popup binding
+pnpm wosm setup
+
+# Check everything is wired up
 pnpm wosm doctor
 ```
 
-Use the example config as a starting point, then edit the project roots for your
-machine:
-
-```sh
-mkdir -p ~/.config/wosm
-cp examples/config.toml ~/.config/wosm/config.toml
-```
-
-Then reconcile projects, inspect the observer snapshot, and launch the TUI:
+After setup, reconcile your projects and launch the TUI:
 
 ```sh
 pnpm wosm reconcile --reason manual
-pnpm wosm snapshot --json
 pnpm wosm
 ```
 
-To install the local CLI as `wosm` while developing:
+To use bare `wosm` from any directory, link the CLI globally:
 
 ```sh
 pnpm wosm:link
 wosm doctor
 ```
 
-## Common Commands
+### Config
+
+`wosm setup` writes a first config for you. To edit it manually or start from the annotated example:
 
 ```sh
-pnpm build
-pnpm typecheck
-pnpm lint
-pnpm test:unit
-pnpm test:contracts
-pnpm test:integration
-pnpm test:diagnostics
-pnpm test:agent:scripted
-pnpm test:all
+mkdir -p ~/.config/wosm
+cp examples/config.toml ~/.config/wosm/config.toml
+# edit project roots, then:
+wosm doctor
 ```
+
+See [examples/config.toml](examples/config.toml) for the full reference — projects, observer tuning, harness defaults, tmux topology, and hook setup.
+
+---
+
+## How it works
+
+The repo is a pnpm workspace with three local apps and a set of shared packages.
+
+**`@wosm/observer`** — the local background process. It talks to configured providers (Worktrunk, tmux, agent harnesses), reconciles project state, records bounded diagnostic evidence, and serves snapshots and events over a Unix socket. Everything else asks the observer questions; nothing else invents runtime state.
+
+**`@wosm/cli`** — the `wosm` command. Setup, reconciliation, snapshots, live event observation, hooks, diagnostics, and TUI launch. Use `pnpm wosm <cmd>` during development.
+
+**`@wosm/tui`** — the terminal UI. Connects to the observer, refreshes from live events and snapshots, and shows a provider-neutral view of projects, worktrees, sessions, terminal targets, and agent status. Launch with `wosm` (no subcommand).
+
+**`@wosm/provider-hooks`** — the `wosm-ingress` sender used by generated hook commands. Delivers compact provider reports to the observer socket with bounded delivery and local spooling when the observer is unavailable.
+
+---
+
+## Integrations
+
+wosm is built around provider boundaries. External tools stay in their own lane; wosm checks and reports their availability rather than bundling them.
+
+| Provider | Role |
+|----------|------|
+| **Worktrunk** (`wt`) | Worktree backend — canonical branch and worktree state |
+| **tmux** | Terminal workspaces, pane/window identity, popup binding |
+| **Claude Code** | Harness provider — hook ingress, session tracking |
+| **Codex** | Harness provider — hook ingress, session tracking |
+| **Cursor** | Harness provider — hook ingress, session tracking |
+| **Pi** | Harness provider — in-process hook reports |
+| **OpenCode** | Harness provider — hook ingress, session tracking |
+
+---
+
+## Development
+
+```sh
+pnpm build              # build all packages
+pnpm typecheck          # type-check all packages
+pnpm lint               # biome + source-order checks
+pnpm test:unit          # unit tests
+pnpm test:contracts     # contract tests
+pnpm test:integration   # integration tests
+pnpm test:diagnostics   # diagnostics tests
+pnpm test:agent:scripted  # scripted-agent lane (no real harness needed)
+pnpm test:all           # full gate: build + typecheck + lint + all test suites
+```
+
+---
+
+## Status
+
+wosm is under active development. The current build supports local setup, diagnostics, Worktrunk reconciliation, JSON snapshots, hook ingestion, debug bundles, and the TUI. It is ready for local daily use; interfaces may still change.
+
+---
 
 ## Documentation
 
-- [Architecture](docs/architecture.md)
-- [Development](docs/development.md)
-- [Debugging](docs/debugging.md)
-- [Install](docs/install.md)
-- [Manual smoke testing](docs/manual-smoke.md)
-- [System dependencies](docs/system-dependencies.md)
-- [Diagnostics](docs/diagnostics.md)
-- [Example config](examples/config.toml)
-- [Local real config](examples/local-real-config.toml)
-- [Known issues](docs/known-issues.md)
-- [Docs index](docs/README.md)
+| Doc | What it covers |
+|-----|---------------|
+| [Install](docs/install.md) | Full checkout setup, smoke options, local CLI linking |
+| [Architecture](docs/architecture.md) | Authoritative boundary map for architecture decisions |
+| [Development](docs/development.md) | Environment, test gates, data-shape conventions |
+| [TUI](docs/tui.md) | React/Ink coding, terminal layout, test expectations |
+| [Debugging](docs/debugging.md) | Trace IDs, command IDs, no-action debugging, evidence lookup |
+| [Diagnostics](docs/diagnostics.md) | `wosm doctor`, debug bundles, log retention, hook setup |
+| [System dependencies](docs/system-dependencies.md) | External tools, install checks, dependency diagnostics |
+| [Manual smoke testing](docs/manual-smoke.md) | Runnable CLI/TUI smoke loops, real provider lanes |
+| [Known issues](docs/known-issues.md) | Accepted limitations for the current local-use checkpoint |
+| [Docs index](docs/README.md) | Full index including active plans and historical records |
