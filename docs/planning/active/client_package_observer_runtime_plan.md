@@ -305,6 +305,23 @@ should not force full-refresh storms or repeated connection-state noise.
 
 ### PR 1: Behavior-Preserving Extraction
 
+Status: implemented (2026-06-11). Deviations from the sketch above, kept
+deliberately small:
+
+- The TUI bridge is hook-driven: the runtime exposes optional `onEvent`,
+  `onSubscriptionError`, and `onRefreshSettled` callbacks that fire
+  synchronously after each state swap, and the store derives its connection
+  status, toasts, and local-operation effects from those hooks instead of
+  mirroring `getState().connection`. The recovery-toast decision stays in the
+  TUI bridge because existing store tests inject downtime directly into store
+  state.
+- `dispatch` returns the protocol `CommandReceipt` and `waitForCommand`
+  returns `WosmClientCommandCompletion`; the sketch's normalized
+  `WosmClientCommandResult` shape is deferred until TUI and Station share a
+  command-status UI.
+- Runtime instances are single-use: `start()` is idempotent while running and
+  a stopped runtime does not restart.
+
 Create `packages/client` and move the framework-neutral pieces out of TUI
 without changing behavior:
 
