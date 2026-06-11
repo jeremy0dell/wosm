@@ -19,6 +19,8 @@ import type {
 const DEFAULT_RECONNECT_INITIAL_DELAY_MS = 100;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 5_000;
 
+type CycleEnding = "clean" | "failure";
+
 type RefreshSource = "managed" | "caller";
 
 type RefreshFlightRequest = {
@@ -44,7 +46,14 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
   let stopPromise: Promise<void> | undefined;
   let currentIterator: AsyncIterator<WosmEvent> | undefined;
   let reportedSubscriptionError = false;
-  let cycleMadeProgress = false;
+  // Resync contract: events carry no sequence numbers, so missed events are
+  // undetectable. After every subscription gap a full snapshot load must
+  // complete while the new subscription is live before the runtime may report
+  // connected again. A caller-provided initial snapshot is trusted.
+  let resynced = options.initialSnapshot !== undefined;
+  let subscriptionEpoch = 0;
+  let activeEpoch: number | undefined;
+  let cycleFault = false;
   let stopRequested = false;
   let refreshChainRunning = false;
   let mutationCounter = 0;
@@ -85,6 +94,22 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
     });
   }
 
+  // A loaded snapshot proves resync only if one subscription was live for the
+  // whole load: started after the subscribe and applied while it still runs.
+  // Loads that did not span a live subscription still update the snapshot but
+  // may not enter connected; the current gap's own resync remains owed.
+  function applyLoadedOutcome(snapshot: WosmSnapshot, epochAtStart: number | undefined): void {
+    const subscribedThroughout = epochAtStart !== undefined && epochAtStart === activeEpoch;
+    if (subscribedThroughout) {
+      resynced = true;
+    }
+    if (subscribedThroughout || state.connection.state === "connected") {
+      applyLoadedSnapshot(snapshot);
+      return;
+    }
+    swapState({ ...state, snapshot });
+  }
+
   function setInFlightRefresh(value: boolean): void {
     if (state.inFlightRefresh !== value) {
       swapState({ ...state, inFlightRefresh: value });
@@ -114,9 +139,10 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
           ? "managed"
           : "caller";
         const mutationsAtStart = mutationCounter;
+        const epochAtStart = activeEpoch;
         const outcome = await loadFlightOutcome();
         if (!stopRequested) {
-          applyFlightOutcome(outcome, flightSource);
+          applyFlightOutcome(outcome, flightSource, epochAtStart);
         }
         for (const request of requests) {
           request.resolve(outcome);
@@ -155,9 +181,13 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
   // failures leave the connection untouched (apps surface them via the hook).
   // Caller-sourced flights apply the snapshot but fire no hooks and never
   // touch failure state; refresh() callers keep their own error handling.
-  function applyFlightOutcome(outcome: RefreshFlightOutcome, source: RefreshSource): void {
+  function applyFlightOutcome(
+    outcome: RefreshFlightOutcome,
+    source: RefreshSource,
+    epochAtStart: number | undefined,
+  ): void {
     if (outcome.status === "loaded") {
-      applyLoadedSnapshot(outcome.snapshot);
+      applyLoadedOutcome(outcome.snapshot, epochAtStart);
       if (source === "managed") {
         hooks.onRefreshSettled?.({ status: "loaded", snapshot: outcome.snapshot });
       }
@@ -174,32 +204,25 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
     hooks.onRefreshSettled?.({ status: "failure", error: outcome.error });
   }
 
+  // Events never change connection state: connected is entered only when a
+  // resync load applies. Events before the first snapshot cannot be reduced;
+  // the in-flight initial resync covers them.
   function applyEvent(event: WosmEvent): void {
     reportedSubscriptionError = false;
-    cycleMadeProgress = true;
     if (state.snapshot === undefined) {
-      // Events arriving before the first snapshot still prove the observer is
-      // reachable, but cannot be reduced; the in-flight initial load covers them.
-      if (state.connection.state !== "connected") {
-        swapState({ ...state, connection: connectedConnectionState(state.connection, Date.now()) });
-      }
       hooks.onEvent?.(event, undefined);
       return;
     }
     const application = applyWosmEvent(state.snapshot, event);
     mutationCounter += 1;
-    swapState({
-      ...state,
-      snapshot: application.snapshot,
-      connection: connectedConnectionState(state.connection, Date.now()),
-    });
+    swapState({ ...state, snapshot: application.snapshot });
     hooks.onEvent?.(event, application);
     if (application.needsSnapshotRefresh) {
       void requestRefresh("managed");
     }
   }
 
-  async function handleSubscriptionFailure(error: unknown): Promise<void> {
+  function handleSubscriptionFailure(error: unknown): CycleEnding {
     const safeError = toSafeError(error);
     if (isObserverConnectError(safeError)) {
       applyConnectionFailure(safeError);
@@ -210,7 +233,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
       reportedSubscriptionError = true;
       hooks.onSubscriptionError?.(safeError, { isConnectError: false, alreadyReported });
     }
-    await requestRefresh("managed");
+    return "failure";
   }
 
   function openIterator(): AsyncIterator<WosmEvent> {
@@ -225,43 +248,60 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
     void iterator?.return?.();
   }
 
-  const subscriptionCycle: Effect.Effect<void> = Effect.tryPromise({
-    try: async () => {
+  // One cycle = subscribe, then resync concurrently with consumption. The
+  // resync is tied to the new subscription (subscribe-first), so events
+  // emitted between the snapshot response and the subscribe ack cannot be
+  // lost; events applied while the resync flight is airborne are converged by
+  // the chain's staleness follow-up.
+  async function runCycle(): Promise<CycleEnding> {
+    subscriptionEpoch += 1;
+    const epoch = subscriptionEpoch;
+    activeEpoch = epoch;
+    cycleFault = false;
+    try {
       const iterator = openIterator();
-      await consumeCurrentSubscription(iterator, isActive, applyEvent);
-      cycleMadeProgress = true;
-      if (active) {
-        // Resync after every subscription gap: events have no sequence numbers,
-        // so a full snapshot reload is what keeps incremental patches correct.
-        await requestRefresh("managed");
+      if (!resynced) {
+        void runResync(epoch);
       }
-    },
-    catch: (error) => error,
-  }).pipe(
-    Effect.catchAll((error) =>
-      Effect.promise(async () => {
-        if (!active) return;
-        await handleSubscriptionFailure(error);
-      }),
-    ),
-    Effect.ensuring(Effect.sync(releaseIterator)),
-  );
+      await consumeCurrentSubscription(iterator, isActive, applyEvent);
+      return cycleFault ? "failure" : "clean";
+    } catch (error) {
+      if (!active) {
+        return "failure";
+      }
+      return handleSubscriptionFailure(error);
+    } finally {
+      activeEpoch = undefined;
+      releaseIterator();
+    }
+  }
 
-  // The driver feeds the jittered exponential schedule into the loop: each
-  // failed cycle escalates the next sleep, while a cycle that subscribed
-  // successfully (an event arrived or the stream ended cleanly) resets the
-  // sequence so the next attempt waits only the initial delay.
+  async function runResync(epoch: number): Promise<void> {
+    const outcome = await requestRefresh("managed");
+    if (!active || activeEpoch !== epoch || outcome.status === "loaded") {
+      return;
+    }
+    // A subscription that cannot resync must not park as healthy: end the
+    // cycle so the backoff loop retries subscribe and resync together.
+    cycleFault = true;
+    void currentIterator?.return?.();
+  }
+
+  // The driver feeds the jittered exponential schedule into the loop: a cycle
+  // that ended cleanly or achieved resync during its lifetime resets the
+  // sequence, while consecutive unhealthy cycles escalate the next sleep.
   const subscriptionLoop: Effect.Effect<void> = Effect.gen(function* () {
     const driver = yield* Schedule.driver(reconnectSchedule(initialDelayMs, maxDelayMs));
     while (active) {
-      cycleMadeProgress = false;
-      yield* subscriptionCycle;
+      const ending = yield* Effect.promise(runCycle);
       if (!active) {
         return;
       }
-      if (cycleMadeProgress) {
+      if (ending === "clean" || resynced) {
         yield* driver.reset;
       }
+      // Every gap demands a fresh resync before connected can be reported.
+      resynced = false;
       yield* driver.next(undefined);
     }
   }).pipe(Effect.orDie);
@@ -273,8 +313,9 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
     started = true;
     active = true;
     if (state.snapshot === undefined) {
+      // The first cycle's resync is the initial load; loading -> connected
+      // goes through the same path as every later gap.
       swapState({ ...state, connection: { state: "loading", since: Date.now() } });
-      void requestRefresh("managed");
     } else {
       swapState({ ...state, connection: connectedConnectionState(state.connection, Date.now()) });
     }
@@ -321,12 +362,17 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
       }
     },
     reconcile: async (reason?: string): Promise<void> => {
+      // Reconcile is its own observer call rather than a chain flight, but it
+      // participates in the same invariants: the returned snapshot counts as
+      // a resync under epoch gating, and the mutation bump makes an airborne
+      // flight schedule a follow-up instead of clobbering reconciled state.
+      const epochAtStart = activeEpoch;
       const loaded = await service.reconcile(reason);
       if (stopRequested) {
         return;
       }
       mutationCounter += 1;
-      applyLoadedSnapshot(loaded);
+      applyLoadedOutcome(loaded, epochAtStart);
       hooks.onRefreshSettled?.({ status: "loaded", snapshot: loaded });
     },
     dispatch: (command) => service.dispatch(command),
