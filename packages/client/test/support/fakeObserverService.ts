@@ -5,6 +5,7 @@ export class FakeObserverService implements ObserverService {
   readonly dispatched: WosmCommand[] = [];
   readonly events: WosmEvent[] = [];
   readonly reconcileReasons: Array<string | undefined> = [];
+  readonly subscribeTimes: number[] = [];
   readonly waitedForCommandIds: string[] = [];
   cleanupCount = 0;
   loadCount = 0;
@@ -29,7 +30,7 @@ export class FakeObserverService implements ObserverService {
   }
 
   subscribeEvents(): AsyncIterable<WosmEvent> {
-    this.subscribeCount += 1;
+    this.recordSubscribe();
     const subscriber: Subscriber = {
       queue: [],
       waiters: [],
@@ -64,6 +65,13 @@ export class FakeObserverService implements ObserverService {
   async reconcile(reason?: string): Promise<WosmSnapshot> {
     this.reconcileReasons.push(reason);
     return this.snapshot;
+  }
+
+  // Subclasses that replace subscribeEvents call this so reconnect-timing
+  // tests can read subscribeTimes regardless of the subscription's fate.
+  protected recordSubscribe(): void {
+    this.subscribeCount += 1;
+    this.subscribeTimes.push(Date.now());
   }
 
   // True only while the consumer is parked on iterator.next(); tests gate
@@ -111,7 +119,24 @@ export class FakeObserverService implements ObserverService {
   }
 }
 
-export function connectSafeError(): { tag: string; code: string; message: string } {
+export class DeferredLoadService extends FakeObserverService {
+  private readonly pendingLoads: Array<(snapshot: WosmSnapshot) => void> = [];
+
+  override async loadSnapshot(): Promise<WosmSnapshot> {
+    this.loadCount += 1;
+    return new Promise((resolve) => {
+      this.pendingLoads.push(resolve);
+    });
+  }
+
+  releaseLoads(): void {
+    for (const resolve of this.pendingLoads.splice(0)) {
+      resolve(this.snapshot);
+    }
+  }
+}
+
+function connectSafeError(): { tag: string; code: string; message: string } {
   return {
     tag: "ProtocolError",
     code: "PROTOCOL_CONNECT_FAILED",
@@ -122,6 +147,20 @@ export function connectSafeError(): { tag: string; code: string; message: string
 export function wrappedConnectError(): Error {
   const error = new Error("wrapped connect failure");
   (error as Error & { cause?: unknown }).cause = connectSafeError();
+  return error;
+}
+
+function schemaMismatchSafeError(): { tag: string; code: string; message: string } {
+  return {
+    tag: "ProtocolError",
+    code: "PROTOCOL_SCHEMA_MISMATCH",
+    message: "The observer is running an incompatible snapshot schema.",
+  };
+}
+
+export function wrappedSchemaMismatchError(): Error {
+  const error = new Error("wrapped schema mismatch");
+  (error as Error & { cause?: unknown }).cause = schemaMismatchSafeError();
   return error;
 }
 

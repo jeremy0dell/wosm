@@ -360,8 +360,9 @@ Validation:
 
 ### PR 2: Shared Runtime Reliability And Performance Deltas
 
-Land the intentional behavior changes in the shared runtime, red-first, with
-one focused test per delta:
+Status: implemented (2026-06-11). Each delta landed red-first with focused
+tests in `packages/client/test/unit/observerRuntimeReliability.test.ts` and
+`errors.test.ts`:
 
 - bounded exponential backoff with jitter replacing the fixed 100ms loop
 - retryable-versus-permanent error classification and the `halted` state
@@ -370,15 +371,44 @@ one focused test per delta:
   staleness invariant
 - awaitable `stop()` covering in-flight refresh cancellation
 
-List the user-visible deltas in the PR description: reconnect cadence changes,
-schema mismatch no longer retries forever, fewer redundant snapshot requests.
-TUI copy does not change.
+Deviations from the sketch above, kept deliberately small:
 
-Validation:
+- `connected` entry is never event-driven anymore, including the old
+  pre-first-snapshot flip: it strictly means "subscribed and resynced",
+  proven by a snapshot load that one live subscription spanned end to end
+  (epoch gating). The TUI bridge still derives its own status from hooks, so
+  TUI behavior and copy are unchanged.
+- The resync runs at cycle start, subscribe-first, closing a recovery race in
+  the ported loop: the old failure-path refresh ran before the sleep, so a
+  resubscribe that succeeded after a failed refresh consumed events against
+  the pre-outage snapshot with no reload. A retryably-failing resync now
+  poisons its cycle so backoff retries subscribe and resync together; the
+  start()-time refresh fork is gone (the first cycle's resync is the initial
+  load).
+- Caller `refresh()` joins the single-flight chain: the loaded snapshot
+  applies, no hooks fire, failures rethrow untouched. A permanent error
+  discovered by any flight halts the runtime (the caller still gets the
+  rethrow).
+- `reconcile()` stays an independent observer call but participates in the
+  staleness and resync accounting (mutation bump plus epoch-gated connected).
+- `PROTOCOL_SUBSCRIBE_ACK_MISMATCH` is classified permanent alongside the
+  three mandated codes; it is the same build-incoherence family.
+- `onSubscriptionError` info gained `willRetry: boolean`. Mirroring `halted`
+  into the TUI status presentation is deferred to the cross-app messaging
+  work; the existing dedup already surfaces the error toast once.
+- `stop()` is prompt abandonment with a hard mutation freeze rather than a
+  literal cancellation: `loadSnapshot` is not abortable through protocol, so
+  stop does not await an in-flight load — it freezes state and hooks so
+  nothing observable happens after `stop()` resolves, and the service's own
+  request timeout drains the abandoned flight.
+- The reconnect option is `reconnect: { initialDelayMs?, maxDelayMs? }`,
+  replacing `reconnectDelayMs`. The bloat audit also removed the unused
+  `EVENT_STREAM_RECONNECT_DELAY_MS` export, its dead TUI re-export, the
+  `refreshDepth` counter, and the consumerless `@wosm/client` re-exports in
+  the TUI index (`applyWosmEvent`, `createTuiObserverService`, and friends).
 
-- focused `packages/client` tests for each delta
-- TUI integration tests remain green
-- `pnpm test:all`
+Validation: focused `packages/client` tests per delta, TUI suites green with
+no edits beyond the dead re-export removals, `pnpm test:all`.
 
 ### PR 3: Station Read-Only Observer Overlay
 
