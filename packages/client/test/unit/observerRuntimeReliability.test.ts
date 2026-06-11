@@ -223,6 +223,56 @@ describe("observer client runtime refresh coalescing and shutdown", () => {
   });
 });
 
+describe("observer client runtime resync-after-gap contract", () => {
+  const runtimes: WosmClientRuntime[] = [];
+
+  afterEach(async () => {
+    for (const runtime of runtimes.splice(0)) {
+      await runtime.stop();
+    }
+  });
+
+  function track(runtime: WosmClientRuntime): WosmClientRuntime {
+    runtimes.push(runtime);
+    return runtime;
+  }
+
+  it("withholds connected until a post-resubscribe resync refresh completes", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new ToggleLoadFailingService(snapshot);
+    const runtime = track(
+      createWosmClientRuntime({
+        service,
+        initialSnapshot: snapshot,
+        reconnect: { initialDelayMs: 5, maxDelayMs: 20 },
+      }),
+    );
+    runtime.start();
+    await waitFor(() => service.waiterCount === 1);
+
+    // Kill the subscription while snapshot loads also fail: the gap begins.
+    service.failLoads = true;
+    service.failSubscriptions(wrappedConnectError());
+    await waitFor(() => runtime.getState().connection.state === "displayOnly");
+
+    // The next cycle resubscribes (subscribe itself is healthy) and events
+    // flow again, but no resync refresh has completed yet. Events apply to
+    // the last good snapshot, yet connected must be withheld: missed events
+    // during the gap are undetectable until a full reload lands.
+    await waitFor(() => service.waiterCount === 1);
+    service.emit(rowUpdateEvent());
+    await waitFor(() => runtime.getState().snapshot?.rows[0]?.display.statusLabel === "working");
+    expect(runtime.getState().connection.state).toBe("displayOnly");
+
+    // Healing the loads lets a resync complete; only then is connected
+    // reported, with a fresh load recorded after the resubscribe.
+    const loadsBefore = service.loadCount;
+    service.failLoads = false;
+    await waitFor(() => runtime.getState().connection.state === "connected", 3_000);
+    expect(service.loadCount).toBeGreaterThan(loadsBefore);
+  });
+});
+
 class AlwaysFailingService extends FakeObserverService {
   override async loadSnapshot(): Promise<WosmSnapshot> {
     this.loadCount += 1;
@@ -266,6 +316,18 @@ class ToggleFailingService extends FakeObserverService {
         return: async () => ({ done: true, value: undefined }),
       }),
     };
+  }
+}
+
+class ToggleLoadFailingService extends FakeObserverService {
+  failLoads = false;
+
+  override async loadSnapshot(): Promise<WosmSnapshot> {
+    if (this.failLoads) {
+      this.loadCount += 1;
+      throw wrappedConnectError();
+    }
+    return super.loadSnapshot();
   }
 }
 
