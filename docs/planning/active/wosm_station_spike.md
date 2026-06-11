@@ -240,12 +240,12 @@ stable path.
 
 For the first spike, Station can own its own local runtime:
 
-- `StationRuntime`
-- `PaneTree`
-- `PtyRegistry`
-- `TerminalBuffer`
-- `MouseFocusController`
-- `ObserverSnapshotClient`
+- `StationWorkspace` or `StationSession` for product state
+- `TerminalPane` records for pane metadata and intent
+- `PtyRegistry` for live PTY handles and process lifecycle
+- `TerminalBufferStore` for renderable terminal screen state
+- `StationController` as thin event-to-action glue
+- layout helpers, extracted only when split/focus logic needs them
 
 It can spawn processes directly.
 
@@ -379,6 +379,11 @@ because it collides with real Unix shells running inside panes.
 Use one canonical coordination store for cross-app state, but do not turn it
 into a universal data sink.
 
+This store is app-level coordination state. It is not the WOSM or Station
+session. A session is the place where the user does work in a worktree. The
+coordination store can hold selected ids and route actions, but it should not
+subsume session ownership or become the product model.
+
 The coordination store should own normalized state that multiple parts of
 Station must agree on:
 
@@ -388,7 +393,7 @@ Station must agree on:
 - active focus target
 - command lifecycle metadata
 - observer snapshot-derived WOSM graph summaries
-- selected project/worktree/session ids
+- selected project/worktree/session ids and focus metadata
 
 The coordination store should not own high-frequency or non-serializable runtime
 objects:
@@ -477,13 +482,140 @@ process.
 
 Keep these domains separate from the beginning:
 
-- `workspace`: tabs/windows, pane layout, active workspace, focusable surfaces
+- `workspace`: app-level tabs/windows, active workspace, focusable surfaces
+- `workSession`: per-worktree user work area, pane records, primary agent pane
+  id, and selected WOSM session ids
 - `wosmGraph`: observer snapshot summaries, selected WOSM project/worktree/session
 - `terminal`: terminal ids, backend attachment, resize, write, kill, process role
 - `agent`: harness identity, status, hook-derived state, launch commands
 - `worktree`: project path, branch, dirty state, Worktrunk identity
 - `commands`: command registry, palette entries, keybinding targets
 - `input`: key routing, mouse routing, focus, overlay/modal stack
+
+### Session And Primary Agent Semantics
+
+Station should start from WOSM's product model, not from pane mechanics. In this
+plan, a session means the place where the user does work in a worktree. It is a
+per-worktree work area with panes, focus, and a possible primary agent. It is not
+global app state.
+
+A pane is the atomic terminal viewport and PTY host, but a Station work session
+is the product container for one project/worktree context and the panes attached
+to it.
+
+Do not let `StationRuntime` become a god object. If a runtime/controller exists,
+it should only coordinate lifecycle and route UI events to narrower services.
+It should not own terminal emulation, process handles, pane layout, WOSM graph
+state, and agent semantics directly.
+
+Use this split as the initial mental model:
+
+```text
+StationWorkSession
+  product state for one project/worktree work area:
+  selected project/worktree/session ids, pane records, active pane,
+  primary agent pane id, and WOSM-aware actions
+
+TerminalPane
+  pane metadata:
+  pane id, title, cwd, command intent, role, status, and linked WOSM ids
+
+PtyRegistry
+  runtime resources:
+  pane id -> live PTY process, write/resize/signal/cleanup
+
+TerminalBufferStore
+  render state:
+  pane id -> parsed terminal screen, cursor, styles, scrollback, alt screen
+
+StationController
+  thin glue:
+  keyboard/mouse event -> workspace action -> registry/buffer/layout update
+```
+
+Avoid making `PaneTree` the top-level product abstraction. Pane layout can start
+as simple workspace state such as `panes`, `activePaneId`, and split metadata.
+Extract a dedicated `PaneTree` only when split-right, split-below, close,
+focus-next, and layout recomputation become complex enough to need one.
+
+The work session owns the meaning of a pane. The PTY registry owns only the
+live process handle. For example:
+
+```text
+StationWorkSession says:
+  pane abc is the primary Codex agent for worktree wt_feature
+
+PtyRegistry knows:
+  pane abc is process pid 12345, write bytes here, resize here, kill here
+
+TerminalBufferStore knows:
+  pane abc currently renders these rows, cursor position, and styles
+```
+
+#### The Primary Agent
+
+Station needs an explicit concept of the WOSM-managed primary agent for a
+workspace. This is the pane/process that backs the WOSM session row, receives
+normal focus actions, contributes agent status, and is affected by WOSM agent
+cleanup/resume behavior.
+
+The primary agent should be explicit. It is created by WOSM-aware actions such
+as `session.create`, `session.startAgent`, or a future Station action that
+launches an agent for the selected worktree. It should not be inferred just
+because a terminal process happens to look like `codex`, `opencode`, `cursor`,
+or `pi`.
+
+A Station workspace may also contain ad hoc agent panes. These are user-started
+agent processes in ordinary panes. WOSM may observe or label them when safe, but
+they should not automatically become the primary agent.
+
+This distinction answers important behavior questions:
+
+- row status, notifications, and primary focus target come from the primary
+  agent, not an arbitrary matching process
+- `session.sendPrompt`, future resume, and agent cleanup target the primary
+  agent unless the user explicitly chooses another target
+- process discovery can suggest adoption candidates, but should not silently
+  promote them
+
+#### Closing Agent Panes
+
+Closing the primary agent pane is a guarded action, not the same as closing a
+throwaway shell pane.
+
+Initial policy:
+
+- closing an idle shell pane can be immediate
+- closing a pane with a non-agent command should warn only when the process is
+  still running or the pane has unsaved terminal state worth preserving
+- closing the primary agent pane while the agent is active should require an
+  explicit confirmation or force action
+- closing the primary agent pane should update WOSM session/workspace state,
+  not only kill a PTY
+- if recovery metadata exists, the workspace can become recoverable/resumable
+- if no recovery metadata exists, the workspace should show exited/no-agent
+  state clearly instead of pretending the session is still live
+
+If the user starts an agent manually in another pane, closing that pane should
+follow ordinary running-process rules unless the user explicitly adopts it as
+the primary agent.
+
+#### Adoption And Promotion
+
+Station can eventually support adopting an ad hoc agent pane as the primary
+agent, but adoption must be explicit and backed by enough identity evidence to
+avoid corrupting session state.
+
+Minimum adoption questions:
+
+- Which WOSM project and worktree does this pane belong to?
+- Which harness provider is it?
+- Is there a provider-native session id or other stable recovery handle?
+- Is there already a live primary agent for this workspace?
+- What happens to the old primary agent if this pane is promoted?
+
+Until those are answered in running code, Station should keep manual agent
+panes separate from the WOSM-managed primary agent.
 
 ### Proposed Source Layout
 
