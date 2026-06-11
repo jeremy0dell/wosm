@@ -1,5 +1,19 @@
-import { isObserverConnectError, safeErrorToNotice, toSafeError } from "@wosm/client";
+import {
+  isObserverConnectError,
+  isPermanentObserverError,
+  safeErrorToNotice,
+  toSafeError,
+} from "@wosm/client";
+import type { SafeError } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
+
+function protocolError(code: string): SafeError {
+  return {
+    tag: "ProtocolError",
+    code,
+    message: "Protocol failure for classification.",
+  };
+}
 
 describe("client SafeError mapping", () => {
   it("preserves user-safe diagnostics from protocol errors", () => {
@@ -53,5 +67,38 @@ describe("client SafeError mapping", () => {
       hint: "Try the command again when the observer is ready.",
     });
     expect(JSON.stringify(notice)).not.toContain("/tmp/wosm-test.sock");
+  });
+});
+
+describe("retryable-versus-permanent observer error classification", () => {
+  it("classifies schema and validation incoherence as permanent", () => {
+    const permanentCodes = [
+      "PROTOCOL_SCHEMA_MISMATCH",
+      "PROTOCOL_RESPONSE_VALIDATION_FAILED",
+      "PROTOCOL_EVENT_VALIDATION_FAILED",
+      "PROTOCOL_SUBSCRIBE_ACK_MISMATCH",
+    ];
+    for (const code of permanentCodes) {
+      expect(isPermanentObserverError(protocolError(code)), code).toBe(true);
+    }
+  });
+
+  it("classifies transient transport failures as retryable", () => {
+    const retryableCodes = [
+      "PROTOCOL_CONNECT_FAILED",
+      "PROTOCOL_CONNECT_TIMEOUT",
+      "PROTOCOL_REQUEST_FAILED",
+      "PROTOCOL_REQUEST_TIMEOUT",
+      "PROTOCOL_SOCKET_CLOSED",
+      "PROTOCOL_SUBSCRIBE_TIMEOUT",
+      "CLIENT_SNAPSHOT_TIMEOUT",
+    ];
+    for (const code of retryableCodes) {
+      expect(isPermanentObserverError(protocolError(code)), code).toBe(false);
+    }
+  });
+
+  it("defaults unknown codes to retryable so transient failures self-heal", () => {
+    expect(isPermanentObserverError(protocolError("TOTALLY_NEW_CODE"))).toBe(false);
   });
 });
