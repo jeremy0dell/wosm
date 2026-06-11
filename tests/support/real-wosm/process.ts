@@ -122,6 +122,7 @@ function wosmChildEnv(env: RealE2eEnvironment): NodeJS.ProcessEnv {
   const childEnv: NodeJS.ProcessEnv = { ...process.env };
   if (env.worktrunkBin !== undefined) childEnv.WOSM_WORKTRUNK_BIN = env.worktrunkBin;
   if (env.tmuxBin !== undefined) childEnv.WOSM_TMUX_BIN = env.tmuxBin;
+  if (env.claudeBin !== undefined) childEnv.WOSM_CLAUDE_BIN = env.claudeBin;
   if (env.codexBin !== undefined) childEnv.WOSM_CODEX_BIN = env.codexBin;
   if (env.piBin !== undefined) childEnv.WOSM_PI_BIN = env.piBin;
   if (env.opencodeBin !== undefined) childEnv.WOSM_OPENCODE_BIN = env.opencodeBin;

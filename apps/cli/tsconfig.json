@@ -5,6 +5,7 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
+      "@wosm/claude": ["../../integrations/harness/claude/dist/index.d.ts"],
       "@wosm/codex": ["../../integrations/harness/codex/dist/index.d.ts"],
       "@wosm/config": ["../../packages/config/dist/index.d.ts"],
       "@wosm/contracts": ["../../packages/contracts/dist/index.d.ts"],

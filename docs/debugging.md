@@ -39,7 +39,7 @@ Use the narrowest tool that can answer the question:
 | Live event stream for humans | `wosm observe --include-snapshot --duration 3s` or `wosm observe --pane` |
 | One command lifecycle record | `wosm command get <commandId>` |
 | Redacted shareable evidence | `wosm debug bundle --trace <traceId>` / `--command <commandId>` / `--latest-failure` |
-| Provider hook setup | `wosm hooks doctor <target>` for worktrunk, codex, cursor, or opencode |
+| Provider hook setup | `wosm hooks doctor <target>` for worktrunk, claude, codex, cursor, or opencode |
 | Observer event hook setup | `wosm event-hooks doctor` |
 | Setup and tool readiness | `wosm setup check --json`, `wosm setup system --check`, or `pnpm setup:system:check` |
 

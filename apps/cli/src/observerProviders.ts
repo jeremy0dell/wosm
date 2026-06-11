@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { ClaudeHarnessProvider } from "@wosm/claude";
 import { CodexHarnessProvider } from "@wosm/codex";
 import { type HarnessProviderConfig, resolveObserverPaths, type WosmConfig } from "@wosm/config";
 import type {
@@ -132,6 +133,35 @@ function createHarnessProvider(
       options.nodeCommand = providerConfig.command;
     }
     return new ScriptedAgentHarnessProvider(options);
+  }
+
+  if (id === "claude") {
+    const options: ConstructorParameters<typeof ClaudeHarnessProvider>[0] = {};
+    if (providerConfig?.command !== undefined) {
+      options.command = providerConfig.command;
+    }
+    if (providerConfig?.profile !== undefined) {
+      options.profile = providerConfig.profile;
+    }
+    const permissionMode = resolveHarnessPermissionMode(config, id);
+    if (permissionMode !== undefined) {
+      options.permissionMode = permissionMode;
+    }
+    if (providerConfig?.approvalPolicy !== undefined) {
+      options.approvalPolicy = providerConfig.approvalPolicy;
+    }
+    if (providerConfig?.sandboxMode !== undefined) {
+      options.sandboxMode = providerConfig.sandboxMode;
+    }
+    if (providerConfig?.installHooks !== undefined) {
+      options.installHooks = providerConfig.installHooks;
+    }
+    const observerPaths = resolveObserverPaths(config);
+    options.observerSocketPath = observerPaths.socketPath;
+    options.stateDir = observerPaths.stateDir;
+    options.hookSpoolDir = observerPaths.hookSpoolDir;
+    options.autoStartFromHooks = config.observer?.autoStartFromHooks !== false;
+    return new ClaudeHarnessProvider(options);
   }
 
   if (id === "codex") {

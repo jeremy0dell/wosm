@@ -18,7 +18,7 @@ Avoid bare `hook` and bare `event` when the source or direction matters.
 
 ### Provider Hook
 
-A provider hook is an external provider callback or generated provider hook command. Examples include Worktrunk lifecycle hooks, Codex hooks, Cursor hooks, OpenCode plugin hooks, and Pi extension callbacks.
+A provider hook is an external provider callback or generated provider hook command. Examples include Worktrunk lifecycle hooks, Claude Code hooks, Codex hooks, Cursor hooks, OpenCode plugin hooks, and Pi extension callbacks.
 
 Use `provider hook` for provider-originated callback mechanics and generated hook setup.
 
@@ -143,7 +143,7 @@ Avoid CLI/API output that treats event hooks as a provider. Prefer labels such a
 
 Manual verification after naming work:
 
-- Provider setup output still clearly refers to Worktrunk/Codex/Cursor/OpenCode/Pi hooks.
+- Provider setup output still clearly refers to Worktrunk/Claude/Codex/Cursor/OpenCode/Pi hooks.
 - Notify setup output clearly refers to observer event hooks, not a provider named `event`.
 - Event subscription output clearly uses WOSM event names.
 - Debug evidence separates provider hook delivery/spool from observer event hook command execution.

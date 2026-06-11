@@ -29,7 +29,7 @@ Use wosm when you want to:
 - see configured projects and active worktrees in one place
 - reconcile real Worktrunk state instead of guessing from directory names
 - open tmux workspaces with stable identity attached
-- launch agent harnesses such as Codex or OpenCode from a consistent flow
+- launch agent harnesses such as Claude Code, Codex, or OpenCode from a consistent flow
 - inspect snapshots, provider health, hooks, logs, and debug bundles when something
   feels off
 
@@ -89,7 +89,7 @@ lane.
 
 - Worktrunk provides the real worktree backend through `wt`.
 - tmux provides terminal workspaces and pane/window identity.
-- Codex and OpenCode are harness providers for agent sessions.
+- Claude Code, Codex, and OpenCode are harness providers for agent sessions.
 - Scripted providers are used for deterministic tests and local contract coverage.
 
 External tools are not bundled into the npm workspace. wosm checks and reports their
@@ -108,7 +108,7 @@ still change.
 - pnpm 11
 - Worktrunk, when using the Worktrunk provider
 - tmux, when opening terminal workspaces
-- Codex or OpenCode, when using those harness providers
+- Claude Code, Codex, or OpenCode, when using those harness providers
 
 On macOS, the repo includes a `Brewfile` and setup script for external tools.
 

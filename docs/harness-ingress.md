@@ -36,7 +36,7 @@ Provider integrations derive their forwarding allow-list from their local rules.
 
 ## Rollout
 
-OpenCode is the first provider using a rule-derived ingress filter. Codex and Pi must keep current behavior until each has provider-specific ingress rules and no-regression tests proving required events are still admitted.
+OpenCode is the first provider using a rule-derived ingress filter. Claude Code follows the same shape: `integrations/harness/claude/src/ingressRules.ts` is the single source of truth for both the installed hook event set (the generated `--settings` artifact registers only rule-listed events) and status projection (`statusFromClaudeHookEvent` is gated by rule presence, and `wosm-ingress claude` drops unlisted event types with an `ignored` receipt). `SubagentStart`, `SubagentStop`, and `PostToolUseFailure` are deliberately absent from the Claude rules: `SubagentStop` fires after `Stop` at turn end and would flip a freshly idle row back to working. Codex and Pi must keep current behavior until each has provider-specific ingress rules and no-regression tests proving required events are still admitted.
 
 When adding a provider:
 

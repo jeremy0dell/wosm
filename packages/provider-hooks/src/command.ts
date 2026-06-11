@@ -7,6 +7,7 @@ import { systemClock, toIsoTimestamp } from "@wosm/runtime";
 import {
   type ProviderHookSenderDeps,
   type ProviderHookSenderOptions,
+  sendClaudeHookPayload,
   sendCodexHookPayload,
   sendCursorHookPayload,
   sendPiHookPayload,
@@ -49,6 +50,21 @@ export async function runProviderIngressCommand(
   }
   const senderOptions = senderOptionsFromParsed(parsed, options);
   const stdin = options.stdin ?? (await readStdinIfAvailable());
+
+  if (provider === "claude") {
+    const payload = parseJsonPayload(stdin, "claude", "unknown", deps);
+    if (!payload.ok) {
+      return payload.receipt;
+    }
+    const hookInput: Parameters<typeof sendClaudeHookPayload>[0] = {
+      ...senderOptions,
+      payload: payload.value,
+    };
+    if (options.env !== undefined) {
+      hookInput.env = options.env;
+    }
+    return sendClaudeHookPayload(hookInput, deps);
+  }
 
   if (provider === "codex") {
     const payload = parseJsonPayload(stdin, "codex", "unknown", deps);

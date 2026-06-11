@@ -82,7 +82,7 @@ export function renderSetupApplyResult(plan: SetupPlan, options: SetupRenderOpti
   if (missing?.id === "harness") {
     return missingResult(
       "No supported agent CLI is available.",
-      "Install codex, cursor agent, opencode, or pi, then run:",
+      "Install claude, codex, cursor agent, opencode, or pi, then run:",
       theme,
     );
   }

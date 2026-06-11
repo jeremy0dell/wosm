@@ -7,7 +7,7 @@ Use this checklist before relying on wosm for day-to-day local agent work.
 - `pnpm build` succeeds.
 - `pnpm smoke:release` succeeds against isolated fake/scripted state.
 - `pnpm setup:system:check` succeeds.
-- `codex login status` succeeds.
+- `codex login status` succeeds (or `claude --version` plus `claude auth status` when using the Claude harness).
 - `wt --version`, `tmux -V`, and `bin/wosm doctor` succeed for the local-real config.
 - `examples/local-real-config.toml` has been copied and edited for the local use project root.
 - Guided `wosm setup` has either linked global launchers or generated tmux/hook commands with checkout launcher paths.
@@ -30,6 +30,17 @@ WOSM_WORKTRUNK_BIN="$(command -v wt)" \
 WOSM_TMUX_BIN="$(command -v tmux)" \
 WOSM_CODEX_BIN="$(command -v codex)" \
 pnpm test:e2e:real
+```
+
+Add `WOSM_REAL_CLAUDE=1` (with `claude` installed and logged in) to also run the opt-in
+Claude lifecycle and hook lanes in the same run:
+
+```bash
+WOSM_REAL_CLAUDE=1 WOSM_CLAUDE_BIN="$(command -v claude)" \
+WOSM_REAL_E2E=1 WOSM_REAL_WORKTRUNK=1 \
+pnpm vitest run --config config/vitest/vitest.real-e2e.config.ts \
+  tests/e2e/real/real-session-lifecycle-claude.test.ts \
+  tests/e2e/real/real-claude-hooks.test.ts
 ```
 
 Confirm:
