@@ -17,7 +17,6 @@ export function createMockWosmStateSource(): StationWosmStateSource {
   };
 
   return {
-    name: "mock",
     start: () => {},
     stop: async () => {},
     getState: () => state,

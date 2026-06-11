@@ -13,17 +13,18 @@ export type StationWosmState = {
 
 /**
  * Source-swappable boundary between the overlay and where WOSM state comes
- * from. The live source adapts the @wosm/client runtime; the mock source
- * serves a static contract-shaped fixture. `getState` is reference-stable
- * between changes (useSyncExternalStore-compatible), and sources are
- * single-use like the runtime they wrap: a stopped source does not restart.
+ * from. Deliberately carries no source identity: whether Station is showing
+ * live or mock state is decided in exactly one place
+ * (`createStationWosmStateSource`), and downstream code cannot tell the
+ * difference — mock data identifies itself through ordinary contract
+ * channels (a snapshot alert), not through code branches. `getState` is
+ * reference-stable between changes (useSyncExternalStore-compatible), and
+ * sources are single-use like the runtime they wrap: a stopped source does
+ * not restart.
  */
 export interface StationWosmStateSource {
-  readonly name: StationWosmStateSourceName;
   start(): void;
   stop(): Promise<void>;
   getState(): StationWosmState;
   subscribe(listener: () => void): () => void;
 }
-
-export type StationWosmStateSourceName = "observer" | "mock";
