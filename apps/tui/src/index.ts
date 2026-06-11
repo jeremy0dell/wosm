@@ -1,8 +1,3 @@
-export type {
-  ApplyWosmEventResult as TuiEventReducerResult,
-  CreateObserverServiceOptions as CreateTuiObserverServiceOptions,
-} from "@wosm/client";
-export { applyWosmEvent, createObserverService as createTuiObserverService } from "@wosm/client";
 export * from "./App/App.js";
 export * from "./components/Dashboard/layout.js";
 export * from "./runTui.js";

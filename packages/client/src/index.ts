@@ -1,4 +1,4 @@
-export { isObserverConnectError, observerConnectNotice } from "./connectionState.js";
+export { isObserverConnectError } from "./connectionState.js";
 export { isPermanentObserverError, safeErrorToNotice, toSafeError } from "./errors.js";
 export { createWosmClientRuntime } from "./observerRuntime.js";
 export {
