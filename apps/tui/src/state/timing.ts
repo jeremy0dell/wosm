@@ -1,7 +1,5 @@
 import type { TuiToast } from "../services/types.js";
 
-export { EVENT_STREAM_RECONNECT_DELAY_MS } from "@wosm/client";
-
 export const FAILED_CREATE_ROW_TTL_MS = 4_000;
 export const OBSERVER_RECOVERY_TOAST_THRESHOLD_MS = 1_500;
 

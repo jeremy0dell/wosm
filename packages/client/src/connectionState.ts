@@ -31,6 +31,12 @@ export function failureConnectionState(
   return { state: statusState, since, lastError: error };
 }
 
+// Terminal state for permanent errors: the runtime stops retrying but keeps
+// the last good snapshot available.
+export function haltedConnectionState(error: SafeError, nowMs: number): WosmClientConnectionState {
+  return { state: "halted", since: nowMs, lastError: error };
+}
+
 export function observerConnectNotice(): ClientNotice {
   return {
     kind: "error",
