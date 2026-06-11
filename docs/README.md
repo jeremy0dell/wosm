@@ -24,8 +24,6 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 
 ## Active Plans
 
-- [Terminal ownership P0 blocker fix](planning/active/terminal_ownership_p0_blocker_fix.md) is a scoped planning addendum for terminal intent ownership; read only when changing terminal command routing or provider ownership.
-- [Terminal leakage P1 fix](planning/active/terminal_leakage_p1_fix.md) is a scoped planning addendum for cleaning terminal topology leakage after the P0 terminal boundary.
 - [Effect boundary hardening sequence](planning/active/effect_boundary_hardening_sequence.md) is a scoped planning addendum for runtime timeout, retry, cancellation, queue, protocol, observer, provider, CLI, and TUI IO boundaries.
 - [TypeScript shape boundary audit](planning/active/typescript_shape_boundary_audit.md) is the current one-off audit brief for finding JavaScript-style runtime shape probing where schemas or typed unions should own the shape.
 - [Light commenting audit](planning/active/light_commenting_audit.md) is a scoped planning addendum for adding sparse comments to non-obvious runtime, provider, protocol, and correlation code paths.
@@ -50,6 +48,8 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 - [Observer hook reconcile profiling](planning/completed/observer_hook_reconcile_profiling.md) is a completed profiling note for observer responsiveness under high hook volume.
 - [OpenCode harness integration plan](planning/completed/opencode_harness_integration_plan.md) is a completed planning record for real OpenCode launch, plugin event capture, observer-shaped event reports, contract changes, and deterministic plus real-provider tests.
 - [Provider hook scope guard plan](planning/completed/provider_hook_scope_guard_plan.md) is a completed planning record for provider hook ownership guards and ignored out-of-scope hooks.
+- [Terminal leakage P1 fix](planning/completed/terminal_leakage_p1_fix.md) is a completed cleanup record for terminal topology leakage: targetId removal from normal command surfaces, provider-neutral snapshot attachment state, terminal providerData persistence constraints, and CLI-owned provider construction.
+- [Terminal ownership P0 blocker fix](planning/completed/terminal_ownership_p0_blocker_fix.md) is a completed planning record for the terminal intent runner boundary: observer command handlers submit product terminal intents while terminal and harness providers own mechanics and launch planning; read it when changing terminal command routing or provider ownership.
 - [TUI screen-driven state transition](planning/completed/tui_screen_driven_state_transition.md) is a completed simplification plan for TUI state, keys, and screen-owned transitions.
 - [TUI toast overlay and observer status plan](planning/completed/tui_toast_overlay_status_plan.md) is a completed planning record for lifecycle toast presentation, display-only reconnect status, and cold-start observer feedback.
 - [TypeScript braid remediation plan](planning/completed/typescript_braid_audit_plan.md) is an executed remediation record and follow-up inventory, not a current broad refactor mandate.
