@@ -273,14 +273,58 @@ Target demo:
 
 The demo should make the product direction obvious within 60 seconds.
 
-## Prerequisite: Shared Client Runtime
+## WOSM State Sources
+
+Station needs WOSM state before it has a live observer connector. Treat the WOSM
+state provider as a source-swappable boundary from the start.
+
+### Dev Mock State
+
+Station should have mock WOSM data available out of the box for design and
+layout work.
+
+Use a dev env flag to choose mock data, for example:
+
+```bash
+WOSM_STATION_STATE_SOURCE=mock experimental/station/scripts/run-host.sh --hot
+```
+
+The exact env name can change during implementation, but the behavior should be
+clear:
+
+- mock mode does not require a running observer
+- mock mode does not connect to the observer socket
+- mock mode loads large realistic JSON fixtures from the Station experiment
+- mock mode can show multiple projects, worktrees, sessions, agent states,
+  dirty branches, command lifecycle examples, and disconnected/error examples
+- mock mode should be deterministic so visual layout and input tests can use it
+
+Suggested fixture layout:
+
+```text
+experimental/station/apps/station/src/
+  mocks/
+    wosm/
+      active-workspace.json
+      many-projects.json
+      attention-and-failures.json
+      disconnected.json
+```
+
+Mock data should satisfy the same contract-shaped structures that live Station
+will consume. Do not invent a separate Station-only graph shape unless the UI
+needs a derived projection. Derived projections should be selectors, not fixture
+schema.
+
+### Live Observer State
 
 Observer-connected Station work depends on
 [`packages/client`](client_package_observer_runtime_plan.md).
 
 Station can continue to prototype local layout, input routing, and fake panes
-inside `experimental/station` before that package exists. However, Station
-should not grow a Station-specific observer connector for the WOSM overlay.
+inside `experimental/station` before that package exists, and mock WOSM state is
+the preferred early path for overlay and dashboard layout. However, Station
+should not grow a Station-specific live observer connector for the WOSM overlay.
 Live observer snapshots, event subscriptions, reconnect behavior, command
 dispatch, and command completion should come from the shared rich-client runtime
 planned in `packages/client`.
@@ -292,6 +336,9 @@ The goal is for Station to share the same observer-consumption boundary as
 - `packages/client` owns rich-client synchronization with observer truth.
 - `packages/protocol` owns low-level socket transport and message validation.
 - `packages/contracts` owns shared schemas and types.
+
+The Station provider boundary should hide whether WOSM state came from mock
+fixtures or the live `packages/client` runtime.
 
 ## Current Design Direction
 
@@ -374,7 +421,7 @@ Use providers for shared capabilities and services:
 - `ToastProvider`
 - `ThemeProvider`
 - `TerminalBackendProvider`
-- `WosmClientProvider`
+- `WosmStateProvider`
 - `ClipboardProvider`
 
 Avoid domain mini-database providers such as `SessionProvider`, `PaneProvider`,
@@ -474,6 +521,12 @@ experimental/station/apps/station/src/
     focus.ts
     keymaps.ts
     router.ts
+  mocks/
+    wosm/
+      active-workspace.json
+      attention-and-failures.json
+      disconnected.json
+      many-projects.json
   providers/
     ClipboardProvider.tsx
     CommandProvider.tsx
@@ -482,7 +535,7 @@ experimental/station/apps/station/src/
     TerminalBackendProvider.tsx
     ThemeProvider.tsx
     ToastProvider.tsx
-    WosmClientProvider.tsx
+    WosmStateProvider.tsx
   runtime/
     paneRuntime.ts
     stationRuntime.ts
