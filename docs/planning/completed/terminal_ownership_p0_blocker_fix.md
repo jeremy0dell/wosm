@@ -1,10 +1,14 @@
 # Terminal Intent Boundary Refactor Plan
 
-**Status:** Active planning doc
+**Status:** Completed planning record (PRs 1-3 implemented; PR 3 notes dated 2026-06-05; moved to completed 2026-06-11)
 **Date:** 2026-06-04
 **Severity:** P0 architecture refactor
 **Applies to:** terminal ownership, session launch, focus/close commands, observer command handlers, tmux integration, harness launch composition
-**Related PR 3 detail:** `docs/planning/active/terminal_leakage_p1_fix.md`
+**Related PR 3 detail:** `docs/planning/completed/terminal_leakage_p1_fix.md`
+
+The only open item is an explicit deferral, not pending work: the debug
+terminal-target command namespace remains deferred until users demonstrate a
+need for target-level operations.
 
 This document is the current plan for fixing the terminal ownership boundary.
 
@@ -1027,7 +1031,7 @@ remove provider-topology pressure from normal snapshot and observer-facing data
 keep provider target identity behind provider, diagnostics, or explicit debug boundaries
 ```
 
-Relationship to `docs/planning/active/terminal_leakage_p1_fix.md`:
+Relationship to `docs/planning/completed/terminal_leakage_p1_fix.md`:
 
 ```text
 the P1 leakage doc remains accurate as the detailed backlog of leakage concerns
