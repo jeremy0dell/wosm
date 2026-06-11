@@ -113,6 +113,9 @@ importers:
 
   apps/tui:
     dependencies:
+      '@wosm/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@wosm/config':
         specifier: workspace:*
         version: link:../../packages/config
