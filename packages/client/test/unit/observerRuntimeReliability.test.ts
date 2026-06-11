@@ -9,6 +9,7 @@ import {
   DeferredLoadService,
   FakeObserverService,
   wrappedConnectError,
+  wrappedSchemaMismatchError,
 } from "../support/fakeObserverService.js";
 import {
   createCommandSnapshot,
@@ -316,6 +317,87 @@ class ToggleFailingService extends FakeObserverService {
     };
   }
 }
+
+describe("observer client runtime permanent-error halt", () => {
+  const runtimes: WosmClientRuntime[] = [];
+
+  afterEach(async () => {
+    for (const runtime of runtimes.splice(0)) {
+      await runtime.stop();
+    }
+  });
+
+  function track(runtime: WosmClientRuntime): WosmClientRuntime {
+    runtimes.push(runtime);
+    return runtime;
+  }
+
+  it("halts permanently on schema mismatch, keeps the last snapshot, and stops resubscribing", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new FakeObserverService(snapshot);
+    const infos: Array<{ isConnectError: boolean; alreadyReported: boolean; willRetry: boolean }> =
+      [];
+    const runtime = track(
+      createWosmClientRuntime({
+        service,
+        initialSnapshot: snapshot,
+        reconnect: { initialDelayMs: 5, maxDelayMs: 20 },
+        hooks: {
+          onSubscriptionError: (_error, info) => {
+            infos.push(info);
+          },
+        },
+      }),
+    );
+    runtime.start();
+    await waitFor(() => service.waiterCount === 1);
+
+    service.failSubscriptions(wrappedSchemaMismatchError());
+    await waitFor(() => runtime.getState().connection.state === "halted");
+
+    const connection = runtime.getState().connection;
+    if (connection.state !== "halted") {
+      throw new Error("expected a halted connection");
+    }
+    expect(connection.lastError.code).toBe("PROTOCOL_SCHEMA_MISMATCH");
+    expect(runtime.getState().snapshot?.counts.worktrees).toBe(1);
+    expect(infos).toEqual([{ isConnectError: false, alreadyReported: false, willRetry: false }]);
+
+    // Halted means the runtime stops hitting the socket: no resubscribes
+    // across several would-be backoff periods.
+    const subscribes = service.subscribeCount;
+    await delay(100);
+    expect(service.subscribeCount).toBe(subscribes);
+  });
+
+  it("halts from loading when the initial resync reports a permanent error", async () => {
+    const service = new FakeObserverService(createCommandSnapshot("idle"));
+    service.loadSnapshot = async () => {
+      throw wrappedSchemaMismatchError();
+    };
+    const outcomes: WosmClientRefreshOutcome[] = [];
+    const runtime = track(
+      createWosmClientRuntime({
+        service,
+        reconnect: { initialDelayMs: 5, maxDelayMs: 20 },
+        hooks: {
+          onRefreshSettled: (outcome) => {
+            outcomes.push(outcome);
+          },
+        },
+      }),
+    );
+    runtime.start();
+
+    await waitFor(() => runtime.getState().connection.state === "halted");
+    expect(runtime.getState().snapshot).toBeUndefined();
+    expect(outcomes.some((outcome) => outcome.status === "failure")).toBe(true);
+
+    const subscribes = service.subscribeCount;
+    await delay(100);
+    expect(service.subscribeCount).toBe(subscribes);
+  });
+});
 
 function subscribeGaps(service: FakeObserverService): number[] {
   const gaps: number[] = [];
