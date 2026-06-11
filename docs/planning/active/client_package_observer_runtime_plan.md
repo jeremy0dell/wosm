@@ -13,11 +13,16 @@ This package should answer one boundary question:
 > How does a long-running WOSM client stay synchronized with observer snapshots,
 > events, commands, and reconnect state without each app rebuilding that logic?
 
-The immediate product reason is Station. Station should connect to the observer
-through the same proven boundary as `apps/tui`, but duplicating the current TUI
-observer service and subscription loop as Station-specific code would create two
-parallel connectors. `packages/client` should make Station's observer-connected
-WOSM overlay boring to build.
+The immediate product reason is Station's live observer mode. Station should
+connect to the observer through the same proven boundary as `apps/tui`, but
+duplicating the current TUI observer service and subscription loop as
+Station-specific live code would create two parallel connectors.
+`packages/client` should make Station's observer-connected WOSM overlay boring
+to build.
+
+This is not a prerequisite for all Station UI work. Station should also support
+dev mock WOSM state from JSON fixtures so layout, overlays, input routing, and
+visual testing can move before live observer wiring lands.
 
 ## Current Baseline
 
@@ -209,7 +214,7 @@ Validation:
 ### PR 2: Station Read-Only Observer Overlay
 
 Use `packages/client` from Station to render live observer state in the WOSM
-overlay.
+overlay, behind the same Station WOSM state provider used by mock mode.
 
 This PR should not add real PTY panes yet. It should prove that Station can
 consume observer truth through the shared client runtime and render a useful
@@ -233,10 +238,13 @@ Do not make Station a terminal provider in this phase.
 
 ## Station Dependency
 
-Observer-connected Station work depends on `packages/client`.
+Live observer-connected Station work depends on `packages/client`.
 
-Station can continue rendering local layout prototypes without this package, but
-the WOSM overlay should not grow a Station-specific observer connector. If a
+Station can continue rendering local layout prototypes and mock WOSM overlay
+states without this package. Mock mode should use contract-shaped JSON fixtures
+inside `experimental/station` and should not connect to the observer socket.
+
+The WOSM overlay should not grow a Station-specific live observer connector. If a
 Station PR needs live observer snapshots or commands, it should either:
 
 1. land after `packages/client`, or
@@ -283,3 +291,5 @@ Do not use this package to:
   incremental event application, and command lifecycle normalization.
 - Station's observer-connected WOSM overlay can be built without a
   Station-specific observer connector.
+- Station can still make UI progress before `packages/client` by using mock WOSM
+  state fixtures behind the same provider boundary.
