@@ -4,18 +4,28 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 image="wosm-station-experiment:local"
 script="station"
+source="${WOSM_STATION_SOURCE:-}"
 
-case "${1:-}" in
-  --hot)
-    script="dev"
-    ;;
-  "")
-    ;;
-  *)
-    echo "Usage: $0 [--hot]" >&2
-    exit 2
-    ;;
-esac
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --hot)
+      script="dev"
+      shift
+      ;;
+    --mock)
+      source="mock"
+      shift
+      ;;
+    *)
+      echo "Usage: $0 [--hot] [--mock]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -n "${source}" ]]; then
+  export WOSM_STATION_SOURCE="${source}"
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   cat >&2 <<EOF
@@ -34,11 +44,11 @@ docker build \
   "${root}"
 
 docker run --rm -it \
-  --name wosm-station-experiment \
   --mount "type=bind,src=${root},dst=/workspace/experimental/station" \
   --mount "type=volume,src=wosm-station-node-modules,dst=/workspace/experimental/station/node_modules" \
   --mount "type=volume,src=wosm-station-bun-cache,dst=/home/bun/.bun/install/cache" \
   --workdir /workspace/experimental/station \
   -e TERM="${TERM:-xterm-256color}" \
+  -e WOSM_STATION_SOURCE="${WOSM_STATION_SOURCE:-}" \
   "${image}" \
   sh -lc "bun install --frozen-lockfile && bun run ${script}"
