@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FakeObserverService, wrappedConnectError } from "../support/fakeObserverService.js";
 import { createCommandSnapshot, createZeroWorktreeSnapshot } from "../support/snapshots.js";
 
-const RECONNECT_DELAY_MS = 5;
+const RECONNECT_OPTIONS = { initialDelayMs: 5, maxDelayMs: 20 } as const;
 
 describe("observer client runtime", () => {
   const runtimes: WosmClientRuntime[] = [];
@@ -27,9 +27,7 @@ describe("observer client runtime", () => {
 
   it("loads the initial snapshot and transitions idle -> loading -> connected", async () => {
     const service = new FakeObserverService(createCommandSnapshot("idle"));
-    const runtime = track(
-      createWosmClientRuntime({ service, reconnectDelayMs: RECONNECT_DELAY_MS }),
-    );
+    const runtime = track(createWosmClientRuntime({ service, reconnect: RECONNECT_OPTIONS }));
 
     expect(runtime.getState().connection.state).toBe("idle");
     runtime.start();
@@ -42,9 +40,7 @@ describe("observer client runtime", () => {
 
   it("returns reference-stable state between changes and a new object per change", async () => {
     const service = new FakeObserverService(createCommandSnapshot("idle"));
-    const runtime = track(
-      createWosmClientRuntime({ service, reconnectDelayMs: RECONNECT_DELAY_MS }),
-    );
+    const runtime = track(createWosmClientRuntime({ service, reconnect: RECONNECT_OPTIONS }));
     runtime.start();
     await waitFor(() => runtime.getState().connection.state === "connected");
 
@@ -59,9 +55,7 @@ describe("observer client runtime", () => {
 
   it("notifies subscribers on changes and stops after unsubscribe", async () => {
     const service = new FakeObserverService(createCommandSnapshot("idle"));
-    const runtime = track(
-      createWosmClientRuntime({ service, reconnectDelayMs: RECONNECT_DELAY_MS }),
-    );
+    const runtime = track(createWosmClientRuntime({ service, reconnect: RECONNECT_OPTIONS }));
     runtime.start();
     await waitFor(() => runtime.getState().connection.state === "connected");
 
@@ -85,7 +79,7 @@ describe("observer client runtime", () => {
     const runtime = track(
       createWosmClientRuntime({
         service,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
         hooks: {
           onEvent: (_event, application) => {
             applications.push(application);
@@ -114,7 +108,7 @@ describe("observer client runtime", () => {
       createWosmClientRuntime({
         service,
         initialSnapshot: snapshot,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
       }),
     );
     runtime.start();
@@ -138,7 +132,7 @@ describe("observer client runtime", () => {
       createWosmClientRuntime({
         service,
         initialSnapshot: snapshot,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
         hooks: {
           onSubscriptionError: (_error, info) => {
             subscriptionErrors.push(info);
@@ -169,9 +163,7 @@ describe("observer client runtime", () => {
 
   it("marks cold-start connect failures reconnecting without a snapshot", async () => {
     const service = new ColdStartConnectFailingService(createCommandSnapshot("idle"));
-    const runtime = track(
-      createWosmClientRuntime({ service, reconnectDelayMs: RECONNECT_DELAY_MS }),
-    );
+    const runtime = track(createWosmClientRuntime({ service, reconnect: RECONNECT_OPTIONS }));
     runtime.start();
 
     await waitFor(() => runtime.getState().connection.state === "reconnecting");
@@ -186,7 +178,7 @@ describe("observer client runtime", () => {
       createWosmClientRuntime({
         service,
         initialSnapshot: snapshot,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
         hooks: {
           onSubscriptionError: (_error, info) => {
             reports.push(info.alreadyReported);
@@ -218,7 +210,7 @@ describe("observer client runtime", () => {
       createWosmClientRuntime({
         service,
         initialSnapshot: snapshot,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
       }),
     );
     runtime.start();
@@ -229,7 +221,7 @@ describe("observer client runtime", () => {
     expect(service.cleanupCount).toBe(1);
 
     runtime.start();
-    await delay(RECONNECT_DELAY_MS * 4);
+    await delay(RECONNECT_OPTIONS.maxDelayMs * 2);
     expect(service.subscribeCount).toBe(1);
   });
 
@@ -240,7 +232,7 @@ describe("observer client runtime", () => {
       createWosmClientRuntime({
         service,
         initialSnapshot: snapshot,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
       }),
     );
     runtime.start();
@@ -259,7 +251,7 @@ describe("observer client runtime", () => {
       createWosmClientRuntime({
         service,
         initialSnapshot: snapshot,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
         hooks: {
           onRefreshSettled: (outcome) => {
             outcomes.push(outcome);
@@ -278,7 +270,7 @@ describe("observer client runtime", () => {
       throw new Error("load exploded");
     };
     const failingRuntime = track(
-      createWosmClientRuntime({ service: failing, reconnectDelayMs: RECONNECT_DELAY_MS }),
+      createWosmClientRuntime({ service: failing, reconnect: RECONNECT_OPTIONS }),
     );
     const before = failingRuntime.getState();
     await expect(failingRuntime.refresh()).rejects.toThrow("load exploded");
@@ -294,7 +286,7 @@ describe("observer client runtime", () => {
       createWosmClientRuntime({
         service,
         initialSnapshot: snapshot,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
         hooks: {
           onRefreshSettled: (outcome) => {
             outcomes.push(outcome);
@@ -325,7 +317,7 @@ describe("observer client runtime", () => {
       createWosmClientRuntime({
         service,
         initialSnapshot: snapshot,
-        reconnectDelayMs: RECONNECT_DELAY_MS,
+        reconnect: RECONNECT_OPTIONS,
       }),
     );
 
@@ -343,9 +335,7 @@ describe("observer client runtime", () => {
 
   it("exposes inFlightRefresh while a load is pending", async () => {
     const service = new DeferredLoadService(createCommandSnapshot("idle"));
-    const runtime = track(
-      createWosmClientRuntime({ service, reconnectDelayMs: RECONNECT_DELAY_MS }),
-    );
+    const runtime = track(createWosmClientRuntime({ service, reconnect: RECONNECT_OPTIONS }));
     runtime.start();
 
     await waitFor(() => runtime.getState().inFlightRefresh);

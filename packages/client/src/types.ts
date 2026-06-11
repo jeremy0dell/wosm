@@ -79,6 +79,16 @@ export type WosmClientRuntimeHooks = {
   onRefreshSettled?(outcome: WosmClientRefreshOutcome): void;
 };
 
+/**
+ * Reconnect delays grow exponentially with jitter from `initialDelayMs`
+ * (default 100) up to a hard `maxDelayMs` cap (default 5000), resetting after
+ * a successful resubscribe.
+ */
+export type WosmClientReconnectOptions = {
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+};
+
 export type WosmClientRuntimeOptions = {
   socketPath?: string;
   service?: ObserverService;
@@ -86,7 +96,7 @@ export type WosmClientRuntimeOptions = {
   requestTimeoutMs?: number;
   commandWaitTimeoutMs?: number;
   reconcileTimeoutMs?: number;
-  reconnectDelayMs?: number;
+  reconnect?: WosmClientReconnectOptions;
   hooks?: WosmClientRuntimeHooks;
 };
 
