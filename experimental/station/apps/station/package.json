@@ -4,19 +4,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --hot src/main.tsx",
-    "station": "bun src/main.tsx",
+    "dev": "bun run repair:node-pty && bun --hot src/main.tsx",
+    "repair:node-pty": "../../scripts/repair-node-pty.sh",
+    "station": "bun run repair:node-pty && bun src/main.tsx",
     "test": "bun test",
+    "test:pty": "bun run repair:node-pty && WOSM_STATION_PTY_SMOKE=1 bun test src/terminal/nodePtyTerminal.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@opentui/core": "0.4.0",
     "@opentui/react": "0.4.0",
+    "node-pty": "^1.1.0",
     "react": "19.2.7",
     "react-devtools-core": "7.0.1",
     "ws": "8.21.0"
   },
   "devDependencies": {
+    "@types/node": "^25.9.3",
     "@types/react": "19.2.17",
     "typescript": "5.9.3"
   }

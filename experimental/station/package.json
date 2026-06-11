@@ -12,6 +12,7 @@
     "doctor": "./scripts/doctor.sh",
     "station": "bun run --cwd apps/station station",
     "station:hot": "bun run --cwd apps/station dev",
+    "test:pty": "bun run --cwd apps/station test:pty",
     "typecheck": "bun run --cwd apps/station typecheck"
   }
 }

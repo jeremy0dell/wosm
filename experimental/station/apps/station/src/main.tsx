@@ -1,26 +1,38 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
-import { createStationSnapshotSource } from "./sources/createStationSnapshotSource.js";
+import { TerminalPane, writeToStationTerminal } from "./terminal/index.js";
 
-const snapshotSource = createStationSnapshotSource();
-const snapshot = await snapshotSource.getSnapshot();
+const STATION_EXIT_SEQUENCE = "\x11";
+let rendererForInput: { destroy(): void } | undefined;
 
 function App() {
   return (
     <box width="100%" height="100%" flexDirection="column" backgroundColor="#101316">
       <box width="100%" height={1} backgroundColor="#20252b">
-        <text fg="#f4f4f5"> WOSM Station </text>
+        <text fg="#f4f4f5">
+          {" WOSM Station | shell pane | Ctrl-Q exits Station | Ctrl-C passes to shell "}
+        </text>
       </box>
-      <box width="100%" flexGrow={1} border title="observer snapshot" padding={1}>
-        <text fg="#d4d4d8">{JSON.stringify(snapshot, null, 2)}</text>
-      </box>
+      <TerminalPane />
     </box>
   );
 }
 
 const renderer = await createCliRenderer({
-  exitOnCtrlC: true,
+  exitOnCtrlC: false,
+  prependInputHandlers: [
+    (sequence) => {
+      if (sequence === STATION_EXIT_SEQUENCE) {
+        rendererForInput?.destroy();
+        return true;
+      }
+
+      return writeToStationTerminal(sequence);
+    },
+  ],
+  useKittyKeyboard: null,
 });
+rendererForInput = renderer;
 const root = createRoot(renderer);
 
 root.render(<App />);

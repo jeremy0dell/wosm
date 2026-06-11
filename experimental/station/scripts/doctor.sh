@@ -28,6 +28,19 @@ EOF
   exit 1
 fi
 
+node_bin="${WOSM_STATION_NODE:-node}"
+if ! command -v "${node_bin}" >/dev/null 2>&1; then
+  cat >&2 <<EOF
+Node is not available on PATH as ${node_bin}.
+
+Station host mode uses a Node sidecar for node-pty. Install Node, set
+WOSM_STATION_NODE, or use the isolated container lane:
+
+  ${root}/scripts/run-container.sh
+EOF
+  exit 1
+fi
+
 if [[ ! -f "${root}/bun.lock" ]]; then
   cat >&2 <<EOF
 ${root}/bun.lock is missing.
