@@ -77,7 +77,7 @@ describe("observer client runtime", () => {
     expect(notified).toBe(seen);
   });
 
-  it("drops events that arrive before the first snapshot but still flips to connected", async () => {
+  it("drops events that arrive before the first snapshot without leaving loading", async () => {
     const service = new DeferredLoadService(createCommandSnapshot("idle"));
     const applications: Array<ApplyWosmEventResult | undefined> = [];
     const runtime = track(
@@ -98,11 +98,12 @@ describe("observer client runtime", () => {
     await waitFor(() => applications.length === 1);
 
     expect(applications[0]).toBeUndefined();
-    expect(runtime.getState().connection.state).toBe("connected");
+    expect(runtime.getState().connection.state).toBe("loading");
     expect(runtime.getState().snapshot).toBeUndefined();
 
     service.releaseLoads();
     await waitFor(() => runtime.getState().snapshot !== undefined);
+    expect(runtime.getState().connection.state).toBe("connected");
   });
 
   it("refreshes and resubscribes after a clean subscription end without leaving connected", async () => {
@@ -132,6 +133,7 @@ describe("observer client runtime", () => {
     const snapshot = createCommandSnapshot("idle");
     const service = new ConnectFailingService(snapshot);
     const subscriptionErrors: Array<{ isConnectError: boolean }> = [];
+    const connectFailures: number[] = [];
     const runtime = track(
       createWosmClientRuntime({
         service,
@@ -140,6 +142,11 @@ describe("observer client runtime", () => {
         hooks: {
           onSubscriptionError: (_error, info) => {
             subscriptionErrors.push(info);
+          },
+          onRefreshSettled: (outcome) => {
+            if (outcome.status === "connectFailure") {
+              connectFailures.push(Date.now());
+            }
           },
         },
       }),
@@ -151,9 +158,9 @@ describe("observer client runtime", () => {
     await waitFor(() => runtime.getState().connection.state === "displayOnly");
     const first = runtime.getState().connection;
 
-    await waitFor(() => service.subscribeCount >= 2 && service.waiterCount === 1);
-    service.failSubscriptions(wrappedConnectError());
-    await waitFor(() => service.subscribeCount >= 3);
+    // Later cycles resubscribe but fail their resync loads with connect
+    // errors, re-entering displayOnly without resetting the downtime origin.
+    await waitFor(() => connectFailures.length >= 2 && service.subscribeCount >= 3);
 
     const second = runtime.getState().connection;
     expect(second.state).toBe("displayOnly");
@@ -162,6 +169,7 @@ describe("observer client runtime", () => {
       expect(second.since).toBe(first.since);
     }
     expect(runtime.getState().snapshot?.counts.worktrees).toBe(1);
+    expect(subscriptionErrors.length).toBeGreaterThanOrEqual(1);
     expect(subscriptionErrors.every((info) => info.isConnectError)).toBe(true);
   });
 

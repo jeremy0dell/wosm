@@ -239,7 +239,7 @@ describe("observer client runtime resync-after-gap contract", () => {
 
   it("withholds connected until a post-resubscribe resync refresh completes", async () => {
     const snapshot = createCommandSnapshot("idle");
-    const service = new ToggleLoadFailingService(snapshot);
+    const service = new DeferredLoadService(snapshot);
     const runtime = track(
       createWosmClientRuntime({
         service,
@@ -249,27 +249,25 @@ describe("observer client runtime resync-after-gap contract", () => {
     );
     runtime.start();
     await waitFor(() => service.waiterCount === 1);
+    expect(service.loadCount).toBe(0);
 
-    // Kill the subscription while snapshot loads also fail: the gap begins.
-    service.failLoads = true;
+    // Kill the subscription: the gap begins and the runtime goes displayOnly.
     service.failSubscriptions(wrappedConnectError());
     await waitFor(() => runtime.getState().connection.state === "displayOnly");
 
-    // The next cycle resubscribes (subscribe itself is healthy) and events
-    // flow again, but no resync refresh has completed yet. Events apply to
-    // the last good snapshot, yet connected must be withheld: missed events
-    // during the gap are undetectable until a full reload lands.
-    await waitFor(() => service.waiterCount === 1);
+    // The next cycle resubscribes and starts its resync, which hangs. Events
+    // flow again and apply to the last good snapshot, but connected must be
+    // withheld: events missed during the gap are undetectable until a full
+    // reload lands.
+    await waitFor(() => service.waiterCount === 1 && service.loadCount === 1);
     service.emit(rowUpdateEvent());
     await waitFor(() => runtime.getState().snapshot?.rows[0]?.display.statusLabel === "working");
     expect(runtime.getState().connection.state).toBe("displayOnly");
 
-    // Healing the loads lets a resync complete; only then is connected
-    // reported, with a fresh load recorded after the resubscribe.
-    const loadsBefore = service.loadCount;
-    service.failLoads = false;
-    await waitFor(() => runtime.getState().connection.state === "connected", 3_000);
-    expect(service.loadCount).toBeGreaterThan(loadsBefore);
+    // Completing the resync is what reports connected.
+    service.releaseLoads();
+    await waitFor(() => runtime.getState().connection.state === "connected");
+    expect(service.loadCount).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -316,18 +314,6 @@ class ToggleFailingService extends FakeObserverService {
         return: async () => ({ done: true, value: undefined }),
       }),
     };
-  }
-}
-
-class ToggleLoadFailingService extends FakeObserverService {
-  failLoads = false;
-
-  override async loadSnapshot(): Promise<WosmSnapshot> {
-    if (this.failLoads) {
-      this.loadCount += 1;
-      throw wrappedConnectError();
-    }
-    return super.loadSnapshot();
   }
 }
 
