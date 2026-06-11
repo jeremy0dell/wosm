@@ -1,18 +1,12 @@
 import type { SessionView, WorktreeRow, WosmEvent, WosmSnapshot } from "@wosm/contracts";
-import { safeErrorToToast } from "../services/errors/errors.js";
-import type { TuiToast } from "../services/types.js";
+import { safeErrorToNotice } from "./errors.js";
+import type { ApplyWosmEventResult } from "./types.js";
 
 type OptionalPatch<T> = {
   [K in keyof T]?: T[K] | undefined;
 };
 
-export type TuiEventReducerResult = {
-  snapshot: WosmSnapshot;
-  needsSnapshotRefresh: boolean;
-  toasts: TuiToast[];
-};
-
-export function applyWosmEvent(snapshot: WosmSnapshot, event: WosmEvent): TuiEventReducerResult {
+export function applyWosmEvent(snapshot: WosmSnapshot, event: WosmEvent): ApplyWosmEventResult {
   if (event.type === "worktree.added") {
     return withSnapshot(snapshot, { rows: [...snapshot.rows, event.row] });
   }
@@ -61,14 +55,14 @@ export function applyWosmEvent(snapshot: WosmSnapshot, event: WosmEvent): TuiEve
         },
       },
       needsSnapshotRefresh: true,
-      toasts: [],
+      notices: [],
     };
   }
   if (event.type === "command.failed") {
     return {
       snapshot,
       needsSnapshotRefresh: false,
-      toasts: [safeErrorToToast(event.error)],
+      notices: [safeErrorToNotice(event.error)],
     };
   }
   if (
@@ -80,20 +74,20 @@ export function applyWosmEvent(snapshot: WosmSnapshot, event: WosmEvent): TuiEve
     return {
       snapshot,
       needsSnapshotRefresh: true,
-      toasts: [],
+      notices: [],
     };
   }
   return {
     snapshot,
     needsSnapshotRefresh: false,
-    toasts: [],
+    notices: [],
   };
 }
 
 function withSnapshot(
   snapshot: WosmSnapshot,
   patch: Partial<Pick<WosmSnapshot, "rows" | "sessions">>,
-): TuiEventReducerResult {
+): ApplyWosmEventResult {
   const nextSnapshot: WosmSnapshot = {
     ...snapshot,
     rows: patch.rows ?? snapshot.rows,
@@ -102,7 +96,7 @@ function withSnapshot(
   return {
     snapshot: nextSnapshot,
     needsSnapshotRefresh: false,
-    toasts: [],
+    notices: [],
   };
 }
 

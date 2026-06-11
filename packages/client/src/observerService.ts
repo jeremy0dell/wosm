@@ -1,16 +1,17 @@
-import type { CommandId, SafeError, WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
-import type { ObserverApi, ObserverClient, TerminalCommandRecord } from "@wosm/protocol";
+import type { CommandId, WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
+import type { ObserverApi, ObserverClient } from "@wosm/protocol";
 import { createObserverClient } from "@wosm/protocol";
 import {
-  isSafeError,
   type RuntimeBoundaryTask,
   type RuntimeSafeErrorFallback,
   runRuntimeBoundaryWithRetryAndTimeout,
   runRuntimeBoundaryWithTimeout,
 } from "@wosm/runtime";
-import type { TuiCommandCompletion, TuiObserverService } from "./types.js";
+import { completionFromTerminalRecord, mapCommandWaitError } from "./commandLifecycle.js";
+import { observerErrorFallback, timeoutErrorFallback } from "./errors.js";
+import type { ObserverService, WosmClientCommandCompletion } from "./types.js";
 
-export type CreateTuiObserverServiceOptions = {
+export type CreateObserverServiceOptions = {
   socketPath?: string;
   timeoutMs?: number;
   reconcileTimeoutMs?: number;
@@ -23,9 +24,11 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 const DEFAULT_RECONCILE_TIMEOUT_MS = 30_000;
 const DEFAULT_COMMAND_WAIT_TIMEOUT_MS = 35_000;
 
-export function createTuiObserverService(
-  options: CreateTuiObserverServiceOptions,
-): TuiObserverService {
+// User-visible message copy below is frozen byte-identical from the TUI
+// extraction (the strings still say "TUI"); cross-app wording is deferred
+// messaging work tracked in the client package plan.
+
+export function createObserverService(options: CreateObserverServiceOptions): ObserverService {
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const reconcileTimeoutMs =
     options.reconcileTimeoutMs ?? options.timeoutMs ?? DEFAULT_RECONCILE_TIMEOUT_MS;
@@ -46,14 +49,14 @@ export function createTuiObserverService(
 async function loadSnapshot(client: ObserverApi, timeoutMs: number): Promise<WosmSnapshot> {
   const result = await runRuntimeBoundaryWithRetryAndTimeout(
     {
-      operation: "tui.observer.snapshot.get",
+      operation: "client.observer.snapshot.get",
       timeoutMs,
-      error: tuiObserverError(
-        "TUI_SNAPSHOT_FAILED",
+      error: observerErrorFallback(
+        "CLIENT_SNAPSHOT_FAILED",
         "The TUI could not load the observer snapshot.",
       ),
-      timeoutError: tuiTimeoutError(
-        "TUI_SNAPSHOT_TIMEOUT",
+      timeoutError: timeoutErrorFallback(
+        "CLIENT_SNAPSHOT_TIMEOUT",
         "The TUI timed out while loading the observer snapshot.",
       ),
       retry: {
@@ -72,14 +75,17 @@ async function dispatchCommand(
   client: ObserverApi,
   command: WosmCommand,
   timeoutMs: number,
-): ReturnType<TuiObserverService["dispatch"]> {
-  return runTuiRequest(
+): ReturnType<ObserverService["dispatch"]> {
+  return runClientRequest(
     {
-      operation: `tui.observer.command.${command.type}`,
+      operation: `client.observer.command.${command.type}`,
       timeoutMs,
-      error: tuiObserverError("TUI_COMMAND_FAILED", "The TUI could not dispatch the command."),
-      timeoutError: tuiTimeoutError(
-        "TUI_COMMAND_TIMEOUT",
+      error: observerErrorFallback(
+        "CLIENT_COMMAND_FAILED",
+        "The TUI could not dispatch the command.",
+      ),
+      timeoutError: timeoutErrorFallback(
+        "CLIENT_COMMAND_TIMEOUT",
         "The TUI timed out while dispatching the command.",
       ),
     },
@@ -91,17 +97,17 @@ async function waitForCommandCompletion(
   client: ObserverClient,
   commandId: CommandId,
   timeoutMs: number,
-): Promise<TuiCommandCompletion> {
-  return runTuiRequest(
+): Promise<WosmClientCommandCompletion> {
+  return runClientRequest(
     {
-      operation: "tui.observer.command.wait",
+      operation: "client.observer.command.wait",
       timeoutMs,
-      error: tuiObserverError(
-        "TUI_COMMAND_WAIT_FAILED",
+      error: observerErrorFallback(
+        "CLIENT_COMMAND_WAIT_FAILED",
         "The TUI could not observe command completion.",
       ),
-      timeoutError: tuiTimeoutError(
-        "TUI_COMMAND_WAIT_TIMEOUT",
+      timeoutError: timeoutErrorFallback(
+        "CLIENT_COMMAND_WAIT_TIMEOUT",
         "The TUI timed out while waiting for command completion.",
       ),
     },
@@ -114,16 +120,16 @@ async function requestReconcile(
   reason: string | undefined,
   timeoutMs: number,
 ): Promise<WosmSnapshot> {
-  const receipt = await runTuiRequest(
+  const receipt = await runClientRequest(
     {
-      operation: "tui.observer.reconcile",
+      operation: "client.observer.reconcile",
       timeoutMs,
-      error: tuiObserverError(
-        "TUI_RECONCILE_FAILED",
+      error: observerErrorFallback(
+        "CLIENT_RECONCILE_FAILED",
         "The TUI could not request observer reconciliation.",
       ),
-      timeoutError: tuiTimeoutError(
-        "TUI_RECONCILE_TIMEOUT",
+      timeoutError: timeoutErrorFallback(
+        "CLIENT_RECONCILE_TIMEOUT",
         "The TUI timed out while reconciling observer state.",
       ),
     },
@@ -132,7 +138,7 @@ async function requestReconcile(
   return receipt.snapshot;
 }
 
-async function runTuiRequest<T>(
+async function runClientRequest<T>(
   input: {
     operation: string;
     timeoutMs: number;
@@ -148,27 +154,11 @@ async function runTuiRequest<T>(
   return result.value;
 }
 
-function tuiObserverError(code: string, message: string): RuntimeSafeErrorFallback {
-  return {
-    tag: "TuiObserverError",
-    code,
-    message,
-  };
-}
-
-function tuiTimeoutError(code: string, message: string): RuntimeSafeErrorFallback {
-  return {
-    tag: "TimeoutError",
-    code,
-    message,
-  };
-}
-
 async function waitForCommandTerminalRecord(
   client: ObserverClient,
   commandId: CommandId,
   timeoutMs: number,
-): Promise<TuiCommandCompletion> {
+): Promise<WosmClientCommandCompletion> {
   try {
     const record = await client.waitForCommand(commandId, { timeoutMs });
     return completionFromTerminalRecord(record);
@@ -177,45 +167,9 @@ async function waitForCommandTerminalRecord(
   }
 }
 
-function mapCommandWaitError(error: unknown): RuntimeSafeErrorFallback {
-  if (isSafeError(error) && error.tag === "TimeoutError") {
-    return tuiTimeoutError(
-      "TUI_COMMAND_WAIT_TIMEOUT",
-      "The TUI timed out while waiting for command completion.",
-    );
-  }
-  return tuiObserverError(
-    "TUI_COMMAND_WAIT_FAILED",
-    "The TUI could not observe command completion.",
-  );
-}
-
-function completionFromTerminalRecord(record: TerminalCommandRecord): TuiCommandCompletion {
-  if (record.status === "succeeded") {
-    return {
-      status: "succeeded",
-      commandId: record.id,
-    };
-  }
-  return {
-    status: "failed",
-    commandId: record.id,
-    error: record.error ?? missingCommandError(record.id),
-  };
-}
-
-function missingCommandError(commandId: CommandId): SafeError {
-  return {
-    tag: "TuiObserverError",
-    code: "TUI_COMMAND_FAILED_WITHOUT_ERROR",
-    message: "The observer command failed without an error payload.",
-    commandId,
-  };
-}
-
-function createClient(options: CreateTuiObserverServiceOptions, timeoutMs: number): ObserverClient {
+function createClient(options: CreateObserverServiceOptions, timeoutMs: number): ObserverClient {
   if (options.socketPath === undefined) {
-    throw new Error("createTuiObserverService requires socketPath or client.");
+    throw new Error("createObserverService requires socketPath or client.");
   }
   return createObserverClient({
     socketPath: options.socketPath,
