@@ -261,6 +261,18 @@ importers:
         specifier: ^4.1.12
         version: 4.4.3
 
+  packages/client:
+    dependencies:
+      '@wosm/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@wosm/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@wosm/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+
   packages/config:
     dependencies:
       '@wosm/contracts':
