@@ -1,42 +1,33 @@
+import { createWosmClientRuntime, type WosmClientRuntime } from "@wosm/client";
 import type {
   CommandReceipt,
-  SafeError,
   TerminalFocusOrigin,
   WorktreeRow,
   WosmCommand,
-  WosmEvent,
   WosmSnapshot,
 } from "@wosm/contracts";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { applyWosmEvent } from "../eventReducer/eventReducer.js";
 import { sessionForWorktreeRow } from "../selectors/selectors.js";
 import { safeErrorToToast, toSafeError } from "../services/errors/errors.js";
-import { isObserverConnectError } from "../services/errors/observerConnection.js";
 import { createNodeFolderService, type TuiFolderService } from "../services/folderService.js";
 import type { TuiObserverService, TuiToast } from "../services/types.js";
 import { buildFocusCommand } from "./commandBuilders.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import type { TuiKey } from "./keys.js";
+import { bridgeOperationService, createObserverBridgeHooks } from "./observerBridge.js";
 import {
   createTuiLocalOperationRunner,
   type TuiLocalOperationRunner,
 } from "./operations/localOperationRunner.js";
 import { prepareCommandForRuntime, withResolvedFocusOrigin } from "./operations/runtimeCommands.js";
-import { createInitialTuiState, replaceSnapshot } from "./screen.js";
-import { EVENT_STREAM_RECONNECT_DELAY_MS, OBSERVER_RECOVERY_TOAST_THRESHOLD_MS } from "./timing.js";
-import {
-  addTuiToast,
-  addTuiToasts,
-  expireTuiToasts,
-  refreshActiveTuiToastExpiry,
-} from "./toasts.js";
+import { createInitialTuiState } from "./screen.js";
+import { addTuiToast, expireTuiToasts, refreshActiveTuiToastExpiry } from "./toasts.js";
 import { handleTuiKey, type TuiTransition } from "./transition.js";
 import type { CreateInitialTuiStateOptions, TuiState } from "./types.js";
 
 export type TuiStore = TuiState & {
   start(): () => void;
   handleKey(key: TuiKey): void;
-  handleObserverEvent(event: WosmEvent): void;
   setTerminalRows(rows: number): void;
   dismissToasts(): void;
   expireToasts(nowMs?: number): void;
@@ -61,9 +52,18 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
   const runtime = createRuntimeOptions(options);
   const folderService = options.folderService ?? createNodeFolderService();
   let store: StoreApi<TuiStore>;
-  const operations = createTuiLocalOperationRunner({
-    getStore: () => store,
+  let operations: TuiLocalOperationRunner;
+  const clientRuntime = createWosmClientRuntime({
     service: options.service,
+    ...(options.initialSnapshot === undefined ? {} : { initialSnapshot: options.initialSnapshot }),
+    hooks: createObserverBridgeHooks({
+      getStore: () => store,
+      getOperations: () => operations,
+    }),
+  });
+  operations = createTuiLocalOperationRunner({
+    getStore: () => store,
+    service: bridgeOperationService(options.service, clientRuntime),
     folderService,
     runtime,
     focusStartedAgentRow: async (snapshot, row) => {
@@ -91,17 +91,26 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
         ...(runtime.focusOrigin === undefined ? {} : { focusOrigin: runtime.focusOrigin }),
       },
     }),
-    start: (): (() => void) => startStoreRuntime(store, options.service),
+    start: (): (() => void) => {
+      clientRuntime.start();
+      return () => {
+        void clientRuntime.stop();
+      };
+    },
     handleKey: (key): void => {
       const transition = handleTuiKey(get(), key, {
         cwd: folderService.cwd(),
         homeDir: folderService.homeDir(),
       });
       set(transition.state);
-      void applyTransitionEffects(store, options.service, runtime, operations, transition);
-    },
-    handleObserverEvent: (event): void => {
-      handleObserverEvent(store, options.service, operations, event);
+      void applyTransitionEffects(
+        store,
+        options.service,
+        clientRuntime,
+        runtime,
+        operations,
+        transition,
+      );
     },
     setTerminalRows: (rows): void => {
       set(clampDashboardStateScroll({ ...get(), terminalRows: rows }));
@@ -153,97 +162,10 @@ function createRuntimeOptions(options: TuiStoreOptions): RuntimeOptions {
   return runtime;
 }
 
-function startStoreRuntime(store: StoreApi<TuiStore>, service: TuiObserverService): () => void {
-  let active = true;
-  let currentIterator: AsyncIterator<WosmEvent> | undefined;
-  let reportedSubscriptionError = false;
-
-  const isActive = () => active;
-  const refreshCurrentSnapshot = async () => {
-    await refreshSnapshot(store, service, isActive);
-  };
-
-  if (store.getState().snapshot === undefined) {
-    void refreshCurrentSnapshot();
-  }
-
-  async function consumeEvents() {
-    while (active) {
-      try {
-        currentIterator = service.subscribeEvents()[Symbol.asyncIterator]();
-        await consumeCurrentSubscription(currentIterator, isActive, (event) => {
-          reportedSubscriptionError = false;
-          store.getState().handleObserverEvent(event);
-        });
-        if (active) {
-          await refreshCurrentSnapshot();
-        }
-      } catch (error: unknown) {
-        if (!active) return;
-        const safeError = toSafeError(error);
-        if (isObserverConnectError(safeError)) {
-          store.setState(observerConnectionFailureState(store.getState(), safeError, Date.now()));
-          reportedSubscriptionError = false;
-        } else if (!reportedSubscriptionError) {
-          addToast(store, safeErrorToToast(safeError));
-          reportedSubscriptionError = true;
-        }
-        await refreshCurrentSnapshot();
-      } finally {
-        const iterator = currentIterator;
-        currentIterator = undefined;
-        void iterator?.return?.();
-      }
-      if (active) {
-        await delay(EVENT_STREAM_RECONNECT_DELAY_MS);
-      }
-    }
-  }
-
-  void consumeEvents();
-
-  return () => {
-    active = false;
-    const iterator = currentIterator;
-    currentIterator = undefined;
-    void iterator?.return?.();
-  };
-}
-
-function handleObserverEvent(
-  store: StoreApi<TuiStore>,
-  service: TuiObserverService,
-  operations: TuiLocalOperationRunner,
-  event: WosmEvent,
-): void {
-  const current = store.getState();
-  if (current.observerConnectionStatus.state !== "connected") {
-    store.setState(observerConnectedState(current));
-  }
-  if (current.snapshot === undefined) {
-    return;
-  }
-
-  const commandFailureHandling =
-    event.type === "command.failed" ? operations.prepareCommandFailedEvent(event) : undefined;
-  const result = applyWosmEvent(current.snapshot, event);
-  store.setState(
-    clampDashboardStateScroll(
-      addTuiToasts(
-        replaceSnapshot(observerConnectedState(current), result.snapshot),
-        commandFailureHandling?.suppressReducerToast === true ? [] : result.toasts,
-      ),
-    ),
-  );
-  commandFailureHandling?.applyLocalEffect();
-  if (result.needsSnapshotRefresh) {
-    void refreshSnapshot(store, service, () => true);
-  }
-}
-
 async function applyTransitionEffects(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
+  clientRuntime: WosmClientRuntime,
   runtime: RuntimeOptions,
   operations: TuiLocalOperationRunner,
   transition: TuiTransition,
@@ -257,7 +179,7 @@ async function applyTransitionEffects(
   }
 
   if (transition.reconcileReason !== undefined) {
-    await reconcileSnapshot(store, service, transition.reconcileReason);
+    await reconcileSnapshot(store, clientRuntime, transition.reconcileReason);
   }
 
   for (const command of transition.commands ?? []) {
@@ -276,41 +198,21 @@ async function applyTransitionEffects(
   operations.run(transition.operations);
 }
 
-async function refreshSnapshot(
-  store: StoreApi<TuiStore>,
-  service: TuiObserverService,
-  isActive: () => boolean,
-): Promise<void> {
-  try {
-    const loaded = await service.loadSnapshot();
-    if (!isActive()) return;
-    store.setState(clampDashboardStateScroll(snapshotLoadedState(store.getState(), loaded)));
-  } catch (error: unknown) {
-    if (!isActive()) return;
-    const safeError = toSafeError(error);
-    if (isObserverConnectError(safeError)) {
-      store.setState(observerConnectionFailureState(store.getState(), safeError, Date.now()));
-      return;
-    }
-    addToast(store, safeErrorToToast(safeError));
-    store.setState({ loading: false });
-  }
-}
-
 async function reconcileSnapshot(
   store: StoreApi<TuiStore>,
-  service: TuiObserverService,
+  clientRuntime: WosmClientRuntime,
   reason: string,
 ): Promise<void> {
   try {
-    const loaded = await service.reconcile(reason);
+    await clientRuntime.reconcile(reason);
+    // The reconciled snapshot, connected transition, and recovery toast land
+    // through the runtime's refresh hook before reconcile resolves; only the
+    // reconcile feedback toast is added here.
     store.setState(
-      clampDashboardStateScroll(
-        addTuiToast(snapshotLoadedState(store.getState(), loaded), {
-          kind: "success",
-          message: "observer.reconcile refreshed",
-        }),
-      ),
+      addTuiToast(store.getState(), {
+        kind: "success",
+        message: "observer.reconcile refreshed",
+      }),
     );
   } catch (error: unknown) {
     addToast(store, safeErrorToToast(toSafeError(error)));
@@ -443,23 +345,6 @@ async function dismissPersistentPopup(
   }
 }
 
-async function consumeCurrentSubscription(
-  iterator: AsyncIterator<WosmEvent>,
-  isActive: () => boolean,
-  handleEvent: (event: WosmEvent) => void,
-): Promise<void> {
-  for (;;) {
-    const next = await iterator.next();
-    if (!isActive()) {
-      return;
-    }
-    if (next.done) {
-      return;
-    }
-    handleEvent(next.value);
-  }
-}
-
 function rejectedCommandToast(command: WosmCommand, receipt: CommandReceipt): TuiToast | undefined {
   const receiptError = receipt.error;
   if (!receipt.accepted && receiptError !== undefined) {
@@ -485,62 +370,4 @@ function queuedCommandToast(command: WosmCommand, receipt: CommandReceipt): TuiT
 
 function addToast(store: StoreApi<TuiStore>, toast: TuiToast): void {
   store.setState(addTuiToast(store.getState(), toast));
-}
-
-function snapshotLoadedState(state: TuiState, snapshot: WosmSnapshot): TuiState {
-  const nowMs = Date.now();
-  return observerConnectedState(replaceSnapshot(state, snapshot), {
-    nowMs,
-    recoveryToast: true,
-  });
-}
-
-function observerConnectedState(
-  state: TuiState,
-  options: { nowMs?: number; recoveryToast?: boolean } = {},
-): TuiState {
-  const previous = state.observerConnectionStatus;
-  let next: TuiState = {
-    ...state,
-    observerConnectionStatus: { state: "connected" },
-  };
-  const nowMs = options.nowMs ?? Date.now();
-  if (
-    options.recoveryToast === true &&
-    previous.state !== "connected" &&
-    nowMs - previous.since > OBSERVER_RECOVERY_TOAST_THRESHOLD_MS
-  ) {
-    next = addTuiToast(
-      next,
-      {
-        kind: "success",
-        message: "Observer reconnected.",
-      },
-      nowMs,
-    );
-  }
-  return next;
-}
-
-function observerConnectionFailureState(
-  state: TuiState,
-  error: SafeError,
-  nowMs: number,
-): TuiState {
-  const statusState = state.snapshot === undefined ? "reconnecting" : "displayOnly";
-  const previous = state.observerConnectionStatus;
-  const since = previous.state === statusState ? previous.since : nowMs;
-  return {
-    ...state,
-    loading: state.snapshot === undefined ? state.loading : false,
-    observerConnectionStatus: {
-      state: statusState,
-      since,
-      lastError: error,
-    },
-  };
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
