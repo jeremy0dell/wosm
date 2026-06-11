@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { openCodeForwardedEventTypes, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { WOSM_SCHEMA_VERSION } from "@wosm/contracts";
+import { openCodeForwardedEventTypes } from "./ingressRules.js";
 
 export const OPENCODE_WOSM_PLUGIN_NAME = "wosm-agent-state.js";
 export const OPENCODE_WOSM_PLUGIN_MARKER = "wosm-opencode-observer-plugin:v1";
