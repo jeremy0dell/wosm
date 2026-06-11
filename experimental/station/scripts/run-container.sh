@@ -44,7 +44,6 @@ docker build \
   "${root}"
 
 docker run --rm -it \
-  --name wosm-station-experiment \
   --mount "type=bind,src=${root},dst=/workspace/experimental/station" \
   --mount "type=volume,src=wosm-station-node-modules,dst=/workspace/experimental/station/node_modules" \
   --mount "type=volume,src=wosm-station-bun-cache,dst=/home/bun/.bun/install/cache" \
