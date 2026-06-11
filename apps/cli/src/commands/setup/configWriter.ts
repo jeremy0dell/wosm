@@ -245,7 +245,9 @@ function tomlString(value: string): string {
 }
 
 function harnessSupportsHooks(harness: string): boolean {
-  return harness === "codex" || harness === "cursor" || harness === "opencode";
+  return (
+    harness === "claude" || harness === "codex" || harness === "cursor" || harness === "opencode"
+  );
 }
 
 function detectedCommand(

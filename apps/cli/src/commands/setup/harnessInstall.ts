@@ -28,6 +28,11 @@ const harnessInstallDefinitions: readonly HarnessInstallDefinition[] = [
     command: ["npm", "install", "-g", "--ignore-scripts", "@earendil-works/pi-coding-agent"],
     message: "Install Pi CLI with npm.",
   },
+  {
+    id: "claude",
+    command: ["npm", "install", "-g", "@anthropic-ai/claude-code"],
+    message: "Install Claude Code CLI with npm.",
+  },
 ] as const;
 
 export function missingHarnessInstallActions(

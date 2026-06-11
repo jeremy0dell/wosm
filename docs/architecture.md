@@ -30,7 +30,7 @@ The repo is organized around these boundaries:
 - `packages/client` owns the framework-neutral rich-client observer runtime: snapshot loading, the event subscription/reconnect loop, event-to-snapshot reduction, and command dispatch/completion-wait wrappers consumed by rich clients (the TUI today, Station next).
 - `packages/provider-hooks` owns the tiny `wosm-ingress` sender, provider hook compaction/reporting, and offline spool writes for generated command hooks.
 - `packages/config`, `packages/observability`, and `packages/testing` are shared support packages.
-- `integrations/...` adapt external tools: Worktrunk, tmux, Codex, Cursor, Pi, OpenCode, scripted harnesses, and GitHub repository metadata.
+- `integrations/...` adapt external tools: Worktrunk, tmux, Claude Code, Codex, Cursor, Pi, OpenCode, scripted harnesses, and GitHub repository metadata.
 
 ## Source Of Truth
 

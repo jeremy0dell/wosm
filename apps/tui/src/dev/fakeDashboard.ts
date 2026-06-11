@@ -16,7 +16,7 @@ export type FakeDashboardOptions = {
 };
 
 const defaultGeneratedAt = "2026-05-20T12:00:00.000Z";
-const harnesses = ["codex", "opencode", "scripted", "pi"] as const;
+const harnesses = ["claude", "codex", "opencode", "scripted", "pi"] as const;
 const stateCycle = [
   "working",
   "idle",

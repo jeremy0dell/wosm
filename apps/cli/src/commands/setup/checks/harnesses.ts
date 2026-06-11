@@ -20,6 +20,7 @@ export const harnessDefinitions: readonly HarnessDefinition[] = [
   { id: "cursor", label: "Cursor Agent", envKey: "WOSM_CURSOR_AGENT_BIN", defaultCommand: "agent" },
   { id: "opencode", label: "OpenCode", envKey: "WOSM_OPENCODE_BIN", defaultCommand: "opencode" },
   { id: "pi", label: "Pi", envKey: "WOSM_PI_BIN", defaultCommand: "pi" },
+  { id: "claude", label: "Claude Code", envKey: "WOSM_CLAUDE_BIN", defaultCommand: "claude" },
 ] as const;
 
 export type CheckHarnessesOptions = {

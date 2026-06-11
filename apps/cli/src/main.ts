@@ -3,6 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
 import { parseRequiredOptionValue } from "./args.js";
+import type { ClaudeHooksCommandOptions } from "./commands/claudeHooks.js";
+import { runClaudeHooksCommand } from "./commands/claudeHooks.js";
 import type { CodexHooksCommandOptions } from "./commands/codexHooks.js";
 import { runCodexHooksCommand } from "./commands/codexHooks.js";
 import type { CommandCommandOptions } from "./commands/command.js";
@@ -310,6 +312,17 @@ export async function runCli(
           hookArgs,
           loadedCommandOptions(config, resolvedConfigPath),
         );
+        return { code: hookCommandExitCode(result), output: result };
+      }
+      case "claude": {
+        const claudeOptions: ClaudeHooksCommandOptions = loadedCommandOptions(
+          config,
+          resolvedConfigPath,
+        );
+        if (options.env !== undefined) {
+          claudeOptions.env = options.env;
+        }
+        const result = await runClaudeHooksCommand(hookArgs, claudeOptions);
         return { code: hookCommandExitCode(result), output: result };
       }
       case "codex": {

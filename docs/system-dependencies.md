@@ -1,6 +1,6 @@
 # System Dependencies
 
-wosm ships Worktrunk, tmux, Codex, Cursor, Pi, and OpenCode as external provider integrations. They are not npm packages bundled into the workspace. The primary first-run path is:
+wosm ships Worktrunk, tmux, Claude Code, Codex, Cursor, Pi, and OpenCode as external provider integrations. They are not npm packages bundled into the workspace. The primary first-run path is:
 
 ```bash
 wosm setup
@@ -41,7 +41,7 @@ Required for the default useful workflow:
 - Worktrunk / `wt`
 - tmux
 - a git repository for the first project
-- one supported agent CLI: Codex, Cursor Agent, OpenCode, or Pi
+- one supported agent CLI: Claude Code, Codex, Cursor Agent, OpenCode, or Pi
 
 Recommended after setup:
 
@@ -152,13 +152,14 @@ The same provider-health evidence is included in `wosm debug bundle`, so a faile
 
 ## Hooks
 
-Guided `wosm setup` can enable and install Worktrunk lifecycle hooks plus the selected Codex,
+Guided `wosm setup` can enable and install Worktrunk lifecycle hooks plus the selected Claude, Codex,
 Cursor, or OpenCode agent hooks. The hook commands are generated with the resolved WOSM config path,
 observer socket, state directory, spool directory, and `wosm-ingress` launcher. If you decline hook
 setup, install later with:
 
 ```bash
 wosm hooks install worktrunk --yes
+wosm hooks install claude --yes
 wosm hooks install codex --yes
 wosm hooks install cursor --yes
 wosm hooks install opencode --yes
@@ -168,6 +169,7 @@ Use the matching doctor commands to verify hook files and config intent:
 
 ```bash
 wosm hooks doctor worktrunk
+wosm hooks doctor claude
 wosm hooks doctor codex
 wosm hooks doctor cursor
 wosm hooks doctor opencode

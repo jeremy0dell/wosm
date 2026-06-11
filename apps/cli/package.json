@@ -23,6 +23,7 @@
   "dependencies": {
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
+    "@wosm/claude": "workspace:*",
     "@wosm/codex": "workspace:*",
     "@wosm/cursor": "workspace:*",
     "@wosm/github-repository": "workspace:*",

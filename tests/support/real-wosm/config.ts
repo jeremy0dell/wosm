@@ -18,10 +18,12 @@ export type WriteRealWosmConfigOptions = {
   repo: RealTempRepo;
   projectId?: string;
   autoStartFromHooks?: boolean;
-  harnessProvider?: "codex" | "pi" | "opencode";
+  harnessProvider?: "claude" | "codex" | "pi" | "opencode";
+  claudeCommand?: string;
   codexCommand?: string;
   piCommand?: string;
   opencodeCommand?: string;
+  installClaudeHooks?: boolean;
   installCodexHooks?: boolean;
   installOpenCodeHooks?: boolean;
   useLifecycleHooks?: boolean;
@@ -119,8 +121,19 @@ function eventHookConfigLines(options: WriteRealWosmConfigOptions): string[] {
 
 function harnessConfigLines(
   options: WriteRealWosmConfigOptions,
-  harnessProvider: "codex" | "pi" | "opencode",
+  harnessProvider: "claude" | "codex" | "pi" | "opencode",
 ): string[] {
+  if (harnessProvider === "claude") {
+    return [
+      "[harness.claude]",
+      "enabled = true",
+      `command = ${tomlString(options.claudeCommand ?? requireToolPath(options.env, "claude"))}`,
+      'permission_mode = "yolo"',
+      `install_hooks = ${options.installClaudeHooks === true ? "true" : "false"}`,
+      "",
+    ];
+  }
+
   if (harnessProvider === "pi") {
     return [
       "[harness.pi]",

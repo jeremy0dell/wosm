@@ -14,6 +14,7 @@ const providerNeutralSourceRoots = [
 const observerConcreteProviderImports = [
   "@wosm/tmux",
   "@wosm/worktrunk",
+  "@wosm/claude",
   "@wosm/codex",
   "@wosm/cursor",
   "@wosm/opencode",
