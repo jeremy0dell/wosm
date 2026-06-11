@@ -462,6 +462,10 @@ Validation (performed):
 
 ### PR 4: Station Commands Through Shared Client
 
+Status: not started (as of 2026-06-11). Gated on the Station input router;
+sequenced as Phase 3 of the [spike phased plan](wosm_station_spike.md), after
+Phase 1 lands the router.
+
 Add minimal Station command dispatch through `packages/client`, likely starting
 with reconcile/refresh and one focus or create command only after the Station
 input router exists.

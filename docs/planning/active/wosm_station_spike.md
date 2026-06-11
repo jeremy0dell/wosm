@@ -2,6 +2,7 @@
 
 Status: active spike plan
 Date: 2026-06-10
+Updated: 2026-06-11
 
 ## Spike Purpose
 
@@ -15,6 +16,164 @@ Station mode should answer one business/product question:
 > preserving the terminal-native power that makes WOSM valuable?
 
 This is a spike, not a rewrite commitment.
+
+## Phased Plan And Status
+
+Status as of 2026-06-11. This is the working sequence for the rest of the
+spike. Phases land in order unless running code proves a better order. Update
+the checkboxes and the Spike Log when a slice lands.
+
+### Phase 0 - Foundations (done 2026-06-11)
+
+- [x] isolated experiment under `experimental/station`: Bun + OpenTUI app,
+      container lane, host lab lane, doctor script (Goal 1)
+- [x] mock observer snapshot rendered behind a source boundary; the fixture is
+      TypeScript typed `satisfies WosmSnapshot`
+- [x] PTY pane POC: one real shell pane with input passthrough, Ctrl-C
+      forwarding, Ctrl-Q exit, and a Node sidecar owning `node-pty`
+      (Goal 3 minimum; see Spike Log)
+- [x] shared rich-client runtime: `packages/client` PR 1 and PR 2
+      ([client plan](client_package_observer_runtime_plan.md))
+- [x] live read-only observer overlay through `@wosm/client` (client plan
+      PR 3): Ctrl-O / header-click toggle, mock-versus-live decided in one
+      source factory, link-script dependency mechanics, doctor dist checks
+- [x] chords matched in both legacy control-byte and kitty-protocol CSI-u forms
+
+Debt carried forward deliberately: pane rendering still strips ANSI (no VT
+screen model), input handling is one ad hoc handler chain in `main.tsx`, and
+`wosm station` is not a CLI command yet (launch is `bun run station` inside
+the experiment).
+
+### Phase 1 - Input Router And Coordination Store (next)
+
+Input routing is the central design problem (see Input Routing below). Replace
+the ad hoc `prependInputHandlers` chain and the module-local overlay store in
+`main.tsx` with the router and store shape from Current Design Direction:
+
+- [ ] coordination store with initial `workspace` and `input` slices; overlay
+      visibility moves out of the module-local store in `main.tsx`
+- [ ] `FocusTarget` union: header, pane, overlay, dialog
+- [ ] keymap stack with the documented priority order
+- [ ] router returns explicit outcomes: handled app command, terminal write,
+      focus change, overlay open/close, ignored
+- [ ] existing behavior re-lands through the router unchanged: Ctrl-Q exit,
+      Ctrl-O / header-click toggle, overlay input swallow, terminal passthrough
+- [ ] reserved WOSM chords stay available while a terminal pane is focused
+
+Exit bar: all current input behavior routes through the router and store, and
+adding a chord or focus target is a registration, not a new conditional.
+Completing this phase unblocks client plan PR 4, which is gated on the Station
+input router.
+
+### Phase 2 - Multi-Pane Layout (Goal 4)
+
+- [ ] pane records in workspace state: `panes`, `activePaneId`, split
+      metadata; no `PaneTree` abstraction yet
+- [ ] `PtyRegistry` generalized from the single-pane POC to pane-id -> process
+- [ ] split right and split below
+- [ ] focus next pane and click-pane-to-focus
+- [ ] close pane cleanly
+- [ ] terminal window resize reflows panes without corrupting the workspace
+- [ ] decide the renderer-debt step: minimum per-pane screen state
+      (`TerminalBufferStore`) now, or explicit deferral with viability notes
+      (Secondary Goal B)
+
+Exit bar: split/focus/close feels boring and reliable.
+
+### Phase 3 - WOSM-Aware Actions And Command Dispatch (Goals 6-7)
+
+- [ ] open a shell pane in the current project root or selected worktree from
+      WOSM overlay context
+- [ ] `diff` action opens a real diff tool in a pane: `difftastic`, fallback
+      `git diff` (Goal 7)
+- [ ] agent action launches a real agent command in a pane, following Session
+      And Primary Agent Semantics for what is and is not the primary agent
+- [ ] Station command dispatch through `@wosm/client` (client plan PR 4),
+      starting with reconcile/refresh plus one focus or create command
+
+Exit bar: the difftastic-style workflow steps 1-5 work end to end.
+
+### Phase 4 - Demo And Spike Verdict (Goal 10)
+
+- [ ] `wosm station` command path, or an explicit decision to keep the
+      experiment-local launcher until promotion
+- [ ] 60-second demo recording or script
+- [ ] renderer and PTY viability memos (Secondary Goals A and B)
+- [ ] dependency-isolation notes: container lane, host lab lane, promotion risk
+- [ ] recommendation: continue, narrow, pause, re-stack, or promote
+
+Exit bar: a continue-or-pause decision inside the timebox. The spike started
+2026-06-10: target decision by 2026-06-24, hard maximum 2026-07-01.
+
+## Spike Log
+
+### 2026-06-11 - PTY POC In Station
+
+The Station experiment now has the first PTY-backed pane proof of concept under
+`experimental/station/apps/station/src/terminal/`.
+
+What this slice proved:
+
+- `node-pty` can be kept behind a Station-local terminal boundary.
+- Station can spawn a real PTY-backed shell process.
+- OpenTUI input can be routed into the active PTY.
+- PTY output can be rendered back into the Station pane.
+- Station can reserve `Ctrl-Q` for app exit while forwarding `Ctrl-C` to the
+  child process.
+- The local smoke probe can verify child-process output with `bun run test:pty`.
+
+Implementation note: Bun owns the OpenTUI app, while a small Node sidecar owns
+`node-pty`. The sidecar is intentionally experiment-local because Bun extracted
+`node-pty`'s `spawn-helper` without the executable bit, and direct Bun +
+`node-pty` interactive shell behavior was not reliable enough for the POC.
+
+Known limitation: rendering is intentionally incomplete. The current pane strips
+ANSI and writes recent text into an OpenTUI text node. Cursor movement, prompt
+redraws, wrapping, colors, alternate-screen programs, and full terminal
+semantics should be treated as expected renderer debt until Station has a real
+VT parser / terminal screen model.
+
+Manual verification for this commit:
+
+```bash
+cd experimental/station
+bun run station
+```
+
+Then run `pwd` inside the Station pane, verify output renders in the pane, use
+`Ctrl-C` against a running command, and use `Ctrl-Q` to exit Station cleanly.
+
+### 2026-06-11 - Live Observer Overlay Through @wosm/client
+
+Station renders live observer state in the WOSM overlay through the shared
+client runtime. The implementation record, dependency mechanics
+(`scripts/link-wosm-packages.sh`, the doctor's dist checks, the container lane
+mounting the repo root), and validation live in the
+[client plan PR 3 section](client_package_observer_runtime_plan.md).
+
+Slice notes:
+
+- WOSM mode is a `Ctrl-O` toggle implemented as an overlay: the PTY pane stays
+  mounted so the shell survives WOSM mode, and input is swallowed while the
+  overlay is active.
+- The snapshot source is subscribable (`start/stop/getState/subscribe` plus a
+  connection state); the overlay consumes mock and live sources the same way
+  via `useSyncExternalStore`.
+- With no observer reachable the overlay shows a calm `reconnecting since ...`
+  status; `displayOnly` keeps the last good snapshot.
+
+### 2026-06-11 - Source Factory, Header Click Target, Kitty Chords
+
+Follow-up hardening after the overlay landed:
+
+- Mock-versus-live selection collapsed into one factory
+  (`createStationWosmStateSource`, selected by `WOSM_STATION_SOURCE`); sources
+  stay identity-free downstream of the factory.
+- The whole header row is a mouse click target for toggling WOSM mode, because
+  some terminal setups never deliver `Ctrl-O` to the app.
+- Station chords are matched in both legacy control-byte form and kitty
+  keyboard protocol CSI-u form (with the kitty protocol active, `Ctrl-O`
+  arrives as `ESC[111;5u`, which a bare control-byte comparison misses).
 
 ## Primary Goals
 
@@ -275,44 +434,6 @@ The demo should make the product direction obvious within 60 seconds.
 
 ## WOSM State Sources
 
-## Spike Log
-
-### 2026-06-11 - PTY POC In Station
-
-The Station experiment now has the first PTY-backed pane proof of concept under
-`experimental/station/apps/station/src/terminal/`.
-
-What this slice proved:
-
-- `node-pty` can be kept behind a Station-local terminal boundary.
-- Station can spawn a real PTY-backed shell process.
-- OpenTUI input can be routed into the active PTY.
-- PTY output can be rendered back into the Station pane.
-- Station can reserve `Ctrl-Q` for app exit while forwarding `Ctrl-C` to the
-  child process.
-- The local smoke probe can verify child-process output with `bun run test:pty`.
-
-Implementation note: Bun owns the OpenTUI app, while a small Node sidecar owns
-`node-pty`. The sidecar is intentionally experiment-local because Bun extracted
-`node-pty`'s `spawn-helper` without the executable bit, and direct Bun +
-`node-pty` interactive shell behavior was not reliable enough for the POC.
-
-Known limitation: rendering is intentionally incomplete. The current pane strips
-ANSI and writes recent text into an OpenTUI text node. Cursor movement, prompt
-redraws, wrapping, colors, alternate-screen programs, and full terminal
-semantics should be treated as expected renderer debt until Station has a real
-VT parser / terminal screen model.
-
-Manual verification for this commit:
-
-```bash
-cd experimental/station
-bun run station
-```
-
-Then run `pwd` inside the Station pane, verify output renders in the pane, use
-`Ctrl-C` against a running command, and use `Ctrl-Q` to exit Station cleanly.
-
 Station needs WOSM state before it has a live observer connector. Treat the WOSM
 state provider as a source-swappable boundary from the start.
 
@@ -321,14 +442,15 @@ state provider as a source-swappable boundary from the start.
 Station should have mock WOSM data available out of the box for design and
 layout work.
 
-Use a dev env flag to choose mock data, for example:
+Use a dev env flag to choose mock data:
 
 ```bash
-WOSM_STATION_STATE_SOURCE=mock experimental/station/scripts/run-host.sh --hot
+WOSM_STATION_SOURCE=mock experimental/station/scripts/run-host.sh --hot
 ```
 
-The exact env name can change during implementation, but the behavior should be
-clear:
+This is implemented: `createStationWosmStateSource` is the single factory that
+reads `WOSM_STATION_SOURCE` (`observer` is the default, `mock` opts in). The
+behavior:
 
 - mock mode does not require a running observer
 - mock mode does not connect to the observer socket
@@ -337,16 +459,20 @@ clear:
   dirty branches, command lifecycle examples, and disconnected/error examples
 - mock mode should be deterministic so visual layout and input tests can use it
 
-Suggested fixture layout:
+Status as of 2026-06-11: one deterministic fixture exists at
+`src/sources/fixtures/mockObserverSnapshot.ts`, typed `satisfies WosmSnapshot`.
+Typed TypeScript fixtures supersede the original raw-JSON suggestion here: the
+`satisfies` check already caught a real contract drift in the fixture's
+`checks` shape. The multi-scenario fixture set is still open and should land
+with overlay/dashboard layout work:
 
 ```text
-experimental/station/apps/station/src/
-  mocks/
-    wosm/
-      active-workspace.json
-      many-projects.json
-      attention-and-failures.json
-      disconnected.json
+experimental/station/apps/station/src/sources/fixtures/
+  mockObserverSnapshot.ts   exists: single baseline snapshot
+  many-projects             open
+  attention-and-failures    open
+  disconnected              open; the live disconnected path is covered by a
+                            focused test against an injected fake service
 ```
 
 Mock data should satisfy the same contract-shaped structures that live Station
@@ -355,6 +481,11 @@ needs a derived projection. Derived projections should be selectors, not fixture
 schema.
 
 ### Live Observer State
+
+Status as of 2026-06-11: shipped for read-only state. `packages/client` PRs
+1-3 are implemented and the overlay consumes the live runtime through the
+source factory. The remaining client-plan scope for Station is PR 4 command
+dispatch (Phase 3).
 
 Observer-connected Station work depends on
 [`packages/client`](client_package_observer_runtime_plan.md).
@@ -1107,17 +1238,26 @@ Less important:
 
 The Station spike is successful if all of these are true:
 
-- `wosm station` launches a full-screen workspace.
-- Station can spawn and render at least one real shell process.
-- Station can split panes right/below.
-- Station can route keyboard input to the focused pane.
-- Station can focus panes by mouse click.
-- Station can resize without corrupting the workspace.
-- Station can run at least one real agent command in a pane.
-- Station can run a real diff command in a pane.
-- Station can display useful WOSM project/session state beside panes.
-- Existing tmux/classic workflows remain unaffected.
-- The resulting demo feels like a plausible default UX for new users.
+- [ ] `wosm station` launches a full-screen workspace. The full-screen
+      workspace exists; the `wosm station` command path is Phase 4. Launch is
+      `bun run station` inside `experimental/station`.
+- [x] Station can spawn and render at least one real shell process. Known
+      renderer debt: ANSI is stripped; no VT screen model yet.
+- [ ] Station can split panes right/below. Phase 2.
+- [ ] Station can route keyboard input to the focused pane. Proven for the
+      single POC pane; counts once multi-pane focus exists. Phases 1-2.
+- [ ] Station can focus panes by mouse click. The header is a click target
+      today; pane click focus is Phase 2.
+- [ ] Station can resize without corrupting the workspace. Phase 2.
+- [ ] Station can run at least one real agent command in a pane. Phase 3.
+- [ ] Station can run a real diff command in a pane. Phase 3.
+- [x] Station can display useful WOSM project/session state beside panes.
+      Live observer overlay through `@wosm/client`.
+- [x] Existing tmux/classic workflows remain unaffected. Holds so far: nothing
+      outside `experimental/station` changed. This is an invariant to
+      re-verify every phase, not a finished item.
+- [ ] The resulting demo feels like a plausible default UX for new users.
+      Phase 4.
 
 ## Failure Criteria / Kill Signals
 
@@ -1162,5 +1302,8 @@ Initial spike:
 - 1 week minimum
 - 2 weeks target
 - 3 weeks hard maximum before a continue/pause decision
+
+The spike started 2026-06-10: target decision by 2026-06-24, hard maximum
+2026-07-01.
 
 Do not let Station become an indefinite rewrite without a working demo.
