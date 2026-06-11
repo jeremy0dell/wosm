@@ -1,8 +1,20 @@
-import { createWosmClientRuntime, type WosmClientRuntime } from "@wosm/client";
+import {
+  createWosmClientRuntime,
+  type WosmClientRefreshOutcome,
+  type WosmClientRuntime,
+} from "@wosm/client";
 import type { WosmEvent, WosmSnapshot } from "@wosm/contracts";
 import { afterEach, describe, expect, it } from "vitest";
-import { FakeObserverService, wrappedConnectError } from "../support/fakeObserverService.js";
-import { createCommandSnapshot } from "../support/snapshots.js";
+import {
+  DeferredLoadService,
+  FakeObserverService,
+  wrappedConnectError,
+} from "../support/fakeObserverService.js";
+import {
+  createCommandSnapshot,
+  createZeroWorktreeSnapshot,
+  fixtureNow,
+} from "../support/snapshots.js";
 
 // Timing assertions use ratios and generous absolute bounds: jitter is ±20%
 // and exponential doubling keeps consecutive jittered gaps from inverting, so
@@ -100,6 +112,117 @@ describe("observer client runtime reconnect backoff", () => {
   });
 });
 
+describe("observer client runtime refresh coalescing and shutdown", () => {
+  const runtimes: WosmClientRuntime[] = [];
+
+  afterEach(async () => {
+    for (const runtime of runtimes.splice(0)) {
+      await runtime.stop();
+    }
+  });
+
+  function track(runtime: WosmClientRuntime): WosmClientRuntime {
+    runtimes.push(runtime);
+    return runtime;
+  }
+
+  it("coalesces refresh-worthy events into one in-flight snapshot request plus one follow-up", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new DeferredLoadService(snapshot);
+    const runtime = track(
+      createWosmClientRuntime({
+        service,
+        initialSnapshot: snapshot,
+        reconnect: { initialDelayMs: 5, maxDelayMs: 20 },
+      }),
+    );
+    runtime.start();
+    await waitFor(() => service.subscribeCount === 1);
+
+    service.emit(reconciledEvent());
+    await waitFor(() => service.loadCount === 1);
+    service.emit(reconciledEvent());
+    service.emit(reconciledEvent());
+    await delay(20);
+    expect(service.loadCount).toBe(1);
+
+    await waitFor(() => {
+      service.releaseLoads();
+      return !runtime.getState().inFlightRefresh;
+    });
+    expect(service.loadCount).toBe(2);
+  });
+
+  it("does not let a stale in-flight snapshot response stand after events applied during the flight", async () => {
+    const stale = createCommandSnapshot("idle");
+    const service = new DeferredLoadService(stale);
+    const runtime = track(
+      createWosmClientRuntime({
+        service,
+        initialSnapshot: stale,
+        reconnect: { initialDelayMs: 5, maxDelayMs: 20 },
+      }),
+    );
+    runtime.start();
+    await waitFor(() => service.subscribeCount === 1);
+
+    service.emit(reconciledEvent());
+    await waitFor(() => service.loadCount === 1);
+    service.emit(rowUpdateEvent());
+    await waitFor(() => runtime.getState().snapshot?.rows[0]?.display.statusLabel === "working");
+
+    // The pending flight resolves with the pre-event snapshot; the fresh
+    // marker only becomes loadable afterwards.
+    service.releaseLoads();
+    service.setSnapshot(createZeroWorktreeSnapshot());
+    await waitFor(() => {
+      service.releaseLoads();
+      return !runtime.getState().inFlightRefresh;
+    });
+
+    expect(runtime.getState().snapshot?.counts.worktrees).toBe(0);
+    expect(service.loadCount).toBe(2);
+  });
+
+  it("stops without state changes, listener notifications, or hooks after stop() resolves", async () => {
+    const snapshot = createCommandSnapshot("idle");
+    const service = new DeferredLoadService(snapshot);
+    const outcomes: WosmClientRefreshOutcome[] = [];
+    const runtime = track(
+      createWosmClientRuntime({
+        service,
+        initialSnapshot: snapshot,
+        reconnect: { initialDelayMs: 5, maxDelayMs: 20 },
+        hooks: {
+          onRefreshSettled: (outcome) => {
+            outcomes.push(outcome);
+          },
+        },
+      }),
+    );
+    runtime.start();
+    await waitFor(() => service.subscribeCount === 1);
+
+    service.emit(reconciledEvent());
+    await waitFor(() => service.loadCount === 1);
+
+    await runtime.stop();
+    const frozen = runtime.getState();
+    const outcomesAtStop = outcomes.length;
+    let notified = 0;
+    runtime.subscribe(() => {
+      notified += 1;
+    });
+
+    service.releaseLoads();
+    await delay(50);
+
+    expect(runtime.getState()).toBe(frozen);
+    expect(notified).toBe(0);
+    expect(outcomes.length).toBe(outcomesAtStop);
+  });
+});
+
 class AlwaysFailingService extends FakeObserverService {
   override async loadSnapshot(): Promise<WosmSnapshot> {
     this.loadCount += 1;
@@ -156,6 +279,10 @@ function subscribeGaps(service: FakeObserverService): number[] {
     }
   }
   return gaps;
+}
+
+function reconciledEvent(): WosmEvent {
+  return { type: "observer.reconciled", at: fixtureNow, changed: 1 };
 }
 
 function rowUpdateEvent(): WosmEvent {

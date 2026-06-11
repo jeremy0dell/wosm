@@ -119,6 +119,23 @@ export class FakeObserverService implements ObserverService {
   }
 }
 
+export class DeferredLoadService extends FakeObserverService {
+  private readonly pendingLoads: Array<(snapshot: WosmSnapshot) => void> = [];
+
+  override async loadSnapshot(): Promise<WosmSnapshot> {
+    this.loadCount += 1;
+    return new Promise((resolve) => {
+      this.pendingLoads.push(resolve);
+    });
+  }
+
+  releaseLoads(): void {
+    for (const resolve of this.pendingLoads.splice(0)) {
+      resolve(this.snapshot);
+    }
+  }
+}
+
 export function connectSafeError(): { tag: string; code: string; message: string } {
   return {
     tag: "ProtocolError",
