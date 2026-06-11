@@ -53,6 +53,39 @@ EOF
   exit 1
 fi
 
+repo_root="$(cd "${root}/../.." && pwd)"
+# All four dists are checked even though link-wosm-packages.sh links only
+# client and contracts: the linked packages resolve protocol and runtime
+# transitively through the repo's pnpm layout, so their dists must exist too.
+for package in client contracts protocol runtime; do
+  if [[ ! -f "${repo_root}/packages/${package}/dist/index.js" ]]; then
+    cat >&2 <<EOF
+${repo_root}/packages/${package}/dist/index.js is missing.
+
+Station consumes the built @wosm packages (client, contracts, protocol,
+runtime). Build them at the repo root first:
+
+  cd ${repo_root}
+  pnpm install
+  pnpm build
+EOF
+    exit 1
+  fi
+done
+
+if [[ ! -e "${repo_root}/packages/client/node_modules/@wosm/protocol" ]]; then
+  cat >&2 <<EOF
+${repo_root}/packages/client/node_modules is missing its workspace links.
+
+Station resolves @wosm/client's dependencies through the repo's pnpm layout.
+Install at the repo root first:
+
+  cd ${repo_root}
+  pnpm install
+EOF
+  exit 1
+fi
+
 cat <<EOF
 Station experiment checks passed.
 
