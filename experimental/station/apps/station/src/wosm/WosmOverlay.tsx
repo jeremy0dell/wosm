@@ -5,6 +5,7 @@ import { useStationWosmState } from "./useStationWosmState.js";
 
 const MAX_VISIBLE_ROWS = 16;
 const MAX_VISIBLE_SESSIONS = 8;
+const MAX_VISIBLE_ALERTS = 3;
 
 /**
  * Read-only WOSM mode: projects, worktrees, sessions, and agent statuses from
@@ -16,9 +17,7 @@ export function WosmOverlay({ source }: { source: StationWosmStateSource }) {
   const presentation = presentConnection(connection);
 
   return (
-    <box width="100%" flexGrow={1} border title={`wosm (${source.name})`} padding={1}
-      flexDirection="column"
-    >
+    <box width="100%" flexGrow={1} border title="wosm" padding={1} flexDirection="column">
       <text fg={presentation.color}>{` ${presentation.label} `}</text>
       {snapshot === undefined ? (
         <text fg="#9ca3af"> waiting for the first observer snapshot… </text>
@@ -53,8 +52,17 @@ function SnapshotBody({ snapshot }: { snapshot: WosmSnapshot }) {
           </text>
         ))
       )}
-      {snapshot.alerts.length > 0 ? (
-        <text fg="#fbbf24">{` alerts: ${snapshot.alerts.length}`}</text>
+      {/* Alert messages render verbatim, so data describes itself — the mock
+          fixture's own alert is what tells a human they are looking at a
+          static snapshot, without any code knowing the source. */}
+      {snapshot.alerts.length > 0 ? <text fg="#71717a"> alerts </text> : null}
+      {snapshot.alerts.slice(0, MAX_VISIBLE_ALERTS).map((alert) => (
+        <text key={alert.id} fg="#fbbf24">
+          {`  ${alert.message}`}
+        </text>
+      ))}
+      {snapshot.alerts.length > MAX_VISIBLE_ALERTS ? (
+        <text fg="#71717a">{`  +${snapshot.alerts.length - MAX_VISIBLE_ALERTS} more alerts`}</text>
       ) : null}
     </box>
   );
