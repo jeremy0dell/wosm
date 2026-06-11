@@ -24,6 +24,10 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 const DEFAULT_RECONCILE_TIMEOUT_MS = 30_000;
 const DEFAULT_COMMAND_WAIT_TIMEOUT_MS = 35_000;
 
+// User-visible message copy below is frozen byte-identical from the TUI
+// extraction (the strings still say "TUI"); cross-app wording is deferred
+// messaging work tracked in the client package plan.
+
 export function createObserverService(options: CreateObserverServiceOptions): ObserverService {
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const reconcileTimeoutMs =
