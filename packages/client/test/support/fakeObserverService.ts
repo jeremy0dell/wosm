@@ -136,7 +136,7 @@ export class DeferredLoadService extends FakeObserverService {
   }
 }
 
-export function connectSafeError(): { tag: string; code: string; message: string } {
+function connectSafeError(): { tag: string; code: string; message: string } {
   return {
     tag: "ProtocolError",
     code: "PROTOCOL_CONNECT_FAILED",
@@ -150,7 +150,7 @@ export function wrappedConnectError(): Error {
   return error;
 }
 
-export function schemaMismatchSafeError(): { tag: string; code: string; message: string } {
+function schemaMismatchSafeError(): { tag: string; code: string; message: string } {
   return {
     tag: "ProtocolError",
     code: "PROTOCOL_SCHEMA_MISMATCH",
