@@ -3,9 +3,10 @@ import { Duration, Effect, Fiber, Schedule } from "@wosm/runtime";
 import {
   connectedConnectionState,
   failureConnectionState,
+  haltedConnectionState,
   isObserverConnectError,
 } from "./connectionState.js";
-import { toSafeError } from "./errors.js";
+import { isPermanentObserverError, toSafeError } from "./errors.js";
 import { createObserverService } from "./observerService.js";
 import { applyWosmEvent } from "./snapshotReducer.js";
 import type {
@@ -19,7 +20,7 @@ import type {
 const DEFAULT_RECONNECT_INITIAL_DELAY_MS = 100;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 5_000;
 
-type CycleEnding = "clean" | "failure";
+type CycleEnding = "clean" | "failure" | "halted";
 
 type RefreshSource = "managed" | "caller";
 
@@ -31,7 +32,7 @@ type RefreshFlightRequest = {
 type RefreshFlightOutcome =
   | { status: "loaded"; snapshot: WosmSnapshot }
   | { status: "connectFailure"; error: SafeError; raw: unknown }
-  | { status: "failure"; error: SafeError; raw: unknown };
+  | { status: "failure"; error: SafeError; raw: unknown; permanent: boolean };
 
 export function createWosmClientRuntime(options: WosmClientRuntimeOptions): WosmClientRuntime {
   const service = resolveService(options);
@@ -54,6 +55,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
   let subscriptionEpoch = 0;
   let activeEpoch: number | undefined;
   let cycleFault = false;
+  let haltedFlag = false;
   let stopRequested = false;
   let refreshChainRunning = false;
   let mutationCounter = 0;
@@ -94,12 +96,24 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
     });
   }
 
+  // Terminal halt for permanent errors: stop retrying, keep the last good
+  // snapshot, and unpark a live subscription so the loop observes the halt.
+  function haltRuntime(error: SafeError): void {
+    if (haltedFlag) {
+      return;
+    }
+    haltedFlag = true;
+    swapState({ ...state, connection: haltedConnectionState(error, Date.now()) });
+    void currentIterator?.return?.();
+  }
+
   // A loaded snapshot proves resync only if one subscription was live for the
   // whole load: started after the subscribe and applied while it still runs.
   // Loads that did not span a live subscription still update the snapshot but
   // may not enter connected; the current gap's own resync remains owed.
   function applyLoadedOutcome(snapshot: WosmSnapshot, epochAtStart: number | undefined): void {
-    const subscribedThroughout = epochAtStart !== undefined && epochAtStart === activeEpoch;
+    const subscribedThroughout =
+      !haltedFlag && epochAtStart !== undefined && epochAtStart === activeEpoch;
     if (subscribedThroughout) {
       resynced = true;
     }
@@ -150,6 +164,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
         const mutated = mutationCounter !== mutationsAtStart;
         if (
           !stopRequested &&
+          !haltedFlag &&
           outcome.status === "loaded" &&
           mutated &&
           pendingRefreshRequests.length === 0
@@ -172,7 +187,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
       if (isObserverConnectError(error)) {
         return { status: "connectFailure", error, raw };
       }
-      return { status: "failure", error, raw };
+      return { status: "failure", error, raw, permanent: isPermanentObserverError(error) };
     }
   }
 
@@ -190,6 +205,16 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
       applyLoadedOutcome(outcome.snapshot, epochAtStart);
       if (source === "managed") {
         hooks.onRefreshSettled?.({ status: "loaded", snapshot: outcome.snapshot });
+      }
+      return;
+    }
+    // A permanent error is global truth about the socket pair, so it halts
+    // the runtime regardless of which source's flight discovered it; a caller
+    // still receives the rethrown raw error.
+    if (outcome.status === "failure" && outcome.permanent) {
+      haltRuntime(outcome.error);
+      if (source === "managed") {
+        hooks.onRefreshSettled?.({ status: "failure", error: outcome.error });
       }
       return;
     }
@@ -224,16 +249,32 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
 
   function handleSubscriptionFailure(error: unknown): CycleEnding {
     const safeError = toSafeError(error);
+    const permanent = isPermanentObserverError(safeError);
+    if (permanent) {
+      // The halted swap happens before the hook, preserving the contract that
+      // hooks fire after the runtime's own state change.
+      haltRuntime(safeError);
+    }
     if (isObserverConnectError(safeError)) {
-      applyConnectionFailure(safeError);
+      if (!permanent) {
+        applyConnectionFailure(safeError);
+      }
       reportedSubscriptionError = false;
-      hooks.onSubscriptionError?.(safeError, { isConnectError: true, alreadyReported: false });
+      hooks.onSubscriptionError?.(safeError, {
+        isConnectError: true,
+        alreadyReported: false,
+        willRetry: !permanent,
+      });
     } else {
       const alreadyReported = reportedSubscriptionError;
       reportedSubscriptionError = true;
-      hooks.onSubscriptionError?.(safeError, { isConnectError: false, alreadyReported });
+      hooks.onSubscriptionError?.(safeError, {
+        isConnectError: false,
+        alreadyReported,
+        willRetry: !permanent,
+      });
     }
-    return "failure";
+    return permanent ? "halted" : "failure";
   }
 
   function openIterator(): AsyncIterator<WosmEvent> {
@@ -264,6 +305,9 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
         void runResync(epoch);
       }
       await consumeCurrentSubscription(iterator, isActive, applyEvent);
+      if (haltedFlag) {
+        return "halted";
+      }
       return cycleFault ? "failure" : "clean";
     } catch (error) {
       if (!active) {
@@ -278,7 +322,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
 
   async function runResync(epoch: number): Promise<void> {
     const outcome = await requestRefresh("managed");
-    if (!active || activeEpoch !== epoch || outcome.status === "loaded") {
+    if (!active || haltedFlag || activeEpoch !== epoch || outcome.status === "loaded") {
       return;
     }
     // A subscription that cannot resync must not park as healthy: end the
@@ -292,9 +336,9 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
   // sequence, while consecutive unhealthy cycles escalate the next sleep.
   const subscriptionLoop: Effect.Effect<void> = Effect.gen(function* () {
     const driver = yield* Schedule.driver(reconnectSchedule(initialDelayMs, maxDelayMs));
-    while (active) {
+    while (active && !haltedFlag) {
       const ending = yield* Effect.promise(runCycle);
-      if (!active) {
+      if (!active || haltedFlag || ending === "halted") {
         return;
       }
       if (ending === "clean" || resynced) {
