@@ -59,6 +59,19 @@ experimental/
       station/
         package.json
         src/
+          app/
+          components/
+            frame/
+            panes/
+            overlays/
+            ui/
+          commands/
+          input/
+          providers/
+          runtime/
+          state/
+          terminal/
+          theme/
     packages/
 ```
 
@@ -77,7 +90,7 @@ promoted.
 Station should launch into a full-screen terminal UI that owns:
 
 - screen layout
-- top bar / command chrome
+- header / command controls
 - pane tree
 - pane borders
 - active-pane focus
@@ -201,7 +214,7 @@ Minimum demo:
 
 This proves the core Station principle:
 
-> WOSM owns the workspace chrome. Terminal tools still do the work.
+> WOSM owns the workspace frame. Terminal tools still do the work.
 
 ### 8. Keep Classic/Tmux Mode Intact
 
@@ -259,6 +272,332 @@ Target demo:
 10. Close panes cleanly.
 
 The demo should make the product direction obvious within 60 seconds.
+
+## Prerequisite: Shared Client Runtime
+
+Observer-connected Station work depends on
+[`packages/client`](client_package_observer_runtime_plan.md).
+
+Station can continue to prototype local layout, input routing, and fake panes
+inside `experimental/station` before that package exists. However, Station
+should not grow a Station-specific observer connector for the WOSM overlay.
+Live observer snapshots, event subscriptions, reconnect behavior, command
+dispatch, and command completion should come from the shared rich-client runtime
+planned in `packages/client`.
+
+The goal is for Station to share the same observer-consumption boundary as
+`apps/tui` while keeping Station-specific concerns local:
+
+- Station owns frame/header/panes/overlays/input/PTY runtime.
+- `packages/client` owns rich-client synchronization with observer truth.
+- `packages/protocol` owns low-level socket transport and message validation.
+- `packages/contracts` owns shared schemas and types.
+
+## Current Design Direction
+
+These notes capture the current working organization for the two-mode Station
+design. They are design direction for the spike, not final product architecture.
+Change them when running code proves a better shape.
+
+### Two Primary Modes
+
+Station should start with two visible modes.
+
+Session mode is the normal workspace. It owns the header, tab strip, WOSM
+dynamic island, pane grid, pane focus, and real terminal processes. In the
+current sketch, Codex runs in the large left agent pane while app/dev-server and
+database terminals run in right-side panes. Those exact pane roles are examples,
+not fixed product slots.
+
+WOSM mode is selected from the WOSM dynamic island in the header. It should be
+implemented as an overlay above the session workspace, not as a route that
+destroys or replaces the pane layout. Underlying panes keep running. Input routes
+to the WOSM overlay while it is active. Closing the overlay restores focus to the
+previous pane or header target.
+
+Use normal UI terms:
+
+- `frame`: the outer structural layout for the Station app
+- `header`: the top row that contains tabs, title/metadata, and the WOSM dynamic
+  island
+- `pane`: a Station workspace region that can host a terminal process
+- `overlay`: WOSM mode, dialogs, command palette, and similar temporary layers
+
+Avoid the term `chrome` in Station planning and code unless a third-party API
+forces it. It is too vague for this app. Avoid `shell` for the outer app frame
+because it collides with real Unix shells running inside panes.
+
+### State Shape
+
+Use one canonical coordination store for cross-app state, but do not turn it
+into a universal data sink.
+
+The coordination store should own normalized state that multiple parts of
+Station must agree on:
+
+- active mode and active overlay
+- header tabs/windows
+- pane layout and pane metadata
+- active focus target
+- command lifecycle metadata
+- observer snapshot-derived WOSM graph summaries
+- selected project/worktree/session ids
+
+The coordination store should not own high-frequency or non-serializable runtime
+objects:
+
+- terminal scrollback buffers
+- every PTY output chunk
+- raw ANSI frame data
+- process handles
+- OpenTUI renderer refs
+- terminal backend refs
+
+Those belong in provider-backed runtime registries, with the store holding stable
+ids and metadata.
+
+Keep truly local interaction state local when it does not need to survive mode
+changes, reconnects, or external events. Examples: hover state, an unsubmitted
+text field draft, and temporary resize-drag measurements.
+
+### Providers
+
+Provider language is acceptable in Station code. In this context, providers are
+React/OpenTUI capability providers, not WOSM integration providers such as
+Worktrunk, tmux, Codex, or OpenCode.
+
+Use providers for shared capabilities and services:
+
+- `CommandProvider`
+- `KeymapProvider`
+- `DialogProvider`
+- `ToastProvider`
+- `ThemeProvider`
+- `TerminalBackendProvider`
+- `WosmClientProvider`
+- `ClipboardProvider`
+
+Avoid domain mini-database providers such as `SessionProvider`, `PaneProvider`,
+`TerminalProvider`, `AgentProvider`, `WorktreeProvider`, `WosmProvider`,
+`TabProvider`, `LayoutProvider`, `HeaderProvider`, or
+`DynamicIslandProvider`. Those concerns should usually be store slices,
+selectors, components, or runtime registries.
+
+### Input Routing
+
+Input routing is the central design problem. Do not let individual components
+each decide globally important key behavior.
+
+Station should route keyboard and mouse input through one input router that
+understands focus, mode, overlays, and terminal passthrough.
+
+Focus should be pane-oriented. Terminals are content attached to panes, not a
+separate competing focus layer.
+
+```ts
+type FocusTarget =
+  | { kind: "header"; region: "tabs" | "island" | "title" }
+  | { kind: "pane"; paneId: PaneId }
+  | { kind: "overlay"; overlayId: OverlayId }
+  | { kind: "dialog"; dialogId: DialogId };
+```
+
+Use a keymap stack rather than a long chain of component-specific conditionals.
+The current intended priority is:
+
+1. resize drag
+2. dialog
+3. command palette
+4. WOSM overlay
+5. terminal passthrough
+6. session workspace
+7. base
+
+The router should return explicit outcomes, for example:
+
+- handled app command
+- write bytes to focused terminal pane
+- focus change
+- open overlay
+- close overlay
+- ignored
+
+Reserved WOSM chords should remain available even when a terminal pane is
+focused. Most ordinary text input should pass through to the focused terminal
+process.
+
+### Working Domains
+
+Keep these domains separate from the beginning:
+
+- `workspace`: tabs/windows, pane layout, active workspace, focusable surfaces
+- `wosmGraph`: observer snapshot summaries, selected WOSM project/worktree/session
+- `terminal`: terminal ids, backend attachment, resize, write, kill, process role
+- `agent`: harness identity, status, hook-derived state, launch commands
+- `worktree`: project path, branch, dirty state, Worktrunk identity
+- `commands`: command registry, palette entries, keybinding targets
+- `input`: key routing, mouse routing, focus, overlay/modal stack
+
+### Proposed Source Layout
+
+The current proposed spike layout is:
+
+```text
+experimental/station/apps/station/src/
+  app/
+    StationApp.tsx
+  components/
+    frame/
+      StationFrame.tsx
+      Header.tsx
+      TabStrip.tsx
+      DynamicIsland.tsx
+    panes/
+      PaneGrid.tsx
+      PaneFrame.tsx
+      TerminalPane.tsx
+    overlays/
+      WosmOverlay.tsx
+      CommandPalette.tsx
+      DialogHost.tsx
+    ui/
+      Button.tsx
+      Divider.tsx
+      FocusRing.tsx
+      IconButton.tsx
+      Surface.tsx
+      TextInput.tsx
+      Toast.tsx
+  commands/
+    registry.ts
+  input/
+    focus.ts
+    keymaps.ts
+    router.ts
+  providers/
+    ClipboardProvider.tsx
+    CommandProvider.tsx
+    DialogProvider.tsx
+    KeymapProvider.tsx
+    TerminalBackendProvider.tsx
+    ThemeProvider.tsx
+    ToastProvider.tsx
+    WosmClientProvider.tsx
+  runtime/
+    paneRuntime.ts
+    stationRuntime.ts
+  state/
+    actions.ts
+    selectors.ts
+    store.ts
+    types.ts
+    slices/
+      commands.ts
+      input.ts
+      overlays.ts
+      workspace.ts
+      wosmGraph.ts
+  terminal/
+    backend.ts
+    pty.ts
+    registry.ts
+  theme/
+    tokens.ts
+```
+
+Rules for this layout:
+
+- `components/ui` contains generic reusable OpenTUI primitives with no WOSM
+  domain knowledge.
+- `components/frame` contains app-wide layout and header regions.
+- `components/panes` contains workspace pane rendering.
+- `components/overlays` contains WOSM overlay, command palette, dialogs, and
+  overlay hosts.
+- `state`, `input`, `providers`, `terminal`, `runtime`, and `commands` contain
+  non-rendering logic.
+
+### Theme Scope
+
+Delay broad theming. Start with tokens only:
+
+- `theme.colors.border`
+- `theme.colors.background`
+- `theme.colors.muted`
+- `theme.colors.focus`
+- `theme.colors.warning`
+- `theme.spacing.sm`
+- `theme.spacing.md`
+- `theme.borderRadius.panel`
+
+Do not build a theme marketplace or deep theme system during the spike.
+
+### ASCII Mode Mockups
+
+Session mode:
+
+```text
++------------------------------------------------------------------------------------------+
+| [ main ] [ api ] [ db ]                         station                 [ WOSM: idle  ] |
++------------------------------------------------------------------------------------------+
+|                                                                                          |
+| +------------------------------------------+   +---------------------------------------+ |
+| | agent                                    |   | dev server                            | |
+| | /repo/.worktrees/station-design          |   | pnpm dev                              | |
+| |                                          |   |                                       | |
+| | codex is running here                    |   | VITE ready in 430ms                   | |
+| |                                          |   | localhost:5173                        | |
+| |                                          |   |                                       | |
+| |                                          |   |                                       | |
+| |                                          |   |                                       | |
+| |                                          |   +---------------------------------------+ |
+| |                                          |   +---------------------------------------+ |
+| |                                          |   | db                                    | |
+| |                                          |   | psql local                            | |
+| |                                          |   |                                       | |
+| |                                          |   | app_development=#                     | |
+| |                                          |   |                                       | |
+| +------------------------------------------+   +---------------------------------------+ |
+|                                                                                          |
++------------------------------------------------------------------------------------------+
+| agent focused | split | WOSM | palette | close pane                                      |
++------------------------------------------------------------------------------------------+
+```
+
+WOSM mode:
+
+```text
++------------------------------------------------------------------------------------------+
+| [ main ] [ api ] [ db ]                         station              [ WOSM: selected ] |
++------------------------------------------------------------------------------------------+
+|                                                                                          |
+| +------------------------------------------+   +---------------------------------------+ |
+| | agent                                    |   | dev server                            | |
+| | /repo/.worktrees/station-design          |   | pnpm dev                              | |
+| |                                          |   | VITE ready in 430ms                   | |
+| |                                          |   | localhost:5173                        | |
+| |                                          |   |                                       | |
+| |              +---------------------------------------------------+                   | |
+| |              | WOSM                                              |                   | |
+| |              +---------------------------------------------------+                   | |
+| |              | project  wosm                                     |                   | |
+| |              | branch   station-design                           |                   | |
+| |              |                                                   |                   | |
+| |              | [1] station-design      codex  working            |                   | |
+| |              | [2] api-cleanup         codex  needs attention    |                   | |
+| |              | [3] db-fixtures         none   ready              |                   | |
+| |              |                                                   |                   | |
+| |              | N:new  R:refresh  Enter:focus  Esc:back           |                   | |
+| |              +---------------------------------------------------+                   | |
+| |                                          |   +---------------------------------------+ |
+| |                                          |   | db                                    | |
+| |                                          |   | psql local                            | |
+| |                                          |   | app_development=#                     | |
+| +------------------------------------------+   +---------------------------------------+ |
+|                                                                                          |
++------------------------------------------------------------------------------------------+
+| WOSM overlay focused | Esc returns focus to previous pane                                 |
++------------------------------------------------------------------------------------------+
+```
 
 ## Secondary Goals
 
