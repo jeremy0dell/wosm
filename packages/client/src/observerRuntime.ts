@@ -1,5 +1,5 @@
 import type { WosmEvent, WosmSnapshot } from "@wosm/contracts";
-import { Duration, Effect, Fiber } from "@wosm/runtime";
+import { Duration, Effect, Fiber, Schedule } from "@wosm/runtime";
 import {
   connectedConnectionState,
   failureConnectionState,
@@ -16,12 +16,14 @@ import type {
   WosmClientRuntimeState,
 } from "./types.js";
 
-export const EVENT_STREAM_RECONNECT_DELAY_MS = 100;
+const DEFAULT_RECONNECT_INITIAL_DELAY_MS = 100;
+const DEFAULT_RECONNECT_MAX_DELAY_MS = 5_000;
 
 export function createWosmClientRuntime(options: WosmClientRuntimeOptions): WosmClientRuntime {
   const service = resolveService(options);
   const hooks: WosmClientRuntimeHooks = options.hooks ?? {};
-  const reconnectDelayMs = options.reconnectDelayMs ?? EVENT_STREAM_RECONNECT_DELAY_MS;
+  const initialDelayMs = options.reconnect?.initialDelayMs ?? DEFAULT_RECONNECT_INITIAL_DELAY_MS;
+  const maxDelayMs = options.reconnect?.maxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
 
   let state = initialRuntimeState(options.initialSnapshot);
   const listeners = new Set<() => void>();
@@ -31,6 +33,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
   let currentIterator: AsyncIterator<WosmEvent> | undefined;
   let reportedSubscriptionError = false;
   let refreshDepth = 0;
+  let cycleMadeProgress = false;
   let loopFiber: Fiber.RuntimeFiber<void> | undefined;
 
   const isActive = (): boolean => active;
@@ -102,6 +105,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
 
   function applyEvent(event: WosmEvent): void {
     reportedSubscriptionError = false;
+    cycleMadeProgress = true;
     if (state.snapshot === undefined) {
       // Events arriving before the first snapshot still prove the observer is
       // reachable, but cannot be reduced; the in-flight initial load covers them.
@@ -156,6 +160,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
     try: async () => {
       const iterator = openIterator();
       await consumeCurrentSubscription(iterator, isActive, applyEvent);
+      cycleMadeProgress = true;
       if (active) {
         // Resync after every subscription gap: events have no sequence numbers,
         // so a full snapshot reload is what keeps incremental patches correct.
@@ -173,14 +178,24 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
     Effect.ensuring(Effect.sync(releaseIterator)),
   );
 
+  // The driver feeds the jittered exponential schedule into the loop: each
+  // failed cycle escalates the next sleep, while a cycle that subscribed
+  // successfully (an event arrived or the stream ended cleanly) resets the
+  // sequence so the next attempt waits only the initial delay.
   const subscriptionLoop: Effect.Effect<void> = Effect.gen(function* () {
+    const driver = yield* Schedule.driver(reconnectSchedule(initialDelayMs, maxDelayMs));
     while (active) {
+      cycleMadeProgress = false;
       yield* subscriptionCycle;
-      if (active) {
-        yield* Effect.sleep(Duration.millis(reconnectDelayMs));
+      if (!active) {
+        return;
       }
+      if (cycleMadeProgress) {
+        yield* driver.reset;
+      }
+      yield* driver.next(undefined);
     }
-  });
+  }).pipe(Effect.orDie);
 
   function start(): void {
     if (started || stopPromise !== undefined) {
@@ -246,6 +261,15 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
     dispatch: (command) => service.dispatch(command),
     waitForCommand: (commandId) => service.waitForCommandCompletion(commandId),
   };
+}
+
+// Jitter before the union so maxDelayMs is a hard bound: the union sleeps the
+// minimum of the jittered exponential delay and the constant cap.
+function reconnectSchedule(initialDelayMs: number, maxDelayMs: number) {
+  return Schedule.exponential(Duration.millis(initialDelayMs)).pipe(
+    Schedule.jittered,
+    Schedule.union(Schedule.spaced(Duration.millis(maxDelayMs))),
+  );
 }
 
 function resolveService(options: WosmClientRuntimeOptions): ObserverService {
