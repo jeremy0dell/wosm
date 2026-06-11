@@ -1,0 +1,21 @@
+{
+  "name": "@wosm/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@wosm/contracts": "workspace:*",
+    "@wosm/protocol": "workspace:*",
+    "@wosm/runtime": "workspace:*"
+  }
+}
