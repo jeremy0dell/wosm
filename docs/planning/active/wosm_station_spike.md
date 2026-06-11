@@ -275,6 +275,44 @@ The demo should make the product direction obvious within 60 seconds.
 
 ## WOSM State Sources
 
+## Spike Log
+
+### 2026-06-11 - PTY POC In Station
+
+The Station experiment now has the first PTY-backed pane proof of concept under
+`experimental/station/apps/station/src/terminal/`.
+
+What this slice proved:
+
+- `node-pty` can be kept behind a Station-local terminal boundary.
+- Station can spawn a real PTY-backed shell process.
+- OpenTUI input can be routed into the active PTY.
+- PTY output can be rendered back into the Station pane.
+- Station can reserve `Ctrl-Q` for app exit while forwarding `Ctrl-C` to the
+  child process.
+- The local smoke probe can verify child-process output with `bun run test:pty`.
+
+Implementation note: Bun owns the OpenTUI app, while a small Node sidecar owns
+`node-pty`. The sidecar is intentionally experiment-local because Bun extracted
+`node-pty`'s `spawn-helper` without the executable bit, and direct Bun +
+`node-pty` interactive shell behavior was not reliable enough for the POC.
+
+Known limitation: rendering is intentionally incomplete. The current pane strips
+ANSI and writes recent text into an OpenTUI text node. Cursor movement, prompt
+redraws, wrapping, colors, alternate-screen programs, and full terminal
+semantics should be treated as expected renderer debt until Station has a real
+VT parser / terminal screen model.
+
+Manual verification for this commit:
+
+```bash
+cd experimental/station
+bun run station
+```
+
+Then run `pwd` inside the Station pane, verify output renders in the pane, use
+`Ctrl-C` against a running command, and use `Ctrl-Q` to exit Station cleanly.
+
 Station needs WOSM state before it has a live observer connector. Treat the WOSM
 state provider as a source-swappable boundary from the start.
 
