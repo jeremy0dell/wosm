@@ -126,6 +126,126 @@ describe("provider hook ingress command", () => {
     expect(JSON.stringify(observedReport)).not.toContain("pnpm test");
   });
 
+  it("delivers compact Claude payloads through observer.harnessEvent.report", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let observedReport: HarnessEventReport | undefined;
+
+    const receipt = await runProviderIngressCommand(
+      [
+        "--socket",
+        fixture.socketPath,
+        "--state-dir",
+        fixture.stateDir,
+        "--config",
+        configPath,
+        "claude",
+      ],
+      {
+        stdin: JSON.stringify(claudePayload()),
+        env: wosmEnv(),
+      },
+      {
+        clock: { now: () => new Date(now) },
+        hookId: () => "report_claude_1",
+        clientFactory: () =>
+          ({
+            reportHarnessEvent: async (report): Promise<HarnessEventReportReceipt> => {
+              observedReport = report;
+              return {
+                schemaVersion: "0.4.0",
+                reportId: report.reportId,
+                provider: report.provider,
+                eventType: report.eventType,
+                accepted: true,
+                status: "accepted",
+                receivedAt: report.observedAt,
+                projected: false,
+                scheduledReconcile: true,
+              };
+            },
+          }) as never,
+      },
+    );
+
+    expect(receipt.status).toBe("ingested");
+    expect(observedReport).toMatchObject({
+      provider: "claude",
+      eventType: "PreToolUse",
+      status: {
+        value: "working",
+        confidence: "medium",
+      },
+      correlation: {
+        projectId: "web",
+        worktreeId: "wt_web_task",
+        sessionId: "ses_web_task",
+        terminalTargetId: "tmux:wosm:@1:%2",
+        harnessRunId: "claude:tmux:wosm:@1:%2",
+        nativeSessionId: "claude_session_1",
+        cwd: "/tmp/wosm/web/task",
+      },
+      diagnostics: {
+        compacted: true,
+        omittedFieldNames: ["tool_input"],
+      },
+      providerData: {
+        hookEventName: "PreToolUse",
+        toolName: "Bash",
+      },
+    });
+    expect(JSON.stringify(observedReport)).not.toContain("pnpm test");
+  });
+
+  it("ignores Claude events outside the rule-derived allow-list", async () => {
+    const fixture = await createTempState();
+
+    const receipt = await runProviderIngressCommand(
+      ["--socket", fixture.socketPath, "--state-dir", fixture.stateDir, "claude"],
+      {
+        stdin: JSON.stringify({
+          ...claudePayload(),
+          hook_event_name: "SubagentStop",
+        }),
+        env: wosmEnv(),
+      },
+      {
+        clock: { now: () => new Date(now) },
+        hookId: () => "report_claude_drop_1",
+      },
+    );
+
+    expect(receipt).toMatchObject({
+      status: "ignored",
+      provider: "claude",
+      event: "SubagentStop",
+    });
+    await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
+  });
+
+  it("ignores Claude events without wosm ownership env", async () => {
+    const fixture = await createTempState();
+
+    const receipt = await runProviderIngressCommand(
+      ["--socket", fixture.socketPath, "--state-dir", fixture.stateDir, "claude"],
+      {
+        stdin: JSON.stringify(claudePayload()),
+        env: {},
+      },
+      {
+        clock: { now: () => new Date(now) },
+        hookId: () => "report_claude_unowned_1",
+      },
+    );
+
+    expect(receipt).toMatchObject({
+      status: "ignored",
+      provider: "claude",
+      event: "PreToolUse",
+    });
+    await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
+  });
+
   it("delivers compact Cursor payloads through observer.harnessEvent.report", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);
@@ -374,6 +494,19 @@ function codexPayload() {
     tool_name: "Bash",
     tool_input: { command: "pnpm test" },
     tool_use_id: "call_test",
+  };
+}
+
+function claudePayload() {
+  return {
+    session_id: "claude_session_1",
+    transcript_path: "/home/user/.claude/projects/-tmp-wosm-web-task/claude_session_1.jsonl",
+    cwd: "/tmp/wosm/web/task",
+    hook_event_name: "PreToolUse",
+    permission_mode: "default",
+    tool_name: "Bash",
+    tool_input: { command: "pnpm test" },
+    tool_use_id: "toolu_test",
   };
 }
 

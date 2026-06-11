@@ -294,7 +294,9 @@ describe("guided setup command", () => {
         },
         access: fakeAccess(["/fake/bin/wt", "/fake/bin/tmux"]),
         fs,
-        prompt: prompt({ confirms: [true, false, false, false, false, false, true, false, false] }),
+        prompt: prompt({
+          confirms: [true, false, false, false, false, false, false, true, false, false],
+        }),
         writeStdout: (chunk) => chunks.push(chunk),
       },
     );

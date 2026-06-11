@@ -318,6 +318,20 @@ and check the bundle for the command id, trace id, `command.failed`, and cleanup
 
 The e2e smoke test uses `tests/support/fake-external-tools/worktrunk-bin.ts` to create a deterministic executable that behaves like the tiny subset of `wt` needed by the provider. That fixture is for tests and examples only. It is not on the production code path, and it does not replace the real Worktrunk provider.
 
+## Real Claude Smoke
+
+The real Claude lane is opt-in and isolated from normal CI. It requires installed `tmux`, installed `claude` (Claude Code), and a logged-in `claude auth status`.
+
+```bash
+claude --version
+WOSM_REAL_CLAUDE=1 \
+WOSM_CLAUDE_BIN="$(command -v claude)" \
+WOSM_TMUX_BIN="$(command -v tmux)" \
+pnpm test:e2e:claude:real
+```
+
+The lane has two tests: a launch-only proof (temporary project/worktree plus a temporary Claude shim that records cwd/argv and then executes the real Claude binary; the expected observer result is a normalized Claude harness run with conservative `unknown` low-confidence status), and a hook event capture tripwire (a real `claude -p` run with the wosm-generated `--settings` artifact fires hooks through the generated script and the real `bin/wosm-ingress`, and the spooled reports must still parse against the package schemas). The first interactive launch in a fresh worktree sits at the workspace trust dialog until accepted.
+
 ## Real Codex Smoke
 
 The real Codex lane is opt-in and isolated from normal CI. It requires installed `tmux`, installed `codex`, and `codex login status` returning success.

@@ -1,3 +1,4 @@
+export * from "./commands/claudeHooks.js";
 export * from "./commands/codexHooks.js";
 export * from "./commands/command.js";
 export * from "./commands/configDiagnostics.js";

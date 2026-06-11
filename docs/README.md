@@ -43,6 +43,7 @@ This index classifies docs by current use. Planning docs are grouped by lifecycl
 ## Completed Records And Audits
 
 - [CI lane evolution plan](planning/completed/ci_lane_evolution_plan.md) is a completed planning record for separating deterministic CI, release smoke, e2e, docs-only, and real-provider lanes.
+- [Claude Code harness integration plan](planning/completed/claude_harness_integration_plan.md) is a completed planning record for the `claude` harness provider: rule-derived hook ingress, launch-scoped `--settings` hook injection, M0 spike findings, and captured hook payload fixtures.
 - [Code smell remediation P1/P2](planning/completed/code_smell_remediation_p1_p2.md) is a completed planning record for optional object construction, provider diagnostics boundaries, validation, and async spread cleanup.
 - [Hook/event naming audit](planning/completed/hook_event_naming_audit.md) is a completed cleanup map for hook/event terminology across contracts, protocol, observer, integrations, CLI, tests, and docs.
 - [Harness socket ingress and observer queue plan](planning/completed/harness_socket_ingress_and_observer_queue_plan.md) is a completed planning record for removing the `wosm-hook` hot path and fixing observer ingress backpressure.

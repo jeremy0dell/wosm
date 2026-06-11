@@ -36,6 +36,11 @@ popup_width = "50%"
 popup_height = "50%"
 popup_position = "C"
 
+[harness.claude]
+enabled = true
+command = "claude"
+install_hooks = true
+
 [harness.codex]
 enabled = true
 command = "codex"

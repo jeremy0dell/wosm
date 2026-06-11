@@ -16,6 +16,7 @@ const env = {
   WOSM_WORKTRUNK_BIN: process.env.WOSM_WORKTRUNK_BIN ?? resolveCommand("wt"),
   WOSM_TMUX_BIN: process.env.WOSM_TMUX_BIN ?? resolveCommand("tmux"),
   WOSM_CODEX_BIN: process.env.WOSM_CODEX_BIN ?? resolveCommand("codex"),
+  WOSM_CLAUDE_BIN: process.env.WOSM_CLAUDE_BIN ?? resolveCommand("claude"),
 };
 if (keepTemp) {
   env.WOSM_REAL_E2E_KEEP_TEMP = "1";

@@ -365,6 +365,48 @@ describe("observer providers", () => {
     });
   });
 
+  it("passes Claude config defaults into the Claude harness provider", async () => {
+    const registry = createProviderRegistry({
+      ...config,
+      harness: {
+        claude: {
+          command: "claude-custom",
+          profile: "team-profile",
+        },
+      },
+    });
+    const provider = registry.harnesses.get("claude");
+    const project = config.projects[0];
+    if (project === undefined) {
+      throw new Error("provider factory fixture is missing a project.");
+    }
+
+    await expect(
+      provider?.buildLaunch({
+        project,
+        worktree: {
+          id: "wt_web_task",
+          provider: "worktrunk",
+          projectId: "web",
+          branch: "task",
+          path: "/tmp/wosm/web/task",
+          state: "exists",
+          source: "worktrunk",
+          observedAt: now,
+        },
+        mode: "interactive",
+      }),
+    ).resolves.toMatchObject({
+      provider: "claude",
+      command: "claude-custom",
+      args: ["--agent", "team-profile"],
+      cwd: "/tmp/wosm/web/task",
+      env: {
+        WOSM_HARNESS_PROVIDER: "claude",
+      },
+    });
+  });
+
   it("registers Pi harness provider with command and observer config path", async () => {
     const registry = createProviderRegistry(
       {

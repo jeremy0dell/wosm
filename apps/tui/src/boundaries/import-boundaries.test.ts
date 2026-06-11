@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const forbiddenImports = [
   "@wosm/worktrunk",
   "@wosm/tmux",
+  "@wosm/claude",
   "@wosm/codex",
   "@wosm/opencode",
   "@wosm/observer",

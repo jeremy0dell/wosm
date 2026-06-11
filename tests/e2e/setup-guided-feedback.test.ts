@@ -11,7 +11,7 @@ describe("setup guided feedback e2e", () => {
       const result = await runWosm(["--config", fixture.configPath, "setup"], {
         cwd: fixture.repo,
         env: fixture.env,
-        answers: ["n", "n", "n", "n"],
+        answers: ["n", "n", "n", "n", "n"],
       });
 
       expect(result.timedOut).toBe(false);
@@ -56,7 +56,7 @@ describe("setup guided feedback e2e", () => {
       const result = await runWosm(["--config", fixture.configPath, "setup"], {
         cwd: fixture.repo,
         env: fixture.env,
-        answers: ["y", "n", "n", "n", "n", "n", "n", "y", "n", "n"],
+        answers: ["y", "n", "n", "n", "n", "n", "n", "n", "y", "n", "n"],
       });
 
       expect(result.timedOut).toBe(false);
@@ -169,6 +169,7 @@ async function createFixture(input: { harness: HarnessMode }): Promise<Fixture> 
     WOSM_CURSOR_AGENT_BIN: "/missing/agent",
     WOSM_OPENCODE_BIN: "/missing/opencode",
     WOSM_PI_BIN: "/missing/pi",
+    WOSM_CLAUDE_BIN: "/missing/claude",
   };
 
   return {

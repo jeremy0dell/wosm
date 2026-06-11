@@ -45,6 +45,7 @@ wosm setup check --json
 wosm setup system --check
 pnpm setup:system:check
 wosm hooks doctor worktrunk
+wosm hooks doctor claude
 wosm hooks doctor codex
 wosm hooks doctor cursor
 wosm hooks doctor opencode
@@ -217,6 +218,11 @@ wosm --config /path/to/config.toml hooks uninstall worktrunk --yes
 Other provider and event hook setup surfaces use the same reversible pattern:
 
 ```bash
+wosm --config /path/to/config.toml hooks plan claude
+wosm --config /path/to/config.toml hooks doctor claude
+wosm --config /path/to/config.toml hooks install claude --yes
+wosm --config /path/to/config.toml hooks uninstall claude --yes
+
 wosm --config /path/to/config.toml hooks plan codex
 wosm --config /path/to/config.toml hooks doctor codex
 wosm --config /path/to/config.toml hooks install codex --yes

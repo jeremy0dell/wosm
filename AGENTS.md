@@ -59,7 +59,7 @@ Start with the narrowest matching tool:
 - live event stream: `wosm observe --include-snapshot --duration 3s`, with `--json` for agent-readable output
 - command lifecycle record: `wosm command get <commandId>`
 - redacted shareable evidence: `wosm debug bundle --trace <traceId>`, `wosm debug bundle --command <commandId>`, or `wosm debug bundle --latest-failure`
-- provider hook setup: `wosm hooks doctor worktrunk|codex|cursor|opencode` or `wosm event-hooks doctor`
+- provider hook setup: `wosm hooks doctor worktrunk|claude|codex|cursor|opencode` or `wosm event-hooks doctor`
 - setup/tool readiness: `wosm setup check --json`, `wosm setup system --check`, or `pnpm setup:system:check`
 
 If the user says "no action", treat debugging as read-only: inspect only existing logs, existing bundles, existing command/error records, and `wosm debug trace` / `wosm debug logs` output. Do not start/restart observer, run commands that call or auto-start the observer, retry commands, kill processes, mutate setup/hooks/config, or write a new bundle unless explicitly asked.

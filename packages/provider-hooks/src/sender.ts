@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  claudeHookPayloadReportId,
+  claudeHookPayloadToHarnessEventReport,
+  compactClaudeHookPayload,
+  isClaudeForwardedEventType,
+} from "@wosm/claude";
+import {
   codexHookPayloadReportId,
   codexHookPayloadToHarnessEventReport,
   compactCodexHookPayload,
@@ -71,6 +77,11 @@ export type SendProviderHookEventInput = ProviderHookSenderOptions & {
   kind: ProviderHookEvent["kind"];
   event: string;
   payload?: unknown;
+};
+
+export type SendClaudeHookInput = ProviderHookSenderOptions & {
+  payload: unknown;
+  env?: NodeJS.ProcessEnv;
 };
 
 export type SendCodexHookInput = ProviderHookSenderOptions & {
@@ -149,6 +160,59 @@ export async function sendProviderHookEvent(
     deliveryInput.observerEntryPath = input.observerEntryPath;
   }
   return deliverProviderHookWithSpooling(deliveryInput);
+}
+
+export async function sendClaudeHookPayload(
+  input: SendClaudeHookInput,
+  deps: ProviderHookSenderDeps = {},
+): Promise<ProviderHookReceipt> {
+  const clock = deps.clock ?? systemClock;
+  const enrichedPayload = enrichWosmHookIdentityPayload({
+    payload: input.payload,
+    env: input.env ?? process.env,
+  });
+  const eventName = parseProviderHookEventName(enrichedPayload) ?? "unknown";
+  if (!hasWosmOwnership(enrichedPayload)) {
+    return ignoredProviderHookReceipt({
+      provider: "claude",
+      event: eventName,
+      clock,
+      hookId: deps.hookId,
+    });
+  }
+  // Claude installs only rule-derived hook events, but a fallback global install can
+  // surface user-added events; unlisted event types are dropped, never errors.
+  if (!isClaudeForwardedEventType(eventName)) {
+    return ignoredProviderHookReceipt({
+      provider: "claude",
+      event: eventName,
+      clock,
+      hookId: deps.hookId,
+    });
+  }
+
+  const compaction = compactClaudeHookPayload(enrichedPayload);
+  try {
+    const observedAt = toIsoTimestamp(clock.now());
+    const reportId = deps.hookId?.() ?? claudeHookPayloadReportId(compaction.payload, observedAt);
+    const report = claudeHookPayloadToHarnessEventReport({
+      reportId,
+      observedAt,
+      payload: compaction.payload,
+      diagnostics: diagnosticsFromCompaction(compaction),
+    });
+    return providerHookReceiptFromHarnessReportReceipt(
+      await sendHarnessEventReport(input, report, compactionSummary(compaction), deps),
+    );
+  } catch (error) {
+    return rejectedProviderHookReceipt({
+      provider: "claude",
+      event: eventName,
+      clock,
+      error,
+      hookId: deps.hookId,
+    });
+  }
 }
 
 export async function sendCodexHookPayload(

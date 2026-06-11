@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile);
 export type RealE2eRequirements = {
   worktrunk?: boolean;
   tmux?: boolean;
+  claude?: boolean;
   codex?: boolean;
   pi?: boolean;
   opencode?: boolean;
@@ -19,6 +20,7 @@ export type RealE2eEnvironment = {
   wosmIngressBin: string;
   worktrunkBin?: string;
   tmuxBin?: string;
+  claudeBin?: string;
   codexBin?: string;
   piBin?: string;
   opencodeBin?: string;
@@ -62,6 +64,15 @@ export async function requireRealE2eEnvironment(
     env.tmuxBin = tmuxBin;
   }
 
+  if (requirements.claude === true) {
+    if (process.env.WOSM_REAL_CLAUDE !== "1") {
+      throw new Error("Set WOSM_REAL_CLAUDE=1 to run real Claude E2E tests.");
+    }
+    const claudeBin = process.env.WOSM_CLAUDE_BIN ?? "claude";
+    await execFileAsync(claudeBin, ["--version"], { timeout: 20_000 });
+    env.claudeBin = claudeBin;
+  }
+
   if (requirements.codex === true) {
     if (process.env.WOSM_REAL_CODEX !== "1") {
       throw new Error("Set WOSM_REAL_CODEX=1 to run real Codex E2E tests.");
@@ -94,10 +105,11 @@ export async function requireRealE2eEnvironment(
 
 export function requireToolPath(
   env: RealE2eEnvironment,
-  tool: "worktrunk" | "tmux" | "codex" | "pi" | "opencode",
+  tool: "worktrunk" | "tmux" | "claude" | "codex" | "pi" | "opencode",
 ): string {
   if (tool === "worktrunk" && env.worktrunkBin !== undefined) return env.worktrunkBin;
   if (tool === "tmux" && env.tmuxBin !== undefined) return env.tmuxBin;
+  if (tool === "claude" && env.claudeBin !== undefined) return env.claudeBin;
   if (tool === "codex" && env.codexBin !== undefined) return env.codexBin;
   if (tool === "pi" && env.piBin !== undefined) return env.piBin;
   if (tool === "opencode" && env.opencodeBin !== undefined) return env.opencodeBin;

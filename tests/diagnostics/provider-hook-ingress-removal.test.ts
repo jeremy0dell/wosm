@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("provider hook ingress removal guard", () => {
   it("keeps generated provider hook paths off the removed wosm-hook bridge", async () => {
     const productionFiles = [
+      "integrations/harness/claude/src/hooks/hookScript.ts",
       "integrations/harness/codex/src/hooks/hookScript.ts",
       "integrations/worktree/worktrunk/src/hooks.ts",
       "integrations/harness/pi/src/piExtension.ts",
