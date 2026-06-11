@@ -412,6 +412,8 @@ no edits beyond the dead re-export removals, `pnpm test:all`.
 
 ### PR 3: Station Read-Only Observer Overlay
 
+Status: implemented (2026-06-11).
+
 Use `packages/client` from Station to render live observer state in the WOSM
 overlay, behind the same Station WOSM state provider used by mock mode. This
 PR must first prove the dependency mechanics described in Station Dependency
@@ -421,13 +423,42 @@ This PR should not add real PTY panes yet. It should prove that Station can
 consume observer truth through the shared client runtime and render a useful
 read-only overlay.
 
-Validation:
+Deviations from the sketch above:
 
-- Station host/container run shows live projects, worktrees, sessions, and agent
-  statuses when the observer is available
-- stopping the observer leaves the last good state visible with a calm
-  reconnect/display-only status
-- existing TUI behavior remains unchanged
+- The chosen `file:` + Bun `overrides` mechanism proved unreliable and was
+  replaced per this plan's fallback clause (see Station Dependency below for
+  the empirical findings). The landed mechanism is
+  `scripts/link-wosm-packages.sh`: plain relative symlinks for `@wosm/client`
+  and `@wosm/contracts` into `apps/station/node_modules`, with the transitive
+  `@wosm/protocol`/`@wosm/runtime`/`effect`/`zod` graph resolving through the
+  repo's own pnpm layout. Bun prunes the links on install, so the Station
+  package scripts that need them re-run the link script first; the doctor
+  checks all four dists plus the repo's pnpm links.
+- The snapshot-source boundary evolved from one-shot
+  `getSnapshot(): Promise` to a subscribable state source
+  (`start/stop/getState/subscribe` plus a connection state), so the live
+  source is a thin adapter over the runtime and the overlay consumes both
+  modes via `useSyncExternalStore`. The mock fixture is now typed
+  `satisfies WosmSnapshot` (which caught and fixed a real contract drift in
+  its `checks` shape).
+- Station mirrors the observer socket default resolution from
+  `packages/config/src/observerPaths.ts` (env override
+  `WOSM_OBSERVER_SOCKET_PATH`, then `XDG_RUNTIME_DIR`, then the state dir)
+  instead of adding `@wosm/config` to the consumed graph.
+- WOSM mode is a `Ctrl-O` toggle that hides (but keeps mounted) the PTY pane
+  and swallows input while active; no PTY work was touched.
+- The container lane now mounts the repo root (not just the Station tree) so
+  the package links resolve inside the container.
+
+Validation (performed):
+
+- Station host run rendered the live observer's real projects, worktrees,
+  sessions, and agent statuses through `@wosm/client`
+- with no observer reachable the overlay shows a calm static
+  `reconnecting since …` status; the displayOnly-keeps-last-snapshot path is
+  covered by a focused bun test against an injected fake observer service
+- existing TUI behavior unchanged (nothing outside `experimental/station` and
+  this doc changed; root `pnpm test:all` green)
 
 ### PR 4: Station Commands Through Shared Client
 
@@ -462,7 +493,7 @@ uses Bun, so `workspace:*` cannot resolve `@wosm/client` from Station, and the
 transitive `workspace:*` ranges inside `@wosm/client`'s own dependencies will
 not resolve either.
 
-Chosen mechanism:
+Originally chosen mechanism (superseded — kept for the record):
 
 - the Station app declares a `file:` dependency on `packages/client`
 - Station's workspace root `package.json` adds Bun `overrides` mapping the
@@ -475,10 +506,29 @@ Chosen mechanism:
 - all of this stays inside `experimental/station` per the spike isolation
   rules; nothing is added to the root workspace or root scripts
 
-If Bun's `file:` plus overrides combination proves unreliable, fall back to
-`bun link` for the four packages or `pnpm pack` tarballs with the same
-overrides. The first observer-connected Station PR proves whichever mechanism
-lands.
+PR 3 proved this combination unreliable on Bun 1.3 and exercised the fallback
+clause. Empirical findings, so nobody retries the dead ends:
+
+- `file:` + overrides with Bun's isolated linker resolves the override targets
+  but does not wire the overridden transitive links inside the per-package
+  store (`Cannot find module '@wosm/contracts'` from protocol's store entry).
+- `file:` + overrides with the hoisted linker silently installs an incomplete
+  graph; imports only appear to work when Bun's runtime auto-install serves
+  the missing packages from the machine-global cache, which a fresh machine
+  does not have.
+- Bun's `link:` protocol is not a relative-symlink protocol; it routes through
+  the global `bun link` registry (`~/.bun/install/packages/...`).
+
+Landed mechanism: `experimental/station/scripts/link-wosm-packages.sh` creates
+plain relative symlinks for `@wosm/client` and `@wosm/contracts` in
+`apps/station/node_modules`. The linked packages keep their real location, so
+their `workspace:*` dependencies and `effect`/`zod` resolve through the repo's
+own pnpm node_modules layout — `bun link` semantics without the global
+registry. `bun install` prunes the links, so the Station package scripts that
+need them re-run the link script first; the doctor checks the four dists and
+the repo's pnpm links and fails with a clear build/install message. The
+container lane mounts the repo root so the links resolve there too. Everything
+stays inside `experimental/station`.
 
 ## Non-Goals
 
