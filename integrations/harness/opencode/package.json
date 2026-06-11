@@ -16,6 +16,7 @@
   "dependencies": {
     "@wosm/contracts": "workspace:*",
     "@wosm/observability": "workspace:*",
-    "@wosm/runtime": "workspace:*"
+    "@wosm/runtime": "workspace:*",
+    "zod": "^4.1.12"
   }
 }

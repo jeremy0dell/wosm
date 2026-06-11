@@ -3,22 +3,24 @@ import type {
   HarnessEventObservation,
   HarnessEventReport,
   ObservedStatus,
-  OpenCodeCompactEvent,
   RawHarnessEvent,
   TerminalTargetObservation,
   WorktreeObservation,
 } from "@wosm/contracts";
 import {
   HarnessEventReportSchema,
-  OpenCodeCompactEventSchema,
-  OpenCodeEventTypeSchema,
   observedPathIsSameOrInside,
-  openCodeIngressRuleForEventType,
   sameObservedPath,
   WOSM_SCHEMA_VERSION,
 } from "@wosm/contracts";
 import { compactOpenCodeHookPayload } from "./compaction.js";
 import { openCodeHarnessError } from "./errors.js";
+import {
+  type OpenCodeCompactEvent,
+  OpenCodeCompactEventSchema,
+  OpenCodeEventTypeSchema,
+} from "./eventSchemas.js";
+import { openCodeIngressRuleForEventType } from "./ingressRules.js";
 
 export type OpenCodeHarnessEventReportInput = {
   reportId: string;

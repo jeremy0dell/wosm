@@ -1,21 +1,18 @@
-import {
-  HarnessEventObservationSchema,
-  OpenCodeCompactEventSchema,
-  openCodeForwardedEventTypes,
-  openCodeIngressRules,
-} from "@wosm/contracts";
+import { HarnessEventObservationSchema } from "@wosm/contracts";
 import { describe, expect, it } from "vitest";
 import { compactOpenCodeHookPayload } from "../../src/compaction";
+import { OpenCodeCompactEventSchema } from "../../src/eventSchemas";
 import {
   normalizeOpenCodeRawEvent,
   openCodeHookPayloadToHarnessEventReport,
   parseOpenCodeCompactEvent,
 } from "../../src/events";
+import { openCodeForwardedEventTypes, openCodeIngressRules } from "../../src/ingressRules";
 
 const now = "2026-05-20T12:00:00.000Z";
 
 describe("OpenCode event parsing", () => {
-  it("parses compact OpenCode events through the shared contract schema", () => {
+  it("parses compact OpenCode events through the provider-local schema", () => {
     const event = {
       event_type: "session.status",
       cwd: "/tmp/wosm/web/task",
@@ -196,7 +193,7 @@ describe("OpenCode event parsing", () => {
     });
   });
 
-  it("derives OpenCode status projection coverage from ingress contract rules", () => {
+  it("derives OpenCode status projection coverage from provider-local ingress rules", () => {
     expect(new Set(openCodeForwardedEventTypes).size).toBe(openCodeForwardedEventTypes.length);
     expect(openCodeForwardedEventTypes).not.toContain("message.part.delta");
     expect(openCodeForwardedEventTypes).not.toContain("message.part.updated");

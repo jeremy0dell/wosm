@@ -2,7 +2,7 @@ import {
   OpenCodeCompactEventSchema,
   type OpenCodeNativeEvent,
   OpenCodeNativeEventSchema,
-} from "@wosm/contracts";
+} from "./eventSchemas.js";
 
 export type OpenCodePayloadCompactionOptions = {
   cwd?: string;
