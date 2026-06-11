@@ -74,7 +74,7 @@ export type WosmClientRuntimeHooks = {
   onEvent?(event: WosmEvent, application: ApplyWosmEventResult | undefined): void;
   onSubscriptionError?(
     error: SafeError,
-    info: { isConnectError: boolean; alreadyReported: boolean },
+    info: { isConnectError: boolean; alreadyReported: boolean; willRetry: boolean },
   ): void;
   onRefreshSettled?(outcome: WosmClientRefreshOutcome): void;
 };
