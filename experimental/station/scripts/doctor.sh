@@ -54,6 +54,9 @@ EOF
 fi
 
 repo_root="$(cd "${root}/../.." && pwd)"
+# All four dists are checked even though link-wosm-packages.sh links only
+# client and contracts: the linked packages resolve protocol and runtime
+# transitively through the repo's pnpm layout, so their dists must exist too.
 for package in client contracts protocol runtime; do
   if [[ ! -f "${repo_root}/packages/${package}/dist/index.js" ]]; then
     cat >&2 <<EOF
