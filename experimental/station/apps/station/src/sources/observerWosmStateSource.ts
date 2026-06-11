@@ -23,7 +23,6 @@ export function createObserverWosmStateSource(
   );
 
   return {
-    name: "observer",
     start: () => {
       runtime.start();
     },
