@@ -1,5 +1,5 @@
 export { isObserverConnectError, observerConnectNotice } from "./connectionState.js";
-export { safeErrorToNotice, toSafeError } from "./errors.js";
+export { isPermanentObserverError, safeErrorToNotice, toSafeError } from "./errors.js";
 export {
   createWosmClientRuntime,
   EVENT_STREAM_RECONNECT_DELAY_MS,
