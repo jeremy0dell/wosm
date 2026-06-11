@@ -6,7 +6,11 @@ import {
 } from "@wosm/client";
 import type { WosmEvent, WosmSnapshot } from "@wosm/contracts";
 import { afterEach, describe, expect, it } from "vitest";
-import { FakeObserverService, wrappedConnectError } from "../support/fakeObserverService.js";
+import {
+  DeferredLoadService,
+  FakeObserverService,
+  wrappedConnectError,
+} from "../support/fakeObserverService.js";
 import { createCommandSnapshot, createZeroWorktreeSnapshot } from "../support/snapshots.js";
 
 const RECONNECT_OPTIONS = { initialDelayMs: 5, maxDelayMs: 20 } as const;
@@ -344,23 +348,6 @@ describe("observer client runtime", () => {
     expect(runtime.getState().connection.state).toBe("connected");
   });
 });
-
-class DeferredLoadService extends FakeObserverService {
-  private readonly pendingLoads: Array<(snapshot: WosmSnapshot) => void> = [];
-
-  override async loadSnapshot(): Promise<WosmSnapshot> {
-    this.loadCount += 1;
-    return new Promise((resolve) => {
-      this.pendingLoads.push(resolve);
-    });
-  }
-
-  releaseLoads(): void {
-    for (const resolve of this.pendingLoads.splice(0)) {
-      resolve(this.snapshot);
-    }
-  }
-}
 
 class ConnectFailingService extends FakeObserverService {
   override async loadSnapshot(): Promise<WosmSnapshot> {
