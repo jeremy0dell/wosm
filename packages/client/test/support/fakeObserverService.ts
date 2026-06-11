@@ -150,6 +150,20 @@ export function wrappedConnectError(): Error {
   return error;
 }
 
+export function schemaMismatchSafeError(): { tag: string; code: string; message: string } {
+  return {
+    tag: "ProtocolError",
+    code: "PROTOCOL_SCHEMA_MISMATCH",
+    message: "The observer is running an incompatible snapshot schema.",
+  };
+}
+
+export function wrappedSchemaMismatchError(): Error {
+  const error = new Error("wrapped schema mismatch");
+  (error as Error & { cause?: unknown }).cause = schemaMismatchSafeError();
+  return error;
+}
+
 type Subscriber = {
   queue: WosmEvent[];
   waiters: Array<{
