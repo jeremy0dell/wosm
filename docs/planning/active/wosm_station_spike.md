@@ -584,7 +584,7 @@ Use a dev env flag to choose mock data:
 WOSM_STATION_SOURCE=mock experimental/station/scripts/run-host.sh --hot
 ```
 
-This is implemented: `createStationWosmStateSource` is the single factory that
+This is implemented: `createStationWosmClient` is the single factory that
 reads `WOSM_STATION_SOURCE` (`observer` is the default, `mock` opts in). The
 behavior:
 
