@@ -1,4 +1,4 @@
-import { parseSetupArgs, setupUsage } from "./args.js";
+import { parseSetupArgs } from "./args.js";
 import { runGuidedSetup } from "./flows/guided.js";
 import { runNonInteractiveApply } from "./flows/nonInteractive.js";
 import { runSetupCheckCommand, runSetupPlanCommand } from "./flows/readOnly.js";
@@ -25,13 +25,14 @@ export async function runSetupCommand(
   } catch (error) {
     await write(
       deps,
-      `${error instanceof Error ? error.message : String(error)}\n\n${setupUsage()}`,
+      `${error instanceof Error ? error.message : String(error)}\n\n${renderSetupHelp(["setup"], options)}`,
     );
     return { code: 2 };
   }
 
   if (args.help) {
-    await write(deps, setupUsage());
+    const helpPath = args.kind === "guided" ? ["setup"] : ["setup", args.kind];
+    await write(deps, renderSetupHelp(helpPath, options));
     return { code: 0 };
   }
 
@@ -50,4 +51,8 @@ export async function runSetupCommand(
     case "guided":
       return runGuidedSetup(options, deps);
   }
+}
+
+function renderSetupHelp(path: readonly string[], options: SetupCommandOptions): string {
+  return options.renderHelp?.(path) ?? "Usage: wosm setup [check|plan|apply|system]\n";
 }
