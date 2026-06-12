@@ -1,4 +1,8 @@
+import type { StoreApi } from "zustand/vanilla";
 import { WOSM_OVERLAY_ID, type StationState } from "../state/types.js";
+import { createWosmOverlayLayer } from "../wosm/input/wosmOverlayLayer.js";
+import { routeWosmMouse } from "../wosm/input/wosmMouse.js";
+import type { TuiStore } from "../wosm/ported/state/store.js";
 import { createKeymapStack, type KeymapLayer, type KeymapStack } from "./keymaps.js";
 import type { MouseBindings, RouteOutcome } from "./router.js";
 
@@ -13,11 +17,12 @@ function wosmOverlayToggleOutcome(state: StationState): RouteOutcome {
 }
 
 /**
- * WOSM mode is read-only: while the overlay is up, everything except
- * reserved chords is swallowed so keystrokes cannot reach the hidden
- * shell pane.
+ * The pre-dashboard placeholder: everything except reserved chords is
+ * swallowed so keystrokes cannot reach the hidden shell pane. Kept for
+ * callers without a WOSM view store (tests of the bare stack); the real
+ * overlay layer comes from src/wosm/input/wosmOverlayLayer.ts.
  */
-const overlayLayer: KeymapLayer<RouteOutcome> = {
+const placeholderOverlayLayer: KeymapLayer<RouteOutcome> = {
   id: "overlay",
   isActive: (state) => state.input.activeOverlay === WOSM_OVERLAY_ID,
   bindings: [],
@@ -61,7 +66,11 @@ const workspaceLayer: KeymapLayer<RouteOutcome> = {
 };
 
 /** The Phase 1 registration site: adding a Station chord is one binding here. */
-export function createStationKeymap(): KeymapStack<RouteOutcome> {
+export function createStationKeymap(
+  wosmViewStore?: StoreApi<TuiStore>,
+): KeymapStack<RouteOutcome> {
+  const overlayLayer =
+    wosmViewStore === undefined ? placeholderOverlayLayer : createWosmOverlayLayer(wosmViewStore);
   return createKeymapStack([overlayLayer, terminalLayer, workspaceLayer]);
 }
 
@@ -71,7 +80,7 @@ export function createStationKeymap(): KeymapStack<RouteOutcome> {
  * is guarded only by dialogs, not by the overlay itself. Pane clicks do not
  * focus through a modal.
  */
-export function createStationMouseBindings(): MouseBindings {
+export function createStationMouseBindings(wosmViewStore?: StoreApi<TuiStore>): MouseBindings {
   return {
     header: (_target, state) => {
       if (state.input.dialogStack.length > 0) {
@@ -84,6 +93,21 @@ export function createStationMouseBindings(): MouseBindings {
         return { kind: "swallowed" };
       }
       return { kind: "focus", target: { kind: "pane", paneId: target.paneId } };
+    },
+    // WOSM dashboard targets resolve in the view's own pure router against
+    // the view store; close-overlay intents surface as router outcomes so
+    // the coordination store keeps owning visibility. Hit-testing and wheel
+    // direction are the renderable's job, carried in the target ref — the
+    // router still never reads event payloads.
+    wosm: (target, state) => {
+      if (state.input.activeOverlay !== WOSM_OVERLAY_ID || wosmViewStore === undefined) {
+        return { kind: "swallowed" };
+      }
+      const outcome = routeWosmMouse(target.target, target.eventKind, wosmViewStore);
+      if (outcome.kind === "close-overlay") {
+        return { kind: "overlay-close", overlayId: WOSM_OVERLAY_ID };
+      }
+      return { kind: "swallowed" };
     },
   };
 }

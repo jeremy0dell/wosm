@@ -6,16 +6,22 @@ import { createStationWosmStateSource } from "./sources/createStationWosmStateSo
 import { selectActivePaneId, selectWosmOverlayVisible } from "./state/selectors.js";
 import { createStationStore } from "./state/store.js";
 import { disposeActiveStationTerminal, TerminalPane } from "./terminal/index.js";
+import { createWosmViewStore } from "./wosm/store/wosmViewStore.js";
 import { WosmOverlay } from "./wosm/WosmOverlay.js";
 
 // main.tsx owns the store and input runtime instances (no module singletons
 // elsewhere) so bun --hot recreates store, renderer, and handlers together.
 const store = createStationStore();
+const wosmSource = createStationWosmStateSource();
+// The WOSM view's state machine; the input runtime registers its overlay
+// keymap layer and mouse targets, the overlay component renders from it.
+const wosmViewStore = createWosmViewStore(wosmSource);
+const detachWosmSource = wosmViewStore.getState().start();
 const stationInput = createStationInputRuntime({
   store,
   shutdown: shutdownStation,
+  wosmViewStore,
 });
-const wosmSource = createStationWosmStateSource();
 let rendererForInput: { destroy(): void } | undefined;
 let rootForShutdown: { unmount(): void } | undefined;
 
@@ -48,13 +54,13 @@ function App() {
           {overlayVisible ? " [ shell ] " : " [ wosm ] "}
         </text>
       </box>
-      {overlayVisible ? <WosmOverlay source={wosmSource} /> : null}
-      {/* The pane stays mounted while the overlay is up so the shell process
-          survives WOSM mode; it just collapses to zero height. */}
+      {/* The pane keeps its full size while the overlay is up: the WOSM view
+          floats above it as a centered popup, the shell stays visible and
+          running behind, and clicks on it are guarded by the mouse bindings
+          while any overlay is active. */}
       <box
         width="100%"
-        flexGrow={overlayVisible ? 0 : 1}
-        height={overlayVisible ? 0 : undefined}
+        flexGrow={1}
         flexDirection="column"
         onMouseDown={(event) => {
           const paneId = selectActivePaneId(store.getState());
@@ -65,18 +71,22 @@ function App() {
       >
         <TerminalPane />
       </box>
+      {overlayVisible ? (
+        <WosmOverlay store={wosmViewStore} dispatchMouse={stationInput.dispatchMouse} />
+      ) : null}
     </box>
   );
 }
 
 function headerText(overlayVisible: boolean): string {
   if (overlayVisible) {
-    return " WOSM Station | WOSM mode (read-only) | click header or Ctrl-O for shell | Ctrl-Q exits ";
+    return " WOSM Station | WOSM mode | click header or Ctrl-O for shell | Ctrl-Q exits ";
   }
   return " WOSM Station | shell pane | click header or Ctrl-O for WOSM | Ctrl-Q exits | Ctrl-C → shell ";
 }
 
 function shutdownStation(): void {
+  detachWosmSource();
   void wosmSource.stop();
   // React unmount work scheduled here cannot flush before process.exit, so
   // the live PTY session is disposed imperatively: this is what actually
@@ -107,6 +117,7 @@ root.render(<App />);
 if (import.meta.hot) {
   import.meta.hot.accept();
   import.meta.hot.dispose(() => {
+    detachWosmSource();
     void wosmSource.stop();
     root.unmount();
     renderer.destroy();

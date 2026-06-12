@@ -4,7 +4,12 @@ import {
   writeToStationTerminal,
 } from "../terminal/index.js";
 import { stripTerminalReplies } from "../terminal/input/terminalReplies.js";
+import type { StoreApi } from "zustand/vanilla";
 import type { StationStore } from "../state/store.js";
+import { WOSM_OVERLAY_ID } from "../state/types.js";
+import { sanitizePastedText } from "../wosm/input/sequenceToTuiKey.js";
+import { dispatchWosmKey } from "../wosm/input/wosmActions.js";
+import type { TuiStore } from "../wosm/ported/state/store.js";
 import {
   routeKey,
   routeMouse,
@@ -98,6 +103,8 @@ export type StationInputRuntime = {
 export type StationInputRuntimeOptions = {
   store: StationStore;
   shutdown(): void;
+  /** Registers the WOSM dashboard layer + mouse targets when provided. */
+  wosmViewStore?: StoreApi<TuiStore>;
   keymap?: KeymapStack<RouteOutcome>;
   mouseBindings?: MouseBindings;
   writeToTerminal?: (bytes: string) => boolean;
@@ -110,8 +117,8 @@ export type StationInputRuntimeOptions = {
  * wires them to the store, the terminal registry, and app commands.
  */
 export function createStationInputRuntime(options: StationInputRuntimeOptions): StationInputRuntime {
-  const keymap = options.keymap ?? createStationKeymap();
-  const mouseBindings = options.mouseBindings ?? createStationMouseBindings();
+  const keymap = options.keymap ?? createStationKeymap(options.wosmViewStore);
+  const mouseBindings = options.mouseBindings ?? createStationMouseBindings(options.wosmViewStore);
   const commands: Record<StationCommandId, () => void> = {
     "station.exit": options.shutdown,
   };
@@ -134,6 +141,27 @@ export function createStationInputRuntime(options: StationInputRuntimeOptions): 
     },
     handlePaste: (event) => {
       const text = new TextDecoder().decode(event.bytes);
+      // While WOSM mode is up, paste belongs to the dashboard's text-input
+      // modes (search, name editors) — apps/tui receives pastes as plain
+      // input chunks, and the ported machine treats them the same way. The
+      // chunk is sanitized first (the key path's control-byte discipline
+      // applies to this channel too), and a dismiss outcome — a one-char
+      // paste can match a bound key — closes the overlay like a keypress.
+      if (
+        options.wosmViewStore !== undefined &&
+        options.store.getState().input.activeOverlay === WOSM_OVERLAY_ID
+      ) {
+        event.preventDefault();
+        const sanitized = sanitizePastedText(text);
+        if (sanitized.length === 0) {
+          return;
+        }
+        const outcome = dispatchWosmKey(options.wosmViewStore, { input: sanitized });
+        if (outcome.kind === "close-overlay") {
+          executeOutcome({ kind: "overlay-close", overlayId: WOSM_OVERLAY_ID }, effects);
+        }
+        return;
+      }
       if (executeOutcome(routePaste(text, options.store.getState()), effects)) {
         event.preventDefault();
       }

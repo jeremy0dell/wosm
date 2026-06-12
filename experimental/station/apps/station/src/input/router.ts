@@ -1,4 +1,5 @@
 import type { FocusTarget, OverlayId, PaneId, StationState } from "../state/types.js";
+import type { WosmMouseEventKind, WosmMouseTarget } from "../wosm/input/wosmMouse.js";
 import type { KeymapStack } from "./keymaps.js";
 
 export type StationCommandId = "station.exit";
@@ -22,7 +23,15 @@ export type RouteOutcome =
   | { kind: "swallowed" }
   | { kind: "ignored" };
 
-export type MouseTargetRef = { kind: "header" } | { kind: "pane"; paneId: PaneId };
+export type MouseTargetRef =
+  | { kind: "header" }
+  | { kind: "pane"; paneId: PaneId }
+  /**
+   * A WOSM dashboard surface. The view's renderables own hit-testing and
+   * wheel-direction reading, so the inner target + event kind ride in the
+   * ref; routing itself still never inspects event payloads.
+   */
+  | { kind: "wosm"; target: WosmMouseTarget; eventKind: WosmMouseEventKind };
 
 /** Routing never reads event payloads in Phase 1; hit-testing is the framework's job. */
 export type StationMouseEvent = unknown;
@@ -36,6 +45,7 @@ export type StationMouseEvent = unknown;
 export type MouseBindings = {
   header: (target: Extract<MouseTargetRef, { kind: "header" }>, state: StationState) => RouteOutcome;
   pane: (target: Extract<MouseTargetRef, { kind: "pane" }>, state: StationState) => RouteOutcome;
+  wosm: (target: Extract<MouseTargetRef, { kind: "wosm" }>, state: StationState) => RouteOutcome;
 };
 
 export function routeKey(
@@ -57,6 +67,8 @@ export function routeMouse(
       return bindings.header(target, state);
     case "pane":
       return bindings.pane(target, state);
+    case "wosm":
+      return bindings.wosm(target, state);
   }
 }
 

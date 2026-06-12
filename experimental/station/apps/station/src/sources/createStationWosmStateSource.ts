@@ -1,3 +1,7 @@
+import {
+  WOSM_SCENARIO_NAMES,
+  type WosmScenarioName,
+} from "../wosm/fixtures/scenarios.js";
 import { createMockWosmStateSource } from "./mockWosmStateSource.js";
 import { createObserverWosmStateSource } from "./observerWosmStateSource.js";
 import { resolveStationObserverSocketPath } from "./stationSocketPath.js";
@@ -17,7 +21,7 @@ export function createStationWosmStateSource(
   const source = readSourceName(env.WOSM_STATION_SOURCE);
 
   if (source === "mock") {
-    return createMockWosmStateSource();
+    return createMockWosmStateSource(readScenarioName(env.WOSM_STATION_SCENARIO));
   }
 
   return createObserverWosmStateSource({
@@ -35,4 +39,16 @@ function readSourceName(value: string | undefined): StationWosmStateSourceName {
   }
 
   throw new Error(`Unsupported WOSM_STATION_SOURCE=${value}. Expected "observer" or "mock".`);
+}
+
+function readScenarioName(value: string | undefined): WosmScenarioName {
+  if (value === undefined || value === "") {
+    return "baseline";
+  }
+  if ((WOSM_SCENARIO_NAMES as readonly string[]).includes(value)) {
+    return value as WosmScenarioName;
+  }
+  throw new Error(
+    `Unsupported WOSM_STATION_SCENARIO=${value}. Expected one of: ${WOSM_SCENARIO_NAMES.join(", ")}.`,
+  );
 }
