@@ -18,10 +18,11 @@ export function isPermanentObserverError(error: SafeError): boolean {
   return PERMANENT_OBSERVER_ERROR_CODES.has(error.code);
 }
 
-// User-visible message copy in this package is frozen byte-identical from the
-// TUI extraction (some strings still say "TUI"); cross-app wording is deferred
-// messaging work tracked in the client package plan.
-export function toSafeError(error: unknown): SafeError {
+export type ToSafeErrorOptions = {
+  clientLabel?: string;
+};
+
+export function toSafeError(error: unknown, options: ToSafeErrorOptions = {}): SafeError {
   if (isSafeError(error)) {
     return error;
   }
@@ -32,7 +33,7 @@ export function toSafeError(error: unknown): SafeError {
   return {
     tag: "ClientObserverError",
     code: "CLIENT_OBSERVER_OPERATION_FAILED",
-    message: "The TUI could not complete the observer operation.",
+    message: `${clientSubject(options.clientLabel)} could not complete the observer operation.`,
   };
 }
 
@@ -81,6 +82,12 @@ function isSafeError(value: unknown): value is SafeError {
     typeof candidate.message === "string" &&
     candidate.message.length > 0
   );
+}
+
+function clientSubject(clientLabel: string | undefined): string {
+  return clientLabel === undefined || clientLabel.length === 0
+    ? "The client"
+    : `The ${clientLabel}`;
 }
 
 function safeErrorCause(error: unknown, seen = new Set<unknown>()): SafeError | undefined {

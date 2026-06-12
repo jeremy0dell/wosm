@@ -55,6 +55,7 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
   let operations: TuiLocalOperationRunner;
   const clientRuntime = createWosmClientRuntime({
     service: options.service,
+    clientLabel: "TUI",
     ...(options.initialSnapshot === undefined ? {} : { initialSnapshot: options.initialSnapshot }),
     hooks: createObserverBridgeHooks({
       getStore: () => store,

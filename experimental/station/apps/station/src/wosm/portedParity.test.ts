@@ -8,7 +8,7 @@ const REPO_ROOT = resolve(WOSM_VIEW_ROOT, "../../../../../..");
 const PORTED_ROOT = join(WOSM_VIEW_ROOT, "ported");
 const UPSTREAM_ROOT = join(REPO_ROOT, "apps/tui/src");
 
-const ADAPTED_FILES = new Set(["state/store.ts", "state/store.test.ts"]);
+const ADAPTED_FILES = new Set(["services/errors/errors.ts", "state/store.ts", "state/store.test.ts"]);
 const EXTRACTED_FILES = new Set([
   "components/BottomSheetFrame/layout.ts",
   "components/Dashboard/content.ts",

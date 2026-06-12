@@ -23,8 +23,9 @@ export function createObserverWosmClient(
     options.service ??
     createObserverService({
       socketPath: requireSocketPath(options.socketPath),
+      clientLabel: "Station",
     });
-  const runtime = createWosmClientRuntime({ service });
+  const runtime = createWosmClientRuntime({ service, clientLabel: "Station" });
 
   return {
     state: {
