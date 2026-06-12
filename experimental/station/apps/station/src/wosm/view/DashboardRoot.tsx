@@ -13,14 +13,14 @@ import {
   snapshotLoadingLines,
 } from "@wosm/dashboard-core";
 import type { TuiStore } from "@wosm/dashboard-core";
-import { activeTuiToast, nextTuiToastExpiry } from "@wosm/dashboard-core";
+import { activeTuiToast, nextTuiToastExpiry, QUIT_HINT_CLOSE } from "@wosm/dashboard-core";
 import { CommandPromptView } from "./CommandPromptView.js";
 import { DashboardHeaderRow, DashboardView, Divider } from "./DashboardView.js";
 import { OverlayHostView } from "./OverlayHostView.js";
 import { ToastOverlayView } from "./ToastOverlayView.js";
 import { WOSM_COLORS } from "./theme.js";
 
-const QUIT_HINT = "Q/esc:close";
+const QUIT_HINT = QUIT_HINT_CLOSE;
 
 export type DashboardRootProps = {
   store: StoreApi<TuiStore>;

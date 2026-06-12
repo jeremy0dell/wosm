@@ -611,6 +611,14 @@ export const TUI_HELP_CONTENT = [
   { key: "Esc", description: "back/cancel" },
 ] as const satisfies readonly TuiHelpContentLine[];
 
+export const QUIT_HINT_CLOSE = "Q/esc:close";
+export const QUIT_HINT_QUIT = "Q:quit";
+
+/** The footer quit hint for a quit action; the single source for this copy. */
+export function quitHintLabel(quitActionLabel: "close" | "quit"): string {
+  return quitActionLabel === "close" ? QUIT_HINT_CLOSE : QUIT_HINT_QUIT;
+}
+
 export function dashboardFooterLabel({
   columns,
   quitHint,
@@ -623,8 +631,8 @@ export function dashboardFooterLabel({
   const full = firstRun
     ? `A:Add Project ${quitHint}`
     : `N:new A:add R:rename Z:refresh 1-9/a-z:open X:rm /:search C:fold H:help ${quitHint}`;
-  const compactClose = `Q/esc:close N:new A:add Z:refresh 1-9/a-z:open X:remove /:search H:help`;
-  return quitHint === "Q/esc:close" && full.length > columns ? compactClose : full;
+  const compactClose = `${QUIT_HINT_CLOSE} N:new A:add Z:refresh 1-9/a-z:open X:remove /:search H:help`;
+  return quitHint === QUIT_HINT_CLOSE && full.length > columns ? compactClose : full;
 }
 
 export function isSlotKey(key: TuiKey): boolean {

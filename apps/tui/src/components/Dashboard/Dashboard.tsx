@@ -9,6 +9,7 @@ import {
   FIRST_RUN_BODY_LABEL,
   layoutWorktreeRowGrid,
   projectHeaderLabel,
+  quitHintLabel,
   type RowGridLayout,
   rowGridInputForViewportItem,
   scrollIndicatorLabel,
@@ -40,7 +41,7 @@ export function Dashboard({
   observerStatus,
 }: DashboardProps) {
   const viewport = selectDashboardViewport(snapshot, viewState);
-  const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
+  const quitHint = quitHintLabel(quitActionLabel);
   const mode = useTuiMode();
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";
   const contentColumns = Math.max(1, Math.floor(columns) - 1);
