@@ -31,6 +31,8 @@ export type StationTerminalProcess = {
   readonly size: StationTerminalSize;
   onData(listener: (data: string) => void): StationTerminalDisposable;
   onExit(listener: (event: StationTerminalExit) => void): StationTerminalDisposable;
+  /** Transport/bridge diagnostics; never terminal output. */
+  onDiagnostic(listener: (message: string) => void): StationTerminalDisposable;
   write(data: string): void;
   resize(size: StationTerminalSize): void;
   kill(signal?: string): void;

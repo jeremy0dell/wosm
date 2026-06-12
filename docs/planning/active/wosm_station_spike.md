@@ -39,10 +39,15 @@ the checkboxes and the Spike Log when a slice lands.
       source factory, link-script dependency mechanics, doctor dist checks
 - [x] chords matched in both legacy control-byte and kitty-protocol CSI-u forms
 
-Debt carried forward deliberately: pane rendering still strips ANSI (no VT
-screen model), input handling is one ad hoc handler chain in `main.tsx`, and
-`wosm station` is not a CLI command yet (launch is `bun run station` inside
-the experiment).
+Debt carried forward deliberately: input handling is one ad hoc handler chain
+in `main.tsx`, and `wosm station` is not a CLI command yet (launch is
+`bun run station` inside the experiment).
+
+Resolved 2026-06-12: the strip-ANSI renderer debt is paid. Panes now render
+through a real VT screen model (`@xterm/headless` behind
+`src/terminal/vt/screen.ts`) and a direct-buffer `TerminalScreenRenderable`;
+see the Spike Log entry and
+[station_vt_engine_decision.md](station_vt_engine_decision.md).
 
 ### Phase 1 - Input Router And Coordination Store (next)
 
@@ -74,9 +79,12 @@ input router.
 - [ ] focus next pane and click-pane-to-focus
 - [ ] close pane cleanly
 - [ ] terminal window resize reflows panes without corrupting the workspace
-- [ ] decide the renderer-debt step: minimum per-pane screen state
-      (`TerminalBufferStore`) now, or explicit deferral with viability notes
-      (Secondary Goal B)
+- [x] decide the renderer-debt step: decided and implemented 2026-06-12.
+      `TerminalBufferStore` is realized as the per-pane VT screen store
+      (`src/terminal/vt/screen.ts`, engine `@xterm/headless`) plus the
+      `TerminalScreenRenderable` direct-buffer renderer. Multi-pane work
+      generalizes by creating one store per pane id (Secondary Goal B memo:
+      [station_vt_engine_decision.md](station_vt_engine_decision.md))
 
 Exit bar: split/focus/close feels boring and reliable.
 
@@ -106,6 +114,46 @@ Exit bar: a continue-or-pause decision inside the timebox. The spike started
 2026-06-10: target decision by 2026-06-24, hard maximum 2026-07-01.
 
 ## Spike Log
+
+### 2026-06-12 - Real VT Screen Model And Styled Pane Rendering
+
+The pane renderer debt is paid. The pipeline is now:
+
+```text
+node-pty bridge -> StationTerminalProcess -> vt/screen.ts (@xterm/headless)
+  -> vt/rows.ts (style-merged spans) -> TerminalScreenRenderable (direct
+  OptimizedBuffer draw) -> OpenTUI frame
+```
+
+What this slice proved (all backed by named tests; `bun run test`,
+`bun run test:pty`, `bun run test:stress`):
+
+- Colors (16/256/truecolor), attributes, cursor, erase ops, alt-screen
+  enter/exit with primary restore, DECSTBM regions, wrapping, wide chars,
+  scrollback capping, and DEC line-drawing all render correctly
+  (37-case conformance catalog in `src/terminal/vt/cases/`).
+- Frame-level tests assert the actual composited OpenTUI frame via the
+  test renderer: styled cells, inverse cursor, resize reflow with no stale
+  cells, alt-screen takeover/restore.
+- Terminal query replies (DA1/DSR/CPR from xterm; OSC 10/11 answered by the
+  store because headless xterm does not) round-trip back to the PTY, so
+  crossterm/termenv-based TUIs do not hang at startup.
+- A real `vi -c q` enters and exits the alt screen through the production
+  pipeline (extra-gated smoke test).
+- PTY size now derives from the laid-out pane interior (fixes the
+  header-row off-by-one), and the overlay's height-0 collapse no longer
+  reaches the PTY.
+
+Pulled-forward Phase 1 input fixes that correctness forced now: kitty CSI-u
+sequences are translated to legacy bytes before reaching pane children
+(`vt/kittyToLegacy.ts`), paste is forwarded explicitly (OpenTUI routes paste
+around the sequence handlers) with bracketed-paste wrapping decided by the
+child's DECSET 2004 state, and Ctrl-Q now unmounts before destroying the
+renderer so the bridge and shell actually die.
+
+Engine decision, alternatives, risks, and the Effect boundary posture are in
+[station_vt_engine_decision.md](station_vt_engine_decision.md) (this is the
+Secondary Goal B viability memo).
 
 ### 2026-06-11 - PTY POC In Station
 
@@ -1241,8 +1289,10 @@ The Station spike is successful if all of these are true:
 - [ ] `wosm station` launches a full-screen workspace. The full-screen
       workspace exists; the `wosm station` command path is Phase 4. Launch is
       `bun run station` inside `experimental/station`.
-- [x] Station can spawn and render at least one real shell process. Known
-      renderer debt: ANSI is stripped; no VT screen model yet.
+- [x] Station can spawn and render at least one real shell process. Renderer
+      debt resolved 2026-06-12: full VT screen model (`@xterm/headless`),
+      styled rendering, alt-screen, and query replies, with a conformance
+      test catalog as evidence.
 - [ ] Station can split panes right/below. Phase 2.
 - [ ] Station can route keyboard input to the focused pane. Proven for the
       single POC pane; counts once multi-pane focus exists. Phases 1-2.
