@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   createNodePtyTerminal,
   type StationTerminalProcess,
-} from "./index.js";
+} from "../index.js";
 
 declare const Bun: {
   env: Record<string, string | undefined>;

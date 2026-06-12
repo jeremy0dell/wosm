@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import os from "node:os";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import type {
@@ -7,7 +8,7 @@ import type {
   StationTerminalProcess,
   StationTerminalSize,
   StationTerminalSpawnOptions,
-} from "./types.js";
+} from "../types.js";
 import { StationTerminalSpawnError } from "./errors.js";
 
 const DEFAULT_COLS = 80;
@@ -28,6 +29,10 @@ type BridgeMessage =
       type: "exit";
       exitCode: number;
       signal?: number;
+    }
+  | {
+      type: "error";
+      message: string;
     };
 
 export function createNodePtyTerminal(
@@ -71,6 +76,7 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
   #bridge: ChildProcessWithoutNullStreams;
   #dataListeners = new Set<(data: string) => void>();
   #exitListeners = new Set<(event: StationTerminalExit) => void>();
+  #diagnosticListeners = new Set<(message: string) => void>();
   #pendingData: string[] = [];
   #stdoutBuffer = "";
   #disposed = false;
@@ -94,9 +100,17 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
     bridge.stdout.on("data", (chunk: string) => {
       this.handleBridgeOutput(chunk);
     });
+    // Bridge stderr is Node diagnostics (warnings, crashes), not terminal
+    // output: injected into the data stream it would render as screen content
+    // and could corrupt VT parser state mid-escape-sequence.
     bridge.stderr.setEncoding("utf8");
     bridge.stderr.on("data", (chunk: string) => {
-      this.emitData(chunk);
+      this.emitDiagnostic(chunk);
+    });
+    // Writes raced against bridge death (EPIPE) surface here; without a
+    // listener they are uncaught exceptions that crash Station.
+    bridge.stdin.on("error", (error) => {
+      this.emitDiagnostic(`bridge stdin error: ${error.message}`);
     });
     bridge.on("error", (error) => {
       this.emitExit({
@@ -109,11 +123,14 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
         return;
       }
 
+      // An abnormal bridge death (signal kill, code null) must not read as a
+      // clean "exited 0" in the pane title.
+      const signalNumber = signal === null ? undefined : signalToNumber(signal);
       const event: StationTerminalExit = {
-        exitCode: code ?? 0,
+        exitCode: code ?? (signalNumber !== undefined ? 128 + signalNumber : 1),
       };
-      if (signal !== null) {
-        event.signal = signalToNumber(signal);
+      if (signalNumber !== undefined) {
+        event.signal = signalNumber;
       }
       this.emitExit(event);
     });
@@ -151,8 +168,23 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
     };
   }
 
+  onDiagnostic(listener: (message: string) => void): StationTerminalDisposable {
+    this.assertActive("subscribe to terminal diagnostics");
+    this.#diagnosticListeners.add(listener);
+    return {
+      dispose: () => {
+        this.#diagnosticListeners.delete(listener);
+      },
+    };
+  }
+
   write(data: string): void {
     this.assertActive("write to terminal");
+    // After exit the bridge stdin pipe is dead; a keystroke or forwarded VT
+    // query reply must drop silently instead of raising EPIPE.
+    if (this.#exited) {
+      return;
+    }
     this.sendBridgeCommand({
       type: "write",
       data,
@@ -161,6 +193,9 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
 
   resize(size: StationTerminalSize): void {
     this.assertActive("resize terminal");
+    if (this.#exited) {
+      return;
+    }
     const nextSize = normalizeSize(size);
     this.#size = nextSize;
     this.sendBridgeCommand({
@@ -190,8 +225,12 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
     this.#pendingData = [];
     this.#dataListeners.clear();
     this.#exitListeners.clear();
+    this.#diagnosticListeners.clear();
 
     if (!this.#exited) {
+      // Closing stdin arms the bridge's stdin-close kill backstop, which
+      // covers children that trap the SIGHUP a plain SIGTERM path delivers.
+      this.#bridge.stdin.end();
       this.#bridge.kill();
     }
   }
@@ -207,7 +246,16 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
 
       const line = this.#stdoutBuffer.slice(0, newlineIndex);
       this.#stdoutBuffer = this.#stdoutBuffer.slice(newlineIndex + 1);
-      this.handleBridgeMessage(JSON.parse(line) as BridgeMessage);
+      let message: BridgeMessage;
+      try {
+        message = JSON.parse(line) as BridgeMessage;
+      } catch {
+        // One stray non-JSON line (dependency noise on the bridge's stdout)
+        // must not take the whole pipeline down.
+        this.emitDiagnostic(`unparseable bridge line: ${line.slice(0, 200)}`);
+        continue;
+      }
+      this.handleBridgeMessage(message);
     }
   }
 
@@ -218,6 +266,9 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
         return;
       case "data":
         this.emitData(message.data);
+        return;
+      case "error":
+        this.emitDiagnostic(`bridge command error: ${message.message}`);
         return;
       case "exit": {
         const event: StationTerminalExit = {
@@ -231,7 +282,22 @@ class NodePtyTerminalProcess implements StationTerminalProcess {
     }
   }
 
+  private emitDiagnostic(message: string): void {
+    if (this.#disposed) {
+      return;
+    }
+    for (const listener of this.#diagnosticListeners) {
+      listener(message);
+    }
+  }
+
   private emitData(data: string): void {
+    // After dispose the listener set is empty by design; buffering into
+    // #pendingData would grow without bound while a slow-dying child keeps
+    // streaming.
+    if (this.#disposed) {
+      return;
+    }
     if (this.#dataListeners.size === 0) {
       this.#pendingData.push(data);
       return;
@@ -316,5 +382,5 @@ function normalizePositiveInteger(value: number | undefined, fallback: number): 
 }
 
 function signalToNumber(signal: NodeJS.Signals): number {
-  return signal === "SIGHUP" ? 1 : 0;
+  return os.constants.signals[signal] ?? 0;
 }
