@@ -1,3 +1,7 @@
+import type { TuiHelpContentLine } from "../../state/keymap.js";
+
+export { TUI_HELP_CONTENT } from "../../state/keymap.js";
+
 export type HelpPanelLayout = {
   left: number;
   top: number;
@@ -5,25 +9,7 @@ export type HelpPanelLayout = {
   height: number;
 };
 
-export type HelpContentLine =
-  | { text: string; align?: "center" }
-  | { key: string; description: string };
-
-export const TUI_HELP_CONTENT = [
-  { text: "wosm help", align: "center" },
-  { text: "" },
-  { key: "↑/↓ wheel", description: "scroll dashboard" },
-  { key: "1-9/a-z", description: "choose visible item" },
-  { key: "N", description: "new session" },
-  { key: "R", description: "rename session" },
-  { key: "X", description: "remove worktree" },
-  { key: "C", description: "collapse project" },
-  { key: "/", description: "search" },
-  { key: "Z", description: "refresh snapshot" },
-  { key: "H / ?", description: "help" },
-  { key: "Q", description: "quit or close popup" },
-  { key: "Esc", description: "back/cancel" },
-] as const satisfies readonly HelpContentLine[];
+export type HelpContentLine = TuiHelpContentLine;
 
 const MAX_PANEL_WIDTH = 64;
 const MIN_PANEL_WIDTH = 30;

@@ -1,6 +1,9 @@
 import type { ProjectView } from "@wosm/contracts";
 import stringWidth from "string-width";
 import type { DashboardViewportItem } from "../../selectors/dashboardViewport.js";
+
+export { dashboardFooterLabel } from "../../state/keymap.js";
+
 import type { TuiObserverConnectionStatus, TuiScreen } from "../../state/types.js";
 import type { RowGridRowInput } from "../WorktreeRow/layout.js";
 import { worktreeRowGridInput, worktreeStyleRowGridInput } from "../WorktreeRow/rowInput.js";
@@ -107,22 +110,6 @@ export const FIRST_RUN_BODY_LABEL = "No projects configured yet.";
 export function scrollIndicatorLabel(direction: "above" | "below", hiddenCount: number): string {
   const marker = direction === "above" ? "↑" : "↓";
   return `${marker} ${hiddenCount} hidden`;
-}
-
-export function dashboardFooterLabel({
-  columns,
-  quitHint,
-  firstRun = false,
-}: {
-  columns: number;
-  quitHint: string;
-  firstRun?: boolean;
-}): string {
-  const full = firstRun
-    ? `A:Add Project ${quitHint}`
-    : `N:new A:add R:rename Z:refresh 1-9/a-z:open X:rm /:search C:fold H:help ${quitHint}`;
-  const compactClose = `Q/esc:close N:new A:add Z:refresh 1-9/a-z:open X:remove /:search H:help`;
-  return quitHint === "Q/esc:close" && full.length > columns ? compactClose : full;
 }
 
 export function rowGridInputForViewportItem(
