@@ -43,7 +43,7 @@ const setTimeoutAllowlist = new Map([
     "Short reconnect backoff is the TUI observer-client subscription boundary, kept out of React presentation components.",
   ],
   [
-    "apps/tui/src/state/operations/localOperationRunner.ts",
+    "packages/dashboard-core/src/state/operations/localOperationRunner.ts",
     "Short failed-create row expiry is local TUI operation feedback, isolated from observer command timeout plumbing.",
   ],
   [
