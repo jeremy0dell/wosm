@@ -3,10 +3,12 @@ import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
 import { selectTuiFeatureFlags } from "./featureFlags.js";
 
 describe("TUI feature flag selectors", () => {
-  it("treats missing feature flags as an empty evaluated client set", () => {
+  it("treats missing feature flags as default evaluated client flags", () => {
     const snapshot = createDashboardSnapshot();
 
-    expect(selectTuiFeatureFlags(snapshot)).toEqual({});
+    expect(selectTuiFeatureFlags(snapshot)).toEqual({
+      sessionResumeAgent: false,
+    });
   });
 
   it("returns the evaluated client flag map from the observer snapshot", () => {
@@ -14,10 +16,14 @@ describe("TUI feature flag selectors", () => {
       ...createDashboardSnapshot(),
       featureFlags: {
         revision: "test",
-        flags: {},
+        flags: {
+          sessionResumeAgent: true,
+        },
       },
     };
 
-    expect(selectTuiFeatureFlags(snapshot)).toEqual({});
+    expect(selectTuiFeatureFlags(snapshot)).toEqual({
+      sessionResumeAgent: true,
+    });
   });
 });

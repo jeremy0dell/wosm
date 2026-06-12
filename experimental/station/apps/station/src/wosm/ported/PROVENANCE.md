@@ -8,7 +8,7 @@ package both apps consume. Relative paths mirror upstream exactly so the
 audit below stays one command.
 
 - Upstream root: `apps/tui/src` (tests' fixtures: `apps/tui/test`)
-- Upstream commit: `b906042` (main, 2026-06-12)
+- Upstream commit: `1532517` (main, 2026-06-12)
 - Typecheck posture: upstream excludes `**/*.test.ts` and the `test/` tree
   from tsc; Station mirrors that (`tsconfig.json` excludes
   `src/wosm/ported/**/*.test.ts` and `src/wosm/test/**`). Tests run untyped

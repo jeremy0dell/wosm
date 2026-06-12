@@ -47,7 +47,7 @@ type CommandFailedEvent = Extract<WosmEvent, { type: "command.failed" }>;
 type LocalCommandFailure =
   | { type: "createSession"; localId: string }
   | { type: "removeWorktree"; localId: string }
-  | { type: "startAgent"; localId: string }
+  | { type: "startAgent" | "resumeAgent"; localId: string }
   | { type: "renameSession"; sessionId: string };
 
 function localCommandFailureForState(
@@ -70,7 +70,7 @@ function localCommandFailureForState(
     (candidate) => candidate.commandId === commandId,
   );
   if (startRow !== undefined) {
-    return { type: "startAgent", localId: startRow.localId };
+    return { type: startRow.operation ?? "startAgent", localId: startRow.localId };
   }
   const renameRow = Object.values(state.localRows.pendingRenameTitles ?? {}).find(
     (candidate) => candidate.commandId === commandId,
@@ -160,7 +160,7 @@ export function createTuiLocalOperationRunner(input: {
             (error) => addSafeErrorToast(store(), error),
           );
         }
-        if (operation.type === "startAgent") {
+        if (operation.type === "startAgent" || operation.type === "resumeAgent") {
           void runStartAgentOperation(
             store(),
             input.service,
@@ -214,9 +214,9 @@ export function createTuiLocalOperationRunner(input: {
             markCreateSessionRowFailed(store(), localFailure.localId, event.error);
           } else if (localFailure.type === "removeWorktree") {
             markRemoveWorktreeRowFailed(store(), localFailure.localId);
-          } else if (localFailure.type === "startAgent") {
+          } else if (localFailure.type === "startAgent" || localFailure.type === "resumeAgent") {
             markStartAgentRowFailed(store(), localFailure.localId);
-          } else {
+          } else if (localFailure.type === "renameSession") {
             markRenameSessionFailed(store(), localFailure.sessionId);
           }
           addSafeErrorToast(store(), event.error);
