@@ -97,6 +97,11 @@ export function manyProjectsSnapshot(): WosmSnapshot {
   );
 }
 
+/** First-run: no projects configured at all. */
+export function noProjectsSnapshot(): WosmSnapshot {
+  return snapshotFromRows([], { projects: [] });
+}
+
 export function attentionAndFailuresSnapshot(): WosmSnapshot {
   return snapshotFromRows(
     [

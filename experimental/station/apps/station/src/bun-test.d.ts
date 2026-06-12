@@ -23,6 +23,7 @@ declare module "bun:test" {
     toHaveProperty(property: string): void;
     toMatchObject(expected: unknown): void;
     toMatch(expected: RegExp | string): void;
+    toMatchSnapshot(): void;
     toThrow(expected?: RegExp): void;
   };
 
