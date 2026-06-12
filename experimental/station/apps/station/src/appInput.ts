@@ -1,4 +1,5 @@
 import { kittySequenceToLegacy, pasteToStationTerminal, writeToStationTerminal } from "./terminal/index.js";
+import { stripTerminalReplies } from "./terminal/input/terminalReplies.js";
 
 export type StationAppInputDeps = {
   isOverlayVisible(): boolean;
@@ -19,7 +20,13 @@ const OVERLAY_TOGGLE_LEGACY = "\x0f"; // Ctrl-O
 export function createStationSequenceHandler(
   deps: StationAppInputDeps,
 ): (sequence: string) => boolean {
-  return (sequence) => {
+  return (rawSequence) => {
+    // Outer-terminal query replies that OpenTUI did not consume must never
+    // be "typed" into the shell.
+    const sequence = stripTerminalReplies(rawSequence);
+    if (sequence === "" && rawSequence !== "") {
+      return true;
+    }
     const legacy = kittySequenceToLegacy(sequence);
     if (legacy === STATION_EXIT_LEGACY) {
       deps.shutdown();
