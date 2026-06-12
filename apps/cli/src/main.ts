@@ -1,396 +1,69 @@
 #!/usr/bin/env node
-import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "@wosm/config";
+import { isSafeError, type RuntimeSafeError } from "@wosm/runtime";
 import { parseRequiredOptionValue } from "./args.js";
-import type { ClaudeHooksCommandOptions } from "./commands/claudeHooks.js";
-import { runClaudeHooksCommand } from "./commands/claudeHooks.js";
-import type { CodexHooksCommandOptions } from "./commands/codexHooks.js";
-import { runCodexHooksCommand } from "./commands/codexHooks.js";
-import type { CommandCommandOptions } from "./commands/command.js";
-import { commandCommandExitCode, runCommandCommand } from "./commands/command.js";
+import type { CliRunOptions, CliRunResult } from "./cliTypes.js";
 import {
-  isConfigError,
-  runInvalidConfigDebugBundle,
-  runInvalidConfigDoctor,
-} from "./commands/configDiagnostics.js";
-import type { CursorHooksCommandOptions } from "./commands/cursorHooks.js";
-import { runCursorHooksCommand } from "./commands/cursorHooks.js";
-import { runDebugBundleCommand } from "./commands/debugBundle.js";
-import { runDebugLogsCommand } from "./commands/debugLogs.js";
-import { runDebugTraceCommand } from "./commands/debugTrace.js";
-import { runDoctorCommand } from "./commands/doctor.js";
-import type { EventHooksCommandOptions } from "./commands/eventHooks.js";
-import { runEventHooksCommand } from "./commands/eventHooks.js";
-import type { NotifyCommandOptions } from "./commands/notify.js";
-import { type NotifyCommandDeps, runNotifyCommand } from "./commands/notify.js";
-import {
-  type ObserveCommandDeps,
-  type ObserveCommandOptions,
-  runObserveCommand,
-} from "./commands/observe/index.js";
-import { observerCommandSummary, runObserverCommand } from "./commands/observer.js";
-import type { OpenCodeHooksCommandOptions } from "./commands/opencodeHooks.js";
-import { runOpenCodeHooksCommand } from "./commands/opencodeHooks.js";
-import {
-  type PopupCommandDeps,
-  type PopupCommandOptions,
-  runPopupCommand,
-} from "./commands/popup.js";
-import {
-  type ProjectCommandOptions,
-  projectCommandExitCode,
-  runProjectCommand,
-} from "./commands/project.js";
-import { runReconcileCommand } from "./commands/reconcile.js";
-import { runSetupCommand, type SetupCommandDeps } from "./commands/setup/index.js";
-import { runSnapshotCommand } from "./commands/snapshot.js";
-import { runTuiCommand, type TuiCommandDeps } from "./commands/tui.js";
-import { runWorktrunkHooksCommand } from "./commands/worktrunkHooks.js";
+  handleCliCommandConfigError,
+  isTopLevelCliCommand,
+  renderCliCommandHelpTopic,
+  resolveCliCommandRoute,
+  runCliCommandRoute,
+} from "./commandRegistry.js";
 import type { CliEnv } from "./env.js";
-import type { ObserverProcessDeps } from "./observerProcess.js";
-import { readStdinIfAvailable } from "./stdin.js";
+import { isCliHelpFlag, renderCliHelpFromArgs } from "./help.js";
 
-export type CliRunResult = {
-  code: number;
-  output?: unknown;
-};
-
-export type CliRunOptions = {
-  stdin?: string;
-  env?: CliEnv;
-  observerDeps?: ObserverProcessDeps;
-  popupDeps?: PopupCommandDeps;
-  tuiDeps?: TuiCommandDeps;
-  notifyDeps?: NotifyCommandDeps;
-  observeDeps?: ObserveCommandDeps;
-  setupDeps?: SetupCommandDeps;
-};
-
-const configBackedCommands = [
-  "doctor",
-  "event-hooks",
-  "hooks",
-  "command",
-  "observer",
-  "observe",
-  "popup",
-  "project",
-  "reconcile",
-  "snapshot",
-  "tui",
-  "worktrunk",
-] as const;
-
-const topLevelCommands = ["debug", "notify", "setup", ...configBackedCommands] as const;
+export type { CliRunOptions, CliRunResult } from "./cliTypes.js";
 
 export async function runCli(
   argv = process.argv.slice(2),
   options: CliRunOptions = {},
 ): Promise<CliRunResult> {
   const { args, configPath } = parseGlobalOptions(argv);
+  const help = renderCliHelpFromArgs(args);
+  if (help !== undefined) {
+    return { code: 0, output: help.text, outputFormat: "text" };
+  }
   const command = args[0] ?? defaultCommand(defaultCommandEnv(options));
   const commandArgs = args[0] === undefined ? [] : args.slice(1);
+  const route = resolveCliCommandRoute(command, commandArgs);
+  if (route === undefined) {
+    throw new Error(`Unknown command: ${command ?? ""}`);
+  }
   let loaded: Awaited<ReturnType<typeof loadConfig>> | undefined;
   try {
-    loaded = commandRequiresConfig(command, commandArgs)
+    loaded = route.requiresConfig
       ? configPath === undefined
         ? await loadConfig()
         : await loadConfig(configPath)
       : undefined;
   } catch (error) {
-    if (isConfigError(error) && command === "doctor") {
-      const result = await runInvalidConfigDoctor({
-        error,
-        configPath: error.configPath,
-      });
-      return { code: 1, output: result };
-    }
-    if (isConfigError(error) && command === "debug" && commandArgs[0] === "bundle") {
-      const result = await runInvalidConfigDebugBundle({
-        error,
-        configPath: error.configPath,
-      });
-      return { code: 0, output: result };
+    const handled = await handleCliCommandConfigError(route, error, {
+      path: route.path,
+      args: route.args,
+      allArgs: args,
+      cliEntryPath: fileURLToPath(import.meta.url),
+      renderHelpTopic: renderCliCommandHelpTopic,
+      ...(configPath === undefined ? {} : { configPath }),
+      options,
+    });
+    if (handled !== undefined) {
+      return handled;
     }
     throw error;
   }
-  const config = loaded?.config;
-  const resolvedConfigPath = loaded?.configPath;
-
-  if (command === "observer") {
-    const result = await runObserverCommand(
-      commandArgs,
-      loadedCommandOptions(config, resolvedConfigPath),
-      options.observerDeps,
-    );
-    return { code: 0, output: observerCommandSummary(result) };
-  }
-
-  if (command === "doctor") {
-    const result = await runDoctorCommand(
-      commandArgs,
-      loadedCommandOptions(config, resolvedConfigPath),
-      options.observerDeps,
-    );
-    return { code: result.status === "unavailable" ? 1 : 0, output: result };
-  }
-
-  if (command === "debug" && commandArgs[0] === "bundle") {
-    const result = await runDebugBundleCommand(
-      commandArgs.slice(1),
-      loadedCommandOptions(config, resolvedConfigPath),
-      options.observerDeps,
-    );
-    return { code: 0, output: result };
-  }
-
-  if (command === "debug" && commandArgs[0] === "trace") {
-    const result = await runDebugTraceCommand(commandArgs.slice(1), loadedCommandOptions(config));
-    return { code: result.matched ? 0 : 1, output: result };
-  }
-
-  if (command === "debug" && commandArgs[0] === "logs") {
-    const result = await runDebugLogsCommand(commandArgs.slice(1), loadedCommandOptions(config));
-    return { code: result.matched > 0 ? 0 : 1, output: result };
-  }
-
-  if (command === "notify") {
-    const stdin = options.stdin ?? (await readStdinIfAvailable());
-    const notifyOptions: NotifyCommandOptions = {};
-    if (stdin !== undefined) {
-      notifyOptions.stdin = stdin;
-    }
-    if (configPath !== undefined) {
-      notifyOptions.configPath = configPath;
-    }
-    const result = await runNotifyCommand(commandArgs, notifyOptions, options.notifyDeps);
-    return { code: 0, output: result };
-  }
-
-  if (command === "setup") {
-    const setupOptions: Parameters<typeof runSetupCommand>[1] = {};
-    if (configPath !== undefined) setupOptions.configPath = configPath;
-    if (options.env !== undefined) setupOptions.env = options.env;
-    const result = await runSetupCommand(commandArgs, setupOptions, options.setupDeps);
-    return result;
-  }
-
-  if (command === "event-hooks") {
-    const eventHookOptions: EventHooksCommandOptions = loadedCommandOptions(
-      config,
-      resolvedConfigPath,
-    );
-    if (options.env !== undefined) {
-      eventHookOptions.env = options.env;
-    }
-    const result = await runEventHooksCommand(commandArgs, eventHookOptions);
-    return { code: hookCommandExitCode(result), output: result };
-  }
-
-  if (command === "observe") {
-    const observeOptions: ObserveCommandOptions = loadedCommandOptions(config, resolvedConfigPath);
-    const observeDeps: ObserveCommandDeps = {};
-    if (options.observeDeps !== undefined) {
-      Object.assign(observeDeps, options.observeDeps);
-    }
-    if (options.observerDeps !== undefined && observeDeps.observer === undefined) {
-      observeDeps.observer = options.observerDeps;
-    }
-    const result = await runObserveCommand(commandArgs, observeOptions, observeDeps);
-    return { code: result.code };
-  }
-
-  if (command === "command") {
-    const stdin = commandArgs.includes("--stdin")
-      ? (options.stdin ?? (await readStdinIfAvailable()))
-      : options.stdin;
-    const commandOptions: CommandCommandOptions = loadedCommandOptions(config, resolvedConfigPath);
-    if (stdin !== undefined) {
-      commandOptions.stdin = stdin;
-    }
-    const result = await runCommandCommand(commandArgs, commandOptions, options.observerDeps);
-    return { code: commandCommandExitCode(result), output: result };
-  }
-
-  if (command === "popup") {
-    const popupEnv = options.popupDeps?.env ?? options.env;
-    const defaultPopupEnv = popupEnv ?? process.env;
-    const hasExplicitPopupUi =
-      options.popupDeps?.tuiCommand !== undefined ||
-      options.popupDeps?.uiSessionName !== undefined ||
-      nonEmptyString(defaultPopupEnv.WOSM_TUI_COMMAND) !== undefined ||
-      nonEmptyString(defaultPopupEnv.WOSM_TUI_SESSION_NAME) !== undefined;
-    const insideTmux = nonEmptyString(defaultPopupEnv.TMUX) !== undefined;
-    const tuiCommand =
-      options.popupDeps?.tuiCommand ?? defaultPopupTuiCommand(resolvedConfigPath, defaultPopupEnv);
-    const uiSessionName =
-      options.popupDeps?.uiSessionName ?? popupUiSessionNameFromEnv(defaultPopupEnv);
-    const preferRegisteredDevPopup =
-      options.popupDeps?.preferRegisteredDevPopup ?? (!hasExplicitPopupUi && insideTmux);
-    const popupDeps: PopupCommandDeps = {};
-    if (options.popupDeps !== undefined) {
-      Object.assign(popupDeps, options.popupDeps);
-    }
-    if (options.observerDeps !== undefined) {
-      popupDeps.observer = options.observerDeps;
-    }
-    const popupOptions: PopupCommandOptions = loadedCommandOptions(config, resolvedConfigPath);
-    popupOptions.tuiCommand = tuiCommand;
-    if (popupEnv !== undefined) {
-      popupOptions.env = popupEnv;
-    }
-    popupOptions.preferRegisteredDevPopup = preferRegisteredDevPopup;
-    if (uiSessionName !== undefined) {
-      popupOptions.uiSessionName = uiSessionName;
-    }
-    popupOptions.checkoutRoot = repoRootFromCliModule();
-    const result = await runPopupCommand(args.slice(1), popupOptions, popupDeps);
-    return { code: "code" in result ? result.code : 0, output: result };
-  }
-
-  if (command === "tui") {
-    const tuiDeps: TuiCommandDeps = {};
-    if (options.observerDeps !== undefined) tuiDeps.observer = options.observerDeps;
-    if (options.tuiDeps?.runTui !== undefined) tuiDeps.runTui = options.tuiDeps.runTui;
-    if (options.tuiDeps?.popupLifecycle !== undefined) {
-      tuiDeps.popupLifecycle = options.tuiDeps.popupLifecycle;
-    }
-    const tuiEnv = options.tuiDeps?.env ?? options.env;
-    if (tuiEnv !== undefined) tuiDeps.env = tuiEnv;
-    const result = await runTuiCommand(
-      commandArgs,
-      loadedCommandOptions(config, resolvedConfigPath),
-      tuiDeps,
-    );
-    return { code: result.code, output: result };
-  }
-
-  if (command === "snapshot") {
-    const result = await runSnapshotCommand(
-      commandArgs,
-      loadedCommandOptions(config, resolvedConfigPath),
-      options.observerDeps,
-    );
-    return { code: 0, output: result };
-  }
-
-  if (command === "reconcile") {
-    const result = await runReconcileCommand(
-      commandArgs,
-      loadedCommandOptions(config, resolvedConfigPath),
-      options.observerDeps,
-    );
-    return { code: 0, output: result };
-  }
-
-  if (command === "project") {
-    const projectOptions: ProjectCommandOptions = loadedCommandOptions(config, resolvedConfigPath);
-    const result = await runProjectCommand(commandArgs, projectOptions, options.observerDeps);
-    return { code: projectCommandExitCode(result), output: result };
-  }
-
-  if (command === "worktrunk" && commandArgs[0] === "hooks") {
-    const result = await runWorktrunkHooksCommand(
-      commandArgs.slice(1),
-      loadedCommandOptions(config, resolvedConfigPath),
-    );
-    return { code: hookCommandExitCode(result), output: result };
-  }
-
-  const hookAction = commandArgs[0];
-  if (
-    command === "hooks" &&
-    hookAction !== undefined &&
-    ["plan", "install", "uninstall", "doctor"].includes(hookAction)
-  ) {
-    const hookTarget = commandArgs[1];
-    const hookArgs = [hookAction, ...commandArgs.slice(2)];
-    switch (hookTarget) {
-      case "worktrunk": {
-        const result = await runWorktrunkHooksCommand(
-          hookArgs,
-          loadedCommandOptions(config, resolvedConfigPath),
-        );
-        return { code: hookCommandExitCode(result), output: result };
-      }
-      case "claude": {
-        const claudeOptions: ClaudeHooksCommandOptions = loadedCommandOptions(
-          config,
-          resolvedConfigPath,
-        );
-        if (options.env !== undefined) {
-          claudeOptions.env = options.env;
-        }
-        const result = await runClaudeHooksCommand(hookArgs, claudeOptions);
-        return { code: hookCommandExitCode(result), output: result };
-      }
-      case "codex": {
-        const codexOptions: CodexHooksCommandOptions = loadedCommandOptions(
-          config,
-          resolvedConfigPath,
-        );
-        if (options.env !== undefined) {
-          codexOptions.env = options.env;
-        }
-        const result = await runCodexHooksCommand(hookArgs, codexOptions);
-        return { code: hookCommandExitCode(result), output: result };
-      }
-      case "cursor": {
-        const cursorOptions: CursorHooksCommandOptions = loadedCommandOptions(
-          config,
-          resolvedConfigPath,
-        );
-        if (options.env !== undefined) {
-          cursorOptions.env = options.env;
-        }
-        const result = await runCursorHooksCommand(hookArgs, cursorOptions);
-        return { code: hookCommandExitCode(result), output: result };
-      }
-      case "opencode": {
-        const openCodeOptions: OpenCodeHooksCommandOptions = loadedCommandOptions(config);
-        if (options.env !== undefined) {
-          openCodeOptions.env = options.env;
-        }
-        const result = await runOpenCodeHooksCommand(hookArgs, openCodeOptions);
-        return { code: hookCommandExitCode(result), output: result };
-      }
-      case "event": {
-        const eventHookOptions: EventHooksCommandOptions = loadedCommandOptions(
-          config,
-          resolvedConfigPath,
-        );
-        if (options.env !== undefined) {
-          eventHookOptions.env = options.env;
-        }
-        const result = await runEventHooksCommand(hookArgs, eventHookOptions);
-        return { code: hookCommandExitCode(result), output: result };
-      }
-      default:
-        throw new Error(`Unknown hook target: ${hookTarget ?? ""}`);
-    }
-  }
-
-  throw new Error(`Unknown command: ${command ?? ""}`);
-}
-
-type LoadedCommandOptions = {
-  config?: NonNullable<Awaited<ReturnType<typeof loadConfig>>["config"]>;
-  configPath?: string;
-};
-
-function loadedCommandOptions(
-  config: Awaited<ReturnType<typeof loadConfig>>["config"] | undefined,
-  configPath?: string,
-): LoadedCommandOptions {
-  const options: LoadedCommandOptions = {};
-  if (config !== undefined) {
-    options.config = config;
-  }
-  if (configPath !== undefined) {
-    options.configPath = configPath;
-  }
-  return options;
+  return runCliCommandRoute(route, {
+    path: route.path,
+    args: route.args,
+    allArgs: args,
+    cliEntryPath: fileURLToPath(import.meta.url),
+    renderHelpTopic: renderCliCommandHelpTopic,
+    ...(configPath === undefined ? {} : { configPath }),
+    ...(loaded?.config === undefined ? {} : { config: loaded.config }),
+    ...(loaded?.configPath === undefined ? {} : { resolvedConfigPath: loaded.configPath }),
+    options,
+  });
 }
 
 function defaultCommand(env: CliEnv): "popup" | "tui" {
@@ -399,42 +72,6 @@ function defaultCommand(env: CliEnv): "popup" | "tui" {
 
 function defaultCommandEnv(options: CliRunOptions): CliEnv {
   return options.env ?? options.popupDeps?.env ?? options.tuiDeps?.env ?? process.env;
-}
-
-function hookCommandExitCode(result: object): number {
-  return "status" in result && result.status === "warn" ? 1 : 0;
-}
-
-function defaultPopupTuiCommand(configPath: string | undefined, env: CliEnv | undefined): string {
-  const command = nonEmptyString(env?.WOSM_TUI_COMMAND);
-  const parts =
-    command === undefined
-      ? [shellQuote(process.execPath), shellQuote(fileURLToPath(import.meta.url))]
-      : [command];
-  if (configPath !== undefined) {
-    parts.push("--config", shellQuote(configPath));
-  }
-  parts.push("tui", "--popup", "--persistent");
-  return parts.join(" ");
-}
-
-function popupUiSessionNameFromEnv(env: CliEnv | undefined): string | undefined {
-  return nonEmptyString(env?.WOSM_TUI_SESSION_NAME);
-}
-
-function nonEmptyString(value: string | undefined): string | undefined {
-  if (value === undefined || value.length === 0) {
-    return undefined;
-  }
-  return value;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function repoRootFromCliModule(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), "../../..");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -447,7 +84,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   runCli()
     .then((result) => {
       if (!suppressOutput && result.output !== undefined) {
-        process.stdout.write(`${JSON.stringify(result.output, null, 2)}\n`);
+        process.stdout.write(formatCliOutput(result));
       }
       if (suppressOutput) {
         if (result.code !== 0 && result.output !== undefined) {
@@ -464,11 +101,25 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export function shouldSuppressCliProcessOutput(invoked: readonly string[]): boolean {
+  if (invoked.some(isCliHelpFlag)) {
+    return false;
+  }
   const command = invoked[0];
   return command === undefined || command === "tui" || command === "popup" || command === "observe";
 }
 
+function formatCliOutput(result: CliRunResult): string {
+  if (result.outputFormat === "text") {
+    const text = String(result.output ?? "");
+    return text.endsWith("\n") ? text : `${text}\n`;
+  }
+  return `${JSON.stringify(result.output, null, 2)}\n`;
+}
+
 function formatCliError(error: unknown): string {
+  if (isSafeError(error)) {
+    return formatSafeError(error);
+  }
   if (error instanceof Error) {
     return error.message;
   }
@@ -480,6 +131,20 @@ function formatCliError(error: unknown): string {
     }
   }
   return String(error);
+}
+
+function formatSafeError(error: RuntimeSafeError): string {
+  const lines = [`${error.message} (${error.code})`];
+  if (error.hint !== undefined) {
+    lines.push(`Hint: ${error.hint}`);
+  }
+  if (error.diagnosticId !== undefined) {
+    lines.push(`Diagnostic: ${error.diagnosticId}`);
+  }
+  if (error.traceId !== undefined) {
+    lines.push(`Trace: ${error.traceId}`);
+  }
+  return lines.join("\n");
 }
 
 function parseGlobalOptions(argv: string[]): { args: string[]; configPath?: string } {
@@ -508,13 +173,6 @@ function parseGlobalOptions(argv: string[]): { args: string[]; configPath?: stri
   };
 }
 
-function commandRequiresConfig(command: string, args: string[]): boolean {
-  if (command === "debug") {
-    return args[0] === "bundle" || args[0] === "trace" || args[0] === "logs";
-  }
-  return configBackedCommands.includes(command as (typeof configBackedCommands)[number]);
-}
-
 function isTopLevelCommand(value: string): boolean {
-  return topLevelCommands.includes(value as (typeof topLevelCommands)[number]);
+  return isTopLevelCliCommand(value);
 }
