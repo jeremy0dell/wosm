@@ -107,11 +107,21 @@ Load-bearing principles:
    dashboard-core; `ported/` deleted. Timed against the 2026-06-24 spike
    decision — this PR effectively IS the promotion-architecture decision.
 
-4. **Client plan PR 4 (command dispatch) on the unified boundary**: swap the
+4. **Client plan PR 4 (command dispatch) on the unified boundary**
+   (done — 2026-06-12): swap the
    stub service for the live `ObserverService` shared with the state runtime;
    route reconcile through the client runtime so the connected transition and
    recovery toast arrive via the subscription (resolving the seam noted in
    step 1); un-stub row-activate focus, Z refresh, and jump-to-session.
+   As built: the service swap had already landed with step 2's boundary
+   unification, so this step's substance was the seam fix — the live client's
+   service facet is now `bridgeOperationService(rawService, runtime)`, routing
+   reconcile and operation snapshot loads through the client runtime — plus a
+   behavioral suite (`wosmCommandDispatch.test.ts`) pinning focus dispatch,
+   jump-to-session, Z-through-runtime, a convergence regression, and the
+   reconcile-driven connected transition with recovery toast. Mock mode keeps
+   the rejecting service; its copy names mock mode instead of the gate.
+   Details in the client plan's PR 4 section.
 
 5. **Polish where the code lands** (post-extraction so nothing is done
    twice): theme tokens for hover/backdrop colors, shared QUIT_HINT, a
@@ -132,7 +142,7 @@ Disposition:
 |---|---|---|
 | 1 | Overlay paste bypasses control-byte filtering | fixed in #78 |
 | 2 | First paint uses stale store terminalRows | fixed in #78 |
-| 3 | Adapted reconcile drops connected-transition responsibility | comment in #78; real fix in PR 4 (step 4) |
+| 3 | Adapted reconcile drops connected-transition responsibility | fixed in PR 4 (step 4, 2026-06-12) |
 | 4 | wosm input paths lack dialogStack guards (latent; no producer exists) | with the first dialog feature; guard all three paths symmetrically + test |
 | 5 | Sheet width math counts code units, not display width (upstream-faithful) | fix upstream first, then re-port (step 3 makes this one fix) |
 | 6 | Toast copy duplicated in view, outside the drift audit | fixed in #78 |

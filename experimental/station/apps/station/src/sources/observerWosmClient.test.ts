@@ -33,17 +33,54 @@ describe("createObserverWosmClient", () => {
     );
   });
 
-  it("exposes the same service instance used by command paths", async () => {
+  it("passes dispatch and command-completion waits through to the shared connection", async () => {
     const fake = createFakeObserverService(mockObserverSnapshot);
     const client = track(createObserverWosmClient({ service: fake.service }));
 
-    await client.service.dispatch({
+    const receipt = await client.service.dispatch({
       type: "observer.reconcile",
       payload: { reason: "station-test" },
     });
+    const completion = await client.service.waitForCommandCompletion(receipt.commandId);
 
     expect(fake.dispatchedTypes).toEqual(["observer.reconcile"]);
-    expect(client.service).toBe(fake.service);
+    expect(fake.waitedForCommandIds).toEqual([receipt.commandId]);
+    expect(completion.status).toBe("succeeded");
+  });
+
+  it("routes service.reconcile through the runtime so client state converges", async () => {
+    const fake = createFakeObserverService(mockObserverSnapshot);
+    const client = track(createObserverWosmClient({ service: fake.service }));
+    client.start();
+    await waitFor(() => client.state.getState().connection.state === "connected");
+
+    const reconciled: WosmSnapshot = {
+      ...mockObserverSnapshot,
+      generatedAt: "2026-06-12T12:00:01.000Z",
+    };
+    fake.setSnapshot(reconciled);
+    const loaded = await client.service.reconcile("station-test");
+
+    expect(fake.reconcileReasons).toEqual(["station-test"]);
+    expect(loaded).toBe(reconciled);
+    expect(client.state.getState().snapshot).toBe(reconciled);
+  });
+
+  it("routes service.loadSnapshot through the runtime refresh", async () => {
+    const fake = createFakeObserverService(mockObserverSnapshot);
+    const client = track(createObserverWosmClient({ service: fake.service }));
+    client.start();
+    await waitFor(() => client.state.getState().connection.state === "connected");
+
+    const refreshed: WosmSnapshot = {
+      ...mockObserverSnapshot,
+      generatedAt: "2026-06-12T12:00:02.000Z",
+    };
+    fake.setSnapshot(refreshed);
+    const loaded = await client.service.loadSnapshot();
+
+    expect(loaded).toBe(refreshed);
+    expect(client.state.getState().snapshot).toBe(refreshed);
   });
 
   it("keeps the last good snapshot with a calm display-only status when the observer goes away", async () => {
@@ -82,9 +119,12 @@ type Waiter = {
   reject(error: Error): void;
 };
 
-function createFakeObserverService(snapshot: WosmSnapshot) {
+function createFakeObserverService(initialSnapshot: WosmSnapshot) {
+  let snapshot = initialSnapshot;
   const waiters: Waiter[] = [];
   const dispatchedTypes: string[] = [];
+  const waitedForCommandIds: string[] = [];
+  const reconcileReasons: Array<string | undefined> = [];
 
   const service: ObserverService = {
     loadSnapshot: async () => snapshot,
@@ -110,16 +150,27 @@ function createFakeObserverService(snapshot: WosmSnapshot) {
         status: "accepted",
       };
     },
-    waitForCommandCompletion: async (commandId) => ({
-      status: "succeeded",
-      commandId,
-    }),
-    reconcile: async () => snapshot,
+    waitForCommandCompletion: async (commandId) => {
+      waitedForCommandIds.push(commandId);
+      return {
+        status: "succeeded",
+        commandId,
+      };
+    },
+    reconcile: async (reason) => {
+      reconcileReasons.push(reason);
+      return snapshot;
+    },
   };
 
   return {
     service,
     dispatchedTypes,
+    waitedForCommandIds,
+    reconcileReasons,
+    setSnapshot: (next: WosmSnapshot) => {
+      snapshot = next;
+    },
     hasParkedSubscriber: () => waiters.length > 0,
     failSubscription: (error: Error) => {
       for (const waiter of waiters.splice(0)) {

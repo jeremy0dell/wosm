@@ -23,7 +23,7 @@ describe("createWosmViewStore", () => {
         branch: "docs-cleanup",
       },
     ]);
-    await waitForStationDispatchPendingToast(store);
+    await waitForMockRejectionToast(store);
   });
 
   it("routes N through create-session pending state and stub rejection feedback", async () => {
@@ -37,7 +37,7 @@ describe("createWosmViewStore", () => {
       projectId: "wosm",
       harnessProvider: "codex",
     });
-    await waitForStationDispatchPendingToast(store);
+    await waitForMockRejectionToast(store);
   });
 
   it("routes A through add-project dispatch and stub rejection feedback", async () => {
@@ -50,7 +50,7 @@ describe("createWosmViewStore", () => {
     await waitFor(() => addProjectScreenMode(store) === "review");
     store.getState().handleKey({ input: "\r", return: true });
 
-    await waitFor(() => addProjectFailureMessage(store).includes("Station command dispatch"));
+    await waitFor(() => addProjectFailureMessage(store).includes("unavailable in mock mode"));
   });
 
   it("routes X through remove pending state and stub rejection feedback", async () => {
@@ -68,7 +68,7 @@ describe("createWosmViewStore", () => {
         branch: "pty-buffer",
       },
     ]);
-    await waitForStationDispatchPendingToast(store);
+    await waitForMockRejectionToast(store);
   });
 
   it("routes R through rename pending state and stub rejection feedback", async () => {
@@ -83,7 +83,7 @@ describe("createWosmViewStore", () => {
     expect(store.getState().localRows.pendingRenameTitles?.ses_wt_wosm_idle).toMatchObject({
       title: "pty-bufferx",
     });
-    await waitForStationDispatchPendingToast(store);
+    await waitForMockRejectionToast(store);
   });
 
   it("routes Z through reconcile and stub rejection feedback", async () => {
@@ -91,7 +91,7 @@ describe("createWosmViewStore", () => {
 
     store.getState().handleKey({ input: "Z" });
 
-    await waitForStationDispatchPendingToast(store);
+    await waitForMockRejectionToast(store);
   });
 });
 
@@ -132,11 +132,11 @@ function slotForRow(store: StoreApi<TuiStore>, rowId: string): string {
   return choice.key;
 }
 
-async function waitForStationDispatchPendingToast(store: StoreApi<TuiStore>): Promise<void> {
+async function waitForMockRejectionToast(store: StoreApi<TuiStore>): Promise<void> {
   await waitFor(() =>
     store
       .getState()
-      .toasts.some((entry) => entry.toast.message.includes("Station command dispatch")),
+      .toasts.some((entry) => entry.toast.message.includes("unavailable in mock mode")),
   );
 }
 

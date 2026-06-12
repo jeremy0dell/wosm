@@ -106,8 +106,11 @@ Exit bar: split/focus/close feels boring and reliable.
       `git diff` (Goal 7)
 - [ ] agent action launches a real agent command in a pane, following Session
       And Primary Agent Semantics for what is and is not the primary agent
-- [ ] Station command dispatch through `@wosm/client` (client plan PR 4),
+- [x] Station command dispatch through `@wosm/client` (client plan PR 4),
       starting with reconcile/refresh plus one focus or create command
+      (done 2026-06-12; see the Spike Log entry and the client plan's PR 4
+      section — landed ahead of the rest of Phase 3 because it was gated
+      only on Phase 1's router)
 
 Exit bar: the difftastic-style workflow steps 1-5 work end to end.
 
@@ -124,6 +127,36 @@ Exit bar: a continue-or-pause decision inside the timebox. The spike started
 2026-06-10: target decision by 2026-06-24, hard maximum 2026-07-01.
 
 ## Spike Log
+
+### 2026-06-12 - Station Command Dispatch Through The Shared Client (PR 4)
+
+Client plan PR 4 landed. Station's WOSM view dispatches real commands —
+row-activate focus, jump-to-session on click, Z refresh, and the
+new-session/add-project/remove/rename flows — through the same single
+`@wosm/client` `ObserverService` that feeds runtime state.
+
+The substance (the service swap itself had already landed with the client
+boundary unification):
+
+- The live client's service facet is now dashboard-core's
+  `bridgeOperationService(rawService, runtime)`: reconcile and operation
+  snapshot loads route through the client runtime, while dispatch and
+  command-completion waits pass through to the one shared connection. This
+  resolves PR #78 review finding #3 — a snapshot applied around the runtime
+  was silently reverted by the next incremental event, and the connected
+  transition plus "Observer reconnected." recovery toast now arrive via the
+  state subscription.
+- A behavioral suite (`src/wosm/store/wosmCommandDispatch.test.ts`) pins the
+  paths: focus dispatch with completion wait, click/key equivalence, Z
+  reconcile through the runtime, a convergence regression that fails on the
+  pre-fix wiring, reconcile failure feedback, and the reconcile-driven
+  connected transition with the recovery toast.
+- Mock mode keeps the rejecting service by design; its rejection copy names
+  mock mode instead of the PR 4 gate. The view store now labels safe errors
+  as Station rather than the TUI default.
+- Known gap carried forward: Station's runtime runs without the observer
+  bridge hooks, so `command.failed` event notices do not surface as toasts;
+  failures still surface through command-completion waits.
 
 ### 2026-06-12 - WOSM View At apps/tui Popup Parity, With Mouse
 
@@ -617,10 +650,10 @@ schema.
 
 ### Live Observer State
 
-Status as of 2026-06-11: shipped for read-only state. `packages/client` PRs
-1-3 are implemented and the overlay consumes the live runtime through the
-source factory. The remaining client-plan scope for Station is PR 4 command
-dispatch (Phase 3).
+Status as of 2026-06-12: shipped for read-only state and commands.
+`packages/client` PRs 1-4 are implemented: the overlay consumes the live
+runtime through the source factory, and command dispatch flows through the
+same shared client boundary.
 
 Observer-connected Station work depends on
 [`packages/client`](client_package_observer_runtime_plan.md).

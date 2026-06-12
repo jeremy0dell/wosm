@@ -462,15 +462,52 @@ Validation (performed):
 
 ### PR 4: Station Commands Through Shared Client
 
-Status: not started (as of 2026-06-11). Gated on the Station input router;
-sequenced as Phase 3 of the [spike phased plan](wosm_station_spike.md), after
-Phase 1 lands the router.
+Status: implemented (2026-06-12). The input-router gate was satisfied by spike
+Phase 1; the dashboard-core extraction (sequencing step 3) landed first.
 
 Add minimal Station command dispatch through `packages/client`, likely starting
 with reconcile/refresh and one focus or create command only after the Station
 input router exists.
 
 Do not make Station a terminal provider in this phase.
+
+Deviations from the sketch above, kept deliberately small:
+
+- The live-service swap landed early: the client-boundary unification in the
+  Station-side seams PR already passed the real `ObserverService` into the
+  Station view store, so dispatch and command-completion waits — row-activate
+  `terminal.focus`, jump-to-session on row click, and the flow commands —
+  flowed through the shared client before this PR. PR 4's substance is the
+  seam fix and the behavioral proof.
+- The seam fix (PR #78 review finding #3) lives at the Station source
+  boundary, not in the store: the live client's service facet is
+  dashboard-core's `bridgeOperationService(rawService, runtime)`, so
+  `reconcile` and operation snapshot loads route through the client runtime
+  while dispatch and completion waits pass through to the one shared
+  connection. A snapshot applied around the runtime was silently reverted by
+  the next incremental event; routing through the runtime keeps the reducer
+  base converged, and the connected transition plus recovery toast arrive
+  via the state subscription (the source bridge), exactly as the connection
+  state machine above intends.
+- "One focus or create command" is satisfied by the proven `terminal.focus`
+  paths. The behavioral suite
+  (`experimental/station/.../wosm/store/wosmCommandDispatch.test.ts`) pins
+  dispatch pass-through, Z reconcile through the runtime, a convergence
+  regression that fails on the pre-fix wiring, the reconcile failure toast,
+  and the reconcile-driven connected transition with the recovery toast.
+- Mock mode keeps the rejecting service by design; its copy now names mock
+  mode instead of this PR's gate.
+- Known gap, deliberately out of scope: Station's runtime runs without the
+  observer bridge hooks, so `command.failed` event notices do not surface as
+  toasts in Station; failures still surface through command-completion waits
+  on the focus and operation paths. Revisit with the shared command-status
+  messaging deferred in PR 1.
+
+Validation: focused Station suites (`wosmCommandDispatch.test.ts`,
+`observerWosmClient.test.ts` runtime-routing cases, updated mock-copy
+suites), the full `bun run test` + `bun run typecheck` Station gate, and a
+negative check that the convergence and recovery tests fail with the bridge
+removed. Root `pnpm test:all` unaffected (no root package changes).
 
 ## Station Dependency
 

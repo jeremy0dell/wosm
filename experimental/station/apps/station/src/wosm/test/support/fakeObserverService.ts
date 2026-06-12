@@ -18,14 +18,35 @@ export class FakeTuiObserverService implements TuiObserverService {
     status: "succeeded",
     commandId: "cmd_tui_1",
   };
+  /** Thrown (once) by the next reconcile call instead of returning a snapshot. */
+  nextReconcileError: unknown = undefined;
 
   private readonly subscribers = new Set<Subscriber>();
+  private loadGate: { promise: Promise<void>; release(): void } | undefined;
 
   constructor(private snapshot: WosmSnapshot) {}
 
   async loadSnapshot(): Promise<WosmSnapshot> {
     this.loadCount += 1;
+    await this.loadGate?.promise;
     return this.snapshot;
+  }
+
+  /** Parks subsequent loadSnapshot calls until resumeLoadSnapshot. */
+  pauseLoadSnapshot(): void {
+    if (this.loadGate !== undefined) {
+      return;
+    }
+    let release!: () => void;
+    const promise = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.loadGate = { promise, release };
+  }
+
+  resumeLoadSnapshot(): void {
+    this.loadGate?.release();
+    this.loadGate = undefined;
   }
 
   subscribeEvents(): AsyncIterable<WosmEvent> {
@@ -63,6 +84,11 @@ export class FakeTuiObserverService implements TuiObserverService {
 
   async reconcile(reason?: string): Promise<WosmSnapshot> {
     this.reconcileReasons.push(reason);
+    if (this.nextReconcileError !== undefined) {
+      const error = this.nextReconcileError;
+      this.nextReconcileError = undefined;
+      throw error;
+    }
     const command: WosmCommand = {
       type: "observer.reconcile",
       payload: reason === undefined ? {} : { reason },

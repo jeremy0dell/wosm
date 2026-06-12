@@ -22,6 +22,7 @@ export function createWosmViewStore(
   const storeOptions: Parameters<typeof createTuiStore>[0] = {
     source: client.state,
     service: client.service,
+    clientLabel: "Station",
     persistentPopup: true,
     onDismiss: async () => {
       // Dismiss is the router's job: the overlay layer maps the transition's
