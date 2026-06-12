@@ -5,6 +5,7 @@ declare module "bun:test" {
 
   type Expectation = {
     not: {
+      toBe(expected: unknown): void;
       toEqual(expected: unknown): void;
       toContain(expected: unknown): void;
     };

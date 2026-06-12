@@ -9,8 +9,8 @@
     "repair:node-pty": "../../scripts/repair-node-pty.sh",
     "station": "bun run link:wosm && bun run repair:node-pty && bun src/main.tsx",
     "test": "bun run link:wosm && bun test",
-    "test:agents": "bun run repair:node-pty && WOSM_STATION_PTY_SMOKE=1 WOSM_STATION_PTY_SMOKE_TUI=1 bun test src/appInput.e2e.test.tsx src/terminal/ptyPipeline.smoke.test.ts",
-    "test:pty": "bun run repair:node-pty && WOSM_STATION_PTY_SMOKE=1 bun test src/terminal/pty/nodePtyTerminal.test.ts src/terminal/ptyPipeline.smoke.test.ts src/terminal/pty/bridgeHardening.test.ts src/appInput.e2e.test.tsx",
+    "test:agents": "bun run repair:node-pty && WOSM_STATION_PTY_SMOKE=1 WOSM_STATION_PTY_SMOKE_TUI=1 bun test src/input/stationInput.e2e.test.tsx src/terminal/ptyPipeline.smoke.test.ts",
+    "test:pty": "bun run repair:node-pty && WOSM_STATION_PTY_SMOKE=1 bun test src/terminal/pty/nodePtyTerminal.test.ts src/terminal/ptyPipeline.smoke.test.ts src/terminal/pty/bridgeHardening.test.ts src/input/stationInput.e2e.test.tsx",
     "test:stress": "WOSM_STATION_VT_STRESS=1 bun test src/terminal/vt/screen.stress.test.ts",
     "test:vt": "bun test src/terminal",
     "typecheck": "bun run link:wosm && tsc -p tsconfig.json --noEmit"

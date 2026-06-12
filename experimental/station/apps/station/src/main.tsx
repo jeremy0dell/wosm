@@ -1,21 +1,31 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { useSyncExternalStore } from "react";
-import { createStationSequenceHandler, forwardStationPaste } from "./appInput.js";
+import { createStationInputRuntime } from "./input/stationInput.js";
 import { createStationWosmStateSource } from "./sources/createStationWosmStateSource.js";
+import { selectActivePaneId, selectWosmOverlayVisible } from "./state/selectors.js";
+import { createStationStore } from "./state/store.js";
 import { disposeActiveStationTerminal, TerminalPane } from "./terminal/index.js";
 import { WosmOverlay } from "./wosm/WosmOverlay.js";
 
-const overlayStore = createOverlayStore();
+// main.tsx owns the store and input runtime instances (no module singletons
+// elsewhere) so bun --hot recreates store, renderer, and handlers together.
+const store = createStationStore();
+const stationInput = createStationInputRuntime({
+  store,
+  shutdown: shutdownStation,
+});
 const wosmSource = createStationWosmStateSource();
 let rendererForInput: { destroy(): void } | undefined;
 let rootForShutdown: { unmount(): void } | undefined;
 
 function App() {
+  // Components select scalars only: useSyncExternalStore compares snapshots
+  // with Object.is, so object-building selectors would loop.
   const overlayVisible = useSyncExternalStore(
-    overlayStore.subscribe,
-    overlayStore.getVisible,
-    overlayStore.getVisible,
+    store.subscribe,
+    () => selectWosmOverlayVisible(store.getState()),
+    () => selectWosmOverlayVisible(store.getState()),
   );
 
   return (
@@ -29,8 +39,8 @@ function App() {
         backgroundColor="#20252b"
         flexDirection="row"
         justifyContent="space-between"
-        onMouseDown={() => {
-          overlayStore.toggle();
+        onMouseDown={(event) => {
+          stationInput.dispatchMouse({ kind: "header" }, event);
         }}
       >
         <text fg="#f4f4f5">{headerText(overlayVisible)}</text>
@@ -46,6 +56,12 @@ function App() {
         flexGrow={overlayVisible ? 0 : 1}
         height={overlayVisible ? 0 : undefined}
         flexDirection="column"
+        onMouseDown={(event) => {
+          const paneId = selectActivePaneId(store.getState());
+          if (paneId !== null) {
+            stationInput.dispatchMouse({ kind: "pane", paneId }, event);
+          }
+        }}
       >
         <TerminalPane />
       </box>
@@ -58,26 +74,6 @@ function headerText(overlayVisible: boolean): string {
     return " WOSM Station | WOSM mode (read-only) | click header or Ctrl-O for shell | Ctrl-Q exits ";
   }
   return " WOSM Station | shell pane | click header or Ctrl-O for WOSM | Ctrl-Q exits | Ctrl-C → shell ";
-}
-
-function createOverlayStore() {
-  let visible = false;
-  const listeners = new Set<() => void>();
-  return {
-    getVisible: () => visible,
-    toggle: () => {
-      visible = !visible;
-      for (const listener of [...listeners]) {
-        listener();
-      }
-    },
-    subscribe: (listener: () => void) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
 }
 
 function shutdownStation(): void {
@@ -93,24 +89,14 @@ function shutdownStation(): void {
 
 const renderer = await createCliRenderer({
   exitOnCtrlC: false,
-  prependInputHandlers: [
-    createStationSequenceHandler({
-      isOverlayVisible: () => overlayStore.getVisible(),
-      toggleOverlay: () => {
-        overlayStore.toggle();
-      },
-      shutdown: shutdownStation,
-    }),
-  ],
+  prependInputHandlers: [stationInput.handleSequence],
   useKittyKeyboard: null,
 });
 rendererForInput = renderer;
 // OpenTUI routes paste events around the sequence handlers above, so the
 // pane would never see a paste without this explicit forward.
 renderer.keyInput.on("paste", (event) => {
-  if (forwardStationPaste(event.bytes, { isOverlayVisible: () => overlayStore.getVisible() })) {
-    event.preventDefault();
-  }
+  stationInput.handlePaste(event);
 });
 const root = createRoot(renderer);
 rootForShutdown = root;

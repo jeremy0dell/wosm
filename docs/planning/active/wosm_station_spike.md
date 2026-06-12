@@ -43,27 +43,37 @@ Debt carried forward deliberately: input handling is one ad hoc handler chain
 in `main.tsx`, and `wosm station` is not a CLI command yet (launch is
 `bun run station` inside the experiment).
 
+Resolved 2026-06-12: the ad hoc input-handler debt is paid by Phase 1; all
+input now routes through the keymap stack, router, and coordination store
+(see the Phase 1 section and Spike Log entry).
+
 Resolved 2026-06-12: the strip-ANSI renderer debt is paid. Panes now render
 through a real VT screen model (`@xterm/headless` behind
 `src/terminal/vt/screen.ts`) and a direct-buffer `TerminalScreenRenderable`;
 see the Spike Log entry and
 [station_vt_engine_decision.md](station_vt_engine_decision.md).
 
-### Phase 1 - Input Router And Coordination Store (next)
+### Phase 1 - Input Router And Coordination Store (done 2026-06-12)
 
 Input routing is the central design problem (see Input Routing below). Replace
 the ad hoc `prependInputHandlers` chain and the module-local overlay store in
 `main.tsx` with the router and store shape from Current Design Direction:
 
-- [ ] coordination store with initial `workspace` and `input` slices; overlay
+- [x] coordination store with initial `workspace` and `input` slices; overlay
       visibility moves out of the module-local store in `main.tsx`
-- [ ] `FocusTarget` union: header, pane, overlay, dialog
-- [ ] keymap stack with the documented priority order
-- [ ] router returns explicit outcomes: handled app command, terminal write,
-      focus change, overlay open/close, ignored
-- [ ] existing behavior re-lands through the router unchanged: Ctrl-Q exit,
+      (`src/state/{types,store,selectors}.ts`)
+- [x] `FocusTarget` union: header, pane, overlay, dialog
+- [x] keymap stack with the documented priority order (`src/input/keymaps.ts`;
+      all seven priority slots named, three layers registered)
+- [x] router returns explicit outcomes: handled app command, terminal write,
+      focus change, overlay open/close, ignored (`src/input/router.ts`; the
+      doc's single "ignored" split into `swallowed`/`ignored`, see the
+      amendments below)
+- [x] existing behavior re-lands through the router unchanged: Ctrl-Q exit,
       Ctrl-O / header-click toggle, overlay input swallow, terminal passthrough
-- [ ] reserved WOSM chords stay available while a terminal pane is focused
+- [x] reserved WOSM chords stay available while a terminal pane is focused
+      (and while the overlay swallow is active; reserved keys pierce every
+      catch-all)
 
 Exit bar: all current input behavior routes through the router and store, and
 adding a chord or focus target is a registration, not a new conditional.
@@ -114,6 +124,47 @@ Exit bar: a continue-or-pause decision inside the timebox. The spike started
 2026-06-10: target decision by 2026-06-24, hard maximum 2026-07-01.
 
 ## Spike Log
+
+### 2026-06-12 - Input Router And Coordination Store (Phase 1)
+
+Phase 1 landed. All Station input - key sequences, mouse, paste - now routes
+through one pure router over a coordination store; the ad hoc handler chain
+(`appInput.ts`) and the module-local overlay store in `main.tsx` are gone.
+
+The shape:
+
+```text
+src/state/      types (PaneId/OverlayId/DialogId, FocusTarget), vanilla store
+                (subscribe/getState + explicit actions), scalar selectors
+src/input/      keymaps.ts (generic layer stack + reserved-key resolution),
+                router.ts (closed RouteOutcome union, routeKey/routeMouse/
+                routePaste), stationBindings.ts (the registration site),
+                stationInput.ts (normalize -> route -> execute composition)
+```
+
+What this slice proved (all behavior-identical against the pre-existing e2e
+suite, plus new unit suites for store, keymaps, and router):
+
+- Reserved chords are registrations, not conditionals: Ctrl-Q/Ctrl-O are
+  `reserved: true` bindings in the workspace layer; the stack-level resolve
+  lets reserved keys fall through every catch-all (overlay swallow, terminal
+  passthrough) to the layer that binds them - Herdr-style interception,
+  derived from registrations.
+- Terminal delivery propagates: a `terminal-write` outcome returns the
+  registry's boolean, so a dead pane returns false and OpenTUI's own
+  capability/focus handlers still see the sequence.
+- Focus restore is store policy: `openOverlay` records pane focus,
+  `closeOverlay` restores it or falls back to the active pane; header clicks
+  never take focus.
+- Paste stays a separate dispatch routed by focus, with `preventDefault`
+  only on actual delivery.
+- Byte normalization (reply stripping, kitty CSI-u translation, key-release
+  consumption) runs before routing; the router never sees raw kitty
+  sequences or empty keys.
+
+Exit bar verified: a new chord is one `KeyBinding` in `stationBindings.ts`; a
+new mouse target is one entry in the mouse-bindings table; a new modal layer
+is a registration into a named priority slot. Client plan PR 4 is unblocked.
 
 ### 2026-06-12 - Real VT Screen Model And Styled Pane Rendering
 
@@ -726,6 +777,33 @@ Phase 1 design decisions (2026-06-12):
   stealing when scrollback lands: Herdr intercepts plain PageUp/PageDown for
   scrollback only when the pane is not in alt-screen or mouse-reporting
   mode.
+
+Amendments from the Phase 1 implementation (2026-06-12):
+
+- The single "ignored" outcome is two outcomes in code: `swallowed`
+  (consumed with no effect — modal layers eating input) and `ignored` (not
+  consumed; OpenTUI's own handlers may still act). The overlay swallow and
+  the dead-pane fall-through need opposite consume semantics.
+- Reserved chords are stronger than "available while a terminal pane is
+  focused": a `reserved: true` binding pierces every catch-all, including
+  the overlay swallow, which is how Ctrl-Q/Ctrl-O keep working in WOSM
+  mode. An explicit binding in a higher layer can still override a reserved
+  chord (a future dialog may bind Esc).
+- `routeMouse(paneId, event, state)` became
+  `routeMouse(target, event, state)` with a target-ref union
+  (`header | pane`), because header clicks cannot be expressed as a pane
+  id. Mouse handlers are a table keyed by target kind, registered next to
+  the key bindings. Header clicks never take focus; they only toggle the
+  overlay, and they keep working while the overlay is open (the mouse path
+  is the documented fallback when Ctrl-O never arrives).
+- The proposed `input/focus.ts` does not exist: focus transitions live
+  entirely in store actions per the focus decision above, so a separate
+  focus module had nothing left to own.
+- Binding keys are legacy byte forms for now. Legacy bytes cannot express
+  Ctrl+Shift distinctions or modified F-keys and conflate Tab/Ctrl-I,
+  Enter/Ctrl-M, Esc/Ctrl-[ — never reserve those collision bytes. When a
+  future layer (command palette) needs richer chords, the binding key
+  becomes a normalized key descriptor; the registration shape stays.
 
 ### Working Domains
 
