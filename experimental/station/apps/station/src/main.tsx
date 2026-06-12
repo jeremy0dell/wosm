@@ -54,15 +54,13 @@ function App() {
           {overlayVisible ? " [ shell ] " : " [ wosm ] "}
         </text>
       </box>
-      {overlayVisible ? (
-        <WosmOverlay store={wosmViewStore} dispatchMouse={stationInput.dispatchMouse} />
-      ) : null}
-      {/* The pane stays mounted while the overlay is up so the shell process
-          survives WOSM mode; it just collapses to zero height. */}
+      {/* The pane keeps its full size while the overlay is up: the WOSM view
+          floats above it as a centered popup, the shell stays visible and
+          running behind, and clicks on it are guarded by the mouse bindings
+          while any overlay is active. */}
       <box
         width="100%"
-        flexGrow={overlayVisible ? 0 : 1}
-        height={overlayVisible ? 0 : undefined}
+        flexGrow={1}
         flexDirection="column"
         onMouseDown={(event) => {
           const paneId = selectActivePaneId(store.getState());
@@ -73,6 +71,9 @@ function App() {
       >
         <TerminalPane />
       </box>
+      {overlayVisible ? (
+        <WosmOverlay store={wosmViewStore} dispatchMouse={stationInput.dispatchMouse} />
+      ) : null}
     </box>
   );
 }
