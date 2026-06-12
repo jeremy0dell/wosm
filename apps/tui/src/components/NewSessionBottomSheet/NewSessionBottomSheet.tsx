@@ -6,7 +6,8 @@ import {
   selectNewSessionHarnessOptions,
   selectNewSessionProjectChoices,
 } from "../../selectors/selectors.js";
-import { BottomSheetFrame, bottomSheetContentWidth } from "../BottomSheetFrame/BottomSheetFrame.js";
+import { BottomSheetFrame } from "../BottomSheetFrame/BottomSheetFrame.js";
+import { bottomSheetContentWidth } from "../BottomSheetFrame/layout.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
 import { newSessionContentRowCount } from "./layout.js";
 

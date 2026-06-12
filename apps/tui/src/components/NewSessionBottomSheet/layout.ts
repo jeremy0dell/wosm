@@ -1,9 +1,6 @@
 import type { NewSessionFlowState } from "../../flows/newSession.js";
 import { SELECTION_KEYS } from "../../selectors/selectors.js";
-import {
-  type BottomSheetFrameLayout,
-  bottomSheetFrameLayout,
-} from "../BottomSheetFrame/BottomSheetFrame.js";
+import { type BottomSheetFrameLayout, bottomSheetFrameLayout } from "../BottomSheetFrame/layout.js";
 
 export const MAX_PICKER_OPTIONS = SELECTION_KEYS.length;
 

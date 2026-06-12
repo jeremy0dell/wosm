@@ -16,7 +16,8 @@ import {
   type WorktreeRowLayout,
   type WorktreeRowLayoutInput,
 } from "./layout.js";
-import { metadataSegments, WorktreeRow, worktreeStyleRowGridInput } from "./WorktreeRow.js";
+import { metadataSegments, worktreeStyleRowGridInput } from "./rowInput.js";
+import { WorktreeRow } from "./WorktreeRow.js";
 
 type AgentState = NonNullable<WorktreeRowModel["agent"]>["state"];
 type FixtureState = AgentState | "none";

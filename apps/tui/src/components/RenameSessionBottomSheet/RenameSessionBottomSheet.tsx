@@ -1,7 +1,8 @@
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
 import type { TuiScreen } from "../../state/types.js";
-import { BottomSheetFrame, bottomSheetContentWidth } from "../BottomSheetFrame/BottomSheetFrame.js";
+import { BottomSheetFrame } from "../BottomSheetFrame/BottomSheetFrame.js";
+import { bottomSheetContentWidth } from "../BottomSheetFrame/layout.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
 import { truncateCells } from "../WorktreeRow/layout.js";
 

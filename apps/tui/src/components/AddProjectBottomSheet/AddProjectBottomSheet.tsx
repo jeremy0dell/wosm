@@ -1,6 +1,7 @@
 import { addProjectRows } from "../../flows/addProject/rows.js";
 import type { AddProjectFlowState } from "../../flows/addProject/types.js";
-import { BottomSheetFrame, bottomSheetContentWidth } from "../BottomSheetFrame/BottomSheetFrame.js";
+import { BottomSheetFrame } from "../BottomSheetFrame/BottomSheetFrame.js";
+import { bottomSheetContentWidth } from "../BottomSheetFrame/layout.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
 import {
   Fill,
