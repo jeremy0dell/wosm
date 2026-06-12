@@ -1,6 +1,12 @@
 import type { TuiToastEntry } from "@wosm/dashboard-core";
-import { toastOverlayLayout, truncateCells } from "@wosm/dashboard-core";
-import type { BoxProps } from "ink";
+import {
+  toastBorderColor,
+  toastDetail,
+  toastOverlayLayout,
+  toastTextWidth,
+  toastTitle,
+  truncateCells,
+} from "@wosm/dashboard-core";
 import { Box, Text } from "ink";
 import { FloatingBlankBackground } from "../FloatingBlankBackground/FloatingBlankBackground.js";
 
@@ -68,43 +74,4 @@ export function ToastOverlay({
       </Box>
     </>
   );
-}
-
-export function toastDetail(entry: TuiToastEntry): string | undefined {
-  const details: string[] = [];
-  const { toast } = entry;
-  if (toast.hint !== undefined) {
-    details.push(toast.hint);
-  }
-  if (toast.traceId !== undefined) {
-    details.push(`trace ${toast.traceId}`);
-  }
-  if (toast.diagnosticId !== undefined) {
-    details.push(`diagnostic ${toast.diagnosticId}`);
-  }
-  return details.length === 0 ? undefined : details.join(" | ");
-}
-
-function toastTitle(entry: TuiToastEntry): string {
-  if (entry.toast.kind === "error") {
-    return "needs attention";
-  }
-  if (entry.toast.kind === "info") {
-    return "notice";
-  }
-  return entry.toast.message === "Observer reconnected." ? "connected" : "saved";
-}
-
-function toastBorderColor(entry: TuiToastEntry): BoxProps["borderColor"] {
-  if (entry.toast.kind === "error") {
-    return "red";
-  }
-  if (entry.toast.kind === "info") {
-    return "gray";
-  }
-  return "green";
-}
-
-function toastTextWidth(contentWidth: number): number {
-  return Math.max(1, contentWidth - 2);
 }

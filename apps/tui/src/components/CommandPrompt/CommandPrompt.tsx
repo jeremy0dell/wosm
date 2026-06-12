@@ -1,4 +1,4 @@
-import type { TuiScreen } from "@wosm/dashboard-core";
+import { commandPromptLineForScreen, type TuiScreen } from "@wosm/dashboard-core";
 import { Box, Text } from "ink";
 
 export type CommandPromptProps = {
@@ -6,45 +6,13 @@ export type CommandPromptProps = {
 };
 
 export function CommandPrompt({ screen }: CommandPromptProps) {
-  if (screen.name === "renameSession" && screen.step === "chooseSlot") {
-    return (
-      <Box marginTop={1}>
-        <Text color="yellow">Choose the slot to rename: 1-9/a-z</Text>
-      </Box>
-    );
-  }
-
-  if (screen.name === "removeWorktree" && screen.step === "confirm") {
-    return (
-      <Box marginTop={1}>
-        <Text color="red">confirm {screen.label}</Text>
-      </Box>
-    );
-  }
-
-  const prompt = textPromptForScreen(screen);
-  if (prompt === undefined) {
+  const line = commandPromptLineForScreen(screen);
+  if (line === undefined) {
     return null;
   }
-
   return (
     <Box marginTop={1}>
-      <Text color="yellow">
-        {prompt.label}: {prompt.value}
-      </Text>
+      <Text color={line.color}>{line.text}</Text>
     </Box>
   );
-}
-
-function textPromptForScreen(screen: TuiScreen): { label: string; value: string } | undefined {
-  if (screen.name === "removeWorktree" && screen.step === "chooseSlot") {
-    return { label: "remove slot", value: "" };
-  }
-  if (screen.name === "search") {
-    return { label: "search", value: screen.value };
-  }
-  if (screen.name === "projectCollapse") {
-    return { label: "collapse project", value: screen.value };
-  }
-  return undefined;
 }
