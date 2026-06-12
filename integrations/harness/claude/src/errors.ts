@@ -2,6 +2,7 @@ import type { SafeError } from "@wosm/contracts";
 
 export type ClaudeHarnessErrorCode =
   | "HARNESS_CLAUDE_UNAVAILABLE"
+  | "HARNESS_CLAUDE_RESUME_UNSUPPORTED"
   | "HARNESS_CLAUDE_EVENT_INVALID"
   | "HARNESS_CLAUDE_EVENT_UNSUPPORTED"
   | "HARNESS_CLAUDE_EVENT_INGEST_FAILED";

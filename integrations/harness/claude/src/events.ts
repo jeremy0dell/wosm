@@ -487,6 +487,7 @@ export function normalizeClaudeRawEvent(
   if (correlation.harnessRunId !== undefined) {
     observation.harnessRunId = correlation.harnessRunId;
   }
+  observation.nativeSessionId = event.session_id;
   return [observation];
 }
 

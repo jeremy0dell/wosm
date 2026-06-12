@@ -10,6 +10,7 @@ import {
   buildFocusCommand,
   buildPrimaryCommandForRow,
   buildRenameSessionCommand,
+  buildResumeAgentCommand,
   buildSendPromptCommand,
   buildStartAgentCommand,
   canSendPromptToRow,
@@ -62,6 +63,47 @@ describe("TUI command builders", () => {
         projectId: "web",
         worktreeId: "wt_web_no_agent",
         terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
+      },
+    });
+  });
+
+  it("maps recoverable rows to session.resumeAgent without exposing native targets", () => {
+    const snapshot = createCommandSnapshot("none");
+    const row = {
+      ...snapshot.rows[0],
+      recovery: {
+        kind: "agent-resume" as const,
+        handleId: "rec_codex_123",
+        provider: "codex",
+        targetKind: "native-session" as const,
+        sessionId: "ses_wt_web_no_agent",
+        lastSeenAt: "2026-06-01T12:00:00.000Z",
+      },
+    };
+    const project = snapshot.projects[0];
+
+    expect(buildResumeAgentCommand(row, project)).toEqual({
+      type: "session.resumeAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_no_agent",
+        recoveryHandleId: "rec_codex_123",
+        terminal: { provider: "tmux", layout: "agent-build-shell", focus: false },
+      },
+    });
+    expect(
+      buildPrimaryCommandForRow(
+        row,
+        {
+          ...snapshot,
+          rows: [row],
+        },
+        {},
+      ),
+    ).toMatchObject({
+      type: "session.resumeAgent",
+      payload: {
+        recoveryHandleId: "rec_codex_123",
       },
     });
   });

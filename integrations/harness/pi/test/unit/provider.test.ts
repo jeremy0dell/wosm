@@ -26,6 +26,11 @@ describe("PiHarnessProvider", () => {
     });
   });
 
+  it("advertises resume only when configured", () => {
+    expect(new PiHarnessProvider().capabilities().canResume).toBe(false);
+    expect(new PiHarnessProvider({ resume: true }).capabilities().canResume).toBe(true);
+  });
+
   it("checks pi --version for provider health without requiring auth", async () => {
     const calls: ExternalCommandInput[] = [];
     const provider = new PiHarnessProvider({

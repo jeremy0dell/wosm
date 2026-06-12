@@ -30,6 +30,11 @@ describe("OpenCodeHarnessProvider", () => {
     });
   });
 
+  it("advertises resume only when configured", () => {
+    expect(new OpenCodeHarnessProvider().capabilities().canResume).toBe(false);
+    expect(new OpenCodeHarnessProvider({ resume: true }).capabilities().canResume).toBe(true);
+  });
+
   it("checks opencode --version for provider health", async () => {
     const calls: ExternalCommandInput[] = [];
     const provider = new OpenCodeHarnessProvider({
@@ -151,6 +156,30 @@ describe("OpenCodeHarnessProvider", () => {
       ],
       providerData: {
         permissionMode: "yolo",
+      },
+    });
+  });
+
+  it("launches interactive OpenCode resume with the native session id", async () => {
+    const provider = new OpenCodeHarnessProvider({
+      command: "opencode-test",
+      resume: true,
+    });
+
+    await expect(
+      provider.buildLaunch({
+        ...request(),
+        resume: {
+          target: { kind: "native-session", id: "opencode_session_123" },
+          previousSessionId: "ses_web_task",
+          recoveryHandleId: "rec_opencode",
+        },
+      }),
+    ).resolves.toMatchObject({
+      args: ["--session", "opencode_session_123", "--prompt", "Do not send this automatically."],
+      providerData: {
+        resume: true,
+        resumeTargetKind: "native-session",
       },
     });
   });

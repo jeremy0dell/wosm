@@ -43,12 +43,13 @@ export type ClaudeHarnessProviderOptions = {
   stateDir?: string;
   hookSpoolDir?: string;
   autoStartFromHooks?: boolean;
+  resume?: boolean;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
 };
 
-const capabilities: HarnessCapabilities = {
+const baseCapabilities: HarnessCapabilities = {
   canLaunch: true,
   canDiscoverRuns: true,
   canEmitEvents: true,
@@ -98,6 +99,15 @@ function parseLoggedIn(stdout: string): boolean | undefined {
   return undefined;
 }
 
+function capabilities(options: ClaudeHarnessProviderOptions): HarnessCapabilities {
+  // Adapter support alone is not enough; resume stays invisible unless this
+  // provider instance is explicitly enabled by [harness.claude].resume.
+  return {
+    ...baseCapabilities,
+    canResume: options.resume === true,
+  };
+}
+
 export class ClaudeHarnessProvider implements HarnessProvider {
   readonly id = "claude";
 
@@ -108,7 +118,7 @@ export class ClaudeHarnessProvider implements HarnessProvider {
   }
 
   capabilities(): HarnessCapabilities {
-    return capabilities;
+    return capabilities(this.#options);
   }
 
   async health(): Promise<ProviderHealth> {
@@ -128,7 +138,7 @@ export class ClaudeHarnessProvider implements HarnessProvider {
         providerType: "harness",
         status: "healthy",
         lastCheckedAt: checkedAt,
-        capabilities,
+        capabilities: this.capabilities(),
         diagnostics: {
           version: result.stdout.trim(),
         },
@@ -144,7 +154,7 @@ export class ClaudeHarnessProvider implements HarnessProvider {
           message: "Claude Code is not available.",
           hint: "Install Claude Code and ensure `claude --version` succeeds, or configure [harness.claude].command (env override: WOSM_CLAUDE_BIN).",
         }),
-        capabilities,
+        capabilities: this.capabilities(),
       };
     }
   }

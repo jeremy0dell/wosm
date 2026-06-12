@@ -21,6 +21,7 @@ import type {
   WorktreeObservation,
   WorktreePullRequest,
 } from "./observations.js";
+import type { HarnessResumeOptions } from "./recovery.js";
 import { nonEmptyStringSchema } from "./shared.js";
 
 export const ProviderTypeSchema = z.enum(["worktree", "terminal", "harness", "repository"]);
@@ -229,6 +230,7 @@ export type BuildHarnessLaunchRequest = {
   permissionMode?: HarnessPermissionMode;
   approvalPolicy?: string;
   sandboxMode?: string;
+  resume?: HarnessResumeOptions;
 };
 
 export const HarnessLaunchPlanSchema = z

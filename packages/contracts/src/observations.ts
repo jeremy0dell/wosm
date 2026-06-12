@@ -226,6 +226,7 @@ export const HarnessEventObservationSchema = z
     terminalTargetId: TerminalTargetIdSchema.optional(),
     harnessRunId: HarnessRunIdSchema.optional(),
     nativeSessionId: nonEmptyStringSchema.optional(),
+    nativeSessionFile: nonEmptyStringSchema.optional(),
     cwd: nonEmptyStringSchema.optional(),
     pid: z.number().int().positive().optional(),
     status: ObservedStatusSchema.optional(),

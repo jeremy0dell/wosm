@@ -1,6 +1,7 @@
 import type { ProviderProjectConfig } from "@wosm/contracts";
 import type { JsonlLogger } from "@wosm/observability";
 import type { RuntimeClock } from "@wosm/runtime";
+import { createFeatureFlagEvaluator, type FeatureFlagEvaluator } from "../features/evaluator.js";
 import type { ObserverPersistence } from "../persistence/index.js";
 import type { ProviderRegistry } from "../providers/registry.js";
 import type { ObserverCore } from "../reconcile/core.js";
@@ -12,6 +13,7 @@ import { createSessionCloseHandler } from "./session/close.js";
 import { createSessionCreateHandler } from "./session/create.js";
 import { createSessionRemoveHandler } from "./session/remove.js";
 import { createSessionRenameHandler } from "./session/rename.js";
+import { createSessionResumeAgentHandler } from "./session/resumeAgent.js";
 import type { SessionCommandIdFactory } from "./session/shared.js";
 import { createSessionStartAgentHandler } from "./session/startAgent.js";
 import { createTerminalCloseHandler, createTerminalFocusHandler } from "./terminal.js";
@@ -24,6 +26,7 @@ export type RegisterObserverCommandHandlersOptions = {
   projects: readonly ProviderProjectConfig[];
   getProjects?: (() => readonly ProviderProjectConfig[]) | undefined;
   persistence: ObserverPersistence;
+  featureFlags?: FeatureFlagEvaluator | undefined;
   eventBus?: ObserverEventBus | undefined;
   clock?: RuntimeClock | undefined;
   logger?: JsonlLogger | undefined;
@@ -37,6 +40,7 @@ export function registerObserverCommandHandlers(
   options: RegisterObserverCommandHandlersOptions,
 ): void {
   const getProjects = options.getProjects ?? (() => options.projects);
+  const featureFlags = options.featureFlags ?? createFeatureFlagEvaluator();
   options.queue.registerHandler(
     "observer.reconcile",
     createObserverReconcileHandler({
@@ -89,6 +93,20 @@ export function registerObserverCommandHandlers(
       clock: options.clock,
       idFactory: options.idFactory,
       logger: options.logger,
+      commandTimeoutMs: options.commandTimeoutMs,
+    }),
+  );
+  options.queue.registerHandler(
+    "session.resumeAgent",
+    createSessionResumeAgentHandler({
+      getProjects,
+      providers: options.providers,
+      core: options.core,
+      persistence: options.persistence,
+      featureFlags,
+      eventBus: options.eventBus,
+      clock: options.clock,
+      idFactory: options.idFactory,
       commandTimeoutMs: options.commandTimeoutMs,
     }),
   );
@@ -162,6 +180,7 @@ export function registerObserverCommandHandlers(
       "terminal.close",
       "session.create",
       "session.startAgent",
+      "session.resumeAgent",
       "session.close",
       "session.remove",
       "session.rename",

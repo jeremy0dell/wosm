@@ -14,6 +14,7 @@ import {
   HarnessEventReportSchema,
   HarnessEventReportSpoolRecordSchema,
   HarnessLaunchPlanSchema,
+  HarnessResumeTargetSchema,
   HarnessRunObservationSchema,
   HarnessStatusObservationSchema,
   ObservedStatusSchema,
@@ -233,8 +234,11 @@ describe("contract schemas", () => {
     expectFails(WosmSnapshotSchema, snapshot, "snapshot row terminal with target id");
   });
 
-  it("keeps production feature flags empty until a real flag is registered", () => {
+  it("accepts the production resume feature flag and rejects unknown flags", () => {
     expect(FeatureFlagConfigSchema.parse({})).toEqual({});
+    expect(FeatureFlagConfigSchema.parse({ sessionResumeAgent: true })).toEqual({
+      sessionResumeAgent: true,
+    });
     expect(FeatureFlagConfigSchema.safeParse({ "test.fake": true }).success).toBe(false);
 
     expect(
@@ -263,15 +267,45 @@ describe("contract schemas", () => {
         alerts: [],
         featureFlags: {
           revision: "test",
-          flags: {},
+          flags: {
+            sessionResumeAgent: true,
+          },
         },
       }),
     ).toMatchObject({
       featureFlags: {
         revision: "test",
-        flags: {},
+        flags: {
+          sessionResumeAgent: true,
+        },
       },
     });
+  });
+
+  it("accepts exact resume targets and rejects latest/picker targets", () => {
+    expect(
+      HarnessResumeTargetSchema.parse({
+        kind: "native-session",
+        id: "codex_session_123",
+      }),
+    ).toEqual({
+      kind: "native-session",
+      id: "codex_session_123",
+    });
+    expect(
+      HarnessResumeTargetSchema.parse({
+        kind: "session-file",
+        path: "/tmp/pi-session.json",
+      }),
+    ).toEqual({
+      kind: "session-file",
+      path: "/tmp/pi-session.json",
+    });
+    expect(
+      HarnessResumeTargetSchema.safeParse({
+        kind: "last-for-worktree",
+      }).success,
+    ).toBe(false);
   });
 
   it("supports test-local feature flag registries without adding fake production flags", () => {
@@ -631,6 +665,7 @@ describe("contract schemas", () => {
       "session.create",
       "session.remove",
       "session.rename",
+      "session.resumeAgent",
       "session.sendPrompt",
       "session.startAgent",
       "terminal.close",

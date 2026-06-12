@@ -8,6 +8,7 @@ import type {
   ProviderId,
   ProviderProjectConfig,
   SafeError,
+  SessionRecoveryHandle,
   TerminalState,
   TerminalTargetObservation,
   WorktreeChangeSummary,
@@ -221,6 +222,12 @@ export type PersistedRecoveryBreadcrumb = {
   lastSeenAt: string;
 };
 
+export type ListSessionRecoveryHandlesOptions = {
+  projectId?: string;
+  worktreeId?: string;
+  provider?: string;
+};
+
 export type PersistReconcileResultInput = {
   projects: ProviderProjectConfig[];
   worktrees: WorktreeObservation[];
@@ -330,6 +337,11 @@ export type ObserverPersistence = {
     lastSeenAt?: string;
   }): Promise<PersistedRecoveryBreadcrumb>;
   listRecoveryBreadcrumbs(): Promise<PersistedRecoveryBreadcrumb[]>;
+  upsertSessionRecoveryHandle(input: SessionRecoveryHandle): Promise<SessionRecoveryHandle>;
+  getSessionRecoveryHandle(handleId: string): Promise<SessionRecoveryHandle | undefined>;
+  listSessionRecoveryHandles(
+    options?: ListSessionRecoveryHandlesOptions,
+  ): Promise<SessionRecoveryHandle[]>;
 };
 
 export type CreateObserverPersistenceOptions = {

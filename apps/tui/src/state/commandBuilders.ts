@@ -73,6 +73,28 @@ export function buildStartAgentCommand(
   };
 }
 
+export function buildResumeAgentCommand(
+  row: WorktreeRow,
+  project: ProjectView,
+): Extract<WosmCommand, { type: "session.resumeAgent" }> {
+  if (row.recovery === undefined) {
+    throw new Error(`No recovery handle is available for worktree ${row.id}.`);
+  }
+  return {
+    type: "session.resumeAgent",
+    payload: {
+      projectId: project.id,
+      worktreeId: row.id,
+      recoveryHandleId: row.recovery.handleId,
+      terminal: {
+        provider: project.defaults.terminal,
+        layout: commandLayout(project.defaults.layout),
+        focus: false,
+      },
+    },
+  };
+}
+
 export function cleanupForceRequired(row: WorktreeRow, action: CleanupActionKind): boolean {
   const running = isRunningAgentState(row.agent?.state);
   if (action === "remove-worktree") {
@@ -157,10 +179,15 @@ export function buildPrimaryCommandForRow(
   snapshot: WosmSnapshot,
   options: BuildFocusCommandOptions = {},
 ): WosmCommand {
-  if (row.agent === undefined) {
+  // Primary action mirrors observer ownership: resume a known lost provider
+  // conversation before falling back to a blank start for no-agent rows.
+  if (row.recovery !== undefined || row.agent === undefined) {
     const project = snapshot.projects.find((candidate) => candidate.id === row.projectId);
     if (project === undefined) {
       throw new Error(`Project not found for worktree ${row.id}.`);
+    }
+    if (row.recovery !== undefined) {
+      return buildResumeAgentCommand(row, project);
     }
     return buildStartAgentCommand(row, project);
   }

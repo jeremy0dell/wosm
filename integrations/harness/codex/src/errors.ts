@@ -2,6 +2,7 @@ import type { SafeError } from "@wosm/contracts";
 
 export type CodexHarnessErrorCode =
   | "HARNESS_CODEX_UNAVAILABLE"
+  | "HARNESS_CODEX_RESUME_UNSUPPORTED"
   | "HARNESS_CODEX_EVENT_INVALID"
   | "HARNESS_CODEX_EVENT_UNSUPPORTED"
   | "HARNESS_CODEX_EVENT_INGEST_FAILED";
