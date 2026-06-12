@@ -98,7 +98,7 @@ Load-bearing principles:
    PR-4-ready.
 
 3. **Review the extraction trio as a separate PR with a hard bar**
-   (in review — the `dashboard-core` branch): the
+   (done — PR #80, merged 2026-06-12): the
    apps/tui pure-helper extraction, keymap-metadata move, and
    `packages/dashboard-core`. This is the parity-by-mechanism move — and the
    only step that can regress production apps/tui, which the spike's
@@ -129,6 +129,10 @@ Load-bearing principles:
    the keymap coverage test, probe-key hoist, scenario-builder cleanup. Then
    the known not-yets: footer-hint click targets, top-row widgets, attention
    pulse — small PRs against dashboard-core.
+   Status: the polish findings (ledger #8, #10–#15) landed 2026-06-12 in one
+   pass; the feature not-yets remain open. The source-bridge fix (#8) landed
+   red-first with dashboard-core's first own unit suite
+   (`packages/dashboard-core/test/unit/sourceBridge.test.ts`).
 
 Coordination rule: #78 is patched first; the seams branch rebases once on
 top; the extraction trio stays parked until the station-side half is in.
@@ -147,14 +151,14 @@ Disposition:
 | 5 | Sheet width math counts code units, not display width (upstream-faithful) | fix upstream first, then re-port (step 3 makes this one fix) |
 | 6 | Toast copy duplicated in view, outside the drift audit | fixed in #78 |
 | 7 | Prompt copy duplicated in view, outside the drift audit | fixed in #78 |
-| 8 | sourceBridge failure arm re-renders on content-identical updates | step 5 |
+| 8 | sourceBridge failure arm re-renders on content-identical updates | fixed in the step-5 polish pass (2026-06-12) |
 | 9 | Documented test command broken from documented directory | fixed in #78 |
-| 10 | QUIT_HINT duplicated; string pinned by ported footer comparison | step 5 |
-| 11 | Hover/backdrop colors hardcoded outside theme | step 5 |
-| 12 | Test store builder duplicated across four suites | step 5 |
-| 13 | Hand-maintained no-op allowlist derivable from binding data | step 5 |
-| 14 | probeKeys() re-allocated ~39x per coverage run | step 5 |
-| 15 | Scenario builder ternary density / duplicated confidence expr | step 5 |
+| 10 | QUIT_HINT duplicated; string pinned by ported footer comparison | fixed in the step-5 polish pass (2026-06-12) |
+| 11 | Hover/backdrop colors hardcoded outside theme | fixed in the step-5 polish pass (2026-06-12) |
+| 12 | Test store builder duplicated across four suites | fixed in the step-5 polish pass (2026-06-12) |
+| 13 | Hand-maintained no-op allowlist derivable from binding data | fixed in the step-5 polish pass (2026-06-12) |
+| 14 | probeKeys() re-allocated ~39x per coverage run | fixed in the step-5 polish pass (2026-06-12) |
+| 15 | Scenario builder ternary density / duplicated confidence expr | fixed in the step-5 polish pass (2026-06-12) |
 
 ## Do not do
 
