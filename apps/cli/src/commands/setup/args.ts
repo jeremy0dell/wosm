@@ -55,20 +55,6 @@ export function parseSetupArgs(argv: readonly string[]): SetupArgs {
   return parsed;
 }
 
-export function setupUsage(): string {
-  return [
-    "Usage:",
-    "  wosm setup",
-    "  wosm setup check [--json] [--no-brew]",
-    "  wosm setup plan [--json]",
-    "  wosm setup apply --yes",
-    "  wosm setup apply --dry-run",
-    "  wosm setup system --check",
-    "  wosm setup system --yes",
-    "",
-  ].join("\n");
-}
-
 function setupKind(value: string | undefined): SetupCommandKind {
   if (value === undefined) return "guided";
   if (value === "check" || value === "plan" || value === "apply" || value === "system") {
