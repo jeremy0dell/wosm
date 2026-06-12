@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import type { StoreApi } from "zustand/vanilla";
-import { selectDashboardViewport } from "../ported/selectors/dashboardViewport.js";
-import type { TuiFolderService } from "../ported/services/folderService.js";
-import type { TuiStore } from "../ported/state/store.js";
+import { selectDashboardViewport } from "@wosm/dashboard-core";
+import type { TuiFolderService } from "@wosm/dashboard-core";
+import type { TuiStore } from "@wosm/dashboard-core";
 import { waitFor } from "../../terminal/testing/waitFor.js";
 import { manyProjectsSnapshot } from "../fixtures/scenarios.js";
 import { FakeStationSource } from "../test/support/fakeStationSource.js";

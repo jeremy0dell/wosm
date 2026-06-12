@@ -1,42 +1,42 @@
-// Station replacement for apps/tui's observerBridge: the TUI wires
-// @wosm/client runtime hooks straight into its store, while Station already
-// owns a subscribable source boundary (StationWosmStateSource, mock or live
-// decided in one factory). This bridge maps that source's state into the
-// ported TuiState — snapshot replacement plus the connection-status
-// presentation the TUI's bridge derived from runtime hooks.
 import type { WosmClientConnectionState } from "@wosm/client";
+import type { WosmSnapshot } from "@wosm/contracts";
 import type { StoreApi } from "zustand/vanilla";
-import type { StationWosmState, StationWosmStateSource } from "../../sources/types.js";
-import { clampDashboardStateScroll } from "../ported/state/dashboardScroll.js";
-import { replaceSnapshot } from "../ported/state/screen.js";
-import { OBSERVER_RECOVERY_TOAST_THRESHOLD_MS } from "../ported/state/timing.js";
-import { addTuiToast } from "../ported/state/toasts.js";
-import type { TuiStore } from "../ported/state/store.js";
-import type { TuiObserverConnectionStatus, TuiState } from "../ported/state/types.js";
+import { clampDashboardStateScroll } from "./dashboardScroll.js";
+import { replaceSnapshot } from "./screen.js";
+import type { TuiStore } from "./store.js";
+import { OBSERVER_RECOVERY_TOAST_THRESHOLD_MS } from "./timing.js";
+import { addTuiToast } from "./toasts.js";
+import type { TuiObserverConnectionStatus, TuiState } from "./types.js";
 
-export function attachStationSource(
+export type TuiSnapshotSourceState = {
+  snapshot?: WosmSnapshot;
+  connection: WosmClientConnectionState;
+};
+
+export interface TuiSnapshotSource {
+  getState(): TuiSnapshotSourceState;
+  subscribe(listener: () => void): () => void;
+}
+
+export function attachTuiSnapshotSource(
   store: StoreApi<TuiStore>,
-  source: StationWosmStateSource,
+  source: TuiSnapshotSource,
 ): () => void {
   const apply = (): void => {
-    store.setState(applySourceState(store.getState(), source.getState(), Date.now()));
+    store.setState(applySnapshotSourceState(store.getState(), source.getState(), Date.now()));
   };
   apply();
   return source.subscribe(apply);
 }
 
 /**
- * Pure state mapping, exported for tests. Mirrors the upstream bridge's
- * semantics: a fresh snapshot replaces and re-clamps; connection failures
- * present as `reconnecting` until a snapshot exists and `displayOnly` after
- * (the source keeps the last good snapshot through reconnects); recovering
- * after a long outage adds the same "Observer reconnected." toast.
- * `halted` has no TUI equivalent and presents like displayOnly/reconnecting —
- * the lastError carries the explanation.
+ * Mirrors the runtime-hook path for callers that already own a subscribable
+ * snapshot source: fresh snapshots replace and clamp state, while recovery
+ * after a long outage emits the same user-facing reconnection toast.
  */
-export function applySourceState(
+export function applySnapshotSourceState(
   state: TuiState,
-  sourceState: StationWosmState,
+  sourceState: TuiSnapshotSourceState,
   nowMs: number,
 ): TuiState {
   let next = state;

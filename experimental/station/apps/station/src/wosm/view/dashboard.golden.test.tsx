@@ -17,7 +17,7 @@ import {
   noProjectsSnapshot,
   scenarioState,
 } from "../fixtures/scenarios.js";
-import { createTuiStore } from "../ported/state/store.js";
+import { createTuiStore } from "@wosm/dashboard-core";
 import { FakeStationSource } from "../test/support/fakeStationSource.js";
 import { FakeTuiObserverService } from "../test/support/fakeObserverService.js";
 import { DashboardRoot } from "./DashboardRoot.js";

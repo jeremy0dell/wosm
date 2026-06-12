@@ -2,7 +2,7 @@
 // its overlay (help panel, bottom sheets) in an absolute layer above the
 // dashboard. The dashboard never reflows for overlays.
 import type { WosmSnapshot } from "@wosm/contracts";
-import type { TuiScreen } from "../ported/state/types.js";
+import type { TuiScreen } from "@wosm/dashboard-core";
 import { AddProjectSheetView } from "./sheets/AddProjectSheetView.js";
 import { HelpOverlayView } from "./HelpOverlayView.js";
 import { NewSessionSheetView } from "./sheets/NewSessionSheetView.js";

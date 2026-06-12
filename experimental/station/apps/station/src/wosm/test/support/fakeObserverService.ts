@@ -1,5 +1,5 @@
 import type { CommandReceipt, WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
-import type { TuiCommandCompletion, TuiObserverService } from "../../ported/services/types.js";
+import type { TuiCommandCompletion, TuiObserverService } from "@wosm/dashboard-core";
 
 export class FakeTuiObserverService implements TuiObserverService {
   readonly dispatched: WosmCommand[] = [];

@@ -2,6 +2,7 @@ export * from "./commandBuilders.js";
 export * from "./dashboardScroll.js";
 export * from "./keys.js";
 export * from "./screen.js";
+export * from "./sourceBridge.js";
 export * from "./store.js";
 export * from "./timing.js";
 export * from "./toasts.js";

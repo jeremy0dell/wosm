@@ -8,7 +8,7 @@
 import { describe, expect, it } from "bun:test";
 import type { StoreApi } from "zustand/vanilla";
 import { manyProjectsSnapshot } from "../wosm/fixtures/scenarios.js";
-import { createTuiStore, type TuiStore } from "../wosm/ported/state/store.js";
+import { createTuiStore, type TuiStore } from "@wosm/dashboard-core";
 import { FakeStationSource } from "../wosm/test/support/fakeStationSource.js";
 import { FakeTuiObserverService } from "../wosm/test/support/fakeObserverService.js";
 import { createStationStore, type StationStore } from "../state/store.js";

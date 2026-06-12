@@ -13,7 +13,6 @@
     "station": "bun run --cwd apps/station station",
     "station:hot": "bun run --cwd apps/station dev",
     "test": "bun run --cwd apps/station test",
-    "test:ported-parity": "bun run --cwd apps/station test src/wosm/portedParity.test.ts",
     "test:pty": "bun run --cwd apps/station test:pty",
     "typecheck": "bun run --cwd apps/station typecheck"
   }

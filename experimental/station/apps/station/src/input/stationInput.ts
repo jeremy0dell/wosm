@@ -9,7 +9,7 @@ import type { StationStore } from "../state/store.js";
 import { WOSM_OVERLAY_ID } from "../state/types.js";
 import { sanitizePastedText } from "../wosm/input/sequenceToTuiKey.js";
 import { dispatchWosmKey } from "../wosm/input/wosmActions.js";
-import type { TuiStore } from "../wosm/ported/state/store.js";
+import type { TuiStore } from "@wosm/dashboard-core";
 import {
   routeKey,
   routeMouse,
@@ -143,7 +143,7 @@ export function createStationInputRuntime(options: StationInputRuntimeOptions): 
       const text = new TextDecoder().decode(event.bytes);
       // While WOSM mode is up, paste belongs to the dashboard's text-input
       // modes (search, name editors) — apps/tui receives pastes as plain
-      // input chunks, and the ported machine treats them the same way. The
+      // input chunks, and the shared machine treats them the same way. The
       // chunk is sanitized first (the key path's control-byte discipline
       // applies to this channel too), and a dismiss outcome — a one-char
       // paste can match a bound key — closes the overlay like a keypress.

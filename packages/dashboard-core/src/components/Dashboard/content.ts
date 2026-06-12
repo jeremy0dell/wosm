@@ -227,6 +227,41 @@ export function observerHeaderStatusForConnection(
   return undefined;
 }
 
+export type CommandPromptLine = { text: string; color: "yellow" | "red" };
+
+/**
+ * The prompt line per screen (the special-cased rename-slot and
+ * remove-confirm lines plus textPromptForScreen below), flattened to
+ * text+color so render adapters only render. Lives beside
+ * commandPromptRows, which guards the same screens.
+ */
+export function commandPromptLineForScreen(screen: TuiScreen): CommandPromptLine | undefined {
+  if (screen.name === "renameSession" && screen.step === "chooseSlot") {
+    return { text: "Choose the slot to rename: 1-9/a-z", color: "yellow" };
+  }
+  if (screen.name === "removeWorktree" && screen.step === "confirm") {
+    return { text: `confirm ${screen.label}`, color: "red" };
+  }
+  const prompt = textPromptForScreen(screen);
+  if (prompt === undefined) {
+    return undefined;
+  }
+  return { text: `${prompt.label}: ${prompt.value}`, color: "yellow" };
+}
+
+function textPromptForScreen(screen: TuiScreen): { label: string; value: string } | undefined {
+  if (screen.name === "removeWorktree" && screen.step === "chooseSlot") {
+    return { label: "remove slot", value: "" };
+  }
+  if (screen.name === "search") {
+    return { label: "search", value: screen.value };
+  }
+  if (screen.name === "projectCollapse") {
+    return { label: "collapse project", value: screen.value };
+  }
+  return undefined;
+}
+
 export function commandPromptRows(screen: TuiScreen): number {
   if (screen.name === "search" || screen.name === "projectCollapse") {
     return 2;

@@ -54,16 +54,15 @@ EOF
 fi
 
 repo_root="$(cd "${root}/../.." && pwd)"
-# All four dists are checked even though link-wosm-packages.sh links only
-# client and contracts: the linked packages resolve protocol and runtime
-# transitively through the repo's pnpm layout, so their dists must exist too.
-for package in client contracts protocol runtime; do
+# Station links the packages it imports directly and checks protocol because
+# @wosm/client resolves it transitively through the repo's pnpm layout.
+for package in client contracts dashboard-core protocol runtime; do
   if [[ ! -f "${repo_root}/packages/${package}/dist/index.js" ]]; then
     cat >&2 <<EOF
 ${repo_root}/packages/${package}/dist/index.js is missing.
 
-Station consumes the built @wosm packages (client, contracts, protocol,
-runtime). Build them at the repo root first:
+Station consumes the built @wosm packages (client, contracts,
+dashboard-core, protocol, runtime). Build them at the repo root first:
 
   cd ${repo_root}
   pnpm install

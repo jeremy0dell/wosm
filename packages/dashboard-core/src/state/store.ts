@@ -20,14 +20,20 @@ import {
   type TuiLocalOperationRunner,
 } from "./operations/localOperationRunner.js";
 import { prepareCommandForRuntime, withResolvedFocusOrigin } from "./operations/runtimeCommands.js";
-import { createInitialTuiState } from "./screen.js";
+import { createInitialTuiState, replaceSnapshot } from "./screen.js";
+import { attachTuiSnapshotSource, type TuiSnapshotSource } from "./sourceBridge.js";
 import { addTuiToast, expireTuiToasts, refreshActiveTuiToastExpiry } from "./toasts.js";
 import { handleTuiKey, type TuiTransition } from "./transition.js";
 import type { CreateInitialTuiStateOptions, TuiState } from "./types.js";
 
+export type TuiHandleKeyResult = {
+  dismissPopup: boolean;
+  exitCode?: number;
+};
+
 export type TuiStore = TuiState & {
   start(): () => void;
-  handleKey(key: TuiKey): void;
+  handleKey(key: TuiKey): TuiHandleKeyResult;
   setTerminalRows(rows: number): void;
   dismissToasts(): void;
   expireToasts(nowMs?: number): void;
@@ -36,6 +42,7 @@ export type TuiStore = TuiState & {
 
 export type TuiStoreOptions = {
   service: TuiObserverService;
+  source?: TuiSnapshotSource;
   initialSnapshot?: WosmSnapshot;
   initialState?: Omit<CreateInitialTuiStateOptions, "initialSnapshot" | "runtime">;
   exitOnFocusSuccess?: boolean;
@@ -52,20 +59,29 @@ export type TuiStoreOptions = {
 export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
   const runtime = createRuntimeOptions(options);
   const folderService = options.folderService ?? createNodeFolderService();
+  const source = options.source;
   let store: StoreApi<TuiStore>;
   let operations: TuiLocalOperationRunner;
-  const clientRuntime = createWosmClientRuntime({
-    service: options.service,
-    clientLabel: runtime.clientLabel,
-    ...(options.initialSnapshot === undefined ? {} : { initialSnapshot: options.initialSnapshot }),
-    hooks: createObserverBridgeHooks({
-      getStore: () => store,
-      getOperations: () => operations,
-    }),
-  });
+  const clientRuntime =
+    source === undefined
+      ? createWosmClientRuntime({
+          service: options.service,
+          clientLabel: runtime.clientLabel,
+          ...(options.initialSnapshot === undefined
+            ? {}
+            : { initialSnapshot: options.initialSnapshot }),
+          hooks: createObserverBridgeHooks({
+            getStore: () => store,
+            getOperations: () => operations,
+          }),
+        })
+      : undefined;
   operations = createTuiLocalOperationRunner({
     getStore: () => store,
-    service: bridgeOperationService(options.service, clientRuntime),
+    service:
+      clientRuntime === undefined
+        ? options.service
+        : bridgeOperationService(options.service, clientRuntime),
     folderService,
     runtime,
     clientLabel: runtime.clientLabel,
@@ -95,12 +111,18 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
       },
     }),
     start: (): (() => void) => {
+      if (source !== undefined) {
+        return attachTuiSnapshotSource(store, source);
+      }
+      if (clientRuntime === undefined) {
+        throw new Error("createTuiStore requires a runtime when no source is provided.");
+      }
       clientRuntime.start();
       return () => {
         void clientRuntime.stop();
       };
     },
-    handleKey: (key): void => {
+    handleKey: (key): TuiHandleKeyResult => {
       const transition = handleTuiKey(get(), key, {
         cwd: folderService.cwd(),
         homeDir: folderService.homeDir(),
@@ -114,6 +136,11 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
         operations,
         transition,
       );
+      const result: TuiHandleKeyResult = { dismissPopup: transition.dismissPopup === true };
+      if (transition.exitCode !== undefined) {
+        result.exitCode = transition.exitCode;
+      }
+      return result;
     },
     setTerminalRows: (rows): void => {
       set(clampDashboardStateScroll({ ...get(), terminalRows: rows }));
@@ -170,7 +197,7 @@ function createRuntimeOptions(options: TuiStoreOptions): RuntimeOptions {
 async function applyTransitionEffects(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
-  clientRuntime: WosmClientRuntime,
+  clientRuntime: WosmClientRuntime | undefined,
   runtime: RuntimeOptions,
   operations: TuiLocalOperationRunner,
   transition: TuiTransition,
@@ -184,7 +211,7 @@ async function applyTransitionEffects(
   }
 
   if (transition.reconcileReason !== undefined) {
-    await reconcileSnapshot(store, clientRuntime, transition.reconcileReason, runtime);
+    await reconcileSnapshot(store, service, clientRuntime, transition.reconcileReason, runtime);
   }
 
   for (const command of transition.commands ?? []) {
@@ -205,15 +232,21 @@ async function applyTransitionEffects(
 
 async function reconcileSnapshot(
   store: StoreApi<TuiStore>,
-  clientRuntime: WosmClientRuntime,
+  service: TuiObserverService,
+  clientRuntime: WosmClientRuntime | undefined,
   reason: string,
   runtime: Pick<RuntimeOptions, "clientLabel">,
 ): Promise<void> {
   try {
-    await clientRuntime.reconcile(reason);
-    // The reconciled snapshot, connected transition, and recovery toast land
-    // through the runtime's refresh hook before reconcile resolves; only the
-    // reconcile feedback toast is added here.
+    if (clientRuntime === undefined) {
+      const snapshot = await service.reconcile(reason);
+      store.setState(clampDashboardStateScroll(replaceSnapshot(store.getState(), snapshot)));
+    } else {
+      await clientRuntime.reconcile(reason);
+      // The reconciled snapshot, connected transition, and recovery toast land
+      // through the runtime's refresh hook before reconcile resolves; only the
+      // reconcile feedback toast is added here.
+    }
     store.setState(
       addTuiToast(store.getState(), {
         kind: "success",

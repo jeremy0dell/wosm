@@ -1,4 +1,4 @@
-// The anti-drift suite pinning the keymap DATA to the ported transition
+// The anti-drift suite pinning the keymap DATA to the shared transition
 // machine (the single behavioral source):
 //
 // 1. Inverse coverage — for every mode and a broad probe-key space, any key
@@ -13,10 +13,10 @@
 //    the transition reports dismissPopup/exitCode).
 import { describe, expect, it } from "bun:test";
 import { attentionAndFailuresSnapshot, manyProjectsSnapshot } from "../fixtures/scenarios.js";
-import { createInitialTuiState } from "../ported/state/screen.js";
-import type { TuiKey } from "../ported/state/keys.js";
-import { handleTuiKey } from "../ported/state/transition.js";
-import type { TuiState } from "../ported/state/types.js";
+import { createInitialTuiState } from "@wosm/dashboard-core";
+import type { TuiKey } from "@wosm/dashboard-core";
+import { handleTuiKey } from "@wosm/dashboard-core";
+import type { TuiState } from "@wosm/dashboard-core";
 import {
   deriveWosmMode,
   matchWosmBinding,

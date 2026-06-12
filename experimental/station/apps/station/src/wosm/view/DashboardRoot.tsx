@@ -11,9 +11,9 @@ import {
   isModalOverlayActive,
   observerHeaderStatusForConnection,
   snapshotLoadingLines,
-} from "../ported/components/Dashboard/content.js";
-import type { TuiStore } from "../ported/state/store.js";
-import { activeTuiToast, nextTuiToastExpiry } from "../ported/state/toasts.js";
+} from "@wosm/dashboard-core";
+import type { TuiStore } from "@wosm/dashboard-core";
+import { activeTuiToast, nextTuiToastExpiry } from "@wosm/dashboard-core";
 import { CommandPromptView } from "./CommandPromptView.js";
 import { DashboardHeaderRow, DashboardView, Divider } from "./DashboardView.js";
 import { OverlayHostView } from "./OverlayHostView.js";

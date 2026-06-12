@@ -11,9 +11,5 @@
     "noEmit": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  // Ported apps/tui test suites and fixtures keep upstream's typecheck
-  // posture (apps/tui excludes tests from tsc and its test/ dir sits outside
-  // include; vitest/bun run them untyped). Station-authored tests stay
-  // included.
-  "exclude": ["src/wosm/ported/**/*.test.ts", "src/wosm/test/**"]
+  "exclude": ["src/wosm/test/**"]
 }

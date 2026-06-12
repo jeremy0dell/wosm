@@ -1,5 +1,5 @@
 // OpenTUI port of apps/tui's BottomSheetFrame: an absolute-positioned,
-// bordered sheet over the lower dashboard, sized by the ported frame layout.
+// bordered sheet over the lower dashboard, sized by the shared frame layout.
 // The box paints its own background (no blank-background hack) and absorbs
 // mouse input as the sheet backdrop.
 import { TextAttributes } from "@opentui/core";
@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import {
   bottomSheetContentWidth,
   bottomSheetFrameLayout,
-} from "../../ported/components/BottomSheetFrame/layout.js";
+} from "@wosm/dashboard-core";
 import { WOSM_COLORS } from "../theme.js";
 import { useWosmMouse, wosmMouseProps } from "../wosmMouseContext.js";
 

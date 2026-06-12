@@ -1,15 +1,15 @@
 // Execution layer for the WOSM view's input. Keyboard input always flows
-// through the ported transition machine (single behavioral source); this
+// through the shared transition machine (single behavioral source); this
 // module is the semantic entry point mouse targets and chrome (footer hints)
 // use to reach the same machine, plus the few Station mouse extensions that
 // have no keyboard path in apps/tui (direct project-header collapse, wheel
-// paging). Every mutation here lands via store.handleKey or a ported pure
+// paging). Every mutation here lands via store.handleKey or a shared pure
 // state function — no bespoke screen logic.
 import type { StoreApi } from "zustand/vanilla";
-import { selectDashboardViewport } from "../ported/selectors/dashboardViewport.js";
-import { clampDashboardStateScroll, scrollDashboard } from "../ported/state/dashboardScroll.js";
-import type { TuiKey } from "../ported/state/keys.js";
-import type { TuiHandleKeyResult, TuiStore } from "../ported/state/store.js";
+import { selectDashboardViewport } from "@wosm/dashboard-core";
+import { clampDashboardStateScroll, scrollDashboard } from "@wosm/dashboard-core";
+import type { TuiKey } from "@wosm/dashboard-core";
+import type { TuiHandleKeyResult, TuiStore } from "@wosm/dashboard-core";
 import { sequenceToTuiKey } from "./sequenceToTuiKey.js";
 import { matchWosmBinding, deriveWosmMode, type WosmBinding } from "./wosmKeymap.js";
 
@@ -118,7 +118,7 @@ export function toggleProjectCollapsed(store: StoreApi<TuiStore>, projectId: str
   store.setState(clampDashboardStateScroll({ ...state, collapsedProjectIds }));
 }
 
-/** Wheel/indicator scrolling via the ported scroll math. */
+/** Wheel/indicator scrolling via the shared scroll math. */
 export function scrollWosmView(store: StoreApi<TuiStore>, delta: number): void {
   store.setState(scrollDashboard(store.getState(), delta));
 }

@@ -72,19 +72,19 @@ Bun also loads local env files, so `experimental/station/.env.local` can hold
 
 ## Consuming The Shared @wosm Packages
 
-Live observer mode consumes the repo's built packages: `@wosm/client` plus its
-`@wosm/contracts`, `@wosm/protocol`, and `@wosm/runtime` graph. Build them at
-the repo root before running Station:
+Live observer mode consumes the repo's built packages: `@wosm/client`,
+`@wosm/dashboard-core`, and their `@wosm/contracts`, `@wosm/protocol`, and
+`@wosm/runtime` graph. Build them at the repo root before running Station:
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-`scripts/link-wosm-packages.sh` symlinks `@wosm/client` and `@wosm/contracts`
-into `apps/station/node_modules`; the linked packages resolve their own
-dependencies through the repo's pnpm layout. Bun's `file:` dependencies copy
-the package without its transitive graph and Bun's `link:` protocol routes
+`scripts/link-wosm-packages.sh` symlinks the directly imported `@wosm`
+packages into `apps/station/node_modules`; the linked packages resolve their
+own dependencies through the repo's pnpm layout. Bun's `file:` dependencies
+copy the package without its transitive graph and Bun's `link:` protocol routes
 through the global `bun link` registry, so neither works from this isolated
 workspace — the symlink script is the proven mechanism. `bun install` prunes
 the links, so every package script that needs them (`station`, `dev`, `test`,

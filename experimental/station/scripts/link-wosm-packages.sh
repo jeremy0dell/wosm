@@ -7,7 +7,8 @@ set -euo pipefail
 # `bun link` registry, so neither resolves @wosm/client's workspace:*
 # dependencies from this isolated workspace. A plain relative symlink does:
 # the linked package keeps its real location, so @wosm/protocol, @wosm/runtime,
-# effect, and zod all resolve through the repo's own pnpm node_modules layout.
+# effect, string-width, zustand, and zod all resolve through the repo's own
+# pnpm node_modules layout.
 #
 # Re-run after `bun install` (bun prunes unknown node_modules entries); the
 # package.json scripts that need the packages chain this script first.
@@ -16,7 +17,7 @@ station_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_root="$(cd "${station_root}/../.." && pwd)"
 target_dir="${station_root}/apps/station/node_modules/@wosm"
 
-linked_packages=(client contracts runtime)
+linked_packages=(client contracts dashboard-core runtime)
 
 for package in "${linked_packages[@]}"; do
   dist_entry="${repo_root}/packages/${package}/dist/index.js"
@@ -49,5 +50,5 @@ for package in "${linked_packages[@]}"; do
   freshness="${freshness}${package}@${mtime}  "
 done
 
-echo "Linked @wosm/{client,contracts,runtime} into apps/station/node_modules."
+echo "Linked @wosm/{client,contracts,dashboard-core,runtime} into apps/station/node_modules."
 echo "dist builds: ${freshness}"

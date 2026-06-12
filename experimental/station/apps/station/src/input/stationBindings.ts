@@ -2,7 +2,7 @@ import type { StoreApi } from "zustand/vanilla";
 import { WOSM_OVERLAY_ID, type StationState } from "../state/types.js";
 import { createWosmOverlayLayer } from "../wosm/input/wosmOverlayLayer.js";
 import { routeWosmMouse } from "../wosm/input/wosmMouse.js";
-import type { TuiStore } from "../wosm/ported/state/store.js";
+import type { TuiStore } from "@wosm/dashboard-core";
 import { createKeymapStack, type KeymapLayer, type KeymapStack } from "./keymaps.js";
 import type { MouseBindings, RouteOutcome } from "./router.js";
 

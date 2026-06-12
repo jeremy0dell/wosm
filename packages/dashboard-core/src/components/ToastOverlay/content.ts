@@ -1,7 +1,6 @@
-// ADAPTED-EXTRACTION from apps/tui/src/components/ToastOverlay/ToastOverlay.tsx
-// (see ../../PROVENANCE.md): the pure toast presentation — title by kind,
-// border color name by kind, detail assembly, text width — verbatim bodies;
-// the view maps the Ink color names to theme hex.
+// The pure toast presentation — title by kind, border color name by kind,
+// detail assembly, text width. Render adapters map the color names to their
+// own palette (Ink color names, Station theme hex).
 import type { TuiToastEntry } from "../../state/types.js";
 
 export type ToastBorderColorName = "red" | "gray" | "green";

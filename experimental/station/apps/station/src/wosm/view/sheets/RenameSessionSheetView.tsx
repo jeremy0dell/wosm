@@ -1,7 +1,7 @@
 // OpenTUI port of apps/tui's RenameSessionBottomSheet.
-import { bottomSheetContentWidth } from "../../ported/components/BottomSheetFrame/layout.js";
-import { truncateCells } from "../../ported/components/WorktreeRow/layout.js";
-import type { TuiScreen } from "../../ported/state/types.js";
+import { bottomSheetContentWidth } from "@wosm/dashboard-core";
+import { truncateCells } from "@wosm/dashboard-core";
+import type { TuiScreen } from "@wosm/dashboard-core";
 import { EditableTextInputView } from "../EditableTextInputView.js";
 import { WOSM_COLORS } from "../theme.js";
 import { BottomSheetFrameView } from "./BottomSheetFrameView.js";

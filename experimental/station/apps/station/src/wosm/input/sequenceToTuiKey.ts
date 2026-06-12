@@ -1,4 +1,4 @@
-// Translates the router's normalized legacy byte sequences into the ported
+// Translates the router's normalized legacy byte sequences into the shared
 // machine's TuiKey vocabulary (apps/tui receives these pre-parsed from Ink;
 // Station receives raw legacy bytes after reply-stripping and kitty
 // translation). Full-sequence exact matching keeps bare Esc ("\x1b") and
@@ -6,7 +6,7 @@
 // dashboard has no vocabulary for (F-keys, unknown CSI) — the overlay layer
 // swallows those without dispatching, so stray escape sequences can never
 // leak into text-input modes as garbage characters.
-import type { TuiKey } from "../ported/state/keys.js";
+import type { TuiKey } from "@wosm/dashboard-core";
 
 const NAMED_SEQUENCES: Record<string, TuiKey> = {
   "\r": { input: "\r", return: true },
