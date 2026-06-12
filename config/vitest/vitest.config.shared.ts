@@ -16,6 +16,9 @@ export const wosmAliases = {
   "@wosm/contracts": fileURLToPath(
     new URL("../../packages/contracts/src/index.ts", import.meta.url),
   ),
+  "@wosm/dashboard-core": fileURLToPath(
+    new URL("../../packages/dashboard-core/src/index.ts", import.meta.url),
+  ),
   "@wosm/claude": fileURLToPath(
     new URL("../../integrations/harness/claude/src/index.ts", import.meta.url),
   ),

@@ -1,8 +1,8 @@
 // OpenTUI port of apps/tui's HelpOverlay: centered box-drawn panel above the
 // dashboard (absolute + zIndex; the dashboard must never reflow for it).
-// Lines come from the ported panel generator over the keymap's help content.
+// Lines come from the shared panel generator over the keymap's help content.
 import { WOSM_HELP_CONTENT } from "../input/wosmKeymap.js";
-import { helpPanelLayout, helpPanelLines } from "../ported/components/HelpOverlay/helpPanel.js";
+import { helpPanelLayout, helpPanelLines } from "@wosm/dashboard-core";
 import { WOSM_COLORS } from "./theme.js";
 import { useWosmMouse, wosmMouseProps } from "./wosmMouseContext.js";
 

@@ -1,11 +1,10 @@
 # Station WOSM View
 
 The full dashboard behind Ctrl-O / header-click, at parity with the
-`apps/tui` popup. Architecture: apps/tui's render-framework-free logic layer
-is ported verbatim under `ported/` (see `ported/PROVENANCE.md` for the
-file-by-file ledger, audit command, and deliberate divergences); the OpenTUI
-render layer under `view/` is the only rewrite. Input registers into
-Station's router: the overlay keymap slot delegates to the ported machine
+`apps/tui` popup. Architecture: render-framework-free dashboard behavior comes
+from `@wosm/dashboard-core`; the OpenTUI render layer under `view/` and the
+Station input/mouse plumbing stay local. Input registers into Station's router:
+the overlay keymap slot delegates to the shared transition machine
 (`input/wosmOverlayLayer.ts`), and mouse targets resolve through one pure
 `routeWosmMouse` (`input/wosmMouse.ts`).
 
@@ -29,7 +28,7 @@ Ctrl-Q always exits Station (reserved chords pierce the overlay).
 
 ## Keymap
 
-The keymap is data over the ported transition machine
+The keymap is data over the shared transition machine
 (`input/wosmKeymap.ts`): per-mode binding tables that drive the help overlay
 and the mouse vocabulary. Runtime keyboard dispatch always goes through the
 machine — a table omission cannot change behavior; it fails
@@ -39,7 +38,6 @@ declared-vs-derived-outcome checks).
 ## Acceptance suite
 
 - `bun run test` — everything below; `bun run typecheck`.
-- Ported logic parity: `ported/**/*.test.ts` (upstream suites, bun:test).
 - Keymap anti-drift: `input/wosmKeymap.test.ts`.
 - Sequence translation: `input/sequenceToTuiKey.test.ts`.
 - Mouse guard matrix + click/key equivalence: `input/wosmMouse.test.ts`.
@@ -48,13 +46,13 @@ declared-vs-derived-outcome checks).
 - Golden frames: `view/dashboard.golden.test.tsx` (scenario × size matrix +
   span color probes), `view/modals.golden.test.tsx` (all ten modal views).
 - Isolation: `importBoundaries.test.ts` (no apps/tui imports, only linked
-  @wosm packages, ported/ render-free, no `focusable`).
+  @wosm packages, no local ported fork, no `focusable`).
 
 ## Stubbed pending client plan PR 4 (command dispatch)
 
-`store/stubObserverService.ts` — mutating commands run the REAL ported
-operations paths (pending rows, TTL revert, toasts) and resolve as rejected
-receipts naming the gate. Un-stubbing is swapping this service for the
+`store/stubObserverService.ts` — mutating commands run the shared operations
+paths (pending rows, TTL revert, toasts) and resolve as rejected receipts
+naming the gate. Un-stubbing is swapping this service for the
 @wosm/client-backed one in `store/wosmViewStore.ts`; `Z` refresh and
 row-activate focus start working with it. Jump-to-session on click stays a
 toast until then by design.
@@ -64,6 +62,6 @@ toast until then by design.
 - Footer hint chips and help rows are not click targets (routing supports
   `footerHint` and is tested; the footer renders as one truncated string).
 - Top-row widgets (time/weather) are not rendered; the responsive header
-  drop logic is ported and tested.
+  drop logic is shared and tested.
 - The attention marker is static red `!` per the visual notes
   recommendation (pulse deferred).

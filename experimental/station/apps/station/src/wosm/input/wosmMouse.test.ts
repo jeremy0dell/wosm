@@ -5,9 +5,9 @@
 import { describe, expect, it } from "bun:test";
 import type { StoreApi } from "zustand/vanilla";
 import { manyProjectsSnapshot } from "../fixtures/scenarios.js";
-import { selectDashboardViewport } from "../ported/selectors/dashboardViewport.js";
-import { addTuiToast } from "../ported/state/toasts.js";
-import { createTuiStore, type TuiStore } from "../ported/state/store.js";
+import { selectDashboardViewport } from "@wosm/dashboard-core";
+import { addTuiToast } from "@wosm/dashboard-core";
+import { createTuiStore, type TuiStore } from "@wosm/dashboard-core";
 import { FakeStationSource } from "../test/support/fakeStationSource.js";
 import { FakeTuiObserverService } from "../test/support/fakeObserverService.js";
 import { routeWosmMouse } from "./wosmMouse.js";

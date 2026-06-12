@@ -1,3 +1,9 @@
+import {
+  cellWidth,
+  dashboardFooterLabel,
+  dashboardHeaderLine,
+  projectHeaderLabel,
+} from "@wosm/dashboard-core";
 import { Box, renderToString, Text } from "ink";
 import type { ReactElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
@@ -5,8 +11,7 @@ import stringWidth from "string-width";
 import { describe, expect, it, vi } from "vitest";
 import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
 import { stripTerminalLinks } from "../Link/Link.js";
-import { cellWidth } from "../WorktreeRow/layout.js";
-import { Dashboard, dashboardHeaderLine } from "./Dashboard.js";
+import { Dashboard } from "./Dashboard.js";
 
 describe("Dashboard", () => {
   it("respects collapsed project ids when rendering groups and slots", () => {
@@ -91,6 +96,20 @@ describe("Dashboard", () => {
     expect(props.children).toContain("Z:refresh");
     expect(props.color).toBeUndefined();
     expect(props.dimColor).toBe(false);
+  });
+
+  it("keeps dashboard chrome labels in pure helpers", () => {
+    const snapshot = createDashboardSnapshot();
+
+    expect(projectHeaderLabel(required(snapshot.projects[0]), false)).toBe(
+      "▼ web - 7 worktrees | codex",
+    );
+    expect(
+      dashboardFooterLabel({ columns: 20, quitHint: "Q/esc:close", firstRun: false }),
+    ).toContain("Q/esc:close");
+    expect(dashboardFooterLabel({ columns: 80, quitHint: "Q:quit", firstRun: true })).toBe(
+      "A:Add Project Q:quit",
+    );
   });
 
   it("renders local operation rows with the intended slot labels", () => {

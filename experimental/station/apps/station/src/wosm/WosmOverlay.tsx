@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import type { StoreApi } from "zustand/vanilla";
 import type { MouseTargetRef, StationMouseEvent } from "../input/router.js";
 import type { WosmMouseEventKind, WosmMouseTarget } from "./input/wosmMouse.js";
-import type { TuiStore } from "./ported/state/store.js";
+import type { TuiStore } from "@wosm/dashboard-core";
 import { DashboardRoot } from "./view/DashboardRoot.js";
 import { WOSM_COLORS } from "./view/theme.js";
 import { WosmMouseProvider, type WosmMouseDispatch } from "./view/wosmMouseContext.js";
@@ -54,7 +54,7 @@ export function wosmPopupLayout(terminalWidth: number, terminalHeight: number): 
 }
 
 /**
- * WOSM mode: the full dashboard at parity with the apps/tui popup (ported
+ * WOSM mode: the full dashboard at parity with the apps/tui popup (shared
  * logic + OpenTUI render layer under ./), floating as a centered, bordered
  * popup above the still-visible workspace — the spike plan's overlay-above-
  * the-session-workspace shape. View state lives in the store main.tsx owns,

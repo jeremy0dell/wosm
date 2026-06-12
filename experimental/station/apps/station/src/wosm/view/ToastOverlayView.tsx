@@ -1,19 +1,19 @@
 // OpenTUI port of apps/tui's ToastOverlay: absolute-positioned box above the
-// dashboard's bottom-right, sized by the ported toast layout, with the toast
-// copy and color decisions coming from the ported content module. Ink's
+// dashboard's bottom-right, sized by the shared toast layout, with the toast
+// copy and color decisions coming from the shared content module. Ink's
 // FloatingBlankBackground hack is unnecessary — the box paints its own
 // background. Click dismisses (Station mouse extension).
 import { TextAttributes } from "@opentui/core";
 import {
   toastBorderColor,
+  type ToastBorderColorName,
   toastDetail,
+  toastOverlayLayout,
   toastTextWidth,
   toastTitle,
-  type ToastBorderColorName,
-} from "../ported/components/ToastOverlay/content.js";
-import { toastOverlayLayout } from "../ported/components/ToastOverlay/layout.js";
-import { truncateCells } from "../ported/components/WorktreeRow/layout.js";
-import type { TuiToastEntry } from "../ported/state/types.js";
+  truncateCells,
+  type TuiToastEntry,
+} from "@wosm/dashboard-core";
 import { WOSM_COLORS } from "./theme.js";
 import { useWosmMouse, wosmMouseProps } from "./wosmMouseContext.js";
 

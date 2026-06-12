@@ -1,9 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
-import { createInitialTuiState } from "../state/screen.js";
-import type { TuiViewState } from "../state/types.js";
+import type { TuiViewState } from "@wosm/dashboard-core";
 import {
   choiceValueByKey,
+  createInitialTuiState,
   isSelectionKey,
   keyChoices,
   SELECTION_KEYS,
@@ -14,7 +12,9 @@ import {
   selectProjectGroups,
   selectVisibleRows,
   worktreeRowDisplayTitle,
-} from "./selectors.js";
+} from "@wosm/dashboard-core";
+import { describe, expect, it } from "vitest";
+import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
 
 describe("TUI selectors", () => {
   it("assigns selection keys in order without 0 or uppercase keys and caps at 35", () => {

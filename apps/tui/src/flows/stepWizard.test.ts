@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
   backWizardStep,
   createStepWizardState,
   enterWizardStep,
   resetWizardStep,
-} from "./stepWizard.js";
+} from "@wosm/dashboard-core";
+import { describe, expect, it } from "vitest";
 
 describe("step wizard helpers", () => {
   it("tracks step history without owning domain state", () => {

@@ -1,8 +1,8 @@
 // Enforces the experiment's dependency-isolation rules where root CI cannot
 // (Station is excluded from it): the WOSM view may consume only the built,
-// link-script-provided @wosm packages; apps/tui is copy provenance, never an
-// import; and the ported logic layer stays render-framework-free so its
-// extraction into a shared package at the spike verdict stays mechanical.
+// link-script-provided @wosm packages; apps/tui is the old provenance source,
+// never an import; and the shared dashboard core must stay the only local
+// route to TUI dashboard logic.
 // The focusable scan guards the one-focus-system decision: OpenTUI's
 // focusable/focus() must stay unused (the coordination store owns focus).
 import { describe, expect, it } from "bun:test";
@@ -10,7 +10,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const WOSM_ROOT = new URL(".", import.meta.url).pathname;
-const LINKED_WOSM_PACKAGES = new Set(["client", "contracts", "runtime"]);
+const LINKED_WOSM_PACKAGES = new Set(["client", "contracts", "dashboard-core", "runtime"]);
 
 function wosmSourceFiles(): string[] {
   const files: string[] = [];
@@ -45,7 +45,10 @@ describe("wosm view import boundaries", () => {
   const files = wosmSourceFiles();
 
   it("finds the wosm tree", () => {
-    expect(files.length).toBeGreaterThan(50);
+    const relFiles = new Set(files.map((file) => relative(WOSM_ROOT, file)));
+    expect(relFiles.has("WosmOverlay.tsx")).toBe(true);
+    expect(relFiles.has("input/wosmKeymap.ts")).toBe(true);
+    expect(relFiles.has("view/DashboardView.tsx")).toBe(true);
   });
 
   it("never imports from apps/tui or ink", () => {
@@ -76,24 +79,10 @@ describe("wosm view import boundaries", () => {
     expect(failures).toEqual([]);
   });
 
-  it("keeps the ported logic layer free of render frameworks", () => {
-    const failures: string[] = [];
-    for (const file of files) {
-      const rel = relative(WOSM_ROOT, file);
-      if (!rel.startsWith("ported/")) {
-        continue;
-      }
-      for (const specifier of importsOf(file)) {
-        if (
-          specifier.startsWith("@opentui/") ||
-          specifier === "react" ||
-          specifier.startsWith("react/") ||
-          specifier.startsWith("react-")
-        ) {
-          failures.push(`${rel} imports ${specifier}`);
-        }
-      }
-    }
+  it("does not carry a local ported dashboard fork", () => {
+    const failures = files
+      .map((file) => relative(WOSM_ROOT, file))
+      .filter((rel) => rel.startsWith("ported/"));
     expect(failures).toEqual([]);
   });
 

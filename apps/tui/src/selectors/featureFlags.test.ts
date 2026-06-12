@@ -1,6 +1,6 @@
+import { selectTuiFeatureFlags } from "@wosm/dashboard-core";
 import { describe, expect, it } from "vitest";
 import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
-import { selectTuiFeatureFlags } from "./featureFlags.js";
 
 describe("TUI feature flag selectors", () => {
   it("treats missing feature flags as default evaluated client flags", () => {

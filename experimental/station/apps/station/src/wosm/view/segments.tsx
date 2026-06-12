@@ -1,9 +1,9 @@
-// Renders the ported layout's RowSegment vocabulary with OpenTUI styled
+// Renders the shared layout's RowSegment vocabulary with OpenTUI styled
 // spans — the one place Ink's {color, dimColor, underline, url} segment
 // props meet OpenTUI's {fg, attributes}. PR urls render as underlined text
 // (no OSC8 link yet); upstream's Link wrapper is cosmetic there too.
 import { TextAttributes } from "@opentui/core";
-import type { RowSegment } from "../ported/components/WorktreeRow/layout.js";
+import type { RowSegment } from "@wosm/dashboard-core";
 import { rowColorToHex } from "./theme.js";
 import { Throbber } from "./Throbber.js";
 

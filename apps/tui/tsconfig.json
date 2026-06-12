@@ -9,6 +9,8 @@
       "@wosm/client": ["../../packages/client/dist/index.d.ts"],
       "@wosm/config": ["../../packages/config/dist/index.d.ts"],
       "@wosm/contracts": ["../../packages/contracts/dist/index.d.ts"],
+      "@wosm/dashboard-core": ["../../packages/dashboard-core/dist/index.d.ts"],
+      "@wosm/dashboard-core/*": ["../../packages/dashboard-core/dist/*"],
       "@wosm/protocol": ["../../packages/protocol/dist/index.d.ts"],
       "@wosm/runtime": ["../../packages/runtime/dist/index.d.ts"]
     }

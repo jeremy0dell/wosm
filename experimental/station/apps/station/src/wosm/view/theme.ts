@@ -1,8 +1,8 @@
-// Ink color-name -> hex tokens for the WOSM view. The ported layout speaks
+// Ink color-name -> hex tokens for the WOSM view. The shared layout speaks
 // Ink's named RowColor vocabulary (plus the literal purple hex); OpenTUI
 // takes fg hex strings. Values match the terminal-ish palette the rest of
 // Station already uses.
-import { ROW_COLOR_PURPLE, type RowColor } from "../ported/components/WorktreeRow/layout.js";
+import { ROW_COLOR_PURPLE, type RowColor } from "@wosm/dashboard-core";
 
 export const WOSM_COLORS = {
   gray: "#9ca3af",

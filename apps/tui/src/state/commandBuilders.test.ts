@@ -1,9 +1,3 @@
-import { describe, expect, it } from "vitest";
-import {
-  createCommandSnapshot,
-  createDashboardSnapshot,
-  createPromptCapableSnapshot,
-} from "../../test/fixtures/snapshots.js";
 import {
   buildCleanupCommand,
   buildCreateSessionCommand,
@@ -15,7 +9,13 @@ import {
   buildStartAgentCommand,
   canSendPromptToRow,
   cleanupForceRequired,
-} from "./commandBuilders.js";
+} from "@wosm/dashboard-core";
+import { describe, expect, it } from "vitest";
+import {
+  createCommandSnapshot,
+  createDashboardSnapshot,
+  createPromptCapableSnapshot,
+} from "../../test/fixtures/snapshots.js";
 
 describe("TUI command builders", () => {
   it("maps focusable rows to terminal.focus using the agent session", () => {

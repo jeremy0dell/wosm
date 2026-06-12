@@ -1,5 +1,5 @@
-// The WOSM view's keymap as data. The ported transition machine
-// (ported/state/transition.ts) stays the single behavioral source — these
+// The WOSM view's keymap as data. The shared transition machine
+// (@wosm/dashboard-core transition.ts) stays the single behavioral source — these
 // tables are the introspection contract over it: they drive the help overlay
 // and footer hints, give mouse targets their action vocabulary, and are
 // pinned to the machine by tests (wosmKeymap.test.ts asserts every
@@ -8,9 +8,9 @@
 // Runtime keyboard dispatch does NOT branch on these tables; it always goes
 // through the machine, so a table omission can never change behavior — it
 // fails the coverage test instead.
-import { SELECTION_KEYS, type SelectionKey } from "../ported/selectors/selectors.js";
-import type { TuiKey } from "../ported/state/keys.js";
-import type { TuiState } from "../ported/state/types.js";
+import { SELECTION_KEYS, type SelectionKey } from "@wosm/dashboard-core";
+import type { TuiKey } from "@wosm/dashboard-core";
+import type { TuiState } from "@wosm/dashboard-core";
 
 export type WosmInputMode =
   | "dashboard"
@@ -280,7 +280,7 @@ function matchesPattern(pattern: WosmKeyPattern, key: TuiKey): boolean {
     case "slot":
       return isSlotKey(key);
     case "text":
-      // ctrl is deliberately NOT excluded: the ported text handlers read
+      // ctrl is deliberately NOT excluded: the shared text handlers read
       // key.input regardless of ctrl (Ctrl-U arrives as {input:"u", ctrl}
       // and inserts "u", exactly as apps/tui behaves under Ink). The global
       // Ctrl-C binding resolves first, so the escape hatch survives.

@@ -1,5 +1,5 @@
 // Station command dispatch is client plan PR 4 (gated behind the input
-// router, now landed). Until it ships, the WOSM view runs the REAL ported
+// router, now landed). Until it ships, the WOSM view runs the shared
 // operations layer against this stub service: a dispatched command shows its
 // genuine pending local-row visuals for the dispatch delay, then resolves as
 // a rejected receipt whose SafeError names the gate — so the rows, throbbers,
@@ -7,7 +7,7 @@
 // Un-stubbing is swapping this service for the real @wosm/client-backed one.
 import type { CommandId, SafeError, WosmEvent } from "@wosm/contracts";
 import type { StationWosmStateSource } from "../../sources/types.js";
-import type { TuiObserverService } from "../ported/services/types.js";
+import type { TuiObserverService } from "@wosm/dashboard-core";
 
 export const STUB_DISPATCH_DELAY_MS = 900;
 

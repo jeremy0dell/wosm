@@ -1,8 +1,8 @@
 // OpenTUI port of apps/tui's AddProjectBottomSheet (start / choose / review /
-// success / failed), over the ported flow state and row selectors.
-import { addProjectRows } from "../../ported/flows/addProject/rows.js";
-import type { AddProjectFlowState } from "../../ported/flows/addProject/types.js";
-import { bottomSheetContentWidth } from "../../ported/components/BottomSheetFrame/layout.js";
+// success / failed), over the shared flow state and row selectors.
+import { addProjectRows } from "@wosm/dashboard-core";
+import type { AddProjectFlowState } from "@wosm/dashboard-core";
+import { bottomSheetContentWidth } from "@wosm/dashboard-core";
 import { EditableTextInputView } from "../EditableTextInputView.js";
 import { BottomSheetFrameView } from "./BottomSheetFrameView.js";
 import {

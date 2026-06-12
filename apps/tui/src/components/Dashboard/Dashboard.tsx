@@ -1,26 +1,25 @@
-import type { ProjectView, WosmSnapshot } from "@wosm/contracts";
+import type { WosmSnapshot } from "@wosm/contracts";
+import type { KeyedChoice, TuiScreen, TuiViewState } from "@wosm/dashboard-core";
+import {
+  type DashboardHeaderStatus,
+  type DashboardViewportItem,
+  dashboardFooterLabel,
+  dashboardHeaderLine,
+  emptyProjectLabel,
+  FIRST_RUN_BODY_LABEL,
+  layoutWorktreeRowGrid,
+  projectHeaderLabel,
+  type RowGridLayout,
+  rowGridInputForViewportItem,
+  scrollIndicatorLabel,
+  selectDashboardViewport,
+  truncateCells,
+} from "@wosm/dashboard-core";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
-import stringWidth from "string-width";
-import {
-  type DashboardViewportItem,
-  selectDashboardViewport,
-} from "../../selectors/dashboardViewport.js";
-import type { KeyedChoice } from "../../selectors/selectors.js";
-import type { TuiScreen, TuiViewState } from "../../state/types.js";
 import { useTuiMode } from "../../tuiMode.js";
 import type { TopRowWidgetView } from "../../widgets/types.js";
-import {
-  layoutWorktreeRowGrid,
-  type RowGridLayout,
-  type RowGridRowInput,
-  truncateCells,
-} from "../WorktreeRow/layout.js";
-import {
-  WorktreeRowLayoutView,
-  worktreeRowGridInput,
-  worktreeStyleRowGridInput,
-} from "../WorktreeRow/WorktreeRow.js";
+import { WorktreeRowLayoutView } from "../WorktreeRow/WorktreeRow.js";
 
 export type DashboardProps = {
   snapshot: WosmSnapshot;
@@ -30,11 +29,6 @@ export type DashboardProps = {
   columns?: number;
   topRowWidgets?: readonly TopRowWidgetView[];
   observerStatus?: DashboardHeaderStatus;
-};
-
-export type DashboardHeaderStatus = {
-  full: string;
-  compact?: string;
 };
 
 export function Dashboard({
@@ -116,84 +110,6 @@ export function DashboardHeader({
   );
 }
 
-export function dashboardHeaderLine({
-  productLabel,
-  columns,
-  status,
-  widgets,
-}: {
-  productLabel: string;
-  columns: number;
-  status?: DashboardHeaderStatus;
-  widgets: readonly TopRowWidgetView[];
-}): string {
-  const safeColumns = Math.max(1, columns);
-  const productWidth = stringWidth(productLabel);
-  if (productWidth >= safeColumns) {
-    return productLabel;
-  }
-
-  if (status !== undefined) {
-    return dashboardHeaderLineWithStatus({
-      productLabel,
-      productWidth,
-      safeColumns,
-      status,
-      widgets,
-    });
-  }
-
-  if (widgets.length === 0) {
-    return productLabel;
-  }
-
-  for (let visibleCount = widgets.length; visibleCount > 0; visibleCount -= 1) {
-    const strip = widgetStrip(widgets, visibleCount);
-    const stripWidth = stringWidth(strip);
-    const gapWidth = safeColumns - productWidth - stripWidth;
-    if (gapWidth >= 1) {
-      return `${productLabel}${" ".repeat(gapWidth)}${strip}`;
-    }
-  }
-
-  return productLabel;
-}
-
-function dashboardHeaderLineWithStatus(input: {
-  productLabel: string;
-  productWidth: number;
-  safeColumns: number;
-  status: DashboardHeaderStatus;
-  widgets: readonly TopRowWidgetView[];
-}): string {
-  for (const statusText of statusTextCandidates(input.status)) {
-    for (let visibleCount = input.widgets.length; visibleCount >= 0; visibleCount -= 1) {
-      const widgets = widgetStrip(input.widgets, visibleCount);
-      const strip = widgets.length === 0 ? statusText : `${statusText}  ${widgets}`;
-      const stripWidth = stringWidth(strip);
-      const gapWidth = input.safeColumns - input.productWidth - stripWidth;
-      if (gapWidth >= 1) {
-        return `${input.productLabel}${" ".repeat(gapWidth)}${strip}`;
-      }
-    }
-  }
-  return input.productLabel;
-}
-
-function statusTextCandidates(status: DashboardHeaderStatus): string[] {
-  if (status.compact === undefined || status.compact === status.full) {
-    return [status.full];
-  }
-  return [status.full, status.compact];
-}
-
-function widgetStrip(widgets: readonly TopRowWidgetView[], visibleCount: number): string {
-  return widgets
-    .slice(0, visibleCount)
-    .map((widget) => widget.text)
-    .join("  ");
-}
-
 function DashboardDivider({ columns }: { columns: number }) {
   return (
     <Box flexShrink={0}>
@@ -209,10 +125,11 @@ function ScrollIndicatorRow({
   direction: "above" | "below";
   hiddenCount: number;
 }) {
-  const marker = direction === "above" ? "↑" : "↓";
   return (
     <Box flexShrink={0} height={1}>
-      {hiddenCount > 0 ? <Text color="gray">{`${marker} ${hiddenCount} hidden`}</Text> : null}
+      {hiddenCount > 0 ? (
+        <Text color="gray">{scrollIndicatorLabel(direction, hiddenCount)}</Text>
+      ) : null}
     </Box>
   );
 }
@@ -220,7 +137,7 @@ function ScrollIndicatorRow({
 function FirstRunBody({ columns }: { columns: number }) {
   return (
     <Box flexDirection="column" flexGrow={1} flexShrink={1} overflowY="hidden">
-      <Text>{truncateCells("No projects configured yet.", columns)}</Text>
+      <Text>{truncateCells(FIRST_RUN_BODY_LABEL, columns)}</Text>
     </Box>
   );
 }
@@ -282,88 +199,26 @@ function DashboardViewportRow({
   }
 }
 
-function rowGridInputForViewportItem(
-  item: DashboardViewportItem,
-  keyByRow: ReadonlyMap<string, string>,
-): RowGridRowInput | undefined {
-  if (item.type === "worktree") {
-    if (item.pendingRemove !== undefined) {
-      return worktreeStyleRowGridInput({
-        id: item.id,
-        slot: undefined,
-        marker: { kind: "throbber", variant: "braille" },
-        title: item.displayTitle,
-        activity: "removing worktree...",
-        activityImportance: "meaningful",
-        activityOverflow: "rowSlack",
-      });
-    }
-    if (item.pendingStart !== undefined) {
-      const activity =
-        item.pendingStart.operation === "resumeAgent" ? "resuming..." : "starting...";
-      return worktreeStyleRowGridInput({
-        id: item.id,
-        slot: keyByRow.get(item.row.id),
-        marker: { kind: "throbber", variant: "braille" },
-        title: item.displayTitle,
-        activity,
-        activityImportance: "meaningful",
-        activityOverflow: "rowSlack",
-      });
-    }
-    return worktreeRowGridInput({
-      id: item.id,
-      row: item.row,
-      slot: keyByRow.get(item.row.id),
-      title: item.displayTitle,
-    });
-  }
-  if (item.type !== "createLocalRow") {
-    return undefined;
-  }
-  if (item.row.status === "failed") {
-    return worktreeStyleRowGridInput({
-      id: item.id,
-      slot: undefined,
-      marker: { kind: "text", text: "!" },
-      title: item.row.branch,
-      activity: item.row.error.message,
-      activityImportance: "meaningful",
-      activityOverflow: "rowSlack",
-      color: "red",
-    });
-  }
-  return worktreeStyleRowGridInput({
-    id: item.id,
-    slot: undefined,
-    marker: { kind: "throbber", variant: "braille" },
-    title: item.row.branch,
-    agent: item.row.harnessProvider,
-    activity: "starting session...",
-    activityImportance: "meaningful",
-    activityOverflow: "rowSlack",
-  });
-}
-
 function ProjectHeaderRow({
   columns,
   project,
   collapsed,
 }: {
   columns: number;
-  project: ProjectView;
+  project: Extract<DashboardViewportItem, { type: "projectHeader" }>["project"];
   collapsed: boolean;
 }) {
-  const label = `${collapsed ? "▶" : "▼"} ${project.label} - ${
-    project.counts.worktrees
-  } worktrees | ${project.defaults.harness}`;
-  return <Text bold>{truncateCells(label, columns)}</Text>;
+  return <Text bold>{truncateCells(projectHeaderLabel(project, collapsed), columns)}</Text>;
 }
 
-function EmptyProjectRow({ columns, project }: { columns: number; project: ProjectView }) {
-  return (
-    <Text color="gray">{truncateCells(` ${project.counts.worktrees} worktrees`, columns)}</Text>
-  );
+function EmptyProjectRow({
+  columns,
+  project,
+}: {
+  columns: number;
+  project: Extract<DashboardViewportItem, { type: "emptyProject" }>["project"];
+}) {
+  return <Text color="gray">{truncateCells(emptyProjectLabel(project), columns)}</Text>;
 }
 
 function DashboardFooter({
@@ -375,11 +230,7 @@ function DashboardFooter({
   quitHint: string;
   firstRun?: boolean;
 }) {
-  const full = firstRun
-    ? `A:Add Project ${quitHint}`
-    : `N:new A:add R:rename Z:refresh 1-9/a-z:open X:rm /:search C:fold H:help ${quitHint}`;
-  const compactClose = `Q/esc:close N:new A:add Z:refresh 1-9/a-z:open X:remove /:search H:help`;
-  const label = quitHint === "Q/esc:close" && full.length > columns ? compactClose : full;
+  const label = dashboardFooterLabel({ columns, quitHint, firstRun });
   return (
     <Box flexShrink={0}>
       <Text wrap="truncate-end">{label}</Text>

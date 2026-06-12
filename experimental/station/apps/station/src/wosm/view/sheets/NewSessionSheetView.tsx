@@ -2,16 +2,16 @@
 // pickProject / pickAgent). Picker lines are click targets dispatching their
 // slot key through the wosm mouse router.
 import type { ProjectView, WosmSnapshot } from "@wosm/contracts";
-import { type NewSessionFlowState, selectedProject } from "../../ported/flows/newSession.js";
+import { type NewSessionFlowState, selectedProject } from "@wosm/dashboard-core";
 import {
   bottomSheetContentWidth,
   newSessionContentRowCount,
-} from "../../ported/components/BottomSheetFrame/layout.js";
+} from "@wosm/dashboard-core";
 import {
   selectNewSessionHarnessChoices,
   selectNewSessionHarnessOptions,
   selectNewSessionProjectChoices,
-} from "../../ported/selectors/selectors.js";
+} from "@wosm/dashboard-core";
 import { EditableTextInputView } from "../EditableTextInputView.js";
 import { WOSM_COLORS } from "../theme.js";
 import { useWosmMouse, wosmMouseProps } from "../wosmMouseContext.js";

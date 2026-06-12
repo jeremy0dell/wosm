@@ -5,7 +5,7 @@
 // Hover is deliberately absent — it is component-local presentation state
 // and never touches a store.
 import type { StoreApi } from "zustand/vanilla";
-import type { TuiStore } from "../ported/state/store.js";
+import type { TuiStore } from "@wosm/dashboard-core";
 import {
   dismissWosmToasts,
   dispatchBindingClick,

@@ -1,9 +1,9 @@
 import { createObserverService } from "@wosm/client";
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
+import type { TuiObserverService, TuiRunResult } from "@wosm/dashboard-core";
 import { render } from "ink";
 import type { ComponentProps } from "react";
 import { App } from "./App/App.js";
-import type { TuiObserverService, TuiRunResult } from "./services/types.js";
 import { resolveTuiModeFromEnv, TuiModeProvider } from "./tuiMode.js";
 import type { TopRowWidgetRuntimeDeps, TuiConfig } from "./widgets/types.js";
 

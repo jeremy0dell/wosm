@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import {
   clampEditableTextCursor,
   type EditableTextInputState,
-} from "../ported/components/EditableTextInput/editing.js";
+} from "@wosm/dashboard-core";
 import { WOSM_COLORS } from "./theme.js";
 
 export type EditableTextInputViewProps = EditableTextInputState & {

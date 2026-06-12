@@ -1,8 +1,8 @@
+import { helpPanelLayout, TUI_HELP_CONTENT } from "@wosm/dashboard-core";
 import { Box, renderToString } from "ink";
 import { describe, expect, it } from "vitest";
 import { createZeroWorktreeSnapshot } from "../../../../test/fixtures/snapshots.js";
 import { Dashboard } from "../../Dashboard/Dashboard.js";
-import { helpPanelLayout } from "../../HelpOverlay/HelpOverlay.js";
 import { OverlayHost } from "../../OverlayHost/OverlayHost.js";
 import { TuiShell } from "../TuiShell.js";
 
@@ -31,7 +31,7 @@ describe("TuiShell", () => {
     const rows = 24;
     const withoutOverlay = renderShell(columns, rows, undefined).split("\n");
     const withOverlay = renderShell(columns, rows, "help").split("\n");
-    const layout = helpPanelLayout(columns, rows);
+    const layout = helpPanelLayout(columns, rows, TUI_HELP_CONTENT);
 
     for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
       if (rowIndex >= layout.top && rowIndex < layout.top + layout.height) {
@@ -47,7 +47,7 @@ describe("TuiShell", () => {
   ])("keeps the help panel inside the %s terminal without moving the footer", (_label, columns, rows, footerFragment) => {
     const frame = renderShell(columns, rows, "help");
     const lines = frame.split("\n");
-    const layout = helpPanelLayout(columns, rows);
+    const layout = helpPanelLayout(columns, rows, TUI_HELP_CONTENT);
 
     expect(lines).toHaveLength(rows);
     expect(layout.left).toBeGreaterThanOrEqual(0);

@@ -2,9 +2,8 @@
 // for search, collapse, remove-slot/confirm, and rename-slot modes, rendered
 // in a fixed status layer above the footer (absolute bottom, like the
 // upstream FixedStatusLayer at bottom:3). The prompt copy and color come
-// from the ported content module so they stay under the drift audit.
-import { commandPromptLineForScreen } from "../ported/components/Dashboard/content.js";
-import type { TuiScreen } from "../ported/state/types.js";
+// from the shared content module so both apps render the same lines.
+import { commandPromptLineForScreen, type TuiScreen } from "@wosm/dashboard-core";
 import { WOSM_COLORS } from "./theme.js";
 
 export function CommandPromptView({ screen }: { screen: TuiScreen }) {

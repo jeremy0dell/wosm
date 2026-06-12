@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
   clampDashboardScrollOffset,
   DASHBOARD_FIXED_ROW_HEIGHTS,
   dashboardBodyRows,
   dashboardFixedRows,
-} from "./layout.js";
+} from "@wosm/dashboard-core";
+import { describe, expect, it } from "vitest";
 
 describe("dashboard layout geometry", () => {
   it("derives fixed rows from named dashboard regions", () => {

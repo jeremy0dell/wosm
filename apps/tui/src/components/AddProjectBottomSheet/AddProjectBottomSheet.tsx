@@ -1,6 +1,6 @@
-import { addProjectRows } from "../../flows/addProject/rows.js";
-import type { AddProjectFlowState } from "../../flows/addProject/types.js";
-import { BottomSheetFrame, bottomSheetContentWidth } from "../BottomSheetFrame/BottomSheetFrame.js";
+import type { AddProjectFlowState } from "@wosm/dashboard-core";
+import { addProjectRows, bottomSheetContentWidth } from "@wosm/dashboard-core";
+import { BottomSheetFrame } from "../BottomSheetFrame/BottomSheetFrame.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
 import {
   Fill,

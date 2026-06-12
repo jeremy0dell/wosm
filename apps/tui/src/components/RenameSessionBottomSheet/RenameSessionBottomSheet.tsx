@@ -1,9 +1,9 @@
+import type { TuiScreen } from "@wosm/dashboard-core";
+import { bottomSheetContentWidth, truncateCells } from "@wosm/dashboard-core";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
-import type { TuiScreen } from "../../state/types.js";
-import { BottomSheetFrame, bottomSheetContentWidth } from "../BottomSheetFrame/BottomSheetFrame.js";
+import { BottomSheetFrame } from "../BottomSheetFrame/BottomSheetFrame.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
-import { truncateCells } from "../WorktreeRow/layout.js";
 
 export type RenameSessionBottomSheetProps = {
   state: Extract<TuiScreen, { name: "renameSession"; step: "editName" }>;

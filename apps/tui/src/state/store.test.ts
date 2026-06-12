@@ -1,4 +1,6 @@
 import type { SafeError, WosmEvent, WosmSnapshot } from "@wosm/contracts";
+import type { TuiFolderService, TuiObserverService } from "@wosm/dashboard-core";
+import { createTuiStore, type TuiStore } from "@wosm/dashboard-core";
 import { describe, expect, it } from "vitest";
 import {
   createCommandSnapshot,
@@ -7,9 +9,6 @@ import {
   createZeroWorktreeSnapshot,
 } from "../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../test/support/fakeObserverService.js";
-import type { TuiFolderService } from "../services/folderService.js";
-import type { TuiObserverService } from "../services/types.js";
-import { createTuiStore, type TuiStore } from "./store.js";
 
 describe("TUI store", () => {
   it("loads initial snapshots and cleans up event subscriptions", async () => {

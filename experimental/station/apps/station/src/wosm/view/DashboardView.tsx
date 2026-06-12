@@ -1,7 +1,7 @@
 // OpenTUI rewrite of apps/tui's Dashboard component (the render layer only —
-// every string, width, and ordering decision comes from the ported layout
+// every string, width, and ordering decision comes from the shared layout
 // and content modules, so parity holds by construction). One <text> per
-// dashboard line; the ported viewport selector already sized the line list
+// dashboard line; the shared viewport selector already sized the line list
 // to the available rows. Mouse targets report through the wosm mouse
 // context; hover is component-local and color-only so golden frames stay
 // layout-stable.
@@ -17,18 +17,18 @@ import {
   rowGridInputForViewportItem,
   scrollIndicatorLabel,
   type DashboardHeaderStatus,
-  type TopRowWidgetView,
-} from "../ported/components/Dashboard/content.js";
+  type TopRowWidgetText,
+} from "@wosm/dashboard-core";
 import {
   layoutWorktreeRowGrid,
   truncateCells,
   type RowGridLayout,
-} from "../ported/components/WorktreeRow/layout.js";
+} from "@wosm/dashboard-core";
 import {
   selectDashboardViewport,
   type DashboardViewportItem,
-} from "../ported/selectors/dashboardViewport.js";
-import type { TuiViewState } from "../ported/state/types.js";
+} from "@wosm/dashboard-core";
+import type { TuiViewState } from "@wosm/dashboard-core";
 import { Segments } from "./segments.js";
 import { WOSM_COLORS } from "./theme.js";
 import { useWosmMouse, wosmMouseProps } from "./wosmMouseContext.js";
@@ -39,7 +39,7 @@ export type DashboardViewProps = {
   snapshot: WosmSnapshot;
   viewState: TuiViewState;
   columns?: number;
-  topRowWidgets?: readonly TopRowWidgetView[];
+  topRowWidgets?: readonly TopRowWidgetText[];
   observerStatus?: DashboardHeaderStatus;
 };
 
@@ -101,7 +101,7 @@ export function DashboardHeaderRow({
   status,
 }: {
   columns: number;
-  widgets: readonly TopRowWidgetView[];
+  widgets: readonly TopRowWidgetText[];
   status?: DashboardHeaderStatus;
 }) {
   const headerLine = dashboardHeaderLine({

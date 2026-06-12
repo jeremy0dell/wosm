@@ -1,5 +1,3 @@
-import { describe, expect, it } from "vitest";
-import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
 import {
   createNewSessionFlow,
   createNewSessionNameToken,
@@ -7,7 +5,9 @@ import {
   newSessionIntentForInput,
   transitionNewSessionFlow,
   validateNewSessionCreate,
-} from "./newSession.js";
+} from "@wosm/dashboard-core";
+import { describe, expect, it } from "vitest";
+import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
 
 describe("new session flow", () => {
   it("defaults to the first configured project and first configured agent", () => {

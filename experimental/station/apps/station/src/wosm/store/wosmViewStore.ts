@@ -1,4 +1,4 @@
-// The WOSM view's store: the ported TuiState machine fed by Station's source
+// The WOSM view's store: the shared TuiState machine fed by Station's source
 // boundary. main.tsx owns the instance (HMR recreates store, renderer, and
 // handlers together; view state survives overlay toggles because the store
 // outlives the overlay component). The runtime flags pin the popup posture:
@@ -8,8 +8,8 @@
 // dismissPopup transitions instead of exitCode.
 import type { StoreApi } from "zustand/vanilla";
 import type { StationWosmClient } from "../../sources/types.js";
-import type { TuiFolderService } from "../ported/services/folderService.js";
-import { createTuiStore, type TuiStore } from "../ported/state/store.js";
+import type { TuiFolderService } from "@wosm/dashboard-core";
+import { createTuiStore, type TuiStore } from "@wosm/dashboard-core";
 
 export type CreateWosmViewStoreOptions = {
   folderService?: TuiFolderService;
@@ -26,7 +26,7 @@ export function createWosmViewStore(
     onDismiss: async () => {
       // Dismiss is the router's job: the overlay layer maps the transition's
       // dismissPopup to an overlay-close outcome and executeOutcome closes
-      // via the coordination store. This callback exists only so the ported
+      // via the coordination store. This callback exists only so the shared
       // machine sees canDismissPopup=true.
     },
   };

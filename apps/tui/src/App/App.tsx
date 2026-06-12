@@ -1,21 +1,24 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
+import type { TuiObserverConnectionStatus, TuiObserverService } from "@wosm/dashboard-core";
+import {
+  activeTuiToast,
+  commandPromptRows,
+  isModalOverlayActive,
+  nextTuiToastExpiry,
+  normalizeTuiKey,
+  observerHeaderStatusForConnection,
+  type SnapshotLoadingLine,
+  snapshotLoadingLines,
+} from "@wosm/dashboard-core";
 import { Box, Text, useInput, useWindowSize } from "ink";
 import { type ReactNode, useEffect, useRef } from "react";
 import { useStore } from "zustand/react";
 import { CommandPrompt } from "../components/CommandPrompt/CommandPrompt.js";
-import {
-  Dashboard,
-  DashboardHeader,
-  type DashboardHeaderStatus,
-} from "../components/Dashboard/Dashboard.js";
+import { Dashboard, DashboardHeader } from "../components/Dashboard/Dashboard.js";
 import { OverlayHost } from "../components/OverlayHost/OverlayHost.js";
 import { ToastOverlay } from "../components/ToastOverlay/ToastOverlay.js";
 import { TuiFrame } from "../components/TuiFrame/TuiFrame.js";
 import { TuiShell } from "../components/TuiShell/TuiShell.js";
-import type { TuiObserverService } from "../services/types.js";
-import { normalizeTuiKey } from "../state/keys.js";
-import { activeTuiToast, nextTuiToastExpiry } from "../state/toasts.js";
-import type { TuiObserverConnectionStatus, TuiScreen } from "../state/types.js";
 import { useTuiMode } from "../tuiMode.js";
 import type { TopRowWidgetRuntimeDeps, TuiConfig, TuiWidgetConfig } from "../widgets/types.js";
 import { useTopRowWidgets } from "../widgets/useTopRowWidgets.js";
@@ -197,61 +200,19 @@ function SnapshotLoadingBody({
   loading: boolean;
   observerConnectionStatus: TuiObserverConnectionStatus;
 }) {
-  if (observerConnectionStatus.state === "reconnecting") {
-    return (
-      <>
-        <Text> </Text>
-        <Text>waiting for observer</Text>
-        <Text color="gray">retrying connection</Text>
-        <Text> </Text>
-        <Text color="gray">The dashboard will appear when the observer is ready.</Text>
-      </>
-    );
-  }
-
-  if (!loading) {
-    return (
-      <>
-        <Text> </Text>
-        <Text>observer snapshot unavailable</Text>
-        <Text color="gray">Check the error details and try refreshing when ready.</Text>
-      </>
-    );
-  }
-
-  return <Text color="gray">Loading observer snapshot...</Text>;
-}
-
-function observerHeaderStatusForConnection(
-  status: TuiObserverConnectionStatus,
-  hasSnapshot: boolean,
-): DashboardHeaderStatus | undefined {
-  if (hasSnapshot && status.state === "displayOnly") {
-    return {
-      full: "observer reconnecting · display-only snapshot",
-      compact: "observer reconnecting",
-    };
-  }
-  return undefined;
-}
-
-function commandPromptRows(screen: TuiScreen): number {
-  if (screen.name === "search" || screen.name === "projectCollapse") {
-    return 2;
-  }
-  if (screen.name === "removeWorktree") {
-    return 2;
-  }
-  if (screen.name === "renameSession" && screen.step === "chooseSlot") {
-    return 2;
-  }
-  return 0;
-}
-
-function isModalOverlayActive(screen: TuiScreen): boolean {
   return (
-    screen.name === "help" ||
-    screen.name === "newSession" ||
-    (screen.name === "renameSession" && screen.step === "editName")
+    <>
+      {snapshotLoadingLines(loading, observerConnectionStatus).map((line) => (
+        <SnapshotLoadingTextLine key={line.id} line={line} />
+      ))}
+    </>
+  );
+}
+
+function SnapshotLoadingTextLine({ line }: { line: SnapshotLoadingLine }) {
+  return line.color === undefined ? (
+    <Text>{line.text}</Text>
+  ) : (
+    <Text color={line.color}>{line.text}</Text>
   );
 }
