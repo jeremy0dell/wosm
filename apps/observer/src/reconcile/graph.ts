@@ -7,11 +7,13 @@ import type {
   ProviderId,
   ProviderProjectConfig,
   SafeError,
+  SessionRecoveryHandle,
   SessionView,
   SnapshotHarness,
   TerminalAttachment,
   TerminalTargetObservation,
   WorktreeObservation,
+  WorktreeRecoveryAction,
   WorktreeRow,
   WosmAlert,
   WosmSnapshot,
@@ -38,6 +40,7 @@ export type ObserverGraphInput = {
   terminalTargets: TerminalTargetObservation[];
   harnessRuns: ObserverHarnessRun[];
   sessionMetadata?: readonly ObserverSessionMetadata[];
+  recoveryHandles?: readonly SessionRecoveryHandle[];
   alerts?: WosmAlert[];
   featureFlags?: ClientFeatureFlags;
 };
@@ -94,6 +97,15 @@ export function buildWosmSnapshot(input: ObserverGraphInput): WosmSnapshot {
         if (terminal !== undefined) rowInput.terminal = terminal;
         if (harnessRun !== undefined) rowInput.harnessRun = harnessRun;
         const row = buildWorktreeRow(rowInput);
+        const recovery = recoveryActionForRow({
+          row,
+          recoveryHandles: input.recoveryHandles ?? [],
+          harnessCapabilities: input.harnessCapabilities ?? {},
+          featureFlags: input.featureFlags,
+        });
+        if (recovery !== undefined) {
+          row.recovery = recovery;
+        }
 
         const sessionInput: BuildSessionInput = {
           project,
@@ -207,6 +219,56 @@ function buildWorktreeRow(input: BuildWorktreeRowInput): WorktreeRow {
     row.terminal = terminalAttachment(input.terminal, input.harnessRun);
   if (input.harnessRun !== undefined) row.agent = rowAgent(input.harnessRun);
   return row;
+}
+
+function recoveryActionForRow(input: {
+  row: WorktreeRow;
+  recoveryHandles: readonly SessionRecoveryHandle[];
+  harnessCapabilities: Record<string, HarnessCapabilities>;
+  featureFlags?: ClientFeatureFlags | undefined;
+}): WorktreeRecoveryAction | undefined {
+  // Snapshots expose a safe action hint only. The observer resolves the handle
+  // back to native ids/files when session.resumeAgent runs.
+  if (input.featureFlags?.flags.sessionResumeAgent !== true || hasLiveAgent(input.row)) {
+    return undefined;
+  }
+
+  const matching = input.recoveryHandles.filter(
+    (handle) =>
+      handle.projectId === input.row.projectId &&
+      handle.worktreeId === input.row.id &&
+      input.harnessCapabilities[handle.provider]?.canResume === true,
+  );
+  if (matching.length !== 1) {
+    return undefined;
+  }
+
+  const handle = matching[0];
+  if (handle === undefined) {
+    return undefined;
+  }
+  const action: WorktreeRecoveryAction = {
+    kind: "agent-resume",
+    handleId: handle.id,
+    provider: handle.provider,
+    targetKind: handle.target.kind,
+    lastSeenAt: handle.lastSeenAt,
+  };
+  if (handle.sessionId !== undefined) action.sessionId = handle.sessionId;
+  return action;
+}
+
+function hasLiveAgent(row: WorktreeRow): boolean {
+  const state = row.agent?.state;
+  if (state === undefined || state === "none" || state === "exited") {
+    return false;
+  }
+  if (state === "unknown") {
+    return (
+      row.terminal !== undefined && row.terminal.state !== "stale" && row.terminal.state !== "none"
+    );
+  }
+  return true;
 }
 
 function terminalAttachment(

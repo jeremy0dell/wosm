@@ -350,6 +350,7 @@ function commandScope(command: WosmCommand): string {
       return `session:${command.payload.sessionId}`;
     case "worktree.remove":
     case "session.startAgent":
+    case "session.resumeAgent":
       return `worktree:${command.payload.worktreeId}`;
     case "worktree.create":
     case "session.create":

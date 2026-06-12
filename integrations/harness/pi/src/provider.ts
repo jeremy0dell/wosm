@@ -32,12 +32,13 @@ export type PiHarnessProviderOptions = {
   observerSocketPath?: string;
   stateDir?: string;
   hookSpoolDir?: string;
+  resume?: boolean;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
 };
 
-const capabilities: HarnessCapabilities = {
+const baseCapabilities: HarnessCapabilities = {
   canLaunch: true,
   canDiscoverRuns: true,
   canEmitEvents: true,
@@ -59,7 +60,7 @@ export class PiHarnessProvider implements HarnessProvider {
   }
 
   capabilities(): HarnessCapabilities {
-    return capabilities;
+    return capabilities(this.#options);
   }
 
   async health(): Promise<ProviderHealth> {
@@ -79,7 +80,7 @@ export class PiHarnessProvider implements HarnessProvider {
         providerType: "harness",
         status: "healthy",
         lastCheckedAt: checkedAt,
-        capabilities,
+        capabilities: this.capabilities(),
         diagnostics: {
           command: "pi --version succeeded",
         },
@@ -95,7 +96,7 @@ export class PiHarnessProvider implements HarnessProvider {
           message: "Pi is not available.",
           hint: "Install Pi or configure [harness.pi].command.",
         }),
-        capabilities,
+        capabilities: this.capabilities(),
       };
     }
   }
@@ -167,4 +168,13 @@ function command(options: PiHarnessProviderOptions): string {
 function now(options: PiHarnessProviderOptions): string {
   const value = options.now?.() ?? systemClock.now();
   return toIsoTimestamp(value instanceof Date ? value : new Date(value));
+}
+
+function capabilities(options: PiHarnessProviderOptions): HarnessCapabilities {
+  // Adapter support alone is not enough; resume stays invisible unless this
+  // provider instance is explicitly enabled by [harness.pi].resume.
+  return {
+    ...baseCapabilities,
+    canResume: options.resume === true,
+  };
 }

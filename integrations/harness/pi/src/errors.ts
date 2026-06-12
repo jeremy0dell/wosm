@@ -3,6 +3,7 @@ import type { SafeError } from "@wosm/contracts";
 export type PiHarnessErrorCode =
   | "HARNESS_PI_UNAVAILABLE"
   | "HARNESS_PI_EXEC_UNSUPPORTED"
+  | "HARNESS_PI_RESUME_UNSUPPORTED"
   | "HARNESS_PI_EVENT_INVALID"
   | "HARNESS_PI_EVENT_INGEST_FAILED";
 

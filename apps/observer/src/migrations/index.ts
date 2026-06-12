@@ -7,6 +7,7 @@ import { providerObservationKindLatestLookupMigration } from "./006_provider_obs
 import { worktreeMetadataCurrentMigration } from "./007_worktree_metadata_current.js";
 import { hookIngressDedupeMigration } from "./008_hook_ingress_dedupe.js";
 import { sessionTitleMigration } from "./009_session_title.js";
+import { sessionRecoveryHandlesMigration } from "./010_session_recovery_handles.js";
 
 export type ObserverSqliteMigration = {
   version: number;
@@ -24,6 +25,7 @@ export const migrations = [
   worktreeMetadataCurrentMigration,
   hookIngressDedupeMigration,
   sessionTitleMigration,
+  sessionRecoveryHandlesMigration,
 ] as const;
 
 export const latestSchemaVersion = migrations[migrations.length - 1]?.version ?? 0;

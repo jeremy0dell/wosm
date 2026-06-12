@@ -66,6 +66,30 @@ describe("DefaultTerminalIntentRunner", () => {
     });
   });
 
+  it("passes exact resume targets through the harness launch request", async () => {
+    const harness = new CapturingHarnessProvider();
+    const runner = runnerFor(new RecordingTerminalProvider(), [harness]);
+    const resume = {
+      target: {
+        kind: "native-session" as const,
+        id: "codex_session_123",
+      },
+      previousSessionId: "ses_web_feature",
+      recoveryHandleId: "rec_codex_123",
+    };
+
+    await expect(
+      runner.submitIntent({
+        ...ensureIntent(),
+        resume,
+      }),
+    ).resolves.toMatchObject({
+      status: "accepted",
+    });
+
+    expect(harness.lastBuildRequest?.resume).toEqual(resume);
+  });
+
   it("focuses only when requested and treats focus failure as non-fatal", async () => {
     const backgroundTerminal = new RecordingTerminalProvider();
     const background = runnerFor(backgroundTerminal, [new CapturingHarnessProvider()]);

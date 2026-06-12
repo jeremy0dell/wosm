@@ -26,6 +26,8 @@ function cursorProviderData(input: {
   initialPromptProvided: boolean;
   terminalProvider?: string;
   terminalTargetId?: string;
+  resume?: boolean;
+  resumeTargetKind?: string;
 }): Record<string, unknown> {
   const providerData: Record<string, unknown> = {
     interactive: true,
@@ -40,6 +42,12 @@ function cursorProviderData(input: {
   if (input.terminalTargetId !== undefined) {
     providerData.terminalTargetId = input.terminalTargetId;
   }
+  if (input.resume === true) {
+    providerData.resume = true;
+  }
+  if (input.resumeTargetKind !== undefined) {
+    providerData.resumeTargetKind = input.resumeTargetKind;
+  }
   return providerData;
 }
 
@@ -50,15 +58,30 @@ export function buildCursorLaunchPlan(
   const mode = request.mode ?? "interactive";
   if (mode === "exec") {
     throw new CursorHarnessProviderError(
-      "HARNESS_CURSOR_EXEC_UNSUPPORTED",
-      "Cursor exec mode is not supported by the hook-only Cursor harness provider.",
+      request.resume === undefined
+        ? "HARNESS_CURSOR_EXEC_UNSUPPORTED"
+        : "HARNESS_CURSOR_RESUME_UNSUPPORTED",
+      request.resume === undefined
+        ? "Cursor exec mode is not supported by the hook-only Cursor harness provider."
+        : "Cursor resume is supported only for interactive launches.",
       {
         hint: "Use an interactive Cursor agent session; headless stream-json support is intentionally out of scope for this provider slice.",
       },
     );
   }
+  if (request.resume !== undefined && request.resume.target.kind !== "native-session") {
+    throw new CursorHarnessProviderError(
+      "HARNESS_CURSOR_RESUME_UNSUPPORTED",
+      "Cursor resume requires a native session target.",
+    );
+  }
 
+  // Cursor uses the same interactive command for fresh and resumed sessions;
+  // the provider-native id is the only extra selector WOSM supplies.
   const args = ["--workspace", request.worktree.path];
+  if (request.resume?.target.kind === "native-session") {
+    args.push("--resume", request.resume.target.id);
+  }
   if (request.initialPrompt !== undefined) {
     args.push(request.initialPrompt);
   }
@@ -66,6 +89,10 @@ export function buildCursorLaunchPlan(
   const providerDataInput: Parameters<typeof cursorProviderData>[0] = {
     initialPromptProvided: request.initialPrompt !== undefined,
   };
+  if (request.resume !== undefined) {
+    providerDataInput.resume = true;
+    providerDataInput.resumeTargetKind = request.resume.target.kind;
+  }
   if (request.terminalTarget !== undefined) {
     providerDataInput.terminalProvider = request.terminalTarget.provider;
     providerDataInput.terminalTargetId = request.terminalTarget.id;

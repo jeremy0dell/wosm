@@ -44,12 +44,13 @@ export type CodexHarnessProviderOptions = {
   stateDir?: string;
   hookSpoolDir?: string;
   autoStartFromHooks?: boolean;
+  resume?: boolean;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
 };
 
-const capabilities: HarnessCapabilities = {
+const baseCapabilities: HarnessCapabilities = {
   canLaunch: true,
   canDiscoverRuns: true,
   canEmitEvents: true,
@@ -71,7 +72,7 @@ export class CodexHarnessProvider implements HarnessProvider {
   }
 
   capabilities(): HarnessCapabilities {
-    return capabilities;
+    return capabilities(this.#options);
   }
 
   async health(): Promise<ProviderHealth> {
@@ -91,7 +92,7 @@ export class CodexHarnessProvider implements HarnessProvider {
         providerType: "harness",
         status: "healthy",
         lastCheckedAt: checkedAt,
-        capabilities,
+        capabilities: this.capabilities(),
         diagnostics: {
           auth: "codex login status succeeded",
         },
@@ -107,7 +108,7 @@ export class CodexHarnessProvider implements HarnessProvider {
           message: "Codex is not available or is not logged in.",
           hint: "Install Codex and run `codex login status` to verify authentication.",
         }),
-        capabilities,
+        capabilities: this.capabilities(),
       };
     }
   }
@@ -244,4 +245,13 @@ function command(options: CodexHarnessProviderOptions): string {
 function now(options: CodexHarnessProviderOptions): string {
   const value = options.now?.() ?? systemClock.now();
   return toIsoTimestamp(value instanceof Date ? value : new Date(value));
+}
+
+function capabilities(options: CodexHarnessProviderOptions): HarnessCapabilities {
+  // Adapter support alone is not enough; resume stays invisible unless this
+  // provider instance is explicitly enabled by [harness.codex].resume.
+  return {
+    ...baseCapabilities,
+    canResume: options.resume === true,
+  };
 }

@@ -147,6 +147,61 @@ describe("observer persistence", () => {
     reopened.close();
   });
 
+  it("upserts session recovery handles by provider-native target without provider payloads", async () => {
+    const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
+    const persistence = createObserverPersistence({
+      sqlite,
+      clock: { now: () => new Date(now) },
+      idFactory: ids(),
+    });
+
+    const first = await persistence.upsertSessionRecoveryHandle({
+      id: "report_1",
+      provider: "codex",
+      projectId: "web",
+      worktreeId: "wt_web_recover",
+      sessionId: "ses_web_recover",
+      target: { kind: "native-session", id: "codex_session_123" },
+      cwd: "/tmp/wosm/web/recover",
+      terminalTargetId: "tmux:wosm:@1:%2",
+      harnessRunId: "codex:run_1",
+      observedAt: now,
+      lastSeenAt: now,
+    });
+    const second = await persistence.upsertSessionRecoveryHandle({
+      id: "report_2",
+      provider: "codex",
+      projectId: "web",
+      worktreeId: "wt_web_recover",
+      target: { kind: "native-session", id: "codex_session_123" },
+      observedAt: earlier,
+      lastSeenAt: later,
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(second).toMatchObject({
+      provider: "codex",
+      projectId: "web",
+      worktreeId: "wt_web_recover",
+      sessionId: "ses_web_recover",
+      target: { kind: "native-session", id: "codex_session_123" },
+      cwd: "/tmp/wosm/web/recover",
+      terminalTargetId: "tmux:wosm:@1:%2",
+      harnessRunId: "codex:run_1",
+      observedAt: earlier,
+      lastSeenAt: later,
+    });
+    expect(await persistence.getSessionRecoveryHandle(first.id)).toEqual(second);
+    expect(
+      await persistence.listSessionRecoveryHandles({
+        projectId: "web",
+        worktreeId: "wt_web_recover",
+      }),
+    ).toEqual([second]);
+    expect(JSON.stringify(second)).not.toContain("providerData");
+    sqlite.close();
+  });
+
   it("normalizes legacy provider hook event rows while listing persisted events", async () => {
     const sqlite = openObserverSqlite({ clock: { now: () => new Date(now) } });
     const persistence = createObserverPersistence({

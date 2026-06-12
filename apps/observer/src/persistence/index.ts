@@ -15,6 +15,7 @@ import {
 } from "./observations.js";
 import * as recoveryBreadcrumbStore from "./recoveryBreadcrumbs.js";
 import { providerObservationRetentionDays } from "./retention.js";
+import * as sessionRecoveryHandleStore from "./sessionRecoveryHandles.js";
 import type { CreateObserverPersistenceOptions, ObserverPersistence } from "./types.js";
 import * as worktreeMetadataCurrentStore from "./worktreeMetadataCurrent.js";
 
@@ -263,5 +264,20 @@ export function createObserverPersistence(
       }),
 
     listRecoveryBreadcrumbs: () => transaction(recoveryBreadcrumbStore.listRecoveryBreadcrumbs),
+
+    upsertSessionRecoveryHandle: (input) =>
+      transaction((database) =>
+        sessionRecoveryHandleStore.upsertSessionRecoveryHandle(database, input),
+      ),
+
+    getSessionRecoveryHandle: (handleId) =>
+      transaction((database) =>
+        sessionRecoveryHandleStore.getSessionRecoveryHandle(database, handleId),
+      ),
+
+    listSessionRecoveryHandles: (listOptions = {}) =>
+      transaction((database) =>
+        sessionRecoveryHandleStore.listSessionRecoveryHandles(database, listOptions),
+      ),
   };
 }

@@ -3,6 +3,7 @@ import type { SafeError } from "@wosm/contracts";
 export type CursorHarnessErrorCode =
   | "HARNESS_CURSOR_UNAVAILABLE"
   | "HARNESS_CURSOR_EXEC_UNSUPPORTED"
+  | "HARNESS_CURSOR_RESUME_UNSUPPORTED"
   | "HARNESS_CURSOR_EVENT_INVALID"
   | "HARNESS_CURSOR_EVENT_INGEST_FAILED";
 

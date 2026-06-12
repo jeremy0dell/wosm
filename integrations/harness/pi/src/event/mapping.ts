@@ -52,6 +52,12 @@ export function normalizePiRawEvent(
   if (correlation.harnessRunId !== undefined) {
     observation.harnessRunId = correlation.harnessRunId;
   }
+  if (event.pi_session_id !== undefined) {
+    observation.nativeSessionId = event.pi_session_id;
+  }
+  if (event.pi_session_file !== undefined) {
+    observation.nativeSessionFile = event.pi_session_file;
+  }
   return [observation];
 }
 
@@ -260,6 +266,11 @@ function reportCorrelationFromPiEvent(
   if (event.wosm_terminal_target_id !== undefined) {
     correlation.terminalTargetId = event.wosm_terminal_target_id;
     correlation.harnessRunId = `pi:${event.wosm_terminal_target_id}`;
+  }
+  if (event.pi_session_file !== undefined) {
+    correlation.nativeSessionFile = event.pi_session_file;
+  } else if (event.pi_session_id !== undefined) {
+    correlation.nativeSessionId = event.pi_session_id;
   }
   if (event.pid !== undefined) {
     correlation.pid = event.pid;

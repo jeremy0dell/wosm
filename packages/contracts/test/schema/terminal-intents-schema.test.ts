@@ -25,6 +25,26 @@ describe("terminal intent schemas", () => {
       },
     });
     expect(
+      EnsureAgentWorkspaceIntentSchema.parse({
+        ...ensureIntent(),
+        resume: {
+          target: {
+            kind: "native-session",
+            id: "codex_session_123",
+          },
+          previousSessionId: "ses_web_feature",
+          recoveryHandleId: "rec_codex_123",
+        },
+      }),
+    ).toMatchObject({
+      resume: {
+        target: {
+          kind: "native-session",
+          id: "codex_session_123",
+        },
+      },
+    });
+    expect(
       TerminalFocusIntentSchema.parse({
         type: "terminal.focus",
         commandId: "cmd_focus",
@@ -58,6 +78,19 @@ describe("terminal intent schemas", () => {
       type: "terminal.close",
       force: true,
     });
+  });
+
+  it("rejects non-exact resume target selectors", () => {
+    expect(
+      EnsureAgentWorkspaceIntentSchema.safeParse({
+        ...ensureIntent(),
+        resume: {
+          target: {
+            kind: "last-for-worktree",
+          },
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it("parses accepted and rejected terminal intent receipts", () => {

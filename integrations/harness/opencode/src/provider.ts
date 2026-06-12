@@ -42,12 +42,13 @@ export type OpenCodeHarnessProviderOptions = {
   stateDir?: string;
   hookSpoolDir?: string;
   env?: NodeJS.ProcessEnv;
+  resume?: boolean;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
 };
 
-const capabilities: HarnessCapabilities = {
+const baseCapabilities: HarnessCapabilities = {
   canLaunch: true,
   canDiscoverRuns: true,
   canEmitEvents: true,
@@ -69,7 +70,7 @@ export class OpenCodeHarnessProvider implements HarnessProvider {
   }
 
   capabilities(): HarnessCapabilities {
-    return capabilities;
+    return capabilities(this.#options);
   }
 
   async health(): Promise<ProviderHealth> {
@@ -89,7 +90,7 @@ export class OpenCodeHarnessProvider implements HarnessProvider {
         providerType: "harness",
         status: "healthy",
         lastCheckedAt: checkedAt,
-        capabilities,
+        capabilities: this.capabilities(),
         diagnostics: {
           command: "opencode --version succeeded",
         },
@@ -105,7 +106,7 @@ export class OpenCodeHarnessProvider implements HarnessProvider {
           message: "OpenCode is not available.",
           hint: "Install OpenCode or configure [harness.opencode].command.",
         }),
-        capabilities,
+        capabilities: this.capabilities(),
       };
     }
   }
@@ -238,4 +239,13 @@ export class OpenCodeHarnessProvider implements HarnessProvider {
 
 function command(options: OpenCodeHarnessProviderOptions): string {
   return options.command ?? process.env.WOSM_OPENCODE_BIN ?? "opencode";
+}
+
+function capabilities(options: OpenCodeHarnessProviderOptions): HarnessCapabilities {
+  // Adapter support alone is not enough; resume stays invisible unless this
+  // provider instance is explicitly enabled by [harness.opencode].resume.
+  return {
+    ...baseCapabilities,
+    canResume: options.resume === true,
+  };
 }

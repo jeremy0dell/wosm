@@ -17,6 +17,7 @@ import {
   FakeWorktreeProvider,
 } from "@wosm/testing";
 import { describe, expect, it } from "vitest";
+import { createFeatureFlagEvaluator } from "../../src/features/evaluator";
 import {
   createCommandQueue,
   createObserverCore,
@@ -919,6 +920,114 @@ describe("session command vertical slice", () => {
     fixture.sqlite.close();
   });
 
+  it("rejects session.resumeAgent while the feature flag is disabled", async () => {
+    const fixture = createFixture({
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: "wt_web_resume_disabled",
+            projectId: "web",
+            branch: "resume-disabled",
+            now,
+          }),
+        ],
+      }),
+    });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.resumeAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_resume_disabled",
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "failed",
+      error: {
+        tag: "CommandValidationError",
+        code: "SESSION_RESUME_DISABLED",
+      },
+    });
+    fixture.sqlite.close();
+  });
+
+  it("resumes an exact persisted recovery handle through the terminal intent runner seam", async () => {
+    const terminalIntentRunner = new CapturingTerminalIntentRunner();
+    const fixture = createFixture({
+      terminalIntentRunner,
+      featureFlags: { sessionResumeAgent: true },
+      worktree: new FakeWorktreeProvider({
+        now,
+        worktrees: [
+          createFakeWorktree({
+            id: "wt_web_resume",
+            projectId: "web",
+            branch: "resume",
+            now,
+          }),
+        ],
+      }),
+    });
+    const handle = await fixture.persistence.upsertSessionRecoveryHandle({
+      id: "report_resume",
+      provider: "fake-harness",
+      projectId: "web",
+      worktreeId: "wt_web_resume",
+      sessionId: "ses_previous",
+      target: { kind: "native-session", id: "native_session_123" },
+      cwd: "/tmp/wosm/web/resume",
+      observedAt: now,
+      lastSeenAt: now,
+    });
+    await fixture.core.reconcile("pre-resume");
+
+    expect(fixture.core.getSnapshot().rows[0]?.recovery).toMatchObject({
+      kind: "agent-resume",
+      handleId: handle.id,
+      provider: "fake-harness",
+      targetKind: "native-session",
+      sessionId: "ses_previous",
+    });
+
+    const receipt = await fixture.queue.dispatch({
+      type: "session.resumeAgent",
+      payload: {
+        projectId: "web",
+        worktreeId: "wt_web_resume",
+        recoveryHandleId: handle.id,
+        terminal: { provider: "fake-terminal", focus: false },
+        initialPrompt: "Continue the recovered context.",
+      },
+    });
+    await fixture.queue.drain();
+
+    await expect(fixture.persistence.getCommand(receipt.commandId)).resolves.toMatchObject({
+      status: "succeeded",
+    });
+    expect(terminalIntentRunner.intents).toEqual([
+      expect.objectContaining({
+        type: "session.ensureAgentWorkspace",
+        commandId: receipt.commandId,
+        terminalProvider: "fake-terminal",
+        sessionId: "ses_previous",
+        initialPrompt: "Continue the recovered context.",
+        harness: {
+          provider: "fake-harness",
+          mode: "interactive",
+        },
+        resume: {
+          target: { kind: "native-session", id: "native_session_123" },
+          previousSessionId: "ses_previous",
+          recoveryHandleId: handle.id,
+        },
+      }),
+    ]);
+    fixture.sqlite.close();
+  });
+
   it("keeps the session.startAgent title stable when the provider branch changes before first reconcile", async () => {
     const worktree = new FakeWorktreeProvider({
       now,
@@ -1397,6 +1506,7 @@ function createFixture(
     harnesses?: HarnessProvider[];
     terminalIntentRunner?: TerminalIntentRunner;
     sessionIds?: string[];
+    featureFlags?: { sessionResumeAgent?: boolean };
   } = {},
 ) {
   const clock = { now: () => new Date(now) };
@@ -1411,12 +1521,20 @@ function createFixture(
     harnesses: options.harnesses ?? [options.harness ?? new FakeHarnessProvider({ now })],
     terminalIntentRunner: options.terminalIntentRunner,
   });
+  const featureFlags = createFeatureFlagEvaluator({
+    overrides: {
+      ...(options.featureFlags?.sessionResumeAgent === undefined
+        ? {}
+        : { sessionResumeAgent: options.featureFlags.sessionResumeAgent }),
+    },
+  });
   const core = createObserverCore({
     config,
     providers,
     persistence,
     sqlite,
     clock,
+    featureFlags,
   });
   const sessionIds = [...(options.sessionIds ?? [])];
   registerObserverCommandHandlers({
@@ -1425,6 +1543,7 @@ function createFixture(
     providers,
     projects: config.projects,
     persistence,
+    featureFlags,
     eventBus,
     clock,
     idFactory: {

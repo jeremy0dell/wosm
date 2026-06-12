@@ -62,6 +62,20 @@
       "initialPrompt": "Continue the current task."
     }
   },
+  "sessionResumeAgent": {
+    "type": "session.resumeAgent",
+    "payload": {
+      "projectId": "api",
+      "worktreeId": "wt_api_cache",
+      "recoveryHandleId": "rec_codex_123",
+      "terminal": {
+        "provider": "tmux",
+        "layout": "default",
+        "focus": false
+      },
+      "initialPrompt": "Continue the recovered task."
+    }
+  },
   "terminalFocus": {
     "type": "terminal.focus",
     "payload": {

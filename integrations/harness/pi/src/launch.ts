@@ -18,8 +18,12 @@ export function buildPiLaunchPlan(
   const mode = request.mode ?? "interactive";
   if (mode === "exec") {
     throw new PiHarnessProviderError(
-      "HARNESS_PI_EXEC_UNSUPPORTED",
-      "Pi exec mode is not supported by the interactive v1 harness provider.",
+      request.resume === undefined
+        ? "HARNESS_PI_EXEC_UNSUPPORTED"
+        : "HARNESS_PI_RESUME_UNSUPPORTED",
+      request.resume === undefined
+        ? "Pi exec mode is not supported by the interactive v1 harness provider."
+        : "Pi resume is supported only for interactive launches.",
       {
         hint: "Use an interactive Pi session; JSON/RPC control is not implemented for Pi JSON/RPC mode yet.",
       },
@@ -28,6 +32,11 @@ export function buildPiLaunchPlan(
 
   const extensionPath = options.extensionPath ?? defaultPiExtensionPath();
   const args = ["--extension", extensionPath];
+  if (request.resume !== undefined) {
+    // Pi can recover from its session file, so provider normalization chooses
+    // that target before falling back to a native session id.
+    args.push("--session", resumeTargetValue(request));
+  }
   if (request.initialPrompt !== undefined) {
     args.push(request.initialPrompt);
   }
@@ -36,6 +45,10 @@ export function buildPiLaunchPlan(
     extensionPath,
     initialPromptProvided: request.initialPrompt !== undefined,
   };
+  if (request.resume !== undefined) {
+    providerDataInput.resume = true;
+    providerDataInput.resumeTargetKind = request.resume.target.kind;
+  }
   if (request.terminalTarget !== undefined) {
     providerDataInput.terminalProvider = request.terminalTarget.provider;
     providerDataInput.terminalTargetId = request.terminalTarget.id;
@@ -61,6 +74,17 @@ export function buildPiLaunchPlan(
 
 function defaultPiExtensionPath(): string {
   return fileURLToPath(new URL("../dist/piExtension.js", import.meta.url));
+}
+
+function resumeTargetValue(request: BuildHarnessLaunchRequest): string {
+  const resume = request.resume;
+  if (resume === undefined) {
+    throw new PiHarnessProviderError(
+      "HARNESS_PI_RESUME_UNSUPPORTED",
+      "Pi resume requires a recovery target.",
+    );
+  }
+  return resume.target.kind === "session-file" ? resume.target.path : resume.target.id;
 }
 
 function piLaunchEnv(
@@ -102,6 +126,8 @@ type PiLaunchProviderDataInput = {
   observerSocketPathProvided?: boolean | undefined;
   terminalProvider?: string | undefined;
   terminalTargetId?: string | undefined;
+  resume?: boolean | undefined;
+  resumeTargetKind?: string | undefined;
 };
 
 function piProviderData(input: PiLaunchProviderDataInput): Record<string, unknown> {
@@ -123,6 +149,12 @@ function piProviderData(input: PiLaunchProviderDataInput): Record<string, unknow
   }
   if (input.terminalTargetId !== undefined) {
     providerData.terminalTargetId = input.terminalTargetId;
+  }
+  if (input.resume === true) {
+    providerData.resume = true;
+  }
+  if (input.resumeTargetKind !== undefined) {
+    providerData.resumeTargetKind = input.resumeTargetKind;
   }
   return providerData;
 }

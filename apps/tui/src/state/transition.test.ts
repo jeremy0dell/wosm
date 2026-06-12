@@ -90,6 +90,49 @@ describe("TUI screen transitions", () => {
     ]);
   });
 
+  it("resumes a recoverable dashboard slot as a local operation", () => {
+    const snapshot = createCommandSnapshot("none");
+    const row = {
+      ...snapshot.rows[0],
+      recovery: {
+        kind: "agent-resume" as const,
+        handleId: "rec_codex_123",
+        provider: "codex",
+        targetKind: "native-session" as const,
+        sessionId: "ses_wt_web_no_agent",
+        lastSeenAt: "2026-06-01T12:00:00.000Z",
+      },
+    };
+    const transition = handleTuiKey(
+      createInitialTuiState({ initialSnapshot: { ...snapshot, rows: [row] } }),
+      { input: "1" },
+    );
+
+    expect(transition.commands).toBeUndefined();
+    expect(transition.state.localRows.pendingStart).toMatchObject([
+      {
+        localId: "resume:wt_web_no_agent",
+        operation: "resumeAgent",
+        projectId: "web",
+        worktreeId: "wt_web_no_agent",
+      },
+    ]);
+    expect(transition.operations).toEqual([
+      expect.objectContaining({
+        type: "resumeAgent",
+        localId: "resume:wt_web_no_agent",
+        command: expect.objectContaining({
+          type: "session.resumeAgent",
+          payload: expect.objectContaining({
+            projectId: "web",
+            worktreeId: "wt_web_no_agent",
+            recoveryHandleId: "rec_codex_123",
+          }),
+        }),
+      }),
+    ]);
+  });
+
   it("keeps agent-backed dashboard slots on the focus command path", () => {
     const transition = handleTuiKey(
       createInitialTuiState({ initialSnapshot: createCommandSnapshot("idle") }),

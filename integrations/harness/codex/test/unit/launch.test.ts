@@ -221,6 +221,46 @@ describe("buildCodexLaunchPlan", () => {
       permissionMode: "yolo",
     });
   });
+
+  it("builds interactive resume plans with exact native session args", () => {
+    const plan = buildCodexLaunchPlan({
+      ...request(),
+      resume: {
+        target: { kind: "native-session", id: "codex_session_123" },
+        previousSessionId: "ses_web_task",
+        recoveryHandleId: "rec_codex",
+      },
+    });
+
+    expect(plan.args).toEqual([
+      "resume",
+      "--cd",
+      "/tmp/wosm/web/task",
+      "codex_session_123",
+      "Review the task.",
+    ]);
+    expect(plan.mode).toBe("interactive");
+    expect(plan.providerData).toMatchObject({
+      resume: true,
+      resumeTargetKind: "native-session",
+    });
+  });
+
+  it("rejects exec resume and unsupported resume target kinds", () => {
+    expect(() =>
+      buildCodexLaunchPlan({
+        ...request(),
+        mode: "exec",
+        resume: { target: { kind: "native-session", id: "codex_session_123" } },
+      }),
+    ).toThrow(/HARNESS_CODEX_RESUME_UNSUPPORTED/);
+    expect(() =>
+      buildCodexLaunchPlan({
+        ...request(),
+        resume: { target: { kind: "session-file", path: "/tmp/codex-session.json" } },
+      }),
+    ).toThrow(/HARNESS_CODEX_RESUME_UNSUPPORTED/);
+  });
 });
 
 function request(): BuildHarnessLaunchRequest {

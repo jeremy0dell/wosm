@@ -169,6 +169,8 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
   const worktreesForSnapshot = await worktreesWithCachedMetadata(metadataInput);
   const sessionMetadata =
     input.persistence === undefined ? [] : await input.persistence.listSessions();
+  const recoveryHandles =
+    input.persistence === undefined ? [] : await input.persistence.listSessionRecoveryHandles();
   const lastReconcile: ReconcileTiming = {
     reason: input.reason,
     startedAt: started,
@@ -193,6 +195,7 @@ export async function runReconcileOnce(input: ReconcileOnceInput): Promise<Recon
     terminalTargets,
     harnessRuns,
     sessionMetadata,
+    recoveryHandles,
     ...(input.featureFlags === undefined ? {} : { featureFlags: input.featureFlags }),
   });
 

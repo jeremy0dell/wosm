@@ -119,6 +119,19 @@ export const WorktreeDisplaySchema = z
   })
   .strict();
 
+export const WorktreeRecoveryActionSchema = z
+  .object({
+    kind: z.literal("agent-resume"),
+    handleId: nonEmptyStringSchema,
+    provider: ProviderIdSchema,
+    targetKind: z.enum(["native-session", "session-file"]),
+    sessionId: SessionIdSchema.optional(),
+    lastSeenAt: TimestampSchema,
+  })
+  .strict();
+
+export type WorktreeRecoveryAction = z.infer<typeof WorktreeRecoveryActionSchema>;
+
 export const WorktreeRowSchema = z
   .object({
     id: WorktreeIdSchema,
@@ -129,6 +142,7 @@ export const WorktreeRowSchema = z
     worktree: WorktreeRuntimeSchema,
     terminal: TerminalAttachmentSchema.optional(),
     agent: WorktreeAgentSchema.optional(),
+    recovery: WorktreeRecoveryActionSchema.optional(),
     display: WorktreeDisplaySchema,
   })
   .strict();

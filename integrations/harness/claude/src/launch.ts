@@ -3,6 +3,7 @@ import type {
   HarnessLaunchPlan,
   HarnessPermissionMode,
 } from "@wosm/contracts";
+import { ClaudeHarnessProviderError } from "./errors.js";
 
 export type ClaudeLaunchOptions = {
   command?: string;
@@ -21,6 +22,8 @@ type ClaudeProviderDataInput = {
   settingsInjected?: boolean | undefined;
   terminalProvider?: string | undefined;
   terminalTargetId?: string | undefined;
+  resume?: boolean | undefined;
+  resumeTargetKind?: string | undefined;
 };
 
 const CLAUDE_YOLO_FLAG = "--dangerously-skip-permissions";
@@ -75,7 +78,56 @@ function claudeProviderData(input: ClaudeProviderDataInput): Record<string, unkn
   if (input.terminalTargetId !== undefined) {
     providerData.terminalTargetId = input.terminalTargetId;
   }
+  if (input.resume === true) {
+    providerData.resume = true;
+  }
+  if (input.resumeTargetKind !== undefined) {
+    providerData.resumeTargetKind = input.resumeTargetKind;
+  }
   return providerData;
+}
+
+function buildClaudeResumeLaunchPlan(
+  request: BuildHarnessLaunchRequest,
+  options: ClaudeLaunchOptions,
+  mode: "interactive" | "exec",
+): HarnessLaunchPlan {
+  // Claude resumes by native session id only; there is no safe file target or
+  // "latest" selector in the observer-owned recovery path.
+  if (mode === "exec") {
+    throw new ClaudeHarnessProviderError(
+      "HARNESS_CLAUDE_RESUME_UNSUPPORTED",
+      "Claude resume is supported only for interactive launches.",
+      { hint: "Start an interactive Claude resume session instead." },
+    );
+  }
+  if (request.resume?.target.kind !== "native-session") {
+    throw new ClaudeHarnessProviderError(
+      "HARNESS_CLAUDE_RESUME_UNSUPPORTED",
+      "Claude resume requires a native session target.",
+    );
+  }
+
+  const args = ["--resume", request.resume.target.id];
+  if (request.initialPrompt !== undefined) {
+    args.push(request.initialPrompt);
+  }
+
+  return {
+    provider: "claude",
+    command: options.command ?? "claude",
+    args,
+    cwd: request.worktree.path,
+    env: claudeLaunchEnv(request),
+    mode,
+    displayTitle: `${request.project.label} Claude`,
+    providerData: claudeProviderData({
+      mode,
+      initialPromptProvided: request.initialPrompt !== undefined,
+      resume: true,
+      resumeTargetKind: request.resume.target.kind,
+    }),
+  };
 }
 
 export function buildClaudeLaunchPlan(
@@ -83,6 +135,9 @@ export function buildClaudeLaunchPlan(
   options: ClaudeLaunchOptions = {},
 ): HarnessLaunchPlan {
   const mode = request.mode ?? "interactive";
+  if (request.resume !== undefined) {
+    return buildClaudeResumeLaunchPlan(request, options, mode);
+  }
   const profile = request.profile ?? options.defaultProfile;
   const permissionMode = request.permissionMode ?? options.defaultPermissionMode;
   const approvalPolicy = request.approvalPolicy ?? options.defaultApprovalPolicy;

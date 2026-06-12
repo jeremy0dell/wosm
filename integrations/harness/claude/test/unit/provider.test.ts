@@ -22,6 +22,11 @@ describe("ClaudeHarnessProvider", () => {
     });
   });
 
+  it("advertises resume only when configured", () => {
+    expect(new ClaudeHarnessProvider().capabilities().canResume).toBe(false);
+    expect(new ClaudeHarnessProvider({ resume: true }).capabilities().canResume).toBe(true);
+  });
+
   it("checks the claude version for provider health", async () => {
     const calls: ExternalCommandInput[] = [];
     const provider = new ClaudeHarnessProvider({

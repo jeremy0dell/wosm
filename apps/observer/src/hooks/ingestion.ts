@@ -7,6 +7,7 @@ import type {
   ProviderHookEvent,
   ProviderHookReceipt,
   ProviderProjectConfig,
+  SessionRecoveryHandle,
   WosmEvent,
 } from "@wosm/contracts";
 import {
@@ -229,6 +230,10 @@ export function createHarnessEventReportIngestion(
           if (result.deduped) {
             return { deduped: true };
           }
+          const recoveryHandle = sessionRecoveryHandleFromReport(report);
+          if (recoveryHandle !== undefined) {
+            await options.persistence.upsertSessionRecoveryHandle(recoveryHandle);
+          }
           options.eventBus?.publish(reportedEvent);
           return { deduped: false };
         },
@@ -310,6 +315,9 @@ function harnessEventObservationFromReport(report: HarnessEventReport): HarnessE
   if (report.correlation?.nativeSessionId !== undefined) {
     observation.nativeSessionId = report.correlation.nativeSessionId;
   }
+  if (report.correlation?.nativeSessionFile !== undefined) {
+    observation.nativeSessionFile = report.correlation.nativeSessionFile;
+  }
   if (report.correlation?.cwd !== undefined) {
     observation.cwd = report.correlation.cwd;
   }
@@ -329,6 +337,49 @@ function harnessEventObservationFromReport(report: HarnessEventReport): HarnessE
     observation.providerData = report.providerData;
   }
   return HarnessEventObservationSchema.parse(observation);
+}
+
+function sessionRecoveryHandleFromReport(
+  report: HarnessEventReport,
+): SessionRecoveryHandle | undefined {
+  const correlation = report.correlation;
+  if (
+    correlation?.projectId === undefined ||
+    correlation.worktreeId === undefined ||
+    (correlation.nativeSessionId === undefined && correlation.nativeSessionFile === undefined)
+  ) {
+    return undefined;
+  }
+
+  // Provider adapters normalize native ids/files into correlation fields, so
+  // observer ingestion never scrapes providerData for recovery metadata.
+  const target =
+    correlation.nativeSessionFile !== undefined
+      ? ({ kind: "session-file", path: correlation.nativeSessionFile } as const)
+      : nativeSessionTarget(correlation.nativeSessionId);
+  const handle: SessionRecoveryHandle = {
+    id: report.reportId,
+    provider: report.provider,
+    projectId: correlation.projectId,
+    worktreeId: correlation.worktreeId,
+    target,
+    observedAt: report.observedAt,
+    lastSeenAt: report.observedAt,
+  };
+  if (correlation.sessionId !== undefined) handle.sessionId = correlation.sessionId;
+  if (correlation.cwd !== undefined) handle.cwd = correlation.cwd;
+  if (correlation.terminalTargetId !== undefined) {
+    handle.terminalTargetId = correlation.terminalTargetId;
+  }
+  if (correlation.harnessRunId !== undefined) handle.harnessRunId = correlation.harnessRunId;
+  return handle;
+}
+
+function nativeSessionTarget(id: string | undefined): { kind: "native-session"; id: string } {
+  if (id === undefined) {
+    throw new Error("Expected a native session id after recovery correlation validation.");
+  }
+  return { kind: "native-session", id };
 }
 
 function harnessEventReportEntityKey(report: HarnessEventReport): string {

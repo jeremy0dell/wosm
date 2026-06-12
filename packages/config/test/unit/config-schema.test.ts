@@ -86,13 +86,17 @@ describe("config schemas", () => {
     ).toBe(false);
   });
 
-  it("accepts an empty production feature flag section and rejects unknown flags", async () => {
+  it("accepts production feature flags and rejects unknown flags", async () => {
     const config = ParsedWosmConfigSchema.parse({
       ...(await loadJson("valid-config.json")),
-      featureFlags: {},
+      featureFlags: {
+        sessionResumeAgent: true,
+      },
     });
 
-    expect(config.featureFlags).toEqual({});
+    expect(config.featureFlags).toEqual({
+      sessionResumeAgent: true,
+    });
     expect(
       ParsedWosmConfigSchema.safeParse({
         ...config,
@@ -101,6 +105,19 @@ describe("config schemas", () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts per-harness resume opt-in", async () => {
+    const config = ParsedWosmConfigSchema.parse({
+      ...(await loadJson("valid-config.json")),
+      harness: {
+        codex: {
+          resume: true,
+        },
+      },
+    });
+
+    expect(config.harness?.codex?.resume).toBe(true);
   });
 
   it("validates configured TUI widgets", async () => {

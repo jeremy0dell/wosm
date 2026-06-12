@@ -13,6 +13,7 @@ export function normalizeGlobalConfig(value: unknown): unknown {
       worktree: normalizeWorktreeProvidersConfig,
       terminal: normalizeTerminalProvidersConfig,
       harness: normalizeHarnessProvidersConfig,
+      featureFlags: normalizeFeatureFlagsConfig,
       hooks: normalizeHooksConfig,
       tui: normalizeTuiConfig,
       repository: normalizeRepositoryProvidersConfig,
@@ -105,6 +106,12 @@ function normalizeHarnessProviderConfig(value: unknown): unknown {
     sandbox_mode: "sandboxMode",
     approval_policy: "approvalPolicy",
     install_hooks: "installHooks",
+  });
+}
+
+function normalizeFeatureFlagsConfig(value: unknown): unknown {
+  return normalizeObject(value, {
+    session_resume_agent: "sessionResumeAgent",
   });
 }
 

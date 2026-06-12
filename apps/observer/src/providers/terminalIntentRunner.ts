@@ -549,6 +549,7 @@ function buildLaunchRequest(
     request.approvalPolicy = intent.harness.approvalPolicy;
   }
   if (intent.harness.sandboxMode !== undefined) request.sandboxMode = intent.harness.sandboxMode;
+  if (intent.resume !== undefined) request.resume = intent.resume;
   return request;
 }
 
@@ -608,6 +609,7 @@ function intentLogAttributes(
       attributes.worktreeId = intent.worktree.id;
       attributes.sessionId = intent.sessionId;
       attributes.harnessProvider = intent.harness.provider;
+      if (intent.resume !== undefined) attributes.resume = true;
       break;
     case "terminal.focus":
     case "terminal.close":

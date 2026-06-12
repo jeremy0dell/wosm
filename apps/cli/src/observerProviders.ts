@@ -156,6 +156,9 @@ function createHarnessProvider(
     if (providerConfig?.installHooks !== undefined) {
       options.installHooks = providerConfig.installHooks;
     }
+    if (providerConfig?.resume !== undefined) {
+      options.resume = providerConfig.resume;
+    }
     const observerPaths = resolveObserverPaths(config);
     options.observerSocketPath = observerPaths.socketPath;
     options.stateDir = observerPaths.stateDir;
@@ -185,6 +188,9 @@ function createHarnessProvider(
     if (providerConfig?.installHooks !== undefined) {
       options.installHooks = providerConfig.installHooks;
     }
+    if (providerConfig?.resume !== undefined) {
+      options.resume = providerConfig.resume;
+    }
     const observerPaths = resolveObserverPaths(config);
     options.observerSocketPath = observerPaths.socketPath;
     options.stateDir = observerPaths.stateDir;
@@ -200,6 +206,9 @@ function createHarnessProvider(
     }
     if (providerConfig?.installHooks !== undefined) {
       options.installHooks = providerConfig.installHooks;
+    }
+    if (providerConfig?.resume !== undefined) {
+      options.resume = providerConfig.resume;
     }
     if (registryOptions.configPath !== undefined) {
       options.configPath = registryOptions.configPath;
@@ -233,6 +242,9 @@ function createHarnessProvider(
     if (providerConfig?.installHooks !== undefined) {
       options.installHooks = providerConfig.installHooks;
     }
+    if (providerConfig?.resume !== undefined) {
+      options.resume = providerConfig.resume;
+    }
     if (registryOptions.configPath !== undefined) {
       options.configPath = registryOptions.configPath;
     }
@@ -247,6 +259,9 @@ function createHarnessProvider(
     const options: ConstructorParameters<typeof PiHarnessProvider>[0] = {};
     if (providerConfig?.command !== undefined) {
       options.command = providerConfig.command;
+    }
+    if (providerConfig?.resume !== undefined) {
+      options.resume = providerConfig.resume;
     }
     if (registryOptions.configPath !== undefined) {
       options.configPath = registryOptions.configPath;

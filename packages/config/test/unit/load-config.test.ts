@@ -563,6 +563,37 @@ ${projectToml("web", root)}
     expect(loaded.config.featureFlags).toEqual({});
   });
 
+  it("normalizes resume feature flag and harness resume opt-in", async () => {
+    const tempDir = await makeTempDir();
+    const root = await makeProjectRoot(tempDir, "web");
+
+    const loaded = await loadConfigFromToml(
+      `
+schema_version = 1
+
+[defaults]
+worktree_provider = "worktrunk"
+terminal = "tmux"
+harness = "codex"
+layout = "agent-build-shell"
+
+[feature_flags]
+session_resume_agent = true
+
+[harness.codex]
+resume = true
+
+${projectToml("web", root)}
+`,
+      { configPath: join(tempDir, "config.toml"), homeDir: tempDir },
+    );
+
+    expect(loaded.config.featureFlags).toEqual({
+      sessionResumeAgent: true,
+    });
+    expect(loaded.config.harness?.codex?.resume).toBe(true);
+  });
+
   it("rejects unknown feature flag keys", async () => {
     const tempDir = await makeTempDir();
     const root = await makeProjectRoot(tempDir, "web");
