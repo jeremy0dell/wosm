@@ -1,5 +1,11 @@
 import type { WosmConfig } from "@wosm/config";
-import type { CommandId, CommandReceipt, CommandRecord, WosmCommand } from "@wosm/contracts";
+import type {
+  CommandId,
+  CommandReceipt,
+  CommandRecord,
+  SafeError,
+  WosmCommand,
+} from "@wosm/contracts";
 import { CommandIdSchema, WosmCommandSchema } from "@wosm/contracts";
 import { createObserverClient, type ObserverApi, type ObserverClient } from "@wosm/protocol";
 import { isSafeError, runRuntimeBoundaryWithTimeout } from "@wosm/runtime";
@@ -31,7 +37,7 @@ export type CommandDispatchCompletedResult = {
 };
 
 export type CommandGetResult = {
-  command: CommandRecord | null;
+  command: CommandRecord;
 };
 
 export type CommandCommandResult =
@@ -101,16 +107,26 @@ export function commandCommandExitCode(result: CommandCommandResult): number {
   if ("status" in result && result.status === "failed") {
     return 1;
   }
-  if ("command" in result && result.command === null) {
-    return 1;
-  }
   return 0;
 }
 
 async function getCommand(client: ObserverApi, commandId: CommandId): Promise<CommandGetResult> {
   const command = await client.getCommand(commandId);
+  if (command === undefined) {
+    throw missingCommandRecordError(commandId);
+  }
   return {
-    command: command ?? null,
+    command,
+  };
+}
+
+function missingCommandRecordError(commandId: CommandId): SafeError {
+  return {
+    tag: "CommandCliError",
+    code: "COMMAND_RECORD_NOT_FOUND",
+    message: `No command record found for ${commandId}.`,
+    hint: "Use a command id returned by `wosm command dispatch --stdin --wait`, `wosm observe --json`, or `wosm debug trace --latest-failure`.",
+    commandId,
   };
 }
 

@@ -99,6 +99,27 @@ describe("CLI command dispatch/get", () => {
     ).resolves.toEqual({ command: record });
   });
 
+  it("fails missing command records with a SafeError payload", async () => {
+    const fixture = await createTempState();
+
+    await expect(
+      runCommandCommand(
+        ["get", "cmd_missing"],
+        { config: fixture.config },
+        runningObserverDeps({
+          socketPath: fixture.socketPath,
+          getCommand: async () => undefined,
+        }),
+      ),
+    ).rejects.toMatchObject({
+      tag: "CommandCliError",
+      code: "COMMAND_RECORD_NOT_FOUND",
+      message: "No command record found for cmd_missing.",
+      hint: expect.stringContaining("wosm command dispatch --stdin --wait"),
+      commandId: "cmd_missing",
+    });
+  });
+
   it("rejects invalid command ids before observer startup", async () => {
     const fixture = await createTempState();
 

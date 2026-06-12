@@ -29,6 +29,7 @@ export type SetupCommandDeps = {
 export type SetupCommandOptions = {
   configPath?: string;
   env?: CliEnv;
+  renderHelp?: (path: readonly string[]) => string;
 };
 
 export type SetupCommandResult = {
