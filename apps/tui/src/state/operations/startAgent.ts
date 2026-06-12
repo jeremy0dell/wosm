@@ -7,7 +7,7 @@ import { bindPendingStartAgentRow } from "../localRows.js";
 import { replaceSnapshot } from "../screen.js";
 import type { TuiStore } from "../store.js";
 import { type CommandRuntimeOptions, prepareCommandForRuntime } from "./runtimeCommands.js";
-import type { StartAgentOperation } from "./types.js";
+import type { ResumeAgentOperation, StartAgentOperation } from "./types.js";
 
 export type FocusStartedAgentRow = (snapshot: WosmSnapshot, row: WorktreeRow) => Promise<void>;
 
@@ -15,7 +15,7 @@ export async function runStartAgentOperation(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
   runtime: CommandRuntimeOptions,
-  operation: StartAgentOperation,
+  operation: StartAgentOperation | ResumeAgentOperation,
   markStartAgentRowFailed: (localId: string) => void,
   markCommandFailureHandled: (commandId: CommandId) => void,
   hasCommandFailureBeenHandled: (commandId: CommandId) => boolean,
@@ -26,7 +26,7 @@ export async function runStartAgentOperation(
   try {
     const command = (await prepareCommandForRuntime(operation.command, runtime)) as Extract<
       WosmCommand,
-      { type: "session.startAgent" }
+      { type: "session.startAgent" | "session.resumeAgent" }
     >;
     const receipt = await service.dispatch(command);
     if (!receipt.accepted) {
@@ -77,7 +77,7 @@ export async function runStartAgentOperation(
 async function focusStartedAgentAfterSnapshotCatchup(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
-  operation: StartAgentOperation,
+  operation: StartAgentOperation | ResumeAgentOperation,
   clearPendingStartAgentRow: (localId: string) => void,
   focusStartedAgentRow: FocusStartedAgentRow,
 ): Promise<void> {

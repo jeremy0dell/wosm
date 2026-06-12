@@ -3,6 +3,7 @@ import type {
   HarnessLaunchPlan,
   HarnessPermissionMode,
 } from "@wosm/contracts";
+import { OpenCodeHarnessProviderError } from "./errors.js";
 
 export type OpenCodeLaunchOptions = {
   command?: string;
@@ -21,6 +22,9 @@ export function buildOpenCodeLaunchPlan(
   options: OpenCodeLaunchOptions = {},
 ): HarnessLaunchPlan {
   const mode = request.mode ?? "interactive";
+  if (request.resume !== undefined) {
+    return buildOpenCodeResumeLaunchPlan(request, options, mode);
+  }
   const profile = request.profile ?? options.defaultProfile;
   const permissionMode = request.permissionMode ?? options.defaultPermissionMode;
   const approvalPolicy = request.approvalPolicy ?? options.defaultApprovalPolicy;
@@ -71,6 +75,49 @@ export function buildOpenCodeLaunchPlan(
     mode,
     displayTitle: `${request.project.label} OpenCode`,
     providerData: openCodeProviderData(providerDataInput),
+  };
+}
+
+function buildOpenCodeResumeLaunchPlan(
+  request: BuildHarnessLaunchRequest,
+  options: OpenCodeLaunchOptions,
+  mode: "interactive" | "exec",
+): HarnessLaunchPlan {
+  // OpenCode accepts a native session id for interactive resume; exec fidelity
+  // is intentionally not assumed until a provider-specific test proves it.
+  if (mode === "exec") {
+    throw new OpenCodeHarnessProviderError(
+      "HARNESS_OPENCODE_RESUME_UNSUPPORTED",
+      "OpenCode resume is supported only for interactive launches.",
+      { hint: "Start an interactive OpenCode resume session instead." },
+    );
+  }
+  if (request.resume?.target.kind !== "native-session") {
+    throw new OpenCodeHarnessProviderError(
+      "HARNESS_OPENCODE_RESUME_UNSUPPORTED",
+      "OpenCode resume requires a native session target.",
+    );
+  }
+
+  const args = ["--session", request.resume.target.id];
+  if (request.initialPrompt !== undefined) {
+    args.push("--prompt", request.initialPrompt);
+  }
+
+  return {
+    provider: "opencode",
+    command: options.command ?? "opencode",
+    args,
+    cwd: request.worktree.path,
+    env: openCodeLaunchEnv(request, options),
+    mode,
+    displayTitle: `${request.project.label} OpenCode`,
+    providerData: openCodeProviderData({
+      mode,
+      initialPromptProvided: request.initialPrompt !== undefined,
+      resume: true,
+      resumeTargetKind: request.resume.target.kind,
+    }),
   };
 }
 
@@ -160,6 +207,8 @@ type OpenCodeProviderDataInput = {
   observerSocketPathProvided?: boolean | undefined;
   terminalProvider?: string | undefined;
   terminalTargetId?: string | undefined;
+  resume?: boolean | undefined;
+  resumeTargetKind?: string | undefined;
 };
 
 function openCodeProviderData(input: OpenCodeProviderDataInput): Record<string, unknown> {
@@ -192,6 +241,12 @@ function openCodeProviderData(input: OpenCodeProviderDataInput): Record<string, 
   }
   if (input.terminalTargetId !== undefined) {
     providerData.terminalTargetId = input.terminalTargetId;
+  }
+  if (input.resume === true) {
+    providerData.resume = true;
+  }
+  if (input.resumeTargetKind !== undefined) {
+    providerData.resumeTargetKind = input.resumeTargetKind;
   }
   return providerData;
 }

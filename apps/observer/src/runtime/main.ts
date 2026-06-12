@@ -109,6 +109,7 @@ export async function runObserverMain(
     projects: providerProjectsFromConfig(config),
     getProjects: () => core.getProjects(),
     persistence,
+    featureFlags,
     eventBus,
     clock: systemClock,
     logger,

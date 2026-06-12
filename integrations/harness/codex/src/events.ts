@@ -205,6 +205,7 @@ export function normalizeCodexRawEvent(
   if (correlation.harnessRunId !== undefined) {
     observation.harnessRunId = correlation.harnessRunId;
   }
+  observation.nativeSessionId = event.session_id;
   return [observation];
 }
 
@@ -395,6 +396,7 @@ function reportCorrelationFromCodexEvent(
 ): HarnessEventReport["correlation"] | undefined {
   const correlation: NonNullable<HarnessEventReport["correlation"]> = {
     cwd: event.cwd,
+    nativeSessionId: event.session_id,
   };
   if (event.wosm_project_id !== undefined) {
     correlation.projectId = event.wosm_project_id;

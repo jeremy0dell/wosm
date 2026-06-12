@@ -11,6 +11,7 @@ import {
 } from "./ids.js";
 import { WorktreeObservationSchema } from "./observations.js";
 import { HarnessPermissionModeSchema, ProviderProjectConfigSchema } from "./providers.js";
+import { HarnessResumeOptionsSchema } from "./recovery.js";
 import { nonEmptyStringSchema } from "./shared.js";
 
 export const TerminalIntentTypeSchema = z.enum([
@@ -63,6 +64,7 @@ export const EnsureAgentWorkspaceIntentSchema = z
     focus: z.boolean().optional(),
     origin: TerminalFocusOriginSchema.optional(),
     initialPrompt: nonEmptyStringSchema.optional(),
+    resume: HarnessResumeOptionsSchema.optional(),
   })
   .strict();
 

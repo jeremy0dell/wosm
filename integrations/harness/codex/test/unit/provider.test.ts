@@ -30,6 +30,11 @@ describe("CodexHarnessProvider", () => {
     });
   });
 
+  it("advertises resume only when configured", () => {
+    expect(new CodexHarnessProvider().capabilities().canResume).toBe(false);
+    expect(new CodexHarnessProvider({ resume: true }).capabilities().canResume).toBe(true);
+  });
+
   it("checks codex login status for provider health", async () => {
     const calls: ExternalCommandInput[] = [];
     const provider = new CodexHarnessProvider({

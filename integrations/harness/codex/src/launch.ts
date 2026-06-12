@@ -3,6 +3,7 @@ import type {
   HarnessLaunchPlan,
   HarnessPermissionMode,
 } from "@wosm/contracts";
+import { CodexHarnessProviderError } from "./errors.js";
 
 export type CodexLaunchOptions = {
   command?: string;
@@ -21,6 +22,9 @@ export function buildCodexLaunchPlan(
   options: CodexLaunchOptions = {},
 ): HarnessLaunchPlan {
   const mode = request.mode ?? "interactive";
+  if (request.resume !== undefined) {
+    return buildCodexResumeLaunchPlan(request, options, mode);
+  }
   const configuredProfile = request.profile ?? options.defaultProfile;
   const hookProfile = options.defaultHookProfile;
   const profile = hookProfile ?? configuredProfile;
@@ -86,6 +90,68 @@ export function buildCodexLaunchPlan(
     mode,
     displayTitle: `${request.project.label} Codex`,
     providerData,
+  };
+}
+
+function buildCodexResumeLaunchPlan(
+  request: BuildHarnessLaunchRequest,
+  options: CodexLaunchOptions,
+  mode: "interactive" | "exec",
+): HarnessLaunchPlan {
+  // Resume must use a durable native id; adapters should not synthesize latest/continue selectors.
+  if (mode === "exec") {
+    throw new CodexHarnessProviderError(
+      "HARNESS_CODEX_RESUME_UNSUPPORTED",
+      "Codex resume is supported only for interactive launches.",
+      { hint: "Start an interactive Codex resume session instead." },
+    );
+  }
+  if (request.resume?.target.kind !== "native-session") {
+    throw new CodexHarnessProviderError(
+      "HARNESS_CODEX_RESUME_UNSUPPORTED",
+      "Codex resume requires a native session target.",
+    );
+  }
+
+  const configuredProfile = request.profile ?? options.defaultProfile;
+  const hookProfile = options.defaultHookProfile;
+  const profile = hookProfile ?? configuredProfile;
+  const args = ["resume", "--cd", request.worktree.path];
+  appendCodexOptions(args, { profile });
+  args.push(request.resume.target.id);
+  if (request.initialPrompt !== undefined) {
+    args.push(request.initialPrompt);
+  }
+
+  const providerDataInput: CodexProviderDataInput = {
+    mode,
+    initialPromptProvided: request.initialPrompt !== undefined,
+    resume: true,
+    resumeTargetKind: request.resume.target.kind,
+  };
+  if (profile !== undefined) {
+    providerDataInput.profile = profile;
+  }
+  if (hookProfile !== undefined) {
+    providerDataInput.hookProfile = hookProfile;
+  }
+  if (
+    hookProfile !== undefined &&
+    configuredProfile !== undefined &&
+    configuredProfile !== hookProfile
+  ) {
+    providerDataInput.configuredProfile = configuredProfile;
+  }
+
+  return {
+    provider: "codex",
+    command: options.command ?? "codex",
+    args,
+    cwd: request.worktree.path,
+    env: codexLaunchEnv(request),
+    mode,
+    displayTitle: `${request.project.label} Codex`,
+    providerData: codexProviderData(providerDataInput),
   };
 }
 
@@ -164,6 +230,8 @@ type CodexProviderDataInput = {
   initialPromptProvided: boolean;
   terminalProvider?: string | undefined;
   terminalTargetId?: string | undefined;
+  resume?: boolean | undefined;
+  resumeTargetKind?: string | undefined;
 };
 
 function codexProviderData(input: CodexProviderDataInput): Record<string, unknown> {
@@ -199,6 +267,12 @@ function codexProviderData(input: CodexProviderDataInput): Record<string, unknow
   }
   if (input.terminalTargetId !== undefined) {
     providerData.terminalTargetId = input.terminalTargetId;
+  }
+  if (input.resume === true) {
+    providerData.resume = true;
+  }
+  if (input.resumeTargetKind !== undefined) {
+    providerData.resumeTargetKind = input.resumeTargetKind;
   }
   return providerData;
 }

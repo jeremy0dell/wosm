@@ -8,6 +8,7 @@ export type CommandRuntimeOptions = {
 
 type CreateSessionCommand = Extract<WosmCommand, { type: "session.create" }>;
 type StartAgentCommand = Extract<WosmCommand, { type: "session.startAgent" }>;
+type ResumeAgentCommand = Extract<WosmCommand, { type: "session.resumeAgent" }>;
 type RuntimeTerminalOptions = NonNullable<StartAgentCommand["payload"]["terminal"]>;
 
 async function prepareCreateSessionCommandForRuntime(
@@ -29,9 +30,9 @@ async function prepareCreateSessionCommandForRuntime(
 }
 
 async function prepareStartAgentCommandForRuntime(
-  command: StartAgentCommand,
+  command: StartAgentCommand | ResumeAgentCommand,
   runtime: CommandRuntimeOptions,
-): Promise<StartAgentCommand> {
+): Promise<StartAgentCommand | ResumeAgentCommand> {
   if (!shouldFocusSessionCommand(runtime)) {
     return command;
   }
@@ -88,6 +89,9 @@ export async function prepareCommandForRuntime(
     return prepareCreateSessionCommandForRuntime(command, runtime);
   }
   if (command.type === "session.startAgent") {
+    return prepareStartAgentCommandForRuntime(command, runtime);
+  }
+  if (command.type === "session.resumeAgent") {
     return prepareStartAgentCommandForRuntime(command, runtime);
   }
   return command;

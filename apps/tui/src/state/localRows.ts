@@ -36,6 +36,7 @@ export type PendingRemoveWorktreeRow = {
 
 export type PendingStartAgentRow = {
   localId: string;
+  operation?: "startAgent" | "resumeAgent";
   projectId: string;
   worktreeId: WorktreeId;
   branch: string;

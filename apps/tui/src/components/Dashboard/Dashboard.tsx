@@ -299,12 +299,14 @@ function rowGridInputForViewportItem(
       });
     }
     if (item.pendingStart !== undefined) {
+      const activity =
+        item.pendingStart.operation === "resumeAgent" ? "resuming..." : "starting...";
       return worktreeStyleRowGridInput({
         id: item.id,
         slot: keyByRow.get(item.row.id),
         marker: { kind: "throbber", variant: "braille" },
         title: item.displayTitle,
-        activity: "starting...",
+        activity,
         activityImportance: "meaningful",
         activityOverflow: "rowSlack",
       });

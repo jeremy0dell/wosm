@@ -41,7 +41,16 @@ export type FeatureFlagDefinitionInput = {
 };
 export type FeatureFlagDefinitionsMap = Readonly<Record<string, FeatureFlagDefinitionInput>>;
 
-export const FeatureFlagDefinitions = {} as const satisfies FeatureFlagDefinitionsMap;
+export const FeatureFlagDefinitions = {
+  sessionResumeAgent: {
+    defaultValue: false,
+    exposure: "client",
+    owner: "observer",
+    surfaces: ["config", "observer", "protocol", "tui", "provider"],
+    lifecycle: "temporary",
+    summary: "Enable resuming lost provider-native agent sessions.",
+  },
+} as const satisfies FeatureFlagDefinitionsMap;
 
 export type FeatureFlagKey = keyof typeof FeatureFlagDefinitions & string;
 export type ClientFeatureFlagKey = ClientFeatureFlagKeyForDefinitions<

@@ -171,6 +171,7 @@ export const HarnessProviderConfigSchema = z
     sandboxMode: nonEmptyStringSchema.optional(),
     approvalPolicy: nonEmptyStringSchema.optional(),
     installHooks: z.boolean().optional(),
+    resume: z.boolean().optional(),
   })
   .strict();
 

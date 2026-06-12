@@ -25,11 +25,15 @@ const testDefinitions = {
 } as const satisfies FeatureFlagDefinitionsMap;
 
 describe("observer feature flag evaluator", () => {
-  it("has no production flags until a real registry entry is added", () => {
+  it("defaults production flags to conservative values", () => {
     const evaluator = createFeatureFlagEvaluator({ revisionSeed: "test" });
 
-    expect(evaluator.all().flags).toEqual({});
-    expect(evaluator.clientSnapshot().flags).toEqual({});
+    expect(evaluator.all().flags).toEqual({
+      sessionResumeAgent: false,
+    });
+    expect(evaluator.clientSnapshot().flags).toEqual({
+      sessionResumeAgent: false,
+    });
   });
 
   it("evaluates local definitions from defaults plus overrides", () => {

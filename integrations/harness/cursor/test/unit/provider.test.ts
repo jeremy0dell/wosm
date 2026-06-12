@@ -30,6 +30,11 @@ describe("CursorHarnessProvider", () => {
     });
   });
 
+  it("advertises resume only when configured", () => {
+    expect(new CursorHarnessProvider().capabilities().canResume).toBe(false);
+    expect(new CursorHarnessProvider({ resume: true }).capabilities().canResume).toBe(true);
+  });
+
   it("checks agent --version for provider health", async () => {
     const calls: ExternalCommandInput[] = [];
     const provider = new CursorHarnessProvider({
@@ -122,6 +127,30 @@ describe("CursorHarnessProvider", () => {
         interactive: true,
         observation: "hooks",
         terminalTargetId: "tmux:wosm:@1:%2",
+      },
+    });
+  });
+
+  it("launches interactive Cursor resume with the native session id", async () => {
+    const provider = new CursorHarnessProvider({
+      command: "agent-test",
+      resume: true,
+    });
+
+    await expect(
+      provider.buildLaunch({
+        ...request(),
+        resume: {
+          target: { kind: "native-session", id: "cursor_session_123" },
+          previousSessionId: "ses_web_task",
+          recoveryHandleId: "rec_cursor",
+        },
+      }),
+    ).resolves.toMatchObject({
+      args: ["--workspace", "/tmp/wosm/web/task", "--resume", "cursor_session_123"],
+      providerData: {
+        resume: true,
+        resumeTargetKind: "native-session",
       },
     });
   });

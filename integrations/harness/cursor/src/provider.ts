@@ -37,12 +37,13 @@ export type CursorHarnessProviderOptions = {
   stateDir?: string;
   hookSpoolDir?: string;
   autoStartFromHooks?: boolean;
+  resume?: boolean;
   now?: () => Date | string;
   timeoutMs?: number;
   runner?: ExternalCommandRunner;
 };
 
-const capabilities: HarnessCapabilities = {
+const baseCapabilities: HarnessCapabilities = {
   canLaunch: true,
   canDiscoverRuns: true,
   canEmitEvents: true,
@@ -58,6 +59,15 @@ function command(options: CursorHarnessProviderOptions): string {
   return options.command ?? process.env.WOSM_CURSOR_AGENT_BIN ?? "agent";
 }
 
+function capabilities(options: CursorHarnessProviderOptions): HarnessCapabilities {
+  // Adapter support alone is not enough; resume stays invisible unless this
+  // provider instance is explicitly enabled by [harness.cursor].resume.
+  return {
+    ...baseCapabilities,
+    canResume: options.resume === true,
+  };
+}
+
 export class CursorHarnessProvider implements HarnessProvider {
   readonly id = "cursor";
 
@@ -68,7 +78,7 @@ export class CursorHarnessProvider implements HarnessProvider {
   }
 
   capabilities(): HarnessCapabilities {
-    return capabilities;
+    return capabilities(this.#options);
   }
 
   async health(): Promise<ProviderHealth> {
@@ -88,7 +98,7 @@ export class CursorHarnessProvider implements HarnessProvider {
         providerType: "harness",
         status: "healthy",
         lastCheckedAt: checkedAt,
-        capabilities,
+        capabilities: this.capabilities(),
         diagnostics: {
           command: "agent --version succeeded",
           observation: "hooks",
@@ -105,7 +115,7 @@ export class CursorHarnessProvider implements HarnessProvider {
           message: "Cursor Agent is not available.",
           hint: "Install Cursor Agent or configure [harness.cursor].command.",
         }),
-        capabilities,
+        capabilities: this.capabilities(),
       };
     }
   }

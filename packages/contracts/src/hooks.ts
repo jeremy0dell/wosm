@@ -67,6 +67,7 @@ export const HarnessEventReportCorrelationSchema = z
     terminalTargetId: TerminalTargetIdSchema.optional(),
     projectId: ProjectIdSchema.optional(),
     nativeSessionId: nonEmptyStringSchema.optional(),
+    nativeSessionFile: nonEmptyStringSchema.optional(),
     cwd: nonEmptyStringSchema.optional(),
     pid: z.number().int().positive().optional(),
   })

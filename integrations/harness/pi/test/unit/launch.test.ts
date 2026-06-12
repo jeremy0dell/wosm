@@ -78,6 +78,58 @@ describe("buildPiLaunchPlan", () => {
       }),
     ).toThrowError(PiHarnessProviderError);
   });
+
+  it("builds interactive resume plans from session-file and native-session targets", () => {
+    const filePlan = buildPiLaunchPlan(
+      {
+        ...request(),
+        resume: {
+          target: { kind: "session-file", path: "/tmp/pi-session.json" },
+          recoveryHandleId: "rec_pi_file",
+        },
+      },
+      {
+        extensionPath: "/opt/wosm/piExtension.js",
+      },
+    );
+    expect(filePlan.args).toEqual([
+      "--extension",
+      "/opt/wosm/piExtension.js",
+      "--session",
+      "/tmp/pi-session.json",
+      "Review the task.",
+    ]);
+    expect(filePlan.providerData).toMatchObject({
+      resume: true,
+      resumeTargetKind: "session-file",
+    });
+
+    const nativePlan = buildPiLaunchPlan(
+      {
+        ...requestWithoutPrompt(),
+        resume: { target: { kind: "native-session", id: "pi_session_123" } },
+      },
+      {
+        extensionPath: "/opt/wosm/piExtension.js",
+      },
+    );
+    expect(nativePlan.args).toEqual([
+      "--extension",
+      "/opt/wosm/piExtension.js",
+      "--session",
+      "pi_session_123",
+    ]);
+  });
+
+  it("rejects exec resume until Pi exec fidelity is proven", () => {
+    expect(() =>
+      buildPiLaunchPlan({
+        ...request(),
+        mode: "exec",
+        resume: { target: { kind: "session-file", path: "/tmp/pi-session.json" } },
+      }),
+    ).toThrow(/HARNESS_PI_RESUME_UNSUPPORTED/);
+  });
 });
 
 function requestWithoutPrompt(): BuildHarnessLaunchRequest {
