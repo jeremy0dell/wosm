@@ -695,6 +695,38 @@ Reserved WOSM chords should remain available even when a terminal pane is
 focused. Most ordinary text input should pass through to the focused terminal
 process.
 
+Phase 1 design decisions (2026-06-12):
+
+- Store mechanics: hand-rolled vanilla store (`subscribe`/`getState` +
+  `useSyncExternalStore`, the shape the app already uses three times), not
+  React context and not Zustand. The router runs outside React
+  (`prependInputHandlers`, renderable callbacks), so the store must be
+  vanilla-JS-first; Zustand-vanilla is the drop-in upgrade later if selector
+  pain appears.
+- Focus is a store value mutated by a small set of explicit actions
+  (`focusPane`, overlay toggle, dialog push/pop, close-pane successor), never
+  emergent from per-component focus handlers. OpenTUI's own
+  `focusable`/`focus()` system stays deliberately unused for panes — two
+  focus systems fighting is the classic TUI bug.
+- Mouse: pane `onMouseDown` handlers are the entry point (hit-testing is the
+  framework's job) but delegate to a shared `routeMouse(paneId, event,
+  state)` returning the same outcome vocabulary as the key router. Phase 1
+  scope is `focusPane` guarded by modal state; mouse forwarding to
+  mouse-mode children (vim/htop) comes later and needs
+  `mouseTrackingMode` exposed on the screen view.
+- Pane close is one reducer: successor focus computed before mutation, state
+  updated first, PTY/screen disposed imperatively after (never trust unmount
+  timing for processes). Last pane closed falls back to the Zero-Pane State.
+- Byte normalization (terminal-reply stripping, kitty CSI-u translation)
+  runs before routing and is not the router's concern.
+- Validation: Herdr routes every keystroke through one central dispatcher
+  (`App::handle_key`) with modal modes > copy mode > navigate mode >
+  terminal passthrough, prefix-key interception inside terminal mode, and a
+  separate paste dispatch — the same architecture as this section. Worth
+  stealing when scrollback lands: Herdr intercepts plain PageUp/PageDown for
+  scrollback only when the pane is not in alt-screen or mouse-reporting
+  mode.
+
 ### Working Domains
 
 Keep these domains separate from the beginning:
