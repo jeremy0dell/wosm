@@ -317,15 +317,28 @@ async function runHookScript(
   child.stderr.on("data", (chunk: string) => {
     stderr += chunk;
   });
-  child.stdin.write(stdin);
-  child.stdin.end();
-
-  return new Promise((resolve, reject) => {
-    child.on("error", reject);
-    child.on("close", (code) => {
-      resolve({ code, stdout, stderr });
-    });
-  });
+  const completed = new Promise<{ code: number | null; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      child.on("error", reject);
+      child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+        if (error.code === "EPIPE") {
+          return;
+        }
+        reject(error);
+      });
+      child.on("close", (code) => {
+        resolve({ code, stdout, stderr });
+      });
+    },
+  );
+  try {
+    child.stdin.end(stdin);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EPIPE") {
+      throw error;
+    }
+  }
+  return completed;
 }
 
 function shellQuote(value: string): string {
