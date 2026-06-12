@@ -1,19 +1,15 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { useSyncExternalStore } from "react";
+import { createStationSequenceHandler, forwardStationPaste } from "./appInput.js";
 import { createStationWosmStateSource } from "./sources/createStationWosmStateSource.js";
-import { TerminalPane, writeToStationTerminal } from "./terminal/index.js";
+import { disposeActiveStationTerminal, TerminalPane } from "./terminal/index.js";
 import { WosmOverlay } from "./wosm/WosmOverlay.js";
-
-// Each chord is matched in both its legacy control-byte form and its kitty
-// keyboard protocol CSI-u form: terminals with the kitty protocol active
-// report Ctrl-O as ESC[111;5u, which a bare \x0f comparison misses.
-const STATION_EXIT_SEQUENCES = new Set(["\x11", "\x1b[113;5u"]);
-const WOSM_OVERLAY_TOGGLE_SEQUENCES = new Set(["\x0f", "\x1b[111;5u"]);
 
 const overlayStore = createOverlayStore();
 const wosmSource = createStationWosmStateSource();
 let rendererForInput: { destroy(): void } | undefined;
+let rootForShutdown: { unmount(): void } | undefined;
 
 function App() {
   const overlayVisible = useSyncExternalStore(
@@ -86,36 +82,38 @@ function createOverlayStore() {
 
 function shutdownStation(): void {
   void wosmSource.stop();
+  // React unmount work scheduled here cannot flush before process.exit, so
+  // the live PTY session is disposed imperatively: this is what actually
+  // ends the bridge and the shell, not the unmount.
+  disposeActiveStationTerminal();
+  rootForShutdown?.unmount();
   rendererForInput?.destroy();
+  process.exit(0);
 }
 
 const renderer = await createCliRenderer({
   exitOnCtrlC: false,
   prependInputHandlers: [
-    (sequence) => {
-      if (STATION_EXIT_SEQUENCES.has(sequence)) {
-        shutdownStation();
-        return true;
-      }
-
-      if (WOSM_OVERLAY_TOGGLE_SEQUENCES.has(sequence)) {
+    createStationSequenceHandler({
+      isOverlayVisible: () => overlayStore.getVisible(),
+      toggleOverlay: () => {
         overlayStore.toggle();
-        return true;
-      }
-
-      if (overlayStore.getVisible()) {
-        // WOSM mode is read-only: swallow input so keystrokes cannot reach
-        // the hidden shell pane.
-        return true;
-      }
-
-      return writeToStationTerminal(sequence);
-    },
+      },
+      shutdown: shutdownStation,
+    }),
   ],
   useKittyKeyboard: null,
 });
 rendererForInput = renderer;
+// OpenTUI routes paste events around the sequence handlers above, so the
+// pane would never see a paste without this explicit forward.
+renderer.keyInput.on("paste", (event) => {
+  if (forwardStationPaste(event.bytes, { isOverlayVisible: () => overlayStore.getVisible() })) {
+    event.preventDefault();
+  }
+});
 const root = createRoot(renderer);
+rootForShutdown = root;
 
 wosmSource.start();
 root.render(<App />);
