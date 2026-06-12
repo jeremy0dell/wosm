@@ -17,9 +17,7 @@ import {
   noProjectsSnapshot,
   scenarioState,
 } from "../fixtures/scenarios.js";
-import { createTuiStore } from "@wosm/dashboard-core";
-import { FakeStationSource } from "../test/support/fakeStationSource.js";
-import { FakeTuiObserverService } from "../test/support/fakeObserverService.js";
+import { makeWosmTestStore } from "../test/support/makeWosmTestStore.js";
 import { DashboardRoot } from "./DashboardRoot.js";
 import { WOSM_COLORS } from "./theme.js";
 
@@ -56,12 +54,10 @@ describe("dashboard golden frames", () => {
     snapshot?: WosmSnapshot;
     connection?: WosmClientConnectionState;
   }): Promise<RenderedDashboard> {
-    const source = new FakeStationSource(input.snapshot, input.connection);
-    const store = createTuiStore({
-      source,
-      service: new FakeTuiObserverService(input.snapshot ?? manyProjectsSnapshot()),
-      persistentPopup: true,
-      onDismiss: async () => {},
+    const { store } = makeWosmTestStore({
+      snapshot: input.snapshot ?? null,
+      connection: input.connection,
+      seedInitialSnapshot: false,
     });
     store.getState().start();
     const setup = await testRender(

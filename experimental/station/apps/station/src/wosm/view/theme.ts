@@ -14,6 +14,8 @@ export const WOSM_COLORS = {
   purple: ROW_COLOR_PURPLE,
   foreground: "#e4e4e7",
   background: "#101316",
+  hoverBackground: "#1f242b",
+  overlayBackdrop: "#000000",
 } as const;
 
 export function rowColorToHex(color: RowColor | undefined): string | undefined {

@@ -7,10 +7,8 @@
 // overlay is down.
 import { describe, expect, it } from "bun:test";
 import type { StoreApi } from "zustand/vanilla";
-import { manyProjectsSnapshot } from "../wosm/fixtures/scenarios.js";
-import { createTuiStore, type TuiStore } from "@wosm/dashboard-core";
-import { FakeStationSource } from "../wosm/test/support/fakeStationSource.js";
-import { FakeTuiObserverService } from "../wosm/test/support/fakeObserverService.js";
+import type { TuiStore } from "@wosm/dashboard-core";
+import { makeWosmTestStore } from "../wosm/test/support/makeWosmTestStore.js";
 import { createStationStore, type StationStore } from "../state/store.js";
 import { WOSM_OVERLAY_ID } from "../state/types.js";
 import { routeKey } from "./router.js";
@@ -18,15 +16,7 @@ import { createStationKeymap, OVERLAY_TOGGLE_LEGACY, STATION_EXIT_LEGACY } from 
 import { createStationInputRuntime } from "./stationInput.js";
 
 function makeWosmStore(): StoreApi<TuiStore> {
-  const snapshot = manyProjectsSnapshot();
-  const store = createTuiStore({
-    source: new FakeStationSource(snapshot),
-    service: new FakeTuiObserverService(snapshot),
-    initialSnapshot: snapshot,
-    persistentPopup: true,
-    onDismiss: async () => {},
-  });
-  return store;
+  return makeWosmTestStore().store;
 }
 
 function makeStationStore(overlayOpen: boolean): StationStore {

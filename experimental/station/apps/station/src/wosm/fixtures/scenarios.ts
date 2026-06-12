@@ -207,27 +207,13 @@ function scenarioRow(input: ScenarioRowInput): WorktreeRow {
               checkedAt: SCENARIO_NOW,
             },
           }),
-      ...(input.checks === undefined
-        ? {}
-        : {
-            checks:
-              input.checks === "pass"
-                ? { state: "pass" as const, total: 3, passed: 3, source: "github", checkedAt: SCENARIO_NOW }
-                : input.checks === "running"
-                  ? { state: "running" as const, total: 3, pending: 2, source: "github", checkedAt: SCENARIO_NOW }
-                  : {
-                      state: "fail" as const,
-                      total: 3,
-                      failed: input.checks.failed,
-                      source: "github",
-                      checkedAt: SCENARIO_NOW,
-                    },
-          }),
+      ...(input.checks === undefined ? {} : { checks: scenarioChecks(input.checks) }),
     },
     display: displayForState(input.state),
   };
 
   if (input.state !== "none") {
+    const confidence = input.state === "unknown" ? "low" : "high";
     built.terminal = {
       provider: "tmux",
       state: "open",
@@ -235,7 +221,7 @@ function scenarioRow(input: ScenarioRowInput): WorktreeRow {
       closeable: true,
       hasWorkspace: true,
       hasPrimaryAgentEndpoint: true,
-      confidence: input.state === "unknown" ? "low" : "high",
+      confidence,
       reason: "Scenario terminal.",
       observedAt: SCENARIO_NOW,
     };
@@ -244,13 +230,31 @@ function scenarioRow(input: ScenarioRowInput): WorktreeRow {
       state: input.state,
       runId: `run_${input.id}`,
       sessionId: `ses_${input.id}`,
-      confidence: input.state === "unknown" ? "low" : "high",
+      confidence,
       reason: reasonForState(input.state),
       updatedAt: SCENARIO_NOW,
     };
   }
 
   return built;
+}
+
+function scenarioChecks(
+  checks: NonNullable<ScenarioRowInput["checks"]>,
+): NonNullable<WorktreeRow["worktree"]["checks"]> {
+  if (checks === "pass") {
+    return { state: "pass", total: 3, passed: 3, source: "github", checkedAt: SCENARIO_NOW };
+  }
+  if (checks === "running") {
+    return { state: "running", total: 3, pending: 2, source: "github", checkedAt: SCENARIO_NOW };
+  }
+  return {
+    state: "fail",
+    total: 3,
+    failed: checks.failed,
+    source: "github",
+    checkedAt: SCENARIO_NOW,
+  };
 }
 
 type SnapshotExtras = {
