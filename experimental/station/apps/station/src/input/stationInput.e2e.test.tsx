@@ -1,30 +1,36 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { testRender } from "@opentui/react/test-utils";
-import { createStationSequenceHandler, forwardStationPaste } from "./appInput.js";
-import { createNodePtyTerminal } from "./terminal/pty/nodePtyTerminal.js";
-import { TerminalPane } from "./terminal/TerminalPane.js";
+import { selectWosmOverlayVisible } from "../state/selectors.js";
+import { createStationStore, type StationStore } from "../state/store.js";
+import { createNodePtyTerminal } from "../terminal/pty/nodePtyTerminal.js";
+import { TerminalPane } from "../terminal/TerminalPane.js";
 import {
   createScriptedTerminal,
   type ScriptedTerminal,
-} from "./terminal/testing/scriptedTerminal.js";
-import { waitFor } from "./terminal/testing/waitFor.js";
+} from "../terminal/testing/scriptedTerminal.js";
+import { waitFor } from "../terminal/testing/waitFor.js";
 import type {
   StationTerminalProcess,
   StationTerminalSpawnOptions,
-} from "./terminal/types.js";
+} from "../terminal/types.js";
+import { createStationInputRuntime } from "./stationInput.js";
 
 // End-to-end input tests: keystrokes enter through OpenTUI's real input
-// pipeline (mock stdin -> parser -> the production sequence handler) and must
+// pipeline (mock stdin -> parser -> the production input runtime) and must
 // arrive at the pty as the bytes a legacy terminal user would send.
 
 const SURFACE = { width: 70, height: 18 };
 
 type Station = {
   setup: Awaited<ReturnType<typeof testRender>>;
-  overlay: { visible: boolean };
+  store: StationStore;
   shutdowns: number[];
 };
+
+function overlayVisible(station: Station): boolean {
+  return selectWosmOverlayVisible(station.store.getState());
+}
 
 describe("station input end to end", () => {
   const teardowns: Array<() => void> = [];
@@ -38,35 +44,30 @@ describe("station input end to end", () => {
     createTerminal: (spawn: StationTerminalSpawnOptions) => StationTerminalProcess;
     kittyKeyboard?: boolean;
   }): Promise<Station> {
-    const overlay = { visible: false };
+    const store = createStationStore();
     const shutdowns: number[] = [];
-    const handler = createStationSequenceHandler({
-      isOverlayVisible: () => overlay.visible,
-      toggleOverlay: () => {
-        overlay.visible = !overlay.visible;
-      },
+    const runtime = createStationInputRuntime({
+      store,
       shutdown: () => {
         shutdowns.push(1);
       },
     });
     const setup = await testRender(<TerminalPane createTerminal={options.createTerminal} />, {
       ...SURFACE,
-      prependInputHandlers: [handler],
+      prependInputHandlers: [runtime.handleSequence],
       kittyKeyboard: options.kittyKeyboard ?? false,
     });
     // Same paste wiring as main.tsx: OpenTUI routes paste around sequence
     // handlers, so the pane only sees it through this forward.
     setup.renderer.keyInput.on("paste", (event) => {
-      if (forwardStationPaste(event.bytes, { isOverlayVisible: () => overlay.visible })) {
-        event.preventDefault();
-      }
+      runtime.handlePaste(event);
     });
     teardowns.push(() => {
       setup.renderer.destroy();
     });
     await setup.flush();
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
-    return { setup, overlay, shutdowns };
+    return { setup, store, shutdowns };
   }
 
   async function renderScripted(kittyKeyboard: boolean): Promise<Station & {
@@ -139,14 +140,23 @@ describe("station input end to end", () => {
   it("ctrl-o toggles the overlay and the overlay swallows typing", async () => {
     const station = await renderScripted(false);
     station.setup.mockInput.pressKey("o", { ctrl: true });
-    await waitFor(() => station.overlay.visible);
+    await waitFor(() => overlayVisible(station));
     await station.setup.mockInput.typeText("blocked");
     expect(station.scripted.helpers.writes.join("")).not.toContain("blocked");
 
     station.setup.mockInput.pressKey("o", { ctrl: true });
-    await waitFor(() => !station.overlay.visible);
+    await waitFor(() => !overlayVisible(station));
     await station.setup.mockInput.typeText("ok");
     await waitFor(() => station.scripted.helpers.writes.join("").includes("ok"));
+  });
+
+  it("reserved chords stay live while the overlay is open", async () => {
+    const station = await renderScripted(false);
+    station.setup.mockInput.pressKey("o", { ctrl: true });
+    await waitFor(() => overlayVisible(station));
+    station.setup.mockInput.pressKey("q", { ctrl: true });
+    await waitFor(() => station.shutdowns.length === 1);
+    expect(station.scripted.helpers.writes.join("")).not.toContain("\x11");
   });
 
   it("paste flows to the pty and respects the child's bracketed-paste mode", async () => {
@@ -164,6 +174,16 @@ describe("station input end to end", () => {
       station.scripted.helpers.writes[station.scripted.helpers.writes.length - 1] ===
         "\x1b[200~wrapped paste\x1b[201~",
     );
+  });
+
+  it("paste is not delivered while the overlay is open", async () => {
+    const station = await renderScripted(false);
+    station.setup.mockInput.pressKey("o", { ctrl: true });
+    await waitFor(() => overlayVisible(station));
+    const writesBefore = station.scripted.helpers.writes.length;
+    await station.setup.mockInput.pasteBracketedText("blocked paste");
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(station.scripted.helpers.writes.length).toBe(writesBefore);
   });
 
   // --- Real shell lane (gated): a user typing into a live /bin/sh ---
