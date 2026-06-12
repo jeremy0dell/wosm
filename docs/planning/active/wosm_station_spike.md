@@ -817,6 +817,23 @@ If the user starts an agent manually in another pane, closing that pane should
 follow ordinary running-process rules unless the user explicitly adopts it as
 the primary agent.
 
+#### Zero-Pane State
+
+Closing the last pane must not exit Station and must not show a generic empty
+screen. The zero-pane state is a session lifecycle moment with two prompted
+actions (decided 2026-06-12):
+
+- open the primary agent pane for this workspace (the explicit
+  `session.startAgent`-style creation path; doubles as the recovery path when
+  the agent exited and the workspace is resumable)
+- clean up this session, here or from the WOSM view (the guarded teardown
+  path; the WOSM view stays the authoritative venue so the empty state never
+  grows into a second session-management UI)
+
+Focus falls back to the WOSM view content when the last pane closes. Ctrl-Q
+remains the prominent quit affordance for tmux muscle memory ("last pane
+closed" sometimes means "I'm done").
+
 #### Adoption And Promotion
 
 Station can eventually support adopting an ad hoc agent pane as the primary
