@@ -10,7 +10,8 @@ Companion documents:
 - `station_tui_overlay_seams_review.md` — the read-only seams review whose
   judgment this plan adopts
 - `experimental/station/apps/station/src/wosm/ported/PROVENANCE.md` — the
-  current staging ledger this plan retires
+  staging ledger this plan retires (retired in step 3: the `ported/` tree is
+  deleted and `packages/dashboard-core` is the single source)
 
 ## Where this came from
 
@@ -71,7 +72,7 @@ Load-bearing principles:
 
 ## Sequenced plan
 
-1. **Patch and merge PR #78** (this step is executed in the PR itself):
+1. **Patch and merge PR #78** (done — merged 2026-06-12):
    - sanitize overlay paste (strip control bytes; newlines become spaces)
      and honor the dispatch outcome, so paste can never inject what the
      keyboard path filters
@@ -88,14 +89,16 @@ Load-bearing principles:
      content.ts`, both under the PROVENANCE audit
 
 2. **Land the station-side half of `station-tui-seams-review` as its own PR**
-   (rebased onto the patched #78): StationApp extraction + rendered
+   (done — PR #79, merged 2026-06-12; its enforced parity test caught and
+   re-synced real PR #77 drift in the ported tree on landing): StationApp extraction + rendered
    composition test, enforced `portedParity.test.ts` (upgrades the manual
    PROVENANCE diff to a failing test), `createWosmViewStore` flow tests,
    the `StationWosmClient` boundary, app-neutral `@wosm/client` messages.
    Low risk; puts guardrails on the copy while it exists; makes Station
    PR-4-ready.
 
-3. **Review the extraction trio as a separate PR with a hard bar**: the
+3. **Review the extraction trio as a separate PR with a hard bar**
+   (in review — the `dashboard-core` branch): the
    apps/tui pure-helper extraction, keymap-metadata move, and
    `packages/dashboard-core`. This is the parity-by-mechanism move — and the
    only step that can regress production apps/tui, which the spike's
