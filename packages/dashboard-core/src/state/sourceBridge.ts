@@ -64,13 +64,36 @@ function applyConnectionState(
         state.snapshot === undefined
           ? { state: "reconnecting", since: connection.since, lastError: connection.lastError }
           : { state: "displayOnly", since: connection.since, lastError: connection.lastError };
+      const loading = state.snapshot === undefined ? state.loading : false;
+      // Sources re-notify on every runtime state swap (in-flight flags,
+      // snapshot-only changes), re-deriving an identical failure status each
+      // time; returning the same reference keeps subscribers from re-rendering.
+      if (loading === state.loading && sameFailureStatus(state.observerConnectionStatus, status)) {
+        return state;
+      }
       return {
         ...state,
-        loading: state.snapshot === undefined ? state.loading : false,
+        loading,
         observerConnectionStatus: status,
       };
     }
   }
+}
+
+// lastError compares by reference: a re-derived status from the same source
+// connection carries the same error object, which is the churn this guards.
+function sameFailureStatus(
+  previous: TuiObserverConnectionStatus,
+  next: Extract<TuiObserverConnectionStatus, { state: "reconnecting" | "displayOnly" }>,
+): boolean {
+  if (previous.state !== "reconnecting" && previous.state !== "displayOnly") {
+    return false;
+  }
+  return (
+    previous.state === next.state &&
+    previous.since === next.since &&
+    previous.lastError === next.lastError
+  );
 }
 
 function observerConnectedState(state: TuiState, nowMs: number): TuiState {
