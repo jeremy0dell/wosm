@@ -16,7 +16,7 @@ station_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_root="$(cd "${station_root}/../.." && pwd)"
 target_dir="${station_root}/apps/station/node_modules/@wosm"
 
-linked_packages=(client contracts)
+linked_packages=(client contracts runtime)
 
 for package in "${linked_packages[@]}"; do
   dist_entry="${repo_root}/packages/${package}/dist/index.js"
@@ -40,4 +40,14 @@ for package in "${linked_packages[@]}"; do
   ln -sfn "../../../../../../packages/${package}" "${target_dir}/${package}"
 done
 
-echo "Linked @wosm/{client,contracts} into apps/station/node_modules."
+# Echo each linked dist's mtime so a stale build is visible at link time —
+# the existence check above cannot tell yesterday's dist from today's.
+freshness=""
+for package in "${linked_packages[@]}"; do
+  dist_entry="${repo_root}/packages/${package}/dist/index.js"
+  mtime="$(date -r "${dist_entry}" "+%Y-%m-%d %H:%M" 2>/dev/null || stat -c "%y" "${dist_entry}" 2>/dev/null | cut -c1-16)"
+  freshness="${freshness}${package}@${mtime}  "
+done
+
+echo "Linked @wosm/{client,contracts,runtime} into apps/station/node_modules."
+echo "dist builds: ${freshness}"
