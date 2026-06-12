@@ -7,6 +7,7 @@ import { createScriptedTerminal } from "./terminal/testing/scriptedTerminal.js";
 import { waitFor } from "./terminal/testing/waitFor.js";
 import { manyProjectsSnapshot, noProjectsSnapshot } from "./wosm/fixtures/scenarios.js";
 import { FakeStationSource } from "./wosm/test/support/fakeStationSource.js";
+import { createStationStubObserverService } from "./wosm/store/stubObserverService.js";
 
 const SURFACE = { width: 100, height: 28 };
 const teardowns: Array<() => void> = [];
@@ -98,7 +99,14 @@ async function renderComposedStation() {
   const shutdowns: number[] = [];
   const composition = createStationAppComposition({
     store,
-    wosmSource: source,
+    wosmClient: {
+      state: source,
+      service: createStationStubObserverService(source, { dispatchDelayMs: 1 }),
+      start: () => {
+        source.start();
+      },
+      stop: () => source.stop(),
+    },
     shutdown: () => {
       shutdowns.push(1);
     },

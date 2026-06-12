@@ -1,16 +1,16 @@
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { createStationAppComposition } from "./StationApp.js";
-import { createStationWosmStateSource } from "./sources/createStationWosmStateSource.js";
+import { createStationWosmClient } from "./sources/createStationWosmClient.js";
 import { createStationStore } from "./state/store.js";
 
 // main.tsx owns the store and input runtime instances (no module singletons
 // elsewhere) so bun --hot recreates store, renderer, and handlers together.
 const store = createStationStore();
-const wosmSource = createStationWosmStateSource();
+const wosmClient = createStationWosmClient();
 const composition = createStationAppComposition({
   store,
-  wosmSource,
+  wosmClient,
   shutdown: () => {
     rootForShutdown?.unmount();
     rendererForInput?.destroy();

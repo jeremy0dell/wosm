@@ -6,6 +6,7 @@ import type { TuiStore } from "../ported/state/store.js";
 import { waitFor } from "../../terminal/testing/waitFor.js";
 import { manyProjectsSnapshot } from "../fixtures/scenarios.js";
 import { FakeStationSource } from "../test/support/fakeStationSource.js";
+import { createStationStubObserverService } from "./stubObserverService.js";
 import { createWosmViewStore } from "./wosmViewStore.js";
 
 describe("createWosmViewStore", () => {
@@ -98,12 +99,21 @@ function makeStore(folderService?: TuiFolderService): StoreApi<TuiStore> {
   const snapshot = manyProjectsSnapshot();
   const source = new FakeStationSource(snapshot);
   const options: Parameters<typeof createWosmViewStore>[1] = {
-    stubService: { dispatchDelayMs: 1 },
   };
   if (folderService !== undefined) {
     options.folderService = folderService;
   }
-  const store = createWosmViewStore(source, options);
+  const store = createWosmViewStore(
+    {
+      state: source,
+      service: createStationStubObserverService(source, { dispatchDelayMs: 1 }),
+      start: () => {
+        source.start();
+      },
+      stop: () => source.stop(),
+    },
+    options,
+  );
   store.getState().start();
   return store;
 }

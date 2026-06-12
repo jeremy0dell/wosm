@@ -7,26 +7,21 @@
 // is a recorded no-op so canDismissPopup derives true and Q/Esc produce
 // dismissPopup transitions instead of exitCode.
 import type { StoreApi } from "zustand/vanilla";
-import type { StationWosmStateSource } from "../../sources/types.js";
+import type { StationWosmClient } from "../../sources/types.js";
 import type { TuiFolderService } from "../ported/services/folderService.js";
 import { createTuiStore, type TuiStore } from "../ported/state/store.js";
-import {
-  createStationStubObserverService,
-  type StationStubObserverServiceOptions,
-} from "./stubObserverService.js";
 
 export type CreateWosmViewStoreOptions = {
   folderService?: TuiFolderService;
-  stubService?: StationStubObserverServiceOptions;
 };
 
 export function createWosmViewStore(
-  source: StationWosmStateSource,
+  client: StationWosmClient,
   options: CreateWosmViewStoreOptions = {},
 ): StoreApi<TuiStore> {
   const storeOptions: Parameters<typeof createTuiStore>[0] = {
-    source,
-    service: createStationStubObserverService(source, options.stubService),
+    source: client.state,
+    service: client.service,
     persistentPopup: true,
     onDismiss: async () => {
       // Dismiss is the router's job: the overlay layer maps the transition's

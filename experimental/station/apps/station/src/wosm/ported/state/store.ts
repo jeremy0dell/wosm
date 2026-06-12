@@ -2,7 +2,7 @@
 // Station differences, kept surgical so the upstream diff stays reviewable:
 // - The @wosm/client runtime + observer-bridge hooks are replaced by a
 //   StationWosmStateSource subscription (../../store/sourceBridge.ts); the
-//   source owns the live/mock decision and the client runtime.
+//   surrounding StationWosmClient owns live/mock selection and lifecycle.
 // - reconcile goes through the injected ObserverService directly (Station's
 //   stub until client plan PR 4) instead of the client runtime.
 // - handleKey returns the transition meta (dismissPopup/exitCode) so the

@@ -1,4 +1,4 @@
-import type { WosmClientConnectionState } from "@wosm/client";
+import type { ObserverService, WosmClientConnectionState } from "@wosm/client";
 import type { WosmSnapshot } from "@wosm/contracts";
 
 /**
@@ -15,16 +15,25 @@ export type StationWosmState = {
  * Source-swappable boundary between the overlay and where WOSM state comes
  * from. Deliberately carries no source identity: whether Station is showing
  * live or mock state is decided in exactly one place
- * (`createStationWosmStateSource`), and downstream code cannot tell the
+ * (`createStationWosmClient`), and downstream code cannot tell the
  * difference — mock data identifies itself through ordinary contract
  * channels (a snapshot alert), not through code branches. `getState` is
- * reference-stable between changes (useSyncExternalStore-compatible), and
- * sources are single-use like the runtime they wrap: a stopped source does
- * not restart.
+ * reference-stable between changes (useSyncExternalStore-compatible).
  */
 export interface StationWosmStateSource {
-  start(): void;
-  stop(): Promise<void>;
   getState(): StationWosmState;
   subscribe(listener: () => void): () => void;
 }
+
+/**
+ * Identity-free Station boundary for WOSM dashboard state and commands.
+ * Live mode uses one ObserverService for both runtime state and dispatch;
+ * mock mode exposes the same shape with fixture state and the rejecting
+ * command service.
+ */
+export type StationWosmClient = {
+  state: StationWosmStateSource;
+  service: ObserverService;
+  start(): void;
+  stop(): Promise<void>;
+};

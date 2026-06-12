@@ -1,35 +1,35 @@
+import { createMockWosmClient } from "./mockWosmClient.js";
+import { createObserverWosmClient } from "./observerWosmClient.js";
+import { resolveStationObserverSocketPath } from "./stationSocketPath.js";
+import type { StationWosmClient } from "./types.js";
 import {
   WOSM_SCENARIO_NAMES,
   type WosmScenarioName,
 } from "../wosm/fixtures/scenarios.js";
-import { createMockWosmStateSource } from "./mockWosmStateSource.js";
-import { createObserverWosmStateSource } from "./observerWosmStateSource.js";
-import { resolveStationObserverSocketPath } from "./stationSocketPath.js";
-import type { StationWosmStateSource } from "./types.js";
 
 declare const Bun: {
   env: Record<string, string | undefined>;
 };
 
-type StationWosmStateSourceName = "observer" | "mock";
+type StationWosmSourceName = "observer" | "mock";
 
-// The only place that decides whether Station shows live or mock state.
-// Everything downstream consumes the identity-free StationWosmStateSource.
-export function createStationWosmStateSource(
+// The only place that decides whether Station shows live or mock WOSM state.
+// Downstream code receives one identity-free client boundary either way.
+export function createStationWosmClient(
   env: Record<string, string | undefined> = Bun.env,
-): StationWosmStateSource {
+): StationWosmClient {
   const source = readSourceName(env.WOSM_STATION_SOURCE);
 
   if (source === "mock") {
-    return createMockWosmStateSource(readScenarioName(env.WOSM_STATION_SCENARIO));
+    return createMockWosmClient(readScenarioName(env.WOSM_STATION_SCENARIO));
   }
 
-  return createObserverWosmStateSource({
+  return createObserverWosmClient({
     socketPath: resolveStationObserverSocketPath(env),
   });
 }
 
-function readSourceName(value: string | undefined): StationWosmStateSourceName {
+function readSourceName(value: string | undefined): StationWosmSourceName {
   if (value === undefined || value === "" || value === "observer") {
     return "observer";
   }

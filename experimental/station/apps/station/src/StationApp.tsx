@@ -7,20 +7,20 @@ import type {
   StationTerminalProcess,
   StationTerminalSpawnOptions,
 } from "./terminal/types.js";
-import type { StationWosmStateSource } from "./sources/types.js";
+import type { StationWosmClient } from "./sources/types.js";
 import { createWosmViewStore } from "./wosm/store/wosmViewStore.js";
 import { WosmOverlay } from "./wosm/WosmOverlay.js";
 
 export type StationAppCompositionOptions = {
   store: StationStore;
-  wosmSource: StationWosmStateSource;
+  wosmClient: StationWosmClient;
   shutdown(): void;
   createTerminal?: (options: StationTerminalSpawnOptions) => StationTerminalProcess;
 };
 
 export function createStationAppComposition(options: StationAppCompositionOptions) {
-  const { store, wosmSource } = options;
-  const wosmViewStore = createWosmViewStore(wosmSource);
+  const { store, wosmClient } = options;
+  const wosmViewStore = createWosmViewStore(wosmClient);
   let detachWosmSource: (() => void) | undefined;
   let disposed = false;
 
@@ -31,7 +31,7 @@ export function createStationAppComposition(options: StationAppCompositionOption
     disposed = true;
     detachWosmSource?.();
     detachWosmSource = undefined;
-    void wosmSource.stop();
+    void wosmClient.stop();
     // React unmount work scheduled during shutdown cannot flush before
     // process.exit, so the live PTY session is disposed imperatively.
     disposeActiveStationTerminal();
@@ -113,7 +113,7 @@ export function createStationAppComposition(options: StationAppCompositionOption
     start: (): void => {
       disposed = false;
       detachWosmSource = wosmViewStore.getState().start();
-      wosmSource.start();
+      wosmClient.start();
     },
     dispose,
   };
