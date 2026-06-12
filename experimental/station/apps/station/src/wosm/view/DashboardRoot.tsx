@@ -36,7 +36,6 @@ export function DashboardRoot({ store, columns, rows }: DashboardRootProps) {
   const searchQuery = useStore(store, (state) => state.searchQuery);
   const collapsedProjectIds = useStore(store, (state) => state.collapsedProjectIds);
   const scrollOffset = useStore(store, (state) => state.scrollOffset);
-  const terminalRows = useStore(store, (state) => state.terminalRows);
   const localRows = useStore(store, (state) => state.localRows);
   const observerConnectionStatus = useStore(store, (state) => state.observerConnectionStatus);
   const activeToast = useStore(store, activeTuiToast);
@@ -45,6 +44,10 @@ export function DashboardRoot({ store, columns, rows }: DashboardRootProps) {
   const toastHiddenByModal = isModalOverlayActive(screen);
   const wasToastHiddenByModal = useRef(toastHiddenByModal);
 
+  // The store's terminalRows feeds the keyboard scroll-clamping machinery;
+  // rendering reads the prop directly so the first frame after the popup
+  // opens never lays out against the store's stale value while this passive
+  // effect catches up.
   useEffect(() => {
     store.getState().setTerminalRows(rows);
   }, [rows, store]);
@@ -104,7 +107,7 @@ export function DashboardRoot({ store, columns, rows }: DashboardRootProps) {
     <box width="100%" flexGrow={1} flexDirection="column">
       <DashboardView
         snapshot={snapshot}
-        viewState={{ searchQuery, collapsedProjectIds, scrollOffset, terminalRows, localRows }}
+        viewState={{ searchQuery, collapsedProjectIds, scrollOffset, terminalRows: rows, localRows }}
         columns={columns}
         {...(observerStatus === undefined ? {} : { observerStatus })}
       />

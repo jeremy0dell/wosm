@@ -206,6 +206,13 @@ async function reconcileSnapshot(
   reason: string,
 ): Promise<void> {
   try {
+    // Upstream routes reconcile through the client runtime, whose refresh
+    // hook applies the connected transition and recovery toast; here only
+    // the snapshot lands — connection status stays the source bridge's to
+    // own. When client plan PR 4 wires a real service, route reconcile
+    // through the source/client runtime so the connected transition arrives
+    // via the subscription (the stub service's reconcile always rejects, so
+    // this success path is unreachable until then).
     const snapshot = await service.reconcile(reason);
     store.setState(clampDashboardStateScroll(replaceSnapshot(store.getState(), snapshot)));
     store.setState(

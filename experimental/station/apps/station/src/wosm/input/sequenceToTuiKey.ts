@@ -62,3 +62,27 @@ function containsControlBytes(sequence: string): boolean {
   }
   return false;
 }
+
+/**
+ * Paste arrives as a raw decoded chunk, not a key sequence, so it bypasses
+ * the translation above — this applies the same control-byte discipline to
+ * that channel: newlines flatten to spaces (the ported text handlers are
+ * single-line), every other control byte is dropped. Without this, a pasted
+ * blob could inject the very escape garbage the key path promises to keep
+ * out of text inputs.
+ */
+export function sanitizePastedText(text: string): string {
+  let sanitized = "";
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code === 0x0a || code === 0x0d) {
+      sanitized += " ";
+      continue;
+    }
+    if (code < 0x20 || code === 0x7f) {
+      continue;
+    }
+    sanitized += char;
+  }
+  return sanitized;
+}

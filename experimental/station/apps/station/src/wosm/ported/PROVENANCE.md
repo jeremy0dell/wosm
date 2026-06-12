@@ -56,7 +56,12 @@ Expected diffs are exactly the ledger below plus the mechanical
 - `components/Dashboard/content.ts` — from `Dashboard.tsx` + `App/App.tsx`:
   header line composition, footer labels, project/empty-row labels,
   viewport-item -> row-input mapping, loading-body copy, observer header
-  status, prompt-rows/modal facts.
+  status, prompt-rows/modal facts; plus, from `CommandPrompt/CommandPrompt.tsx`,
+  the prompt line copy + color (`commandPromptLineForScreen`,
+  `textPromptForScreen` verbatim).
+- `components/ToastOverlay/content.ts` — from `ToastOverlay.tsx`: toast
+  title/border-color/detail/text-width presentation (verbatim bodies; the
+  view maps Ink color names to theme hex).
 - `components/HelpOverlay/helpPanel.ts` — from `HelpOverlay.tsx`: panel
   layout + line generation; content injected (Station derives it from the
   keymap data, copy pinned to upstream's list).

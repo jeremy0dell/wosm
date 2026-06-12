@@ -162,6 +162,21 @@ describe("wosm input through the station runtime", () => {
     expect(wosm.getState().screen).toMatchObject({ name: "search", value: "station-overlay" });
   });
 
+  it("strips control bytes from pastes so they cannot leak into text inputs", () => {
+    const { wosm, runtime } = makeRuntime(true);
+    runtime.handleSequence("/");
+
+    runtime.handlePaste({
+      bytes: new TextEncoder().encode("sta\x1b[31mtion\x00\nover\rlay\x07"),
+      preventDefault: () => {},
+    });
+
+    expect(wosm.getState().screen).toMatchObject({
+      name: "search",
+      value: "sta[31mtion over lay",
+    });
+  });
+
   it("routes wosm mouse targets and closes the overlay on dismiss hints", () => {
     const { wosm, station, runtime } = makeRuntime(true);
 

@@ -1,12 +1,14 @@
 // OpenTUI port of apps/tui's CommandPrompt: the one-line yellow/red prompt
 // for search, collapse, remove-slot/confirm, and rename-slot modes, rendered
 // in a fixed status layer above the footer (absolute bottom, like the
-// upstream FixedStatusLayer at bottom:3).
+// upstream FixedStatusLayer at bottom:3). The prompt copy and color come
+// from the ported content module so they stay under the drift audit.
+import { commandPromptLineForScreen } from "../ported/components/Dashboard/content.js";
 import type { TuiScreen } from "../ported/state/types.js";
 import { WOSM_COLORS } from "./theme.js";
 
 export function CommandPromptView({ screen }: { screen: TuiScreen }) {
-  const line = commandPromptLine(screen);
+  const line = commandPromptLineForScreen(screen);
   if (line === undefined) {
     return null;
   }
@@ -17,25 +19,4 @@ export function CommandPromptView({ screen }: { screen: TuiScreen }) {
       </text>
     </box>
   );
-}
-
-export function commandPromptLine(
-  screen: TuiScreen,
-): { text: string; color: "yellow" | "red" } | undefined {
-  if (screen.name === "renameSession" && screen.step === "chooseSlot") {
-    return { text: "Choose the slot to rename: 1-9/a-z", color: "yellow" };
-  }
-  if (screen.name === "removeWorktree" && screen.step === "confirm") {
-    return { text: `confirm ${screen.label}`, color: "red" };
-  }
-  if (screen.name === "removeWorktree" && screen.step === "chooseSlot") {
-    return { text: "remove slot: ", color: "yellow" };
-  }
-  if (screen.name === "search") {
-    return { text: `search: ${screen.value}`, color: "yellow" };
-  }
-  if (screen.name === "projectCollapse") {
-    return { text: `collapse project: ${screen.value}`, color: "yellow" };
-  }
-  return undefined;
 }
