@@ -1,10 +1,11 @@
-// Station command dispatch is client plan PR 4 (gated behind the input
-// router, now landed). Until it ships, the WOSM view runs the shared
-// operations layer against this stub service: a dispatched command shows its
+// Mock mode's observer service: Station shows fixture state with no observer
+// to act on, so mutating commands cannot succeed — but they still exercise
+// the shared operations layer for real. A dispatched command shows its
 // genuine pending local-row visuals for the dispatch delay, then resolves as
-// a rejected receipt whose SafeError names the gate — so the rows, throbbers,
-// and toasts users see are the production code paths, not bespoke demo state.
-// Un-stubbing is swapping this service for the real @wosm/client-backed one.
+// a rejected receipt whose SafeError names mock mode — so the rows,
+// throbbers, and toasts users see are the production code paths, not bespoke
+// demo state. Live mode pairs the same StationWosmClient boundary with the
+// @wosm/client-backed service instead (sources/observerWosmClient.ts).
 import type { CommandId, SafeError, WosmEvent } from "@wosm/contracts";
 import type { StationWosmStateSource } from "../../sources/types.js";
 import type { TuiObserverService } from "@wosm/dashboard-core";
@@ -56,8 +57,8 @@ export function createStationStubObserverService(
 function stubError(what: string, message?: string): SafeError {
   return {
     tag: "CommandDispatchError",
-    code: "STATION_DISPATCH_PENDING",
-    message: message ?? `${what} lands with Station command dispatch (client plan PR 4).`,
+    code: "STATION_MOCK_OBSERVER",
+    message: message ?? `${what} is unavailable in mock mode (no observer connection).`,
   };
 }
 

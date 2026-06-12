@@ -46,7 +46,7 @@ describe("createStationWosmClient", () => {
     expect(client.state.getState()).toBe(client.state.getState());
   });
 
-  it("mock command service preserves the Station dispatch gate", async () => {
+  it("mock command service rejects dispatch in mock mode", async () => {
     const client = createStationWosmClient({ WOSM_STATION_SOURCE: "mock" });
     const receipt = await client.service.dispatch({
       type: "observer.reconcile",
@@ -54,7 +54,7 @@ describe("createStationWosmClient", () => {
     });
 
     expect(receipt.accepted).toBe(false);
-    expect(receipt.error?.code).toBe("STATION_DISPATCH_PENDING");
+    expect(receipt.error?.code).toBe("STATION_MOCK_OBSERVER");
   });
 
   it("rejects unsupported source names", () => {

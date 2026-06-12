@@ -43,19 +43,34 @@ declared-vs-derived-outcome checks).
 - Mouse guard matrix + click/key equivalence: `input/wosmMouse.test.ts`.
 - Router/runtime conformance (reserved chords, modal swallow, paste,
   overlay-close): `../input/wosmIntegration.test.ts`.
+- Live command dispatch through the shared client (focus, jump-to-session,
+  Z-through-runtime, convergence, recovery): `store/wosmCommandDispatch.test.ts`.
 - Golden frames: `view/dashboard.golden.test.tsx` (scenario × size matrix +
   span color probes), `view/modals.golden.test.tsx` (all ten modal views).
 - Isolation: `importBoundaries.test.ts` (no apps/tui imports, only linked
   @wosm packages, no local ported fork, no `focusable`).
 
-## Stubbed pending client plan PR 4 (command dispatch)
+## Command dispatch (client plan PR 4)
 
-`store/stubObserverService.ts` — mutating commands run the shared operations
+Live mode dispatches through the single shared `@wosm/client` service: one
+`ObserverService` feeds both runtime state and commands
+(`sources/observerWosmClient.ts`). Its service facet routes reconcile and
+operation snapshot loads through the client runtime (dashboard-core's
+`bridgeOperationService`) so the runtime's reducer base stays converged with
+the store and the connected transition plus recovery toast arrive via the
+state subscription — the seam from PR #78 review finding #3. Dispatch and
+command-completion waits pass through unchanged; row-activate focus,
+jump-to-session on click, and `Z` refresh are live
+(`store/wosmCommandDispatch.test.ts`).
+
+Mock mode keeps the rejecting service by design
+(`store/stubObserverService.ts`): mutating commands run the shared operations
 paths (pending rows, TTL revert, toasts) and resolve as rejected receipts
-naming the gate. Un-stubbing is swapping this service for the
-@wosm/client-backed one in `store/wosmViewStore.ts`; `Z` refresh and
-row-activate focus start working with it. Jump-to-session on click stays a
-toast until then by design.
+naming mock mode.
+
+Known gap: Station's runtime runs without `createObserverBridgeHooks`, so
+`command.failed` event notices do not surface as toasts; failures still toast
+through the command-completion waits on the focus and operation paths.
 
 ## Known not-yet
 
