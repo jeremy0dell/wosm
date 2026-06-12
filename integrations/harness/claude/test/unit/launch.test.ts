@@ -181,6 +181,35 @@ describe("buildClaudeLaunchPlan", () => {
     });
   });
 
+  it("preserves the wosm hook settings artifact on interactive resume plans", () => {
+    const plan = buildClaudeLaunchPlan(
+      {
+        ...request(),
+        resume: {
+          target: { kind: "native-session", id: "claude_session_123" },
+          previousSessionId: "ses_web_task",
+          recoveryHandleId: "rec_claude",
+        },
+      },
+      {
+        hookSettingsPath: "/state/wosm/hooks/wosm-claude-settings.json",
+      },
+    );
+
+    expect(plan.args).toEqual([
+      "--resume",
+      "claude_session_123",
+      "--settings",
+      "/state/wosm/hooks/wosm-claude-settings.json",
+      "Review the task.",
+    ]);
+    expect(plan.providerData).toMatchObject({
+      settingsInjected: true,
+      resume: true,
+      resumeTargetKind: "native-session",
+    });
+  });
+
   it("rejects exec resume and unsupported resume target kinds", () => {
     expect(() =>
       buildClaudeLaunchPlan({

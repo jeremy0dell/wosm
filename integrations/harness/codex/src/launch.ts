@@ -113,9 +113,34 @@ function buildCodexResumeLaunchPlan(
     );
   }
 
-  const args = ["resume", "--cd", request.worktree.path, request.resume.target.id];
+  const configuredProfile = request.profile ?? options.defaultProfile;
+  const hookProfile = options.defaultHookProfile;
+  const profile = hookProfile ?? configuredProfile;
+  const args = ["resume", "--cd", request.worktree.path];
+  appendCodexOptions(args, { profile });
+  args.push(request.resume.target.id);
   if (request.initialPrompt !== undefined) {
     args.push(request.initialPrompt);
+  }
+
+  const providerDataInput: CodexProviderDataInput = {
+    mode,
+    initialPromptProvided: request.initialPrompt !== undefined,
+    resume: true,
+    resumeTargetKind: request.resume.target.kind,
+  };
+  if (profile !== undefined) {
+    providerDataInput.profile = profile;
+  }
+  if (hookProfile !== undefined) {
+    providerDataInput.hookProfile = hookProfile;
+  }
+  if (
+    hookProfile !== undefined &&
+    configuredProfile !== undefined &&
+    configuredProfile !== hookProfile
+  ) {
+    providerDataInput.configuredProfile = configuredProfile;
   }
 
   return {
@@ -126,12 +151,7 @@ function buildCodexResumeLaunchPlan(
     env: codexLaunchEnv(request),
     mode,
     displayTitle: `${request.project.label} Codex`,
-    providerData: codexProviderData({
-      mode,
-      initialPromptProvided: request.initialPrompt !== undefined,
-      resume: true,
-      resumeTargetKind: request.resume.target.kind,
-    }),
+    providerData: codexProviderData(providerDataInput),
   };
 }
 

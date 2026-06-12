@@ -246,6 +246,40 @@ describe("buildCodexLaunchPlan", () => {
     });
   });
 
+  it("preserves the wosm hook profile on interactive resume plans", () => {
+    const plan = buildCodexLaunchPlan(
+      {
+        ...request(),
+        profile: "team-default",
+        resume: {
+          target: { kind: "native-session", id: "codex_session_123" },
+          previousSessionId: "ses_web_task",
+          recoveryHandleId: "rec_codex",
+        },
+      },
+      {
+        defaultHookProfile: "wosm",
+      },
+    );
+
+    expect(plan.args).toEqual([
+      "resume",
+      "--cd",
+      "/tmp/wosm/web/task",
+      "--profile",
+      "wosm",
+      "codex_session_123",
+      "Review the task.",
+    ]);
+    expect(plan.providerData).toMatchObject({
+      profile: "wosm",
+      hookProfile: "wosm",
+      configuredProfile: "team-default",
+      resume: true,
+      resumeTargetKind: "native-session",
+    });
+  });
+
   it("rejects exec resume and unsupported resume target kinds", () => {
     expect(() =>
       buildCodexLaunchPlan({

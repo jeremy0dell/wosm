@@ -109,8 +109,21 @@ function buildClaudeResumeLaunchPlan(
   }
 
   const args = ["--resume", request.resume.target.id];
+  if (options.hookSettingsPath !== undefined) {
+    args.push("--settings", options.hookSettingsPath);
+  }
   if (request.initialPrompt !== undefined) {
     args.push(request.initialPrompt);
+  }
+
+  const providerDataInput: ClaudeProviderDataInput = {
+    mode,
+    initialPromptProvided: request.initialPrompt !== undefined,
+    resume: true,
+    resumeTargetKind: request.resume.target.kind,
+  };
+  if (options.hookSettingsPath !== undefined) {
+    providerDataInput.settingsInjected = true;
   }
 
   return {
@@ -121,12 +134,7 @@ function buildClaudeResumeLaunchPlan(
     env: claudeLaunchEnv(request),
     mode,
     displayTitle: `${request.project.label} Claude`,
-    providerData: claudeProviderData({
-      mode,
-      initialPromptProvided: request.initialPrompt !== undefined,
-      resume: true,
-      resumeTargetKind: request.resume.target.kind,
-    }),
+    providerData: claudeProviderData(providerDataInput),
   };
 }
 
