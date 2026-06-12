@@ -1,6 +1,6 @@
+import { clampEditableTextCursor, type EditableTextInputState } from "@wosm/dashboard-core";
 import { Text } from "ink";
 import { TuiCursor } from "../TuiCursor/TuiCursor.js";
-import { clampEditableTextCursor, type EditableTextInputState } from "./editing.js";
 
 export type EditableTextInputProps = EditableTextInputState & {
   placeholder?: string;

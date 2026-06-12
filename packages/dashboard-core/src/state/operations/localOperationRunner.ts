@@ -129,6 +129,7 @@ export function createTuiLocalOperationRunner(input: {
   service: TuiObserverService;
   folderService: TuiFolderService;
   runtime: CommandRuntimeOptions;
+  clientLabel: string;
   focusStartedAgentRow: FocusStartedAgentRow;
 }): TuiLocalOperationRunner {
   const handledCommandFailureIds = new Set<CommandId>();
@@ -154,6 +155,7 @@ export function createTuiLocalOperationRunner(input: {
             store(),
             input.service,
             operation,
+            input.clientLabel,
             (localId) => markRemoveWorktreeRowFailed(store(), localId),
             (commandId) => handledCommandFailureIds.add(commandId),
             (commandId) => handledCommandFailureIds.has(commandId),
@@ -178,6 +180,7 @@ export function createTuiLocalOperationRunner(input: {
             store(),
             input.service,
             operation,
+            input.clientLabel,
             (sessionId) => markRenameSessionFailed(store(), sessionId),
             (commandId) => handledCommandFailureIds.add(commandId),
             (commandId) => handledCommandFailureIds.has(commandId),
@@ -186,16 +189,31 @@ export function createTuiLocalOperationRunner(input: {
           );
         }
         if (operation.type === "loadProjectDirectory") {
-          void runLoadProjectDirectoryOperation(store(), input.folderService, operation.path);
+          void runLoadProjectDirectoryOperation(
+            store(),
+            input.folderService,
+            operation.path,
+            input.clientLabel,
+          );
         }
         if (operation.type === "reviewProjectFolder") {
-          void runReviewProjectFolderOperation(store(), input.folderService, operation.path);
+          void runReviewProjectFolderOperation(
+            store(),
+            input.folderService,
+            operation.path,
+            input.clientLabel,
+          );
         }
         if (operation.type === "searchProjectDirectories") {
-          void runSearchProjectDirectoriesOperation(store(), input.folderService, operation.query);
+          void runSearchProjectDirectoriesOperation(
+            store(),
+            input.folderService,
+            operation.query,
+            input.clientLabel,
+          );
         }
         if (operation.type === "addProject") {
-          void runAddProjectOperation(store(), input.service, operation.command);
+          void runAddProjectOperation(store(), input.service, operation.command, input.clientLabel);
         }
       }
     },
@@ -230,12 +248,13 @@ async function runLoadProjectDirectoryOperation(
   store: StoreApi<TuiStore>,
   folderService: TuiFolderService,
   path: string,
+  clientLabel: string,
 ): Promise<void> {
   try {
     const result = await folderService.readDirectory(path);
     store.setState(applyAddProjectFolderLoaded(store.getState(), result));
   } catch (error: unknown) {
-    store.setState(applyAddProjectFolderLoadFailed(store.getState(), path, error));
+    store.setState(applyAddProjectFolderLoadFailed(store.getState(), path, error, clientLabel));
   }
 }
 
@@ -243,12 +262,13 @@ async function runReviewProjectFolderOperation(
   store: StoreApi<TuiStore>,
   folderService: TuiFolderService,
   path: string,
+  clientLabel: string,
 ): Promise<void> {
   try {
     const review = await folderService.reviewFolder(path);
     store.setState(applyAddProjectFolderReviewed(store.getState(), review));
   } catch (error: unknown) {
-    store.setState(applyAddProjectFolderReviewFailed(store.getState(), path, error));
+    store.setState(applyAddProjectFolderReviewFailed(store.getState(), path, error, clientLabel));
   }
 }
 
@@ -256,12 +276,13 @@ async function runSearchProjectDirectoriesOperation(
   store: StoreApi<TuiStore>,
   folderService: TuiFolderService,
   query: string,
+  clientLabel: string,
 ): Promise<void> {
   try {
     const result = await folderService.searchDirectories(query);
     store.setState(applyAddProjectFolderSearchLoaded(store.getState(), result));
   } catch (error: unknown) {
-    store.setState(applyAddProjectFolderSearchFailed(store.getState(), query, error));
+    store.setState(applyAddProjectFolderSearchFailed(store.getState(), query, error, clientLabel));
   }
 }
 
@@ -269,6 +290,7 @@ async function runAddProjectOperation(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
   command: Extract<WosmCommand, { type: "project.add" }>,
+  clientLabel: string,
 ): Promise<void> {
   try {
     const reviewedProject = currentReviewedProject(store.getState());
@@ -298,7 +320,7 @@ async function runAddProjectOperation(
       }),
     );
   } catch (error: unknown) {
-    store.setState(applyAddProjectSubmitFailed(store.getState(), error));
+    store.setState(applyAddProjectSubmitFailed(store.getState(), error, clientLabel));
   }
 }
 

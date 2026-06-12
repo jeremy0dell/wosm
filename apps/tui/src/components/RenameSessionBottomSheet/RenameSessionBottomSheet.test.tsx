@@ -1,6 +1,6 @@
+import { createEditableTextInputState } from "@wosm/dashboard-core";
 import { Box, renderToString } from "ink";
 import { describe, expect, it } from "vitest";
-import { createEditableTextInputState } from "../EditableTextInput/editing.js";
 import { RenameSessionBottomSheet } from "./RenameSessionBottomSheet.js";
 
 describe("RenameSessionBottomSheet", () => {

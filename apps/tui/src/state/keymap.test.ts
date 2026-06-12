@@ -1,15 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
+import type { TuiKey, TuiState } from "@wosm/dashboard-core";
 import {
+  createInitialTuiState,
   deriveTuiInputMode,
+  handleTuiKey,
   matchingTuiBindings,
   TUI_KEYMAP,
   type TuiInputMode,
-} from "./keymap.js";
-import type { TuiKey } from "./keys.js";
-import { createInitialTuiState } from "./screen.js";
-import { handleTuiKey, type TuiTransition } from "./transition.js";
-import type { TuiState } from "./types.js";
+  type TuiTransition,
+} from "@wosm/dashboard-core";
+import { describe, expect, it } from "vitest";
+import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
 
 const KEY_CONTEXT = { cwd: "/Users/example/Developer/wosm", homeDir: "/Users/example" };
 

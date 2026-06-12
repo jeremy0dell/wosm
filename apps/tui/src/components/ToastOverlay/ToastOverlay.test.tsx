@@ -1,7 +1,7 @@
+import type { TuiToastEntry } from "@wosm/dashboard-core";
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
 import { row } from "../../../test/fixtures/snapshots.js";
-import type { TuiToastEntry } from "../../state/types.js";
 import { stripTerminalLinks } from "../Link/Link.js";
 import { WorktreeRow } from "../WorktreeRow/WorktreeRow.js";
 import { ToastOverlay } from "./ToastOverlay.js";

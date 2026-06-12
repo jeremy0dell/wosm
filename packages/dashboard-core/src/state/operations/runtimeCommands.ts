@@ -1,6 +1,7 @@
 import type { TerminalFocusOrigin, WosmCommand } from "@wosm/contracts";
 
 export type CommandRuntimeOptions = {
+  clientLabel: string;
   persistentPopup: boolean;
   focusOrigin?: TerminalFocusOrigin;
   resolveFocusOrigin?: () => Promise<TerminalFocusOrigin | undefined>;

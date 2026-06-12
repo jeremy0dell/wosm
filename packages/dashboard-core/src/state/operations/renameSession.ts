@@ -10,6 +10,7 @@ export async function runRenameSessionOperation(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
   operation: RenameSessionOperation,
+  clientLabel: string,
   markRenameSessionFailed: (sessionId: string) => void,
   markCommandFailureHandled: (commandId: CommandId) => void,
   hasCommandFailureBeenHandled: (commandId: CommandId) => boolean,
@@ -51,6 +52,6 @@ export async function runRenameSessionOperation(
       markCommandFailureHandled(commandId);
     }
     markRenameSessionFailed(operation.sessionId);
-    addSafeErrorToast(toSafeError(error));
+    addSafeErrorToast(toSafeError(error, { clientLabel }));
   }
 }

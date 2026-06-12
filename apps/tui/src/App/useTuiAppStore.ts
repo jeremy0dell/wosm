@@ -1,8 +1,8 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
+import type { TuiObserverService } from "@wosm/dashboard-core";
+import { createTuiStore, type TuiStore, type TuiStoreOptions } from "@wosm/dashboard-core";
 import { useMemo } from "react";
 import type { StoreApi } from "zustand/vanilla";
-import type { TuiObserverService } from "../services/types.js";
-import { createTuiStore, type TuiStore, type TuiStoreOptions } from "../state/store.js";
 
 export type UseTuiAppStoreOptions = {
   service: TuiObserverService;

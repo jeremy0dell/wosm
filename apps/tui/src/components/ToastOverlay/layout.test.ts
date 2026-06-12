@@ -1,5 +1,5 @@
+import { toastOverlayLayout } from "@wosm/dashboard-core";
 import { describe, expect, it } from "vitest";
-import { toastOverlayLayout } from "./layout.js";
 
 describe("toastOverlayLayout", () => {
   it("places a normal-width toast in the lower right above the footer", () => {

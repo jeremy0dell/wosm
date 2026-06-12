@@ -1,7 +1,10 @@
+import {
+  createInitialTuiState,
+  selectDashboardItems,
+  selectDashboardViewport,
+} from "@wosm/dashboard-core";
 import { describe, expect, it } from "vitest";
 import { createDashboardSnapshot } from "../../test/fixtures/snapshots.js";
-import { createInitialTuiState } from "../state/screen.js";
-import { selectDashboardItems, selectDashboardViewport } from "./dashboardViewport.js";
 
 describe("dashboard viewport selector", () => {
   it("flattens projects into dashboard render items", () => {

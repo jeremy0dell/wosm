@@ -1,3 +1,9 @@
+import {
+  cellWidth,
+  dashboardFooterLabel,
+  dashboardHeaderLine,
+  projectHeaderLabel,
+} from "@wosm/dashboard-core";
 import { Box, renderToString, Text } from "ink";
 import type { ReactElement } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
@@ -5,8 +11,6 @@ import stringWidth from "string-width";
 import { describe, expect, it, vi } from "vitest";
 import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
 import { stripTerminalLinks } from "../Link/Link.js";
-import { cellWidth } from "../WorktreeRow/layout.js";
-import { dashboardFooterLabel, dashboardHeaderLine, projectHeaderLabel } from "./content.js";
 import { Dashboard } from "./Dashboard.js";
 
 describe("Dashboard", () => {

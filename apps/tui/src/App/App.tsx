@@ -1,24 +1,24 @@
 import type { TerminalFocusOrigin, WosmSnapshot } from "@wosm/contracts";
+import type { TuiObserverConnectionStatus, TuiObserverService } from "@wosm/dashboard-core";
+import {
+  activeTuiToast,
+  commandPromptRows,
+  isModalOverlayActive,
+  nextTuiToastExpiry,
+  normalizeTuiKey,
+  observerHeaderStatusForConnection,
+  type SnapshotLoadingLine,
+  snapshotLoadingLines,
+} from "@wosm/dashboard-core";
 import { Box, Text, useInput, useWindowSize } from "ink";
 import { type ReactNode, useEffect, useRef } from "react";
 import { useStore } from "zustand/react";
 import { CommandPrompt } from "../components/CommandPrompt/CommandPrompt.js";
-import {
-  commandPromptRows,
-  isModalOverlayActive,
-  observerHeaderStatusForConnection,
-  type SnapshotLoadingLine,
-  snapshotLoadingLines,
-} from "../components/Dashboard/content.js";
 import { Dashboard, DashboardHeader } from "../components/Dashboard/Dashboard.js";
 import { OverlayHost } from "../components/OverlayHost/OverlayHost.js";
 import { ToastOverlay } from "../components/ToastOverlay/ToastOverlay.js";
 import { TuiFrame } from "../components/TuiFrame/TuiFrame.js";
 import { TuiShell } from "../components/TuiShell/TuiShell.js";
-import type { TuiObserverService } from "../services/types.js";
-import { normalizeTuiKey } from "../state/keys.js";
-import { activeTuiToast, nextTuiToastExpiry } from "../state/toasts.js";
-import type { TuiObserverConnectionStatus } from "../state/types.js";
 import { useTuiMode } from "../tuiMode.js";
 import type { TopRowWidgetRuntimeDeps, TuiConfig, TuiWidgetConfig } from "../widgets/types.js";
 import { useTopRowWidgets } from "../widgets/useTopRowWidgets.js";

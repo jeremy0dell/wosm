@@ -1,14 +1,14 @@
 import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
-import { Box, Text } from "ink";
-import { Link } from "../Link/Link.js";
-import { Throbber } from "../Throbber/Throbber.js";
 import {
   layoutWorktreeRowGrid,
   type RowColor,
   type RowGridLayout,
   type RowSegment,
-} from "./layout.js";
-import { worktreeRowGridInput } from "./rowInput.js";
+  worktreeRowGridInput,
+} from "@wosm/dashboard-core";
+import { Box, Text } from "ink";
+import { Link } from "../Link/Link.js";
+import { Throbber } from "../Throbber/Throbber.js";
 
 export type WorktreeRowProps = {
   row: WorktreeRowModel;

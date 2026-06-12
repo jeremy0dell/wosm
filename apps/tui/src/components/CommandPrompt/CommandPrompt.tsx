@@ -1,5 +1,5 @@
+import type { TuiScreen } from "@wosm/dashboard-core";
 import { Box, Text } from "ink";
-import type { TuiScreen } from "../../state/types.js";
 
 export type CommandPromptProps = {
   screen: TuiScreen;

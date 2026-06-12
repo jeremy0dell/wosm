@@ -124,11 +124,12 @@ export function applyAddProjectFolderLoadFailed(
   state: TuiState,
   path: string,
   error: unknown,
+  clientLabel = "TUI",
 ): TuiState {
   return applyFlowTransitionState(state, {
     type: "folderLoadFailed",
     path,
-    error: toSafeError(error),
+    error: toSafeError(error, { clientLabel }),
   });
 }
 
@@ -143,11 +144,12 @@ export function applyAddProjectFolderSearchFailed(
   state: TuiState,
   query: string,
   error: unknown,
+  clientLabel = "TUI",
 ): TuiState {
   return applyFlowTransitionState(state, {
     type: "folderSearchFailed",
     query,
-    error: toSafeError(error),
+    error: toSafeError(error, { clientLabel }),
   });
 }
 
@@ -159,11 +161,12 @@ export function applyAddProjectFolderReviewFailed(
   state: TuiState,
   path: string,
   error: unknown,
+  clientLabel = "TUI",
 ): TuiState {
   return applyFlowTransitionState(state, {
     type: "folderReviewFailed",
     path,
-    error: toSafeError(error),
+    error: toSafeError(error, { clientLabel }),
   });
 }
 
@@ -174,8 +177,15 @@ export function applyAddProjectSubmitted(
   return applyFlowTransitionState(state, { type: "submitted", ...input });
 }
 
-export function applyAddProjectSubmitFailed(state: TuiState, error: unknown): TuiState {
-  return applyFlowTransitionState(state, { type: "submitFailed", error: toSafeError(error) });
+export function applyAddProjectSubmitFailed(
+  state: TuiState,
+  error: unknown,
+  clientLabel = "TUI",
+): TuiState {
+  return applyFlowTransitionState(state, {
+    type: "submitFailed",
+    error: toSafeError(error, { clientLabel }),
+  });
 }
 
 function rightArrowAction(mode: string) {

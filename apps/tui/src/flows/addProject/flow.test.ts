@@ -1,5 +1,5 @@
+import { createAddProjectFlow, transitionAddProjectFlow } from "@wosm/dashboard-core";
 import { describe, expect, it } from "vitest";
-import { createAddProjectFlow, transitionAddProjectFlow } from "./flow.js";
 
 describe("add project flow", () => {
   it("starts only from the current directory and home", () => {

@@ -1,8 +1,7 @@
+import { createEditableTextInputState, createNewSessionFlow } from "@wosm/dashboard-core";
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
 import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
-import { createNewSessionFlow } from "../../flows/newSession.js";
-import { createEditableTextInputState } from "../EditableTextInput/editing.js";
 import { OverlayHost } from "./OverlayHost.js";
 
 describe("OverlayHost", () => {

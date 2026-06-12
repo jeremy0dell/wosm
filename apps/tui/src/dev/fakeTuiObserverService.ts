@@ -1,5 +1,5 @@
 import type { CommandReceipt, WosmCommand, WosmEvent, WosmSnapshot } from "@wosm/contracts";
-import type { TuiCommandCompletion, TuiObserverService } from "../services/types.js";
+import type { TuiCommandCompletion, TuiObserverService } from "@wosm/dashboard-core";
 
 export function createFakeTuiObserverService(snapshot: WosmSnapshot): TuiObserverService {
   return new FakeDevTuiObserverService(snapshot);

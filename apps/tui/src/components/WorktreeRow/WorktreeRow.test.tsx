@@ -1,12 +1,9 @@
 import type { WorktreeRow as WorktreeRowModel } from "@wosm/contracts";
-import { Box, renderToString } from "ink";
-import { describe, expect, it } from "vitest";
-import { fixtureNow, row } from "../../../test/fixtures/snapshots.js";
-import { stripTerminalLinks } from "../Link/Link.js";
 import {
   cellWidth,
   layoutWorktreeRow,
   layoutWorktreeRowGrid,
+  metadataSegments,
   ROW_COLOR_PURPLE,
   type RowGridRowInput,
   type RowSegment,
@@ -15,8 +12,12 @@ import {
   truncateCells,
   type WorktreeRowLayout,
   type WorktreeRowLayoutInput,
-} from "./layout.js";
-import { metadataSegments, worktreeStyleRowGridInput } from "./rowInput.js";
+  worktreeStyleRowGridInput,
+} from "@wosm/dashboard-core";
+import { Box, renderToString } from "ink";
+import { describe, expect, it } from "vitest";
+import { fixtureNow, row } from "../../../test/fixtures/snapshots.js";
+import { stripTerminalLinks } from "../Link/Link.js";
 import { WorktreeRow } from "./WorktreeRow.js";
 
 type AgentState = NonNullable<WorktreeRowModel["agent"]>["state"];

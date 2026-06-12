@@ -50,7 +50,7 @@ export async function runCreateSessionOperation(
       addSafeErrorToast(completion.error);
     }
   } catch (error: unknown) {
-    const safeError = toSafeError(error);
+    const safeError = toSafeError(error, { clientLabel: runtime.clientLabel });
     markCreateSessionRowFailed(operation.localId, safeError);
     addSafeErrorToast(safeError);
   }

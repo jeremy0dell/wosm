@@ -21,6 +21,7 @@
     "@wosm/client": "workspace:*",
     "@wosm/config": "workspace:*",
     "@wosm/contracts": "workspace:*",
+    "@wosm/dashboard-core": "workspace:*",
     "@wosm/protocol": "workspace:*",
     "@wosm/runtime": "workspace:*",
     "ink": "^7.0.3",

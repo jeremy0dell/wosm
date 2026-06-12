@@ -1,9 +1,12 @@
 import type { ProjectView, ProviderHealth, WosmSnapshot } from "@wosm/contracts";
+import {
+  createNewSessionFlow,
+  newSessionBottomSheetLayout,
+  transitionNewSessionFlow,
+} from "@wosm/dashboard-core";
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
 import { createDashboardSnapshot } from "../../../test/fixtures/snapshots.js";
-import { createNewSessionFlow, transitionNewSessionFlow } from "../../flows/newSession.js";
-import { newSessionBottomSheetLayout } from "./layout.js";
 import { NewSessionBottomSheet } from "./NewSessionBottomSheet.js";
 
 describe("NewSessionBottomSheet", () => {

@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { createCommandSnapshot } from "../../test/fixtures/snapshots.js";
 import {
   addPendingStartAgentRow,
   bindPendingStartAgentRow,
   createEmptyTuiLocalRows,
+  createInitialTuiState,
   pruneLocalRowsForSnapshot,
   removePendingStartAgentRow,
-} from "./localRows.js";
-import { createInitialTuiState } from "./screen.js";
+} from "@wosm/dashboard-core";
+import { describe, expect, it } from "vitest";
+import { createCommandSnapshot } from "../../test/fixtures/snapshots.js";
 
 describe("TUI local rows", () => {
   it("adds, binds, and removes pending start-agent rows", () => {

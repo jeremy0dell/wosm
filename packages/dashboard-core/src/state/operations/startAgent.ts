@@ -57,7 +57,7 @@ export async function runStartAgentOperation(
       markCommandFailureHandled(commandId);
     }
     markStartAgentRowFailed(operation.localId);
-    addSafeErrorToast(toSafeError(error));
+    addSafeErrorToast(toSafeError(error, { clientLabel: runtime.clientLabel }));
     return;
   }
 
@@ -70,7 +70,7 @@ export async function runStartAgentOperation(
       focusStartedAgentRow,
     );
   } catch (error: unknown) {
-    addSafeErrorToast(toSafeError(error));
+    addSafeErrorToast(toSafeError(error, { clientLabel: runtime.clientLabel }));
   }
 }
 

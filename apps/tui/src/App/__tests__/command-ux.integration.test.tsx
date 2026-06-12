@@ -5,6 +5,8 @@ import type {
   WosmCommand,
   WosmSnapshot,
 } from "@wosm/contracts";
+import type { TuiCommandCompletion } from "@wosm/dashboard-core";
+import { toastExpiryMs } from "@wosm/dashboard-core";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
 import {
@@ -15,8 +17,6 @@ import {
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
 import { App } from "../../App/App.js";
 import { createFakeDashboardSnapshot } from "../../dev/fakeDashboard.js";
-import type { TuiCommandCompletion } from "../../services/types.js";
-import { toastExpiryMs } from "../../state/timing.js";
 
 describe("TUI command UX", () => {
   it("dispatches terminal.focus from numeric slot mappings", async () => {

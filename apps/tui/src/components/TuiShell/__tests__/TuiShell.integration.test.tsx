@@ -1,8 +1,8 @@
+import { helpPanelLayout, TUI_HELP_CONTENT } from "@wosm/dashboard-core";
 import { Box, renderToString } from "ink";
 import { describe, expect, it } from "vitest";
 import { createZeroWorktreeSnapshot } from "../../../../test/fixtures/snapshots.js";
 import { Dashboard } from "../../Dashboard/Dashboard.js";
-import { helpPanelLayout, TUI_HELP_CONTENT } from "../../HelpOverlay/helpPanel.js";
 import { OverlayHost } from "../../OverlayHost/OverlayHost.js";
 import { TuiShell } from "../TuiShell.js";
 

@@ -1,4 +1,5 @@
 import type { SafeError, WosmEvent, WosmSnapshot } from "@wosm/contracts";
+import type { TuiObserverService } from "@wosm/dashboard-core";
 import { Box, renderToString } from "ink";
 import { render } from "ink-testing-library";
 import { describe, expect, it } from "vitest";
@@ -10,7 +11,6 @@ import {
 } from "../../../test/fixtures/snapshots.js";
 import { FakeTuiObserverService } from "../../../test/support/fakeObserverService.js";
 import { Dashboard } from "../../components/Dashboard/Dashboard.js";
-import type { TuiObserverService } from "../../services/types.js";
 import { TuiModeProvider } from "../../tuiMode.js";
 import type { WeatherClient } from "../../widgets/types.js";
 import { App } from "../App.js";

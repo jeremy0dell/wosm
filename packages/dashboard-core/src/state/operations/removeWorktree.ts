@@ -10,6 +10,7 @@ export async function runRemoveWorktreeOperation(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
   operation: RemoveWorktreeOperation,
+  clientLabel: string,
   markRemoveWorktreeRowFailed: (localId: string) => void,
   markCommandFailureHandled: (commandId: CommandId) => void,
   hasCommandFailureBeenHandled: (commandId: CommandId) => boolean,
@@ -42,6 +43,6 @@ export async function runRemoveWorktreeOperation(
     }
   } catch (error: unknown) {
     markRemoveWorktreeRowFailed(operation.localId);
-    addSafeErrorToast(toSafeError(error));
+    addSafeErrorToast(toSafeError(error, { clientLabel }));
   }
 }

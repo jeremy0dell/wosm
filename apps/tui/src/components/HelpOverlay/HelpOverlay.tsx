@@ -1,5 +1,5 @@
+import { helpPanelLayout, helpPanelLines, TUI_HELP_CONTENT } from "@wosm/dashboard-core";
 import { Box, Text } from "ink";
-import { helpPanelLayout, helpPanelLines, TUI_HELP_CONTENT } from "./helpPanel.js";
 
 export type HelpOverlayProps = {
   columns: number;

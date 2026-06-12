@@ -1,11 +1,10 @@
+import { createInitialTuiState, handleTuiKey } from "@wosm/dashboard-core";
 import { describe, expect, it } from "vitest";
 import {
   createCommandSnapshot,
   createDashboardSnapshot,
   createZeroWorktreeSnapshot,
 } from "../../test/fixtures/snapshots.js";
-import { createInitialTuiState } from "./screen.js";
-import { handleTuiKey } from "./transition.js";
 
 describe("TUI screen transitions", () => {
   it("opens remove worktree slot selection from the dashboard", () => {

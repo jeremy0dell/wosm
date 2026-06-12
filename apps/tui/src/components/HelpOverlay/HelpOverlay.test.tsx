@@ -1,7 +1,7 @@
+import { helpPanelLayout, helpPanelLines, TUI_HELP_CONTENT } from "@wosm/dashboard-core";
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
 import { HelpOverlay } from "./HelpOverlay.js";
-import { helpPanelLayout, helpPanelLines, TUI_HELP_CONTENT } from "./helpPanel.js";
 
 describe("HelpOverlay", () => {
   it("sizes and centers the panel inside the terminal", () => {

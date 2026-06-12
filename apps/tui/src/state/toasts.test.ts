@@ -1,14 +1,14 @@
-import { describe, expect, it } from "vitest";
-import type { TuiToast } from "../services/types.js";
-import { createInitialTuiState } from "./screen.js";
-import { toastExpiryMs } from "./timing.js";
+import type { TuiToast } from "@wosm/dashboard-core";
 import {
   activeTuiToast,
   addTuiToast,
+  createInitialTuiState,
   expireTuiToasts,
   nextTuiToastExpiry,
   refreshActiveTuiToastExpiry,
-} from "./toasts.js";
+  toastExpiryMs,
+} from "@wosm/dashboard-core";
+import { describe, expect, it } from "vitest";
 
 describe("TUI toast lifecycle state", () => {
   it("adds toast lifecycle metadata", () => {

@@ -1,7 +1,7 @@
+import { bottomSheetContentWidth, bottomSheetFrameLayout } from "@wosm/dashboard-core";
 import { Box, Text } from "ink";
 import type { ReactNode } from "react";
 import { FloatingBlankBackground } from "../FloatingBlankBackground/FloatingBlankBackground.js";
-import { bottomSheetContentWidth, bottomSheetFrameLayout } from "./layout.js";
 
 export type BottomSheetFrameProps = {
   columns: number;

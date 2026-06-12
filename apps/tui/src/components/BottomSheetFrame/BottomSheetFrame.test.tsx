@@ -1,7 +1,7 @@
+import { bottomSheetFrameLayout } from "@wosm/dashboard-core";
 import { Box, renderToString, Text } from "ink";
 import { describe, expect, it } from "vitest";
 import { BottomSheetFrame } from "./BottomSheetFrame.js";
-import { bottomSheetFrameLayout } from "./layout.js";
 
 describe("BottomSheetFrame", () => {
   it("hugs the bottom of the terminal frame", () => {

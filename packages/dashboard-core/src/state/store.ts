@@ -46,6 +46,7 @@ export type TuiStoreOptions = {
   persistentPopup?: boolean;
   onExit?: (code: number) => void;
   folderService?: TuiFolderService;
+  clientLabel?: string;
 };
 
 export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
@@ -55,7 +56,7 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
   let operations: TuiLocalOperationRunner;
   const clientRuntime = createWosmClientRuntime({
     service: options.service,
-    clientLabel: "TUI",
+    clientLabel: runtime.clientLabel,
     ...(options.initialSnapshot === undefined ? {} : { initialSnapshot: options.initialSnapshot }),
     hooks: createObserverBridgeHooks({
       getStore: () => store,
@@ -67,6 +68,7 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
     service: bridgeOperationService(options.service, clientRuntime),
     folderService,
     runtime,
+    clientLabel: runtime.clientLabel,
     focusStartedAgentRow: async (snapshot, row) => {
       await dispatchFocusWithLifecycle(
         store,
@@ -131,6 +133,7 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
 }
 
 type RuntimeOptions = {
+  clientLabel: string;
   exitOnFocusSuccess: boolean;
   persistentPopup: boolean;
   focusOrigin?: TerminalFocusOrigin;
@@ -142,6 +145,7 @@ type RuntimeOptions = {
 
 function createRuntimeOptions(options: TuiStoreOptions): RuntimeOptions {
   const runtime: RuntimeOptions = {
+    clientLabel: options.clientLabel ?? "TUI",
     exitOnFocusSuccess: options.exitOnFocusSuccess === true,
     persistentPopup: options.persistentPopup === true,
   };
@@ -172,7 +176,7 @@ async function applyTransitionEffects(
   transition: TuiTransition,
 ): Promise<void> {
   if (transition.dismissPopup === true && runtime.onDismiss !== undefined) {
-    await dismissPersistentPopup(store, runtime.onDismiss);
+    await dismissPersistentPopup(store, runtime.onDismiss, runtime);
   }
 
   if (transition.exitCode !== undefined) {
@@ -180,7 +184,7 @@ async function applyTransitionEffects(
   }
 
   if (transition.reconcileReason !== undefined) {
-    await reconcileSnapshot(store, clientRuntime, transition.reconcileReason);
+    await reconcileSnapshot(store, clientRuntime, transition.reconcileReason, runtime);
   }
 
   for (const command of transition.commands ?? []) {
@@ -189,9 +193,9 @@ async function applyTransitionEffects(
     } else {
       try {
         const prepared = await prepareCommandForRuntime(command, runtime);
-        await dispatchCommand(store, service, prepared);
+        await dispatchCommand(store, service, prepared, runtime);
       } catch (error: unknown) {
-        addToast(store, safeErrorToToast(toSafeError(error)));
+        addToast(store, safeErrorToToast(toSafeError(error, { clientLabel: runtime.clientLabel })));
       }
     }
   }
@@ -203,6 +207,7 @@ async function reconcileSnapshot(
   store: StoreApi<TuiStore>,
   clientRuntime: WosmClientRuntime,
   reason: string,
+  runtime: Pick<RuntimeOptions, "clientLabel">,
 ): Promise<void> {
   try {
     await clientRuntime.reconcile(reason);
@@ -216,7 +221,7 @@ async function reconcileSnapshot(
       }),
     );
   } catch (error: unknown) {
-    addToast(store, safeErrorToToast(toSafeError(error)));
+    addToast(store, safeErrorToToast(toSafeError(error, { clientLabel: runtime.clientLabel })));
     store.setState({ loading: false });
   }
 }
@@ -225,6 +230,7 @@ async function dispatchCommand(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
   command: WosmCommand,
+  runtime: Pick<RuntimeOptions, "clientLabel">,
 ): Promise<void> {
   try {
     const receipt = await service.dispatch(command);
@@ -235,7 +241,7 @@ async function dispatchCommand(
     }
     addToast(store, queuedCommandToast(command, receipt));
   } catch (error: unknown) {
-    addToast(store, safeErrorToToast(toSafeError(error)));
+    addToast(store, safeErrorToToast(toSafeError(error, { clientLabel: runtime.clientLabel })));
   }
 }
 
@@ -243,6 +249,7 @@ async function dispatchCommandAndWaitForCompletion(
   store: StoreApi<TuiStore>,
   service: TuiObserverService,
   command: WosmCommand,
+  runtime: Pick<RuntimeOptions, "clientLabel">,
 ): Promise<boolean> {
   try {
     const receipt = await service.dispatch(command);
@@ -259,7 +266,7 @@ async function dispatchCommandAndWaitForCompletion(
     addToast(store, safeErrorToToast(completion.error));
     return false;
   } catch (error: unknown) {
-    addToast(store, safeErrorToToast(toSafeError(error)));
+    addToast(store, safeErrorToToast(toSafeError(error, { clientLabel: runtime.clientLabel })));
     return false;
   }
 }
@@ -306,18 +313,23 @@ async function dispatchFocusWithLifecycle(
   try {
     focusCommand = await withResolvedFocusOrigin(command, runtime);
   } catch (error: unknown) {
-    addToast(store, safeErrorToToast(toSafeError(error)));
+    addToast(store, safeErrorToToast(toSafeError(error, { clientLabel: runtime.clientLabel })));
     return;
   }
 
   const waitsForCompletion =
     runtime.exitOnFocusSuccess || runtime.persistentPopup || runtime.onFocusSuccess !== undefined;
   if (!waitsForCompletion) {
-    await dispatchCommand(store, service, focusCommand);
+    await dispatchCommand(store, service, focusCommand, runtime);
     return;
   }
 
-  const succeeded = await dispatchCommandAndWaitForCompletion(store, service, focusCommand);
+  const succeeded = await dispatchCommandAndWaitForCompletion(
+    store,
+    service,
+    focusCommand,
+    runtime,
+  );
   if (!succeeded) {
     return;
   }
@@ -326,7 +338,7 @@ async function dispatchFocusWithLifecycle(
     try {
       await runtime.onFocusSuccess();
     } catch (error: unknown) {
-      addToast(store, safeErrorToToast(toSafeError(error)));
+      addToast(store, safeErrorToToast(toSafeError(error, { clientLabel: runtime.clientLabel })));
     }
   }
 
@@ -338,11 +350,12 @@ async function dispatchFocusWithLifecycle(
 async function dismissPersistentPopup(
   store: StoreApi<TuiStore>,
   onDismiss: () => Promise<void>,
+  runtime: Pick<RuntimeOptions, "clientLabel">,
 ): Promise<void> {
   try {
     await onDismiss();
   } catch (error: unknown) {
-    addToast(store, safeErrorToToast(toSafeError(error)));
+    addToast(store, safeErrorToToast(toSafeError(error, { clientLabel: runtime.clientLabel })));
   }
 }
 

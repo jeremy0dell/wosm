@@ -1,6 +1,6 @@
 import type { ProjectView, WorktreeRow } from "@wosm/contracts";
+import type { KeyedChoice } from "@wosm/dashboard-core";
 import { Box, Text } from "ink";
-import type { KeyedChoice } from "../../selectors/selectors.js";
 import { WorktreeRow as WorktreeRowView } from "../WorktreeRow/WorktreeRow.js";
 
 export type ProjectGroupProps = {

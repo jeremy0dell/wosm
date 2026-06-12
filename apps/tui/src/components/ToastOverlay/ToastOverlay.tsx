@@ -1,9 +1,8 @@
+import type { TuiToastEntry } from "@wosm/dashboard-core";
+import { toastOverlayLayout, truncateCells } from "@wosm/dashboard-core";
 import type { BoxProps } from "ink";
 import { Box, Text } from "ink";
-import type { TuiToastEntry } from "../../state/types.js";
 import { FloatingBlankBackground } from "../FloatingBlankBackground/FloatingBlankBackground.js";
-import { truncateCells } from "../WorktreeRow/layout.js";
-import { toastOverlayLayout } from "./layout.js";
 
 export type ToastOverlayProps = {
   columns: number;

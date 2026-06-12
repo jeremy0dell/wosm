@@ -1,15 +1,16 @@
 import type { ProjectView, WosmSnapshot } from "@wosm/contracts";
-import { Box, Text } from "ink";
-import { type NewSessionFlowState, selectedProject } from "../../flows/newSession.js";
 import {
+  bottomSheetContentWidth,
+  type NewSessionFlowState,
+  newSessionContentRowCount,
+  selectedProject,
   selectNewSessionHarnessChoices,
   selectNewSessionHarnessOptions,
   selectNewSessionProjectChoices,
-} from "../../selectors/selectors.js";
+} from "@wosm/dashboard-core";
+import { Box, Text } from "ink";
 import { BottomSheetFrame } from "../BottomSheetFrame/BottomSheetFrame.js";
-import { bottomSheetContentWidth } from "../BottomSheetFrame/layout.js";
 import { EditableTextInput } from "../EditableTextInput/EditableTextInput.js";
-import { newSessionContentRowCount } from "./layout.js";
 
 export type NewSessionBottomSheetProps = {
   snapshot: WosmSnapshot;

@@ -1,26 +1,25 @@
 import type { WosmSnapshot } from "@wosm/contracts";
-import { Box, Text } from "ink";
-import type { ReactNode } from "react";
-import {
-  type DashboardViewportItem,
-  selectDashboardViewport,
-} from "../../selectors/dashboardViewport.js";
-import type { KeyedChoice } from "../../selectors/selectors.js";
-import type { TuiScreen, TuiViewState } from "../../state/types.js";
-import { useTuiMode } from "../../tuiMode.js";
-import type { TopRowWidgetView } from "../../widgets/types.js";
-import { layoutWorktreeRowGrid, type RowGridLayout, truncateCells } from "../WorktreeRow/layout.js";
-import { WorktreeRowLayoutView } from "../WorktreeRow/WorktreeRow.js";
+import type { KeyedChoice, TuiScreen, TuiViewState } from "@wosm/dashboard-core";
 import {
   type DashboardHeaderStatus,
+  type DashboardViewportItem,
   dashboardFooterLabel,
   dashboardHeaderLine,
   emptyProjectLabel,
   FIRST_RUN_BODY_LABEL,
+  layoutWorktreeRowGrid,
   projectHeaderLabel,
+  type RowGridLayout,
   rowGridInputForViewportItem,
   scrollIndicatorLabel,
-} from "./content.js";
+  selectDashboardViewport,
+  truncateCells,
+} from "@wosm/dashboard-core";
+import { Box, Text } from "ink";
+import type { ReactNode } from "react";
+import { useTuiMode } from "../../tuiMode.js";
+import type { TopRowWidgetView } from "../../widgets/types.js";
+import { WorktreeRowLayoutView } from "../WorktreeRow/WorktreeRow.js";
 
 export type DashboardProps = {
   snapshot: WosmSnapshot;
