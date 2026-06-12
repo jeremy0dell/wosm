@@ -1,3 +1,2 @@
-export * from "@wosm/dashboard-core";
-export * from "./App/App.js";
-export * from "./runTui.js";
+export type { TuiRunResult } from "@wosm/dashboard-core";
+export { type RunTuiOptions, runTui } from "./runTui.js";
