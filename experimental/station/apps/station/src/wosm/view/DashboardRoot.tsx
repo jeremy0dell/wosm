@@ -14,7 +14,9 @@ import {
 } from "../ported/components/Dashboard/content.js";
 import type { TuiStore } from "../ported/state/store.js";
 import { activeTuiToast, nextTuiToastExpiry } from "../ported/state/toasts.js";
+import { CommandPromptView } from "./CommandPromptView.js";
 import { DashboardHeaderRow, DashboardView, Divider } from "./DashboardView.js";
+import { OverlayHostView } from "./OverlayHostView.js";
 import { ToastOverlayView } from "./ToastOverlayView.js";
 import { WOSM_COLORS } from "./theme.js";
 
@@ -106,7 +108,9 @@ export function DashboardRoot({ store, columns, rows }: DashboardRootProps) {
         columns={columns}
         {...(observerStatus === undefined ? {} : { observerStatus })}
       />
+      <CommandPromptView screen={screen} />
       {toastOverlay}
+      <OverlayHostView snapshot={snapshot} screen={screen} columns={columns} rows={rows} />
     </box>
   );
 }

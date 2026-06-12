@@ -119,6 +119,28 @@ describe("routeWosmMouse", () => {
     expect(store.getState().toasts).toEqual([]);
   });
 
+  it("selects sheet choices by their slot key in picker modes only", () => {
+    const store = makeStore();
+    store.getState().handleKey({ input: "N" });
+    store.getState().handleKey({ input: "P" });
+    expect(store.getState().screen).toMatchObject({
+      name: "newSession",
+      flow: { mode: "pickProject" },
+    });
+
+    routeWosmMouse({ kind: "sheetChoice", choiceKey: "1" }, "down", store);
+    expect(store.getState().screen).toMatchObject({
+      name: "newSession",
+      flow: { mode: "review" },
+    });
+
+    // Outside picker modes a stray choice click is inert (no text injection).
+    store.getState().handleKey({ input: "", escape: true });
+    store.getState().handleKey({ input: "/" });
+    routeWosmMouse({ kind: "sheetChoice", choiceKey: "1" }, "down", store);
+    expect(store.getState().screen).toMatchObject({ name: "search", value: "" });
+  });
+
   it("dispatches footer hints as their binding's key, active mode only", () => {
     const store = makeStore();
 

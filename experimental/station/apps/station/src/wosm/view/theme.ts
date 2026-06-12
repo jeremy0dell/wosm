@@ -10,6 +10,7 @@ export const WOSM_COLORS = {
   yellow: "#fbbf24",
   green: "#4ade80",
   blue: "#60a5fa",
+  cyan: "#22d3ee",
   purple: ROW_COLOR_PURPLE,
   foreground: "#e4e4e7",
   background: "#101316",

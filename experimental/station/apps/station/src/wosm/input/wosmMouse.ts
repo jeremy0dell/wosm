@@ -10,6 +10,7 @@ import {
   dismissWosmToasts,
   dispatchBindingClick,
   dispatchRowSlot,
+  dispatchWosmKey,
   scrollWosmView,
   toggleProjectCollapsed,
   type WosmKeyOutcome,
@@ -23,6 +24,8 @@ export type WosmMouseTarget =
   | { kind: "scrollIndicator"; direction: "up" | "down" }
   | { kind: "footerHint"; bindingId: string }
   | { kind: "toast" }
+  /** A picker line inside a sheet; the key is the line's slot accelerator. */
+  | { kind: "sheetChoice"; choiceKey: string }
   /** Sheets/prompts sit above the dashboard; their backdrop absorbs input. */
   | { kind: "sheetBackdrop" };
 
@@ -82,11 +85,22 @@ export function routeWosmMouse(
     case "toast":
       dismissWosmToasts(store);
       return { kind: "handled" };
+    case "sheetChoice":
+      if (!SHEET_CHOICE_MODES.has(mode)) {
+        return { kind: "handled" };
+      }
+      return fromKeyOutcome(dispatchWosmKey(store, { input: target.choiceKey }));
     case "body":
     case "sheetBackdrop":
       return { kind: "handled" };
   }
 }
+
+/** Modes whose sheets list slot-keyed choices a click can select. */
+const SHEET_CHOICE_MODES: ReadonlySet<WosmInputMode> = new Set([
+  "newSessionPickProject",
+  "newSessionPickAgent",
+]);
 
 function routeWosmWheel(
   target: WosmMouseTarget,

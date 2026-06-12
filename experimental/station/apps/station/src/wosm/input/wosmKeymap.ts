@@ -203,6 +203,29 @@ export const WOSM_KEYMAP: Record<WosmInputMode, readonly WosmBinding[]> = {
 };
 
 /**
+ * The help overlay's content, pinned to apps/tui's hardcoded list (the
+ * upstream HelpOverlay's helpContent). Kept here so help copy lives beside
+ * the bindings it documents; the coverage test asserts every dashboard
+ * binding that carries help has a row, so a new chord cannot ship without
+ * help text.
+ */
+export const WOSM_HELP_CONTENT = [
+  { text: "wosm help", align: "center" as const },
+  { text: "" },
+  { key: "↑/↓ wheel", description: "scroll dashboard" },
+  { key: "1-9/a-z", description: "choose visible item" },
+  { key: "N", description: "new session" },
+  { key: "R", description: "rename session" },
+  { key: "X", description: "remove worktree" },
+  { key: "C", description: "collapse project" },
+  { key: "/", description: "search" },
+  { key: "Z", description: "refresh snapshot" },
+  { key: "H / ?", description: "help" },
+  { key: "Q", description: "quit or close popup" },
+  { key: "Esc", description: "back/cancel" },
+] as const;
+
+/**
  * Global bindings the transition machine handles before screen dispatch.
  * Ctrl-C in apps/tui exits the TUI with code 0; Station maps exit intent to
  * closing WOSM mode (the workspace owns process exit via Ctrl-Q).
