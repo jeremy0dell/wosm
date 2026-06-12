@@ -2,65 +2,78 @@ import type { ObserverService } from "@wosm/client";
 import type { WosmEvent, WosmSnapshot } from "@wosm/contracts";
 import { afterEach, describe, expect, it } from "bun:test";
 import { mockObserverSnapshot } from "./fixtures/mockObserverSnapshot.js";
-import { createObserverWosmStateSource } from "./observerWosmStateSource.js";
-import type { StationWosmStateSource } from "./types.js";
+import { createObserverWosmClient } from "./observerWosmClient.js";
+import type { StationWosmClient } from "./types.js";
 
-describe("createObserverWosmStateSource", () => {
-  const sources: StationWosmStateSource[] = [];
+describe("createObserverWosmClient", () => {
+  const clients: StationWosmClient[] = [];
 
   afterEach(async () => {
-    for (const source of sources.splice(0)) {
-      await source.stop();
+    for (const client of clients.splice(0)) {
+      await client.stop();
     }
   });
 
-  function track(source: StationWosmStateSource): StationWosmStateSource {
-    sources.push(source);
-    return source;
+  function track(client: StationWosmClient): StationWosmClient {
+    clients.push(client);
+    return client;
   }
 
   it("reaches connected with the observer snapshot through the shared runtime", async () => {
     const fake = createFakeObserverService(mockObserverSnapshot);
-    const source = track(createObserverWosmStateSource({ service: fake.service }));
+    const client = track(createObserverWosmClient({ service: fake.service }));
 
-    expect(source.getState().connection.state).toBe("idle");
-    source.start();
+    expect(client.state.getState().connection.state).toBe("idle");
+    client.start();
 
-    await waitFor(() => source.getState().connection.state === "connected");
-    expect(source.getState().snapshot).toBe(mockObserverSnapshot);
-    expect(source.getState().snapshot?.counts.worktrees).toBe(
+    await waitFor(() => client.state.getState().connection.state === "connected");
+    expect(client.state.getState().snapshot).toBe(mockObserverSnapshot);
+    expect(client.state.getState().snapshot?.counts.worktrees).toBe(
       mockObserverSnapshot.counts.worktrees,
     );
   });
 
+  it("exposes the same service instance used by command paths", async () => {
+    const fake = createFakeObserverService(mockObserverSnapshot);
+    const client = track(createObserverWosmClient({ service: fake.service }));
+
+    await client.service.dispatch({
+      type: "observer.reconcile",
+      payload: { reason: "station-test" },
+    });
+
+    expect(fake.dispatchedTypes).toEqual(["observer.reconcile"]);
+    expect(client.service).toBe(fake.service);
+  });
+
   it("keeps the last good snapshot with a calm display-only status when the observer goes away", async () => {
     const fake = createFakeObserverService(mockObserverSnapshot);
-    const source = track(createObserverWosmStateSource({ service: fake.service }));
-    source.start();
-    await waitFor(() => source.getState().connection.state === "connected");
+    const client = track(createObserverWosmClient({ service: fake.service }));
+    client.start();
+    await waitFor(() => client.state.getState().connection.state === "connected");
 
     await waitFor(() => fake.hasParkedSubscriber());
     fake.failSubscription(wrappedConnectError());
 
-    await waitFor(() => source.getState().connection.state === "displayOnly");
-    expect(source.getState().snapshot).toBe(mockObserverSnapshot);
+    await waitFor(() => client.state.getState().connection.state === "displayOnly");
+    expect(client.state.getState().snapshot).toBe(mockObserverSnapshot);
   });
 
   it("notifies subscribers when state changes", async () => {
     const fake = createFakeObserverService(mockObserverSnapshot);
-    const source = track(createObserverWosmStateSource({ service: fake.service }));
+    const client = track(createObserverWosmClient({ service: fake.service }));
     let notified = 0;
-    source.subscribe(() => {
+    client.state.subscribe(() => {
       notified += 1;
     });
 
-    source.start();
-    await waitFor(() => source.getState().connection.state === "connected");
+    client.start();
+    await waitFor(() => client.state.getState().connection.state === "connected");
     expect(notified).toBeGreaterThan(0);
   });
 
   it("requires a socket path or service", () => {
-    expect(() => createObserverWosmStateSource({})).toThrow(/socketPath or service/);
+    expect(() => createObserverWosmClient({})).toThrow(/socketPath or service/);
   });
 });
 
@@ -71,6 +84,7 @@ type Waiter = {
 
 function createFakeObserverService(snapshot: WosmSnapshot) {
   const waiters: Waiter[] = [];
+  const dispatchedTypes: string[] = [];
 
   const service: ObserverService = {
     loadSnapshot: async () => snapshot,
@@ -88,17 +102,24 @@ function createFakeObserverService(snapshot: WosmSnapshot) {
         },
       }),
     }),
-    dispatch: async () => {
-      throw new Error("dispatch is not exercised by the read-only source");
+    dispatch: async (command) => {
+      dispatchedTypes.push(command.type);
+      return {
+        commandId: "cmd_station_test",
+        accepted: true,
+        status: "accepted",
+      };
     },
-    waitForCommandCompletion: async () => {
-      throw new Error("waitForCommandCompletion is not exercised by the read-only source");
-    },
+    waitForCommandCompletion: async (commandId) => ({
+      status: "succeeded",
+      commandId,
+    }),
     reconcile: async () => snapshot,
   };
 
   return {
     service,
+    dispatchedTypes,
     hasParkedSubscriber: () => waiters.length > 0,
     failSubscription: (error: Error) => {
       for (const waiter of waiters.splice(0)) {

@@ -4,6 +4,11 @@ import { isSafeError, type RuntimeSafeErrorFallback } from "@wosm/runtime";
 import { observerErrorFallback, timeoutErrorFallback } from "./errors.js";
 import type { WosmClientCommandCompletion } from "./types.js";
 
+export type CommandWaitErrorCopy = {
+  failed: string;
+  timeout: string;
+};
+
 export function completionFromTerminalRecord(
   record: TerminalCommandRecord,
 ): WosmClientCommandCompletion {
@@ -20,17 +25,17 @@ export function completionFromTerminalRecord(
   };
 }
 
-export function mapCommandWaitError(error: unknown): RuntimeSafeErrorFallback {
+export function mapCommandWaitError(
+  error: unknown,
+  copy: CommandWaitErrorCopy = {
+    failed: "The client could not observe command completion.",
+    timeout: "The client timed out while waiting for command completion.",
+  },
+): RuntimeSafeErrorFallback {
   if (isSafeError(error) && error.tag === "TimeoutError") {
-    return timeoutErrorFallback(
-      "CLIENT_COMMAND_WAIT_TIMEOUT",
-      "The TUI timed out while waiting for command completion.",
-    );
+    return timeoutErrorFallback("CLIENT_COMMAND_WAIT_TIMEOUT", copy.timeout);
   }
-  return observerErrorFallback(
-    "CLIENT_COMMAND_WAIT_FAILED",
-    "The TUI could not observe command completion.",
-  );
+  return observerErrorFallback("CLIENT_COMMAND_WAIT_FAILED", copy.failed);
 }
 
 function missingCommandError(commandId: CommandId): SafeError {

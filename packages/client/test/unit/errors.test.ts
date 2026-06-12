@@ -42,7 +42,7 @@ describe("client SafeError mapping", () => {
     const safe = toSafeError(error);
     const notice = safeErrorToNotice(safe);
 
-    expect(notice.message).toBe("The TUI could not complete the observer operation.");
+    expect(notice.message).toBe("The client could not complete the observer operation.");
     expect(JSON.stringify(notice)).not.toContain("providerData");
     expect(JSON.stringify(notice)).not.toContain("raw stack");
     expect(JSON.stringify(notice)).not.toContain("token");
@@ -67,6 +67,15 @@ describe("client SafeError mapping", () => {
       hint: "Try the command again when the observer is ready.",
     });
     expect(JSON.stringify(notice)).not.toContain("/tmp/wosm-test.sock");
+  });
+
+  it("labels unknown failures when a client label is provided", () => {
+    const safe = toSafeError(new Error("raw failure"), { clientLabel: "Station" });
+
+    expect(safe).toMatchObject({
+      code: "CLIENT_OBSERVER_OPERATION_FAILED",
+      message: "The Station could not complete the observer operation.",
+    });
   });
 });
 

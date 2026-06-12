@@ -7,7 +7,11 @@ import {
   selectProjectChoices,
 } from "../../selectors/selectors.js";
 import { safeErrorToToast } from "../../services/errors/errors.js";
-import { buildFocusCommand, buildStartAgentCommand } from "../commandBuilders.js";
+import {
+  buildFocusCommand,
+  buildResumeAgentCommand,
+  buildStartAgentCommand,
+} from "../commandBuilders.js";
 import { scrollDashboard } from "../dashboardScroll.js";
 import type { TuiKey } from "../keys.js";
 import { addPendingStartAgentRow } from "../localRows.js";
@@ -115,8 +119,8 @@ export function handleDashboardKey(
     return { state };
   }
 
-  if (row.agent === undefined) {
-    return startAgentForRow(state, row);
+  if (row.recovery !== undefined || row.agent === undefined) {
+    return startOrResumeAgentForRow(state, row);
   }
 
   return {
@@ -178,7 +182,7 @@ function openProjectCollapse(state: TuiState): TuiTransition {
   };
 }
 
-function startAgentForRow(
+function startOrResumeAgentForRow(
   state: TuiState,
   row: NonNullable<TuiState["snapshot"]>["rows"][number],
 ): TuiTransition {
@@ -196,12 +200,37 @@ function startAgentForRow(
     };
   }
 
+  if (row.recovery !== undefined) {
+    const command = buildResumeAgentCommand(row, project);
+    const localId = `resume:${row.id}`;
+    return {
+      state: addPendingStartAgentRow(state, {
+        localId,
+        operation: "resumeAgent",
+        projectId: row.projectId,
+        worktreeId: row.id,
+        branch: row.branch,
+        createdAt: new Date().toISOString(),
+      }),
+      operations: [
+        {
+          type: "resumeAgent",
+          localId,
+          projectId: row.projectId,
+          worktreeId: row.id,
+          branch: row.branch,
+          command,
+        },
+      ],
+    };
+  }
+
   const command = buildStartAgentCommand(row, project);
   const localId = `start:${row.id}`;
-
   return {
     state: addPendingStartAgentRow(state, {
       localId,
+      operation: "startAgent",
       projectId: row.projectId,
       worktreeId: row.id,
       branch: row.branch,

@@ -8,7 +8,7 @@ package both apps consume. Relative paths mirror upstream exactly so the
 audit below stays one command.
 
 - Upstream root: `apps/tui/src` (tests' fixtures: `apps/tui/test`)
-- Upstream commit: `b906042` (main, 2026-06-12)
+- Upstream commit: `1532517` (main, 2026-06-12)
 - Typecheck posture: upstream excludes `**/*.test.ts` and the `test/` tree
   from tsc; Station mirrors that (`tsconfig.json` excludes
   `src/wosm/ported/**/*.test.ts` and `src/wosm/test/**`). Tests run untyped
@@ -73,10 +73,10 @@ Expected diffs are exactly the ledger below plus the mechanical
 
 - `state/store.ts` — the `@wosm/client` runtime + observer-bridge hooks are
   replaced by a `StationWosmStateSource` subscription
-  (`../../store/sourceBridge.ts`); reconcile goes through the injected
-  `ObserverService` (Station's stub until client plan PR 4); `handleKey`
-  returns the transition meta (`dismissPopup`/`exitCode`) so the overlay
-  keymap layer can map it to a router outcome.
+  (`../../store/sourceBridge.ts`); lifecycle and command service come from
+  the surrounding `StationWosmClient`; `handleKey` returns the transition
+  meta (`dismissPopup`/`exitCode`) so the overlay keymap layer can map it to
+  a router outcome.
 - `state/store.test.ts` — the upstream cases asserting client-runtime
   behavior (event subscription lifecycle, live event reduction,
   connect-failure hooks) are rewritten against source semantics; the

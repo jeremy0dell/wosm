@@ -6,7 +6,7 @@ import {
   haltedConnectionState,
   isObserverConnectError,
 } from "./connectionState.js";
-import { isPermanentObserverError, toSafeError } from "./errors.js";
+import { isPermanentObserverError, type ToSafeErrorOptions, toSafeError } from "./errors.js";
 import { createObserverService } from "./observerService.js";
 import { applyWosmEvent } from "./snapshotReducer.js";
 import type {
@@ -39,6 +39,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
   const hooks: WosmClientRuntimeHooks = options.hooks ?? {};
   const initialDelayMs = options.reconnect?.initialDelayMs ?? DEFAULT_RECONNECT_INITIAL_DELAY_MS;
   const maxDelayMs = options.reconnect?.maxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
+  const safeErrorOptions = createSafeErrorOptions(options.clientLabel);
 
   let state = initialRuntimeState(options.initialSnapshot);
   const listeners = new Set<() => void>();
@@ -183,7 +184,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
       const snapshot = await service.loadSnapshot();
       return { status: "loaded", snapshot };
     } catch (raw: unknown) {
-      const error = toSafeError(raw);
+      const error = toSafeError(raw, safeErrorOptions);
       if (isObserverConnectError(error)) {
         return { status: "connectFailure", error, raw };
       }
@@ -248,7 +249,7 @@ export function createWosmClientRuntime(options: WosmClientRuntimeOptions): Wosm
   }
 
   function handleSubscriptionFailure(error: unknown): CycleEnding {
-    const safeError = toSafeError(error);
+    const safeError = toSafeError(error, safeErrorOptions);
     const permanent = isPermanentObserverError(safeError);
     if (permanent) {
       // The halted swap happens before the hook, preserving the contract that
@@ -433,6 +434,10 @@ function reconnectSchedule(initialDelayMs: number, maxDelayMs: number) {
   );
 }
 
+function createSafeErrorOptions(clientLabel: string | undefined): ToSafeErrorOptions {
+  return clientLabel === undefined ? {} : { clientLabel };
+}
+
 function resolveService(options: WosmClientRuntimeOptions): ObserverService {
   if (options.service !== undefined) {
     return options.service;
@@ -449,6 +454,7 @@ function resolveService(options: WosmClientRuntimeOptions): ObserverService {
     ...(options.commandWaitTimeoutMs === undefined
       ? {}
       : { commandWaitTimeoutMs: options.commandWaitTimeoutMs }),
+    ...(options.clientLabel === undefined ? {} : { clientLabel: options.clientLabel }),
   });
 }
 

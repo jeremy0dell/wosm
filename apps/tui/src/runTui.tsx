@@ -30,7 +30,7 @@ function createObserverServiceFromOptions(options: RunTuiOptions): TuiObserverSe
   if (options.socketPath === undefined) {
     throw new Error("runTui requires socketPath unless a service is provided.");
   }
-  return createObserverService({ socketPath: options.socketPath });
+  return createObserverService({ socketPath: options.socketPath, clientLabel: "TUI" });
 }
 
 function runInkApp(options: RunTuiOptions, service: TuiObserverService): Promise<TuiRunResult> {

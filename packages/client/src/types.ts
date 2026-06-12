@@ -96,6 +96,7 @@ export type WosmClientRuntimeOptions = {
   requestTimeoutMs?: number;
   commandWaitTimeoutMs?: number;
   reconcileTimeoutMs?: number;
+  clientLabel?: string;
   reconnect?: WosmClientReconnectOptions;
   hooks?: WosmClientRuntimeHooks;
 };
