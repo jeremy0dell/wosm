@@ -47,6 +47,23 @@ Expected diffs are exactly the ledger below plus the mechanical
 - `../test/fixtures/snapshots.ts` (lives at `src/wosm/test/fixtures/`,
   matching upstream's `../../test/fixtures` relative imports)
 
+### Adapted-extractions (pure functions lifted out of upstream `.tsx` files;
+### verbatim bodies, the Ink components around them rewritten in
+### `src/wosm/view/`)
+
+- `components/WorktreeRow/rowInput.ts` — from `WorktreeRow.tsx`: row-grid
+  input builders, status marker, activity cell, metadata segments/groups.
+- `components/Dashboard/content.ts` — from `Dashboard.tsx` + `App/App.tsx`:
+  header line composition, footer labels, project/empty-row labels,
+  viewport-item -> row-input mapping, loading-body copy, observer header
+  status, prompt-rows/modal facts.
+- `components/HelpOverlay/helpPanel.ts` — from `HelpOverlay.tsx`: panel
+  layout + line generation; content injected (Station derives it from the
+  keymap data, copy pinned to upstream's list).
+- `components/BottomSheetFrame/layout.ts` — from `BottomSheetFrame.tsx` +
+  `NewSessionBottomSheet/layout.ts`: frame layout, content width, content
+  row counts.
+
 ### Adapted (each carries an `ADAPTED` header comment)
 
 - `state/store.ts` — the `@wosm/client` runtime + observer-bridge hooks are

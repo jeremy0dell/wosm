@@ -125,6 +125,43 @@ Exit bar: a continue-or-pause decision inside the timebox. The spike started
 
 ## Spike Log
 
+### 2026-06-12 - WOSM View At apps/tui Popup Parity, With Mouse
+
+The read-only WOSM overlay is now the full dashboard: project groups,
+worktree rows (slots, status markers, priority truncation, right-aligned
+diff/PR/check metadata), search/collapse/remove/rename flows, the help
+overlay, the new-session and add-project bottom sheets, toasts, and the
+loading/waiting/display-only connection states — at parity with the
+`apps/tui` popup, plus mouse (wheel scroll, row click, header-click
+collapse, scroll-indicator paging, sheet picker clicks, toast dismiss,
+hover affordances).
+
+The shape (`apps/station/src/wosm/`, details in `ported/PROVENANCE.md` and
+`README.md`):
+
+- apps/tui's render-framework-free logic layer is ported verbatim
+  (transition machine, screen handlers, selectors, viewport math, the row
+  constraint solver, flows, toasts, local rows) with its test suites; the
+  OpenTUI view layer is the only rewrite, so parity holds by construction
+  and golden-frame matrices pin it per scenario fixture and surface size.
+- The keymap is data over the machine: per-mode binding tables drive help
+  and mouse vocabulary, with coverage tests that fail on omission drift.
+  The overlay keymap slot's read-only swallow placeholder is replaced by
+  the dashboard layer; reserved chords still pierce; dismiss intents map
+  to overlay-close so the coordination store keeps owning visibility.
+- Mouse rides the router: `MouseTargetRef` gained a `wosm` arm and the
+  bindings table delegates to one pure `routeWosmMouse(target, eventKind,
+  store)` with a (mode x target) guard matrix; clicks mean exactly what
+  the equivalent key means.
+- Mutating command dispatch is stubbed behind an ObserverService whose
+  rejections name the client-plan PR 4 gate, while the real pending-row
+  visuals and toast paths run; the mock source gained the multi-scenario
+  fixture set (`WOSM_STATION_SCENARIO`: many-projects,
+  attention-and-failures, disconnected), closing that open item.
+
+Goal 5 (WOSM state beside panes) now reads as session management rather
+than a status list; jump-to-session and real dispatch land with PR 4.
+
 ### 2026-06-12 - Input Router And Coordination Store (Phase 1)
 
 Phase 1 landed. All Station input - key sequences, mouse, paste - now routes
@@ -558,20 +595,19 @@ behavior:
   dirty branches, command lifecycle examples, and disconnected/error examples
 - mock mode should be deterministic so visual layout and input tests can use it
 
-Status as of 2026-06-11: one deterministic fixture exists at
-`src/sources/fixtures/mockObserverSnapshot.ts`, typed `satisfies WosmSnapshot`.
-Typed TypeScript fixtures supersede the original raw-JSON suggestion here: the
-`satisfies` check already caught a real contract drift in the fixture's
-`checks` shape. The multi-scenario fixture set is still open and should land
-with overlay/dashboard layout work:
+Status as of 2026-06-12: the multi-scenario fixture set landed with the
+WOSM-view dashboard work. Typed TypeScript fixtures supersede the original
+raw-JSON suggestion here: the `satisfies` check already caught a real
+contract drift in the baseline fixture's `checks` shape.
 
 ```text
 experimental/station/apps/station/src/sources/fixtures/
-  mockObserverSnapshot.ts   exists: single baseline snapshot
-  many-projects             open
-  attention-and-failures    open
-  disconnected              open; the live disconnected path is covered by a
-                            focused test against an injected fake service
+  mockObserverSnapshot.ts   baseline snapshot (WOSM_STATION_SCENARIO=baseline)
+experimental/station/apps/station/src/wosm/fixtures/
+  scenarios.ts              many-projects, attention-and-failures,
+                            disconnected (displayOnly + last good snapshot);
+                            selected via WOSM_STATION_SCENARIO in the source
+                            factory, used by the golden-frame matrices
 ```
 
 Mock data should satisfy the same contract-shaped structures that live Station
