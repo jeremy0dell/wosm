@@ -3,6 +3,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { createStationAppComposition } from "./StationApp.js";
 import { selectWosmOverlayVisible } from "./state/selectors.js";
 import { createStationStore } from "./state/store.js";
+import { MAIN_PANE_ID } from "./state/types.js";
 import { createScriptedTerminal } from "./terminal/testing/scriptedTerminal.js";
 import { waitFor } from "./terminal/testing/waitFor.js";
 import { manyProjectsSnapshot, noProjectsSnapshot } from "./wosm/fixtures/scenarios.js";
@@ -69,6 +70,19 @@ describe("Station app composition", () => {
     expect(station.source.unsubscribeCount).toBe(1);
     expect(station.source.stopped).toBe(1);
     expect(station.scripted.helpers.isDisposed()).toBe(true);
+  });
+
+  it("reconciles the registry to created and closed panes", async () => {
+    const station = await renderComposedStation();
+    expect(station.composition.registry.has(MAIN_PANE_ID)).toBe(true);
+
+    station.store.actions.createPane("pane-second");
+    expect(station.composition.registry.has("pane-second")).toBe(true);
+
+    station.store.actions.closePane("pane-second");
+    expect(station.composition.registry.has("pane-second")).toBe(false);
+    // The original pane is never torn down by switching to and from it.
+    expect(station.composition.registry.has(MAIN_PANE_ID)).toBe(true);
   });
 });
 

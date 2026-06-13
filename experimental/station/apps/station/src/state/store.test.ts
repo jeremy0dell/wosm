@@ -46,6 +46,59 @@ describe("createStationStore", () => {
     expect(count()).toEqual(0);
   });
 
+  it("createPane appends the pane and makes it active and focused", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-second");
+    const state = store.getState();
+    expect(state.workspace.panes).toEqual([MAIN_PANE_ID, "pane-second"]);
+    expect(state.workspace.activePaneId).toEqual("pane-second");
+    expect(state.input.focus).toEqual({ kind: "pane", paneId: "pane-second" });
+  });
+
+  it("createPane is a silent no-op for a pane that already exists", () => {
+    const { store, count } = createCountingStore();
+    const before = store.getState();
+    store.actions.createPane(MAIN_PANE_ID);
+    expect(store.getState()).toBe(before);
+    expect(count()).toEqual(0);
+  });
+
+  it("closePane removes the pane and retargets active + focus to a survivor", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-second");
+    store.actions.closePane("pane-second");
+    const state = store.getState();
+    expect(state.workspace.panes).toEqual([MAIN_PANE_ID]);
+    expect(state.workspace.activePaneId).toEqual(MAIN_PANE_ID);
+    expect(state.input.focus).toEqual({ kind: "pane", paneId: MAIN_PANE_ID });
+  });
+
+  it("closePane on a non-active pane leaves active and focus untouched", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-second");
+    store.actions.focusPane(MAIN_PANE_ID);
+    store.actions.closePane("pane-second");
+    const state = store.getState();
+    expect(state.workspace.panes).toEqual([MAIN_PANE_ID]);
+    expect(state.workspace.activePaneId).toEqual(MAIN_PANE_ID);
+    expect(state.input.focus).toEqual({ kind: "pane", paneId: MAIN_PANE_ID });
+  });
+
+  it("closePane of the last pane clears active and falls back off pane focus", () => {
+    const store = createStationStore();
+    store.actions.closePane(MAIN_PANE_ID);
+    const state = store.getState();
+    expect(state.workspace.panes).toEqual([]);
+    expect(state.workspace.activePaneId).toBeNull();
+    expect(state.input.focus).toEqual({ kind: "header", region: "title" });
+  });
+
+  it("closePane is a silent no-op for an unknown pane", () => {
+    const { store, count } = createCountingStore();
+    store.actions.closePane("pane-unknown");
+    expect(count()).toEqual(0);
+  });
+
   it("openOverlay records the pane focus and focuses the overlay", () => {
     const store = createStationStore();
     store.actions.openOverlay(WOSM_OVERLAY_ID);

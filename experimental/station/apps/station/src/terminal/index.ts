@@ -3,14 +3,13 @@ export {
   TerminalScreenRenderable,
   type TerminalScreenOptions,
 } from "./TerminalScreenRenderable.js";
-export {
-  disposeActiveStationTerminal,
-  pasteToStationTerminal,
-  setStationTerminalInputTarget,
-  setStationTerminalPasteTarget,
-  writeToStationTerminal,
-} from "./input/inputTarget.js";
 export { kittySequenceToLegacy } from "./input/kittyToLegacy.js";
+export {
+  createPtyRegistry,
+  type PtyRegistry,
+  type PtyRegistryEntry,
+  type PtyRegistryOptions,
+} from "./registry/ptyRegistry.js";
 export { StationTerminalSpawnError } from "./pty/errors.js";
 export { createNodePtyTerminal } from "./pty/nodePtyTerminal.js";
 export type { VtRow, VtSpan } from "./vt/rows.js";

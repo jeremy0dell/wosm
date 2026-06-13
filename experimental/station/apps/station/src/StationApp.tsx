@@ -2,7 +2,9 @@ import { useSyncExternalStore } from "react";
 import { createStationInputRuntime } from "./input/stationInput.js";
 import { selectActivePaneId, selectWosmOverlayVisible } from "./state/selectors.js";
 import type { StationStore } from "./state/store.js";
-import { disposeActiveStationTerminal, TerminalPane } from "./terminal/index.js";
+import type { PaneId } from "./state/types.js";
+import { TerminalPane } from "./terminal/index.js";
+import { createPtyRegistry } from "./terminal/registry/ptyRegistry.js";
 import type {
   StationTerminalProcess,
   StationTerminalSpawnOptions,
@@ -21,7 +23,34 @@ export type StationAppCompositionOptions = {
 export function createStationAppComposition(options: StationAppCompositionOptions) {
   const { store, wosmClient } = options;
   const wosmViewStore = createWosmViewStore(wosmClient);
+  // The registry owns every pane's PTY + screen. The coordination store holds
+  // only pane records; this reconciler keeps the registry's live entries in
+  // step with workspace.panes (ensure new ones, dispose removed ones). It runs
+  // synchronously on dispatch, not in React's commit phase, so close/create
+  // are deterministic even when unmount work cannot flush before exit.
+  const registry = createPtyRegistry({ createTerminal: options.createTerminal });
+  // The store keeps the same `panes` array reference across focus/overlay/dialog
+  // changes (only create/close pane allocate a new one), so gating on identity
+  // keeps this off the hot input path — it runs only on real membership changes.
+  let lastPanes: readonly PaneId[] | undefined;
+  const reconcilePanes = (): void => {
+    const panes = store.getState().workspace.panes;
+    if (panes === lastPanes) {
+      return;
+    }
+    lastPanes = panes;
+    for (const paneId of panes) {
+      registry.ensure(paneId);
+    }
+    for (const entry of registry.entries()) {
+      if (!panes.includes(entry.paneId)) {
+        registry.dispose(entry.paneId);
+      }
+    }
+  };
+
   let detachWosmSource: (() => void) | undefined;
+  let detachReconcile: (() => void) | undefined;
   let disposed = false;
 
   const dispose = (): void => {
@@ -31,10 +60,12 @@ export function createStationAppComposition(options: StationAppCompositionOption
     disposed = true;
     detachWosmSource?.();
     detachWosmSource = undefined;
+    detachReconcile?.();
+    detachReconcile = undefined;
     void wosmClient.stop();
     // React unmount work scheduled during shutdown cannot flush before
-    // process.exit, so the live PTY session is disposed imperatively.
-    disposeActiveStationTerminal();
+    // process.exit, so the live PTYs are disposed imperatively.
+    registry.disposeAll();
   };
 
   const stationInput = createStationInputRuntime({
@@ -44,16 +75,23 @@ export function createStationAppComposition(options: StationAppCompositionOption
       options.shutdown();
     },
     wosmViewStore,
+    registry,
   });
 
+  // Named store snapshots: useSyncExternalStore takes getSnapshot and (unused,
+  // no-SSR) getServerSnapshot positionally, so naming them documents intent and
+  // lets one getter back both slots. Select scalars only — snapshots are
+  // Object.is-compared, so object-building getters would loop.
+  const getOverlayVisible = (): boolean => selectWosmOverlayVisible(store.getState());
+  const getActivePaneId = () => selectActivePaneId(store.getState());
+
   function App() {
-    // Components select scalars only: useSyncExternalStore compares snapshots
-    // with Object.is, so object-building selectors would loop.
     const overlayVisible = useSyncExternalStore(
       store.subscribe,
-      () => selectWosmOverlayVisible(store.getState()),
-      () => selectWosmOverlayVisible(store.getState()),
+      getOverlayVisible,
+      getOverlayVisible,
     );
+    const activePaneId = useSyncExternalStore(store.subscribe, getActivePaneId, getActivePaneId);
 
     return (
       <box width="100%" height="100%" flexDirection="column" backgroundColor="#101316">
@@ -81,23 +119,24 @@ export function createStationAppComposition(options: StationAppCompositionOption
         {/* The pane keeps its full size while the overlay is up: the WOSM view
             floats above it as a centered popup, the shell stays visible and
             running behind, and clicks on it are guarded by the mouse bindings
-            while any overlay is active. */}
+            while any overlay is active. The pane is keyed by pane id so the
+            active-pane switch remounts the view against the new entry rather
+            than mutating props mid-flight (the old pane's PTY keeps running in
+            the registry). */}
         <box
           width="100%"
           flexGrow={1}
           flexDirection="column"
           onMouseDown={(event) => {
-            const paneId = selectActivePaneId(store.getState());
+            const paneId = getActivePaneId();
             if (paneId !== null) {
               stationInput.dispatchMouse({ kind: "pane", paneId }, event);
             }
           }}
         >
-          {options.createTerminal === undefined ? (
-            <TerminalPane />
-          ) : (
-            <TerminalPane createTerminal={options.createTerminal} />
-          )}
+          {activePaneId !== null ? (
+            <TerminalPane registry={registry} paneId={activePaneId} key={activePaneId} />
+          ) : null}
         </box>
         {overlayVisible ? (
           <WosmOverlay store={wosmViewStore} dispatchMouse={stationInput.dispatchMouse} />
@@ -110,8 +149,12 @@ export function createStationAppComposition(options: StationAppCompositionOption
     App,
     stationInput,
     wosmViewStore,
+    registry,
     start: (): void => {
       disposed = false;
+      // Seed the registry from the initial workspace and keep it reconciled.
+      reconcilePanes();
+      detachReconcile = store.subscribe(reconcilePanes);
       detachWosmSource = wosmViewStore.getState().start();
       wosmClient.start();
     },

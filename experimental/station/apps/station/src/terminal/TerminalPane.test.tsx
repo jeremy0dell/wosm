@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { rgbToHex, TextAttributes } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
-import { pasteToStationTerminal } from "./input/inputTarget.js";
+import { MAIN_PANE_ID } from "../state/types.js";
+import { createPtyRegistry, type PtyRegistry } from "./registry/ptyRegistry.js";
 import { TerminalPane } from "./TerminalPane.js";
 import { frameChar, spanAtFrameCell } from "./testing/frameProbe.js";
 import { createScriptedTerminal, type ScriptedTerminal } from "./testing/scriptedTerminal.js";
@@ -18,6 +19,7 @@ type PaneSetup = {
   setup: Awaited<ReturnType<typeof testRender>>;
   scripted: ScriptedTerminal;
   spawnSizes: StationTerminalSize[];
+  registry: PtyRegistry;
 };
 
 describe("TerminalPane frame rendering", () => {
@@ -29,29 +31,32 @@ describe("TerminalPane frame rendering", () => {
   });
 
   async function renderPane(): Promise<PaneSetup> {
+    // The pane spawns its PTY on first layout and updates through the registry
+    // (an external store), so updates land outside React's act() from the very
+    // first render; tests poll rendered frames rather than relying on act.
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
     const scripted = createScriptedTerminal({ cols: GRID.cols, rows: GRID.rows });
     const spawnSizes: StationTerminalSize[] = [];
+    const registry = createPtyRegistry({
+      createTerminal: (options) => {
+        spawnSizes.push({
+          cols: options.size?.cols ?? 0,
+          rows: options.size?.rows ?? 0,
+        });
+        return scripted.terminal;
+      },
+    });
     const setup = await testRender(
-      <TerminalPane
-        createTerminal={(options) => {
-          spawnSizes.push({
-            cols: options.size?.cols ?? 0,
-            rows: options.size?.rows ?? 0,
-          });
-          return scripted.terminal;
-        }}
-      />,
+      <TerminalPane registry={registry} paneId={MAIN_PANE_ID} />,
       SURFACE,
     );
     teardowns.push(() => {
+      registry.disposeAll();
       setup.renderer.destroy();
     });
     await setup.flush();
     await waitFor(() => spawnSizes.length > 0);
-    // Updates after setup are deliberately outside act(): the pane reacts to
-    // PTY data on real timers and the tests poll rendered frames instead.
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
-    return { setup, scripted, spawnSizes };
+    return { setup, scripted, spawnSizes, registry };
   }
 
   // The store flushes on a real timer, so frame-waiting must interleave
@@ -202,17 +207,17 @@ describe("TerminalPane frame rendering", () => {
 
   it("wraps paste only while the child has bracketed paste enabled", async () => {
     const pane = await renderPane();
-    expect(pasteToStationTerminal("plain")).toBe(true);
+    expect(pane.registry.paste(MAIN_PANE_ID, "plain")).toBe(true);
     expect(pane.scripted.helpers.writes[pane.scripted.helpers.writes.length - 1]).toBe("plain");
 
     await feedAndFlush(pane, "\x1b[?2004h");
-    expect(pasteToStationTerminal("wrapped")).toBe(true);
+    expect(pane.registry.paste(MAIN_PANE_ID, "wrapped")).toBe(true);
     expect(pane.scripted.helpers.writes[pane.scripted.helpers.writes.length - 1]).toBe(
       "\x1b[200~wrapped\x1b[201~",
     );
 
     await feedAndFlush(pane, "\x1b[?2004l");
-    expect(pasteToStationTerminal("plain again")).toBe(true);
+    expect(pane.registry.paste(MAIN_PANE_ID, "plain again")).toBe(true);
     expect(pane.scripted.helpers.writes[pane.scripted.helpers.writes.length - 1]).toBe(
       "plain again",
     );
@@ -223,7 +228,7 @@ describe("TerminalPane frame rendering", () => {
     pane.scripted.helpers.emitExit({ exitCode: 0 });
     await pane.setup.flush();
     const writesBefore = pane.scripted.helpers.writes.length;
-    expect(pasteToStationTerminal("late paste")).toBe(false);
+    expect(pane.registry.paste(MAIN_PANE_ID, "late paste")).toBe(false);
     expect(pane.scripted.helpers.writes.length).toBe(writesBefore);
   });
 
