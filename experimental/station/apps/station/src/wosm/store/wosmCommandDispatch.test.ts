@@ -57,16 +57,24 @@ describe("station command dispatch through the shared client", () => {
     expect(errorToastMessages(store)).toEqual([]);
   });
 
-  it("jump-to-session by row click dispatches the same focus command", async () => {
+  it("opens the worktree's local primary agent on row click instead of dispatching focus", async () => {
     const { fake, store } = await makeLiveStore();
 
     const outcome = routeWosmMouse({ kind: "row", rowId: "wt_wosm_idle" }, "down", store);
 
-    expect(outcome).toEqual({ kind: "handled" });
-    await waitFor(() => fake.waitedForCommandIds.length === 1);
-    expect(fake.dispatched).toEqual([
-      { type: "terminal.focus", payload: { sessionId: "ses_wt_wosm_idle" } },
-    ]);
+    // The mouse row-click now open-or-focuses the session's local primary agent
+    // (a router outcome the Station store consumes), so it no longer dispatches
+    // the observer/tmux terminal.focus the keyboard slot key still drives.
+    expect(outcome).toMatchObject({
+      kind: "open-pane",
+      paneId: "pane-agent-wt-wt_wosm_idle",
+      role: "primary-agent",
+      worktreeId: "wt_wosm_idle",
+    });
+    // Let any (unexpected) async dispatch settle, then assert none happened.
+    await Promise.resolve();
+    expect(fake.dispatched).toEqual([]);
+    expect(fake.waitedForCommandIds).toEqual([]);
     expect(errorToastMessages(store)).toEqual([]);
   });
 

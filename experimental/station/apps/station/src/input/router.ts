@@ -1,4 +1,4 @@
-import type { FocusTarget, OverlayId, PaneId, StationState } from "../state/types.js";
+import type { FocusTarget, OverlayId, PaneId, PaneRole, StationState } from "../state/types.js";
 import type { WosmMouseEventKind, WosmMouseTarget } from "../wosm/input/wosmMouse.js";
 import type { KeymapStack } from "./keymaps.js";
 
@@ -21,12 +21,21 @@ export type RouteOutcome =
   | { kind: "overlay-open"; overlayId: OverlayId }
   | { kind: "overlay-close"; overlayId: OverlayId }
   /**
-   * Open-or-focus a pane rooted at `cwd` (the WOSM "open a shell here"
-   * affordance). Its own outcome kind rather than a StationCommandId because
-   * commands take no arguments; the executor resolves the cwd into a pane via
-   * the registry + store.
+   * Open-or-focus a pane rooted at `cwd`. Its own outcome kind rather than a
+   * StationCommandId because commands take no arguments; the executor resolves
+   * the cwd into a pane via the registry + store. `role` distinguishes the
+   * `[+sh]` shell from a worktree session's primary agent; the agent carries
+   * its harness `command`/`args` and `worktreeId` (absent for shells).
    */
-  | { kind: "pane-open"; paneId: PaneId; cwd: string }
+  | {
+      kind: "pane-open";
+      paneId: PaneId;
+      cwd: string;
+      role: PaneRole;
+      command?: string;
+      args?: readonly string[];
+      worktreeId?: string;
+    }
   | { kind: "swallowed" }
   | { kind: "ignored" };
 

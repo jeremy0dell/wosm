@@ -108,7 +108,24 @@ export function createStationMouseBindings(wosmViewStore?: StoreApi<TuiStore>): 
         return { kind: "overlay-close", overlayId: WOSM_OVERLAY_ID };
       }
       if (outcome.kind === "open-pane") {
-        return { kind: "pane-open", paneId: outcome.paneId, cwd: outcome.cwd };
+        // Explicit assignments keep command/args/worktreeId absent (not set to
+        // undefined) on the shell path — exactOptionalPropertyTypes.
+        const paneOpen: Extract<RouteOutcome, { kind: "pane-open" }> = {
+          kind: "pane-open",
+          paneId: outcome.paneId,
+          cwd: outcome.cwd,
+          role: outcome.role,
+        };
+        if (outcome.command !== undefined) {
+          paneOpen.command = outcome.command;
+        }
+        if (outcome.args !== undefined) {
+          paneOpen.args = outcome.args;
+        }
+        if (outcome.worktreeId !== undefined) {
+          paneOpen.worktreeId = outcome.worktreeId;
+        }
+        return paneOpen;
       }
       return { kind: "swallowed" };
     },

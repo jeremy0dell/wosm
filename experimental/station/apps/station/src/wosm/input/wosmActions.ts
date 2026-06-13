@@ -10,7 +10,14 @@ import { selectDashboardViewport } from "@wosm/dashboard-core";
 import { clampDashboardStateScroll, scrollDashboard } from "@wosm/dashboard-core";
 import type { TuiKey } from "@wosm/dashboard-core";
 import type { TuiHandleKeyResult, TuiStore } from "@wosm/dashboard-core";
-import { projectPaneId, worktreePaneId, type PaneId } from "../../state/types.js";
+import {
+  agentWorktreePaneId,
+  projectPaneId,
+  worktreePaneId,
+  type PaneId,
+  type PaneRole,
+} from "../../state/types.js";
+import { resolveHarnessCommand } from "../harnessCommand.js";
 import { sequenceToTuiKey } from "./sequenceToTuiKey.js";
 import { matchWosmBinding, deriveWosmMode, type WosmBinding } from "./wosmKeymap.js";
 
@@ -104,12 +111,74 @@ export function dispatchRowSlot(store: StoreApi<TuiStore>, rowId: string): WosmK
 }
 
 /**
- * Where a WOSM "open a shell here" trigger should land: a deterministic pane
- * id plus the cwd the shell spawns in. Undefined when the row/project can't be
- * resolved from the current snapshot, which the router maps to an inert
- * `handled` (no pane churn).
+ * Where an open-pane trigger should land: a deterministic pane id plus the cwd
+ * the process spawns in, tagged with its `role`. A `"shell"` target carries no
+ * command (the registry spawns the default shell); a `"primary-agent"` target
+ * carries the harness launch command/args and the worktree id it belongs to.
+ * Undefined when the row/project can't be resolved from the current snapshot,
+ * which the router maps to an inert `handled` (no pane churn).
+ *
+ * `command`/`args`/`worktreeId` are kept optional so the `[+sh]` shell path
+ * stays byte-for-byte unchanged (honoring exactOptionalPropertyTypes: absent,
+ * not set to undefined).
  */
-export type OpenPaneTarget = { paneId: PaneId; cwd: string };
+export type OpenPaneTarget = {
+  paneId: PaneId;
+  cwd: string;
+  role: PaneRole;
+  command?: string;
+  args?: readonly string[];
+  worktreeId?: string;
+};
+
+/**
+ * The result of resolving a worktree row to its primary-agent launch. Pure and
+ * testable: routing turns each variant into an outcome (launch → open-pane,
+ * unresolved-harness → toast, none → inert). `none` covers a stale/absent row
+ * or missing snapshot; `unresolved-harness` carries the id so the toast can
+ * name it.
+ */
+export type RowAgentTarget =
+  | { kind: "launch"; target: OpenPaneTarget }
+  | { kind: "unresolved-harness"; harness: string }
+  | { kind: "none" };
+
+/**
+ * Resolve a worktree row to its primary-agent launch. The harness comes from
+ * the row's project defaults (a session's agent is the project's default
+ * harness); an unknown/unresolvable harness yields `unresolved-harness` so the
+ * caller can surface a toast instead of launching nothing silently.
+ */
+export function resolveRowAgentTarget(store: StoreApi<TuiStore>, rowId: string): RowAgentTarget {
+  const snapshot = store.getState().snapshot;
+  if (snapshot === undefined) {
+    return { kind: "none" };
+  }
+  const row = snapshot.rows.find((candidate) => candidate.id === rowId);
+  if (row === undefined) {
+    return { kind: "none" };
+  }
+  const harness = snapshot.projects.find((project) => project.id === row.projectId)?.defaults
+    .harness;
+  if (harness === undefined) {
+    return { kind: "none" };
+  }
+  const spawn = resolveHarnessCommand(harness);
+  if (spawn === undefined) {
+    return { kind: "unresolved-harness", harness };
+  }
+  return {
+    kind: "launch",
+    target: {
+      paneId: agentWorktreePaneId(row.id),
+      cwd: row.path,
+      role: "primary-agent",
+      command: spawn.command,
+      args: spawn.args,
+      worktreeId: row.id,
+    },
+  };
+}
 
 /**
  * Resolve a worktree row to its shell pane target; cwd is the worktree's
@@ -133,7 +202,7 @@ export function resolveRowPaneTarget(
   if (row === undefined) {
     return undefined;
   }
-  return { paneId: worktreePaneId(row.id), cwd: row.path };
+  return { paneId: worktreePaneId(row.id), cwd: row.path, role: "shell" };
 }
 
 /**
@@ -152,7 +221,7 @@ export function resolveProjectPaneTarget(
   if (project === undefined) {
     return undefined;
   }
-  return { paneId: projectPaneId(project.id), cwd: project.root };
+  return { paneId: projectPaneId(project.id), cwd: project.root, role: "shell" };
 }
 
 /**

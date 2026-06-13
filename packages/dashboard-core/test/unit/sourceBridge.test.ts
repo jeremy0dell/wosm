@@ -124,6 +124,7 @@ function makeStore(): StoreApi<TuiStore> {
     start: () => () => {},
     handleKey: () => ({ dismissPopup: false }),
     setTerminalRows: () => {},
+    pushToast: () => {},
     dismissToasts: () => {},
     expireToasts: () => {},
     refreshActiveToastExpiry: () => {},

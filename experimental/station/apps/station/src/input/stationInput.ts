@@ -1,10 +1,11 @@
 import { kittySequenceToLegacy } from "../terminal/index.js";
 import { stripTerminalReplies } from "../terminal/input/terminalReplies.js";
 import type { PtyRegistry } from "../terminal/registry/ptyRegistry.js";
+import type { StationTerminalSpawnOptions } from "../terminal/types.js";
 import type { StoreApi } from "zustand/vanilla";
 import { selectPaneRecord } from "../state/selectors.js";
 import type { StationStore } from "../state/store.js";
-import { WOSM_OVERLAY_ID, type PaneId } from "../state/types.js";
+import { WOSM_OVERLAY_ID, type PaneId, type PaneRole } from "../state/types.js";
 import { sanitizePastedText } from "../wosm/input/sequenceToTuiKey.js";
 import { dispatchWosmKey } from "../wosm/input/wosmActions.js";
 import type { TuiStore } from "@wosm/dashboard-core";
@@ -45,13 +46,27 @@ export function normalizeSequence(raw: string): NormalizedSequence {
   return { consumed: false, legacy };
 }
 
+/**
+ * What an open-pane effect spawns: the cwd plus, for a primary agent, the
+ * harness `command`/`args`, the pane `role`, and the `worktreeId` it belongs
+ * to. The `[+sh]` shell passes only `cwd` (role defaults to shell), so its
+ * spawn is unchanged.
+ */
+export type OpenPaneSpawn = {
+  cwd: string;
+  command?: string;
+  args?: readonly string[];
+  role?: PaneRole;
+  worktreeId?: string;
+};
+
 export type StationInputEffects = {
   store: StationStore;
   runCommand(commandId: StationCommandId): void;
   writeToTerminal(paneId: PaneId, bytes: string): boolean;
   pasteToTerminal(paneId: PaneId, text: string): boolean;
-  /** Open-or-focus a pane, spawning its shell in `cwd` on first creation. */
-  openPane(paneId: PaneId, cwd: string): void;
+  /** Open-or-focus a pane, spawning its process per `spawn` on first creation. */
+  openPane(paneId: PaneId, spawn: OpenPaneSpawn): void;
 };
 
 /**
@@ -82,9 +97,22 @@ export function executeOutcome(outcome: RouteOutcome, effects: StationInputEffec
     case "overlay-close":
       effects.store.actions.closeOverlay();
       return true;
-    case "pane-open":
-      effects.openPane(outcome.paneId, outcome.cwd);
+    case "pane-open": {
+      // Explicit assignments keep command/args/worktreeId absent (not set to
+      // undefined) on the shell path — exactOptionalPropertyTypes.
+      const spawn: OpenPaneSpawn = { cwd: outcome.cwd, role: outcome.role };
+      if (outcome.command !== undefined) {
+        spawn.command = outcome.command;
+      }
+      if (outcome.args !== undefined) {
+        spawn.args = outcome.args;
+      }
+      if (outcome.worktreeId !== undefined) {
+        spawn.worktreeId = outcome.worktreeId;
+      }
+      effects.openPane(outcome.paneId, spawn);
       return true;
+    }
     case "swallowed":
       return true;
     case "ignored":
@@ -145,18 +173,35 @@ export function createStationInputRuntime(options: StationInputRuntimeOptions): 
     pasteToTerminal:
       options.pasteToTerminal ?? ((paneId, text) => registry?.paste(paneId, text) ?? false),
     // Open-or-focus a pane with a stable id. On first open, seed the registry
-    // entry with the cwd *before* createPane: PtyRegistry.ensure stores
-    // spawnOptions only when it first creates the entry, and the pane
-    // reconciler's later no-option ensure(paneId) is then an idempotent no-op
-    // that preserves the cwd. Reverse the order and the cwd is silently lost.
-    openPane: (paneId, cwd) => {
+    // entry with the cwd (and, for an agent, command/args) *before* createPane:
+    // PtyRegistry.ensure stores spawnOptions only when it first creates the
+    // entry, and the pane reconciler's later no-option ensure(paneId) is then an
+    // idempotent no-op that preserves them. Reverse the order and the spawn
+    // options are silently lost. setPrimaryAgent runs after createPane so the
+    // pane is already a member when the role/worktree mapping is recorded.
+    openPane: (paneId, spawn) => {
+      const { cwd, command, args, worktreeId } = spawn;
+      const role = spawn.role ?? "shell";
       if (selectPaneRecord(options.store.getState(), paneId) !== null) {
         options.store.actions.revealPane(paneId);
       } else {
-        registry?.ensure(paneId, { cwd });
-        options.store.actions.createPane(paneId);
+        const spawnOptions: StationTerminalSpawnOptions = { cwd };
+        if (command !== undefined) {
+          spawnOptions.command = command;
+        }
+        if (args !== undefined) {
+          spawnOptions.args = args;
+        }
+        registry?.ensure(paneId, spawnOptions);
+        options.store.actions.createPane(paneId, { role });
+        if (role === "primary-agent" && worktreeId !== undefined) {
+          options.store.actions.setPrimaryAgent(worktreeId, paneId);
+        }
       }
-      if (autoCloseOverlay) {
+      // Bring-them-there: opening/focusing a primary agent always lands the user
+      // in it (overlay closes). The `[+sh]` shell keeps its configured default
+      // (autoCloseOverlay, off unless opted in), so its behavior is unchanged.
+      if (autoCloseOverlay || role === "primary-agent") {
         options.store.actions.closeOverlay();
       }
     },

@@ -6,16 +6,19 @@
 // and never touches a store.
 import type { StoreApi } from "zustand/vanilla";
 import type { TuiStore } from "@wosm/dashboard-core";
+import type { PaneRole } from "../../state/types.js";
 import {
   dismissWosmToasts,
   dispatchBindingClick,
   dispatchRowSlot,
   dispatchWosmKey,
   resolveProjectPaneTarget,
+  resolveRowAgentTarget,
   resolveRowPaneTarget,
   scrollWosmView,
   toggleProjectCollapsed,
   type OpenPaneTarget,
+  type RowAgentTarget,
   type WosmKeyOutcome,
 } from "./wosmActions.js";
 import { deriveWosmMode, WOSM_KEYMAP, type WosmInputMode } from "./wosmKeymap.js";
@@ -46,9 +49,19 @@ export type WosmMouseOutcome =
   /**
    * Consumed; the router should open-or-focus a pane rooted at `cwd`. Pane
    * lifecycle is the Station coordination store's job, not the view store's,
-   * so this surfaces as a router outcome the same way close-overlay does.
+   * so this surfaces as a router outcome the same way close-overlay does. A
+   * `"primary-agent"` open carries the harness command/args + worktree id; the
+   * `"shell"` path leaves them absent so its behavior is unchanged.
    */
-  | { kind: "open-pane"; paneId: string; cwd: string };
+  | {
+      kind: "open-pane";
+      paneId: string;
+      cwd: string;
+      role: PaneRole;
+      command?: string;
+      args?: readonly string[];
+      worktreeId?: string;
+    };
 
 const SCROLL_PAGE_ROWS = 5;
 
@@ -74,6 +87,12 @@ export function routeWosmMouse(
     case "row":
       if (!ROW_INTERACTIVE_MODES.has(mode)) {
         return { kind: "handled" };
+      }
+      // Dashboard: a row IS its session's primary agent — open-or-focus it.
+      // The choose-slot modes (remove/rename) keep their slot semantics: a
+      // click selects that row.
+      if (mode === "dashboard") {
+        return fromRowAgentTarget(resolveRowAgentTarget(store, target.rowId), store);
       }
       return fromKeyOutcome(dispatchRowSlot(store, target.rowId));
     case "projectHeader":
@@ -152,5 +171,43 @@ function fromPaneTarget(target: OpenPaneTarget | undefined): WosmMouseOutcome {
   if (target === undefined) {
     return { kind: "handled" };
   }
-  return { kind: "open-pane", paneId: target.paneId, cwd: target.cwd };
+  // Build the optional fields with explicit assignments (exactOptionalPropertyTypes):
+  // the shell path leaves command/args/worktreeId absent rather than set to undefined.
+  const outcome: Extract<WosmMouseOutcome, { kind: "open-pane" }> = {
+    kind: "open-pane",
+    paneId: target.paneId,
+    cwd: target.cwd,
+    role: target.role,
+  };
+  if (target.command !== undefined) {
+    outcome.command = target.command;
+  }
+  if (target.args !== undefined) {
+    outcome.args = target.args;
+  }
+  if (target.worktreeId !== undefined) {
+    outcome.worktreeId = target.worktreeId;
+  }
+  return outcome;
+}
+
+/**
+ * Map a resolved row-agent target to an outcome: `launch` opens the agent pane,
+ * `unresolved-harness` surfaces a toast and is otherwise inert, `none` (stale
+ * row / no snapshot) is an inert click. The toast side-effect mirrors this
+ * module's existing side-effecting calls (toggleProjectCollapsed, scrollWosmView).
+ */
+function fromRowAgentTarget(result: RowAgentTarget, store: StoreApi<TuiStore>): WosmMouseOutcome {
+  switch (result.kind) {
+    case "launch":
+      return fromPaneTarget(result.target);
+    case "unresolved-harness":
+      store.getState().pushToast({
+        kind: "error",
+        message: `No launch command for harness '${result.harness}'.`,
+      });
+      return { kind: "handled" };
+    case "none":
+      return { kind: "handled" };
+  }
 }

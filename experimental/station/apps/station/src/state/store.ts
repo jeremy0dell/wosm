@@ -5,6 +5,7 @@ import {
   type OverlayId,
   type PaneId,
   type PaneRecord,
+  type PaneRole,
   type PaneSplitDirection,
   type StationState,
 } from "./types.js";
@@ -14,10 +15,19 @@ export type CreatePaneOptions = {
     anchorPaneId: PaneId;
     direction: PaneSplitDirection;
   };
+  /** Defaults to `"shell"`; the agent open-pane path passes `"primary-agent"`. */
+  role?: PaneRole;
 };
 
 export type StationStoreActions = {
   createPane(paneId: PaneId, options?: CreatePaneOptions): void;
+  /**
+   * Record an already-created pane as a worktree session's primary agent: set
+   * the pane record's role to `"primary-agent"` and map the worktree to it.
+   * Orthogonal to focus/overlay (does not touch either); a non-member pane or
+   * an already-recorded pair is a same-ref no-op.
+   */
+  setPrimaryAgent(worktreeId: string, paneId: PaneId): void;
   closePane(paneId: PaneId): void;
   /**
    * Make an existing pane the active one, overlay-aware. The reuse half of the
@@ -47,7 +57,11 @@ export type StationStoreOptions = {
 
 function initialState(paneId: PaneId): StationState {
   return {
-    workspace: { panes: [{ id: paneId, split: null }], activePaneId: paneId },
+    workspace: {
+      panes: [{ id: paneId, split: null, role: "shell" }],
+      activePaneId: paneId,
+      primaryAgentPaneByWorktree: {},
+    },
     input: {
       focus: { kind: "pane", paneId },
       activeOverlay: null,
@@ -176,7 +190,8 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
     actions: {
       // A pane record is created once; the runtime PtyRegistry owns the live
       // process for the id. Creating a new pane makes it active and focused
-      // (or, under an open overlay, the overlay's pending return target).
+      // (or, under an open overlay, the overlay's pending return target). The
+      // record carries its role (default "shell") and optional split metadata.
       createPane: (paneId, options) => {
         if (hasPane(state.workspace.panes, paneId)) {
           return;
@@ -185,14 +200,46 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
         if (split !== undefined && !hasPane(state.workspace.panes, split.anchorPaneId)) {
           return;
         }
+        const record: PaneRecord = {
+          id: paneId,
+          split: split ?? null,
+          role: options?.role ?? "shell",
+        };
         const appended: StationState = {
+          ...state,
+          workspace: { ...state.workspace, panes: [...state.workspace.panes, record] },
+        };
+        setState(withActivePane(appended, paneId));
+      },
+      // Role bookkeeping only: flips an existing pane's record role to
+      // "primary-agent" and maps the worktree to it so a later row-click
+      // re-finds it. Deliberately leaves focus/overlay to the open-pane chain
+      // (createPane/revealPane already placed the pane), so withActivePane's
+      // invariants are untouched.
+      setPrimaryAgent: (worktreeId, paneId) => {
+        const record = state.workspace.panes.find((pane) => pane.id === paneId);
+        if (record === undefined) {
+          return;
+        }
+        if (
+          record.role === "primary-agent" &&
+          state.workspace.primaryAgentPaneByWorktree[worktreeId] === paneId
+        ) {
+          return;
+        }
+        setState({
           ...state,
           workspace: {
             ...state.workspace,
-            panes: [...state.workspace.panes, { id: paneId, split: split ?? null }],
+            panes: state.workspace.panes.map((pane) =>
+              pane.id === paneId ? { ...pane, role: "primary-agent" } : pane,
+            ),
+            primaryAgentPaneByWorktree: {
+              ...state.workspace.primaryAgentPaneByWorktree,
+              [worktreeId]: paneId,
+            },
           },
-        };
-        setState(withActivePane(appended, paneId));
+        });
       },
       // Open-or-focus reuse: surface an already-created pane. Overlay-aware via
       // the same helper createPane uses, so revealing under the WOSM overlay
@@ -212,14 +259,21 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
         }
         const panes = state.workspace.panes
           .filter((pane) => pane.id !== paneId)
-          .map((pane) =>
-            pane.split?.anchorPaneId === paneId ? { ...pane, split: null } : pane,
-          );
+          .map((pane) => (pane.split?.anchorPaneId === paneId ? { ...pane, split: null } : pane));
         const activePaneId =
           state.workspace.activePaneId === paneId
             ? (panes[panes.length - 1]?.id ?? null)
             : state.workspace.activePaneId;
-        const workspace = { panes, activePaneId };
+        // Drop any worktree→pane mapping pointing at the removed pane (its role
+        // lives on the record, so it is gone with the filter above). No
+        // auto-promote: a closed primary agent just leaves the worktree without
+        // one (relaunch-on-re-click is the deferred Path-A follow-up).
+        const primaryAgentPaneByWorktree = Object.fromEntries(
+          Object.entries(state.workspace.primaryAgentPaneByWorktree).filter(
+            ([, mappedPaneId]) => mappedPaneId !== paneId,
+          ),
+        );
+        const workspace = { panes, activePaneId, primaryAgentPaneByWorktree };
         const focus: FocusTarget =
           state.input.focus.kind === "pane" && state.input.focus.paneId === paneId
             ? activePaneId !== null

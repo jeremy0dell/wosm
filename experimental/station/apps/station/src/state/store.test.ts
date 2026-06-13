@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { createStationStore } from "./store.js";
-import { MAIN_PANE_ID, WOSM_OVERLAY_ID, type PaneRecord } from "./types.js";
+import { MAIN_PANE_ID, WOSM_OVERLAY_ID, type PaneRecord, type PaneRole } from "./types.js";
 
 function createCountingStore() {
   const store = createStationStore();
@@ -11,8 +11,12 @@ function createCountingStore() {
   return { store, count: () => notifications };
 }
 
-function paneRecord(id: string, split: PaneRecord["split"] = null): PaneRecord {
-  return { id, split };
+function paneRecord(
+  id: string,
+  split: PaneRecord["split"] = null,
+  role: PaneRole = "shell",
+): PaneRecord {
+  return { id, split, role };
 }
 
 describe("createStationStore", () => {
@@ -348,5 +352,78 @@ describe("createStationStore", () => {
     unsubscribe();
     store.actions.openOverlay(WOSM_OVERLAY_ID);
     expect(notifications).toEqual(0);
+  });
+});
+
+describe("createStationStore primary-agent bookkeeping", () => {
+  const roleOf = (store: ReturnType<typeof createStationStore>, paneId: string) =>
+    store.getState().workspace.panes.find((pane) => pane.id === paneId)?.role;
+
+  it("seeds the boot pane as a shell with no primary agents", () => {
+    const store = createStationStore();
+    const { workspace } = store.getState();
+    expect(roleOf(store, MAIN_PANE_ID)).toEqual("shell");
+    expect(workspace.primaryAgentPaneByWorktree).toEqual({});
+  });
+
+  it("createPane records the given role and defaults to shell", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-agent", { role: "primary-agent" });
+    store.actions.createPane("pane-plain");
+    expect(roleOf(store, "pane-agent")).toEqual("primary-agent");
+    expect(roleOf(store, "pane-plain")).toEqual("shell");
+  });
+
+  it("setPrimaryAgent records the role and the worktree mapping", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-agent");
+    store.actions.setPrimaryAgent("wt_a", "pane-agent");
+    expect(roleOf(store, "pane-agent")).toEqual("primary-agent");
+    expect(store.getState().workspace.primaryAgentPaneByWorktree).toEqual({ wt_a: "pane-agent" });
+  });
+
+  it("setPrimaryAgent is a silent no-op for a non-member pane", () => {
+    const { store, count } = createCountingStore();
+    const before = store.getState();
+    store.actions.setPrimaryAgent("wt_a", "pane-ghost");
+    expect(store.getState()).toBe(before);
+    expect(count()).toEqual(0);
+  });
+
+  it("setPrimaryAgent is a silent no-op when the pair is already recorded", () => {
+    const { store, count } = createCountingStore();
+    store.actions.createPane("pane-agent");
+    store.actions.setPrimaryAgent("wt_a", "pane-agent");
+    const baseline = count();
+    const settled = store.getState();
+    store.actions.setPrimaryAgent("wt_a", "pane-agent");
+    expect(store.getState()).toBe(settled);
+    expect(count()).toEqual(baseline);
+  });
+
+  it("setPrimaryAgent leaves focus and overlay untouched under an open overlay", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-agent");
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+    const focusBefore = store.getState().input.focus;
+    const returnBefore = store.getState().input.overlayReturnFocus;
+
+    store.actions.setPrimaryAgent("wt_a", "pane-agent");
+
+    const { input, workspace } = store.getState();
+    expect(input.activeOverlay).toEqual(WOSM_OVERLAY_ID);
+    expect(input.focus).toEqual(focusBefore);
+    expect(input.overlayReturnFocus).toEqual(returnBefore);
+    expect(workspace.primaryAgentPaneByWorktree).toEqual({ wt_a: "pane-agent" });
+  });
+
+  it("closePane drops the pane record and any worktree mapping pointing at it", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-agent", { role: "primary-agent" });
+    store.actions.setPrimaryAgent("wt_a", "pane-agent");
+    store.actions.closePane("pane-agent");
+    const { workspace } = store.getState();
+    expect(roleOf(store, "pane-agent")).toBeUndefined();
+    expect(workspace.primaryAgentPaneByWorktree).toEqual({});
   });
 });

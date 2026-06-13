@@ -137,24 +137,38 @@ Exit bar: split/focus/close feels boring and reliable.
       tabbed-multi-pane pane-switch keybindings (Phase 2)
 - [ ] `diff` action opens a real diff tool in a pane: `difftastic`, fallback
       `git diff` (Goal 7)
-- [ ] agent action launches a real agent command in a pane, following Session
-      And Primary Agent Semantics for what is and is not the primary agent.
-      Decided next-increment shape (2026-06-13): run the harness in a **local
-      Station PTY** (not observer/tmux-mediated) and record the pane as the
-      workspace's *explicit* primary agent — a pane `role`
-      (`primary-agent`/`shell`) + a `primaryAgentPaneId`, kept minimal (no full
-      per-worktree `workSession` container yet). Two entry points, built
-      together: a per-row/header **`[+ag]` affordance** mirroring `[+sh]` (same
-      open-pane-with-cwd rail, additionally setting the spawn `command`/`args`
-      from a provider→command resolver keyed on `project.defaults.harness`), and
-      **seeding the boot pane** (`pane-main`) as the launch-worktree's primary
-      agent when `process.cwd()` matches a snapshot row path (set spawn options
-      before the lazy first-resize spawn; re-root once the first snapshot lands
-      on the async observer path; plain shell when cwd is not a managed
-      worktree). Agent *status* converges via harness hooks even though Station
-      hosts the PTY locally. Deferred: guarded close of the primary agent,
-      zero-pane prompts, adoption/promotion of ad-hoc agent panes, and observer
-      session/terminal-target reconciliation
+- [x] agent action launches a real agent command in a pane — *launch half only*
+      (landed 2026-06-13, **Path A**; see the Spike Log entry). A dashboard
+      *mouse* row-click open-or-focuses that session's primary agent: first open
+      spawns the project's default-harness binary (`claude`/`codex`/…) in a local
+      PTY rooted at `worktree.path`, records the pane as the worktree's primary
+      agent, and closes the overlay onto it; re-click re-focuses it; unknown
+      harness → toast. Agents are children of the Station process and die on
+      shutdown — surviving the client closing is **Path B** (Phase 5). The shared
+      *keyboard* row-activation still drives the observer/tmux start-or-focus and
+      is reconciled later. **Caveat:** this is a *bare* launch with no WOSM
+      identity, so the observer treats it as an ad hoc pane — see the next item
+- [ ] **make the Station primary agent a real WOSM session — essential, not yet
+      done.** The bare launch above is not observer-managed: its row shows
+      `unknown`, never converges to `working`, and the classic TUI never sees it
+      at all. To be the WOSM-managed primary agent the session row *reflects*
+      (per Session And Primary Agent Semantics — "contributes agent status"), the
+      launch must carry WOSM identity:
+  - allocate/derive a WOSM **session id** for the worktree, or attach to the
+    observer's existing session for it
+  - inject the harness launch **env** the providers already define
+    (`WOSM_PROJECT_ID`/`WOSM_WORKTREE_ID`/`WOSM_WORKTREE_PATH`/`WOSM_SESSION_ID`/
+    `WOSM_HARNESS_PROVIDER`) plus **hook settings**, so the harness emits the
+    events the observer ingests and status converges
+  - register a **terminal target** so focus/attach and dedup reconcile — one
+    worktree session, not two
+
+  This is independent of Path B persistence: it can land while the agent is still
+  a child of Station, and it is the step that turns "a local PTY running codex"
+  into the WOSM session the dashboard row stands for. It does require Station to
+  reuse the harness launch contract (env + hook-settings injection from
+  `integrations/harness/*`, surfaced through contracts) rather than the
+  identity-free bare command the Path-A resolver emits today
 - [x] Station command dispatch through `@wosm/client` (client plan PR 4),
       starting with reconcile/refresh plus one focus or create command
       (done 2026-06-12; see the Spike Log entry and the client plan's PR 4
@@ -174,6 +188,48 @@ Exit bar: the difftastic-style workflow steps 1-5 work end to end.
 
 Exit bar: a continue-or-pause decision inside the timebox. The spike started
 2026-06-10: target decision by 2026-06-24, hard maximum 2026-07-01.
+
+### Phase 5 - Persistent Agent Host / Attach-Detach (Path B)
+
+Scope: **persistence and attach/detach only.** The agent's WOSM *identity*
+(session id, launch env, hooks, terminal target) is Phase 3's essential
+identity-wiring item, not this phase — Path B assumes a Station agent is already
+a real WOSM session and adds outliving the client on top.
+
+Path A hosts each agent PTY as a **child of the Station process** and kills them
+on shutdown, so a session's agent lives only while Station is open and the store
+starts fresh each launch. Path B makes agents **outlive the client**: closing and
+reopening Station (or attaching from a second client) finds the same running
+agents. This is a bigger architectural change — PTYs can no longer be children of
+the Station process.
+
+Direction: a dedicated **Station/observer PTY daemon** the UI attaches to and
+detaches from, owning agent processes independently of any client.
+
+- [ ] a long-lived host process (Station/observer-side) that spawns and owns the
+      agent PTYs, exposing attach/detach + scrollback replay so a reconnecting
+      client re-binds to the running agent rather than respawning it
+
+Why not tmux: the observer's tmux-backed terminals already give persistence, but
+**Station cannot assume tmux is installed** — it is a *detected, optional*
+dependency (`checkTmuxDependency` emits an "install tmux" hint, `WOSM_TMUX_BIN`
+override), and Path A already runs tmux-free on `node-pty`. Hard-depending on
+tmux for the core persistence path would regress that, so the daemon must own
+the PTYs itself (it may still *support* a tmux backend where available, but must
+not require one).
+
+Cross-cutting work the daemon forces (on top of Phase 3's identity wiring):
+
+- [ ] keep the Phase 3 terminal-target / session identity stable across a client
+      restart, so a re-attaching client re-binds to the same session rather than
+      creating a second
+- [ ] relaunch-on-re-click of an *exited* agent, plus `--resume` continuity for a
+      persisted one (both deferred out of Path A)
+- [ ] guarded close of a primary agent (also flagged in Session And Primary
+      Agent Semantics and Phase 2's close-pane item)
+
+Exit bar: an agent started in Station survives the client closing and is
+re-attachable, still as the single WOSM session Phase 3 established.
 
 ## Spike Log
 
@@ -212,6 +268,65 @@ Validation:
 - `npm exec --yes --package=bun@1.3.14 -- bun run typecheck`
 - `pnpm build`
 - `pnpm test:all`
+
+### 2026-06-13 - Launch A Session's Primary Agent In A Station Pane (Path A)
+
+Phase 3's agent action landed (**Path A**): activating a worktree row turns that
+session into a **real local agent Station hosts**, not the observer/tmux
+start-or-focus the click used to drive. The product model is that every worktree
+session has its own primary agent, and a dashboard row-click takes you straight
+to it (launching it locally if needed), so you hop session→session from the
+overlay while the dashboard keeps the cross-session picture. Sessions are
+independent: opening B never disturbs A.
+
+What landed:
+
+- A **provider→command resolver** (`src/wosm/harnessCommand.ts`), a tiny static
+  map mirroring each harness provider's `command()` default (`claude`/`codex`/
+  `opencode`/`pi`, and `cursor`→`agent`), with the `WOSM_*_BIN` env overrides.
+  Station depends only on `@wosm/contracts`/`@wosm/dashboard-core`, so this is a
+  deliberate re-implementation rather than an `integrations/harness/*` import.
+  An unknown id resolves to `undefined`.
+- **Per-worktree primary-agent state.** Built on the `PaneRecord` from the
+  pane-records slice: each record carries a `role` (`"primary-agent"`/`"shell"`,
+  default `"shell"`). `createPane(paneId, { role })` sets it, a new
+  `setPrimaryAgent` flips the record to `"primary-agent"` and records
+  `primaryAgentPaneByWorktree` (orthogonal to focus/overlay), and `closePane`
+  drops the record plus its worktree mapping. Role on the record (not a parallel
+  map) keeps a single source of truth per pane.
+- The open-pane chain now carries optional `command`/`args`/`role`/`worktreeId`
+  end to end (`OpenPaneTarget` → `WosmMouseOutcome` → `RouteOutcome` →
+  `openPane`), so the `[+sh]` shell path is byte-for-byte unchanged. A dashboard
+  row-click routes through `resolveRowAgentTarget` (row → project default harness
+  → resolver): launch → `open-pane` carrying the harness command; unknown
+  harness → a toast (new public `pushToast` on dashboard-core's `TuiStore`);
+  stale row → inert.
+- **ensure-before-createPane order is preserved and extended:**
+  `registry.ensure(paneId, { cwd, command, args })` → `createPane(paneId, { role })`
+  → `setPrimaryAgent`. **Bring-them-there:** an agent open always closes the
+  overlay so you land in the pane; `[+sh]` keeps its existing default
+  (`autoCloseOverlay`, off unless opted in).
+
+Known gap, tracked as the essential unchecked **Phase 3** step ("make the Station
+primary agent a real WOSM session"): this is a *bare* launch with **no WOSM
+identity**, so the observer treats it as an ad hoc pane — the row shows
+`unknown`, never converges to `working`, and the classic TUI never sees it. The
+required wiring (session id + `WOSM_*` env + hooks + terminal target) and its
+independence from Path B persistence live in that Phase 3 item.
+
+Deferred to **Path B** (Phase 5): agents survive the client closing
+(attach/detach); relaunch-on-re-click of an exited agent; guarded close;
+`--resume`. The choose-slot modes (remove/rename) keep today's row-click
+selection, and the shared *keyboard* row-activation is left as-is for later
+reconciliation.
+
+UX implication / manual verification: `bun run station`; open the wosm overlay
+(Ctrl-O or header click); click a worktree row → its default-harness agent
+launches in a real local PTY and the overlay closes onto it. Re-open the overlay
+and click a different row → its own agent launches independently (the first keeps
+running); click the first row again → returns to its same running agent. `[+sh]`
+still opens a plain shell; clicking a row whose harness is unknown shows a toast
+and opens nothing. Closing Station stops all agents (Path A).
 
 ### 2026-06-13 - Open A Shell In The Selected Worktree / Project Root
 

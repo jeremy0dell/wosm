@@ -4,31 +4,81 @@
 // are interactive.
 import { describe, expect, it } from "bun:test";
 import type { StoreApi } from "zustand/vanilla";
+import type { ProviderId, WosmSnapshot } from "@wosm/contracts";
 import { selectDashboardViewport } from "@wosm/dashboard-core";
 import { addTuiToast } from "@wosm/dashboard-core";
 import type { TuiStore } from "@wosm/dashboard-core";
+import { agentWorktreePaneId } from "../../state/types.js";
 import { manyProjectsSnapshot } from "../fixtures/scenarios.js";
+import { resolveHarnessCommand } from "../harnessCommand.js";
 import { makeWosmTestStore } from "../test/support/makeWosmTestStore.js";
 import { routeWosmMouse } from "./wosmMouse.js";
 
-function makeStore(): StoreApi<TuiStore> {
-  return makeWosmTestStore({ terminalRows: 12 }).store;
+function makeStore(snapshot?: WosmSnapshot): StoreApi<TuiStore> {
+  return makeWosmTestStore({ terminalRows: 12, ...(snapshot === undefined ? {} : { snapshot }) })
+    .store;
+}
+
+// A clone of the fixture with one project's default harness overridden, to
+// exercise the unresolved-harness branch (the fixture only uses codex/opencode).
+function snapshotWithHarness(projectId: string, harness: string): WosmSnapshot {
+  const base = manyProjectsSnapshot();
+  return {
+    ...base,
+    projects: base.projects.map((project) =>
+      project.id === projectId
+        ? { ...project, defaults: { ...project.defaults, harness: harness as ProviderId } }
+        : project,
+    ),
+  };
 }
 
 describe("routeWosmMouse", () => {
-  it("makes a row click mean exactly what the row's slot key means", () => {
-    const clicked = makeStore();
-    const keyed = makeStore();
-    // wt_wosm_none has no agent: activation adds a pending start row
-    // synchronously, so the equivalence is observable without async effects.
-    const rowId = "wt_wosm_none";
-    const slot = slotForRow(keyed, rowId);
+  it("opens the row's primary agent on a dashboard row click", () => {
+    const store = makeStore();
+    const rowId = "wt_wosm_idle";
+    // The wosm project's default harness (codex) resolves to its launch command;
+    // assert against the resolver so the test is independent of any WOSM_*_BIN env.
+    const spawn = resolveHarnessCommand("codex");
+    if (spawn === undefined) {
+      throw new Error("expected codex to resolve to a launch command");
+    }
 
-    routeWosmMouse({ kind: "row", rowId }, "down", clicked);
-    keyed.getState().handleKey({ input: slot });
+    const outcome = routeWosmMouse({ kind: "row", rowId }, "down", store);
 
-    expect(pendingStartIds(clicked)).toEqual(pendingStartIds(keyed));
-    expect(pendingStartIds(clicked)).toEqual([`start:${rowId}`]);
+    expect(outcome).toEqual({
+      kind: "open-pane",
+      paneId: agentWorktreePaneId(rowId),
+      cwd: rowPath(rowId),
+      role: "primary-agent",
+      command: spawn.command,
+      args: spawn.args,
+      worktreeId: rowId,
+    });
+    // The dashboard click no longer dispatches the start-or-focus slot key, so
+    // no pending-start row is queued.
+    expect(pendingStartIds(store)).toEqual([]);
+  });
+
+  it("pushes a toast and opens nothing when the row's harness has no launch command", () => {
+    const store = makeStore(snapshotWithHarness("wosm", "ghost"));
+
+    const outcome = routeWosmMouse({ kind: "row", rowId: "wt_wosm_idle" }, "down", store);
+
+    expect(outcome).toEqual({ kind: "handled" });
+    expect(store.getState().toasts.at(-1)?.toast).toMatchObject({
+      kind: "error",
+      message: "No launch command for harness 'ghost'.",
+    });
+  });
+
+  it("treats a dashboard click on a stale row as an inert click with no toast", () => {
+    const store = makeStore();
+
+    const outcome = routeWosmMouse({ kind: "row", rowId: "wt_nope" }, "down", store);
+
+    expect(outcome).toEqual({ kind: "handled" });
+    expect(store.getState().toasts).toEqual([]);
   });
 
   it("chooses the clicked row in remove mode, same as the slot key", () => {
@@ -172,6 +222,7 @@ describe("routeWosmMouse", () => {
       kind: "open-pane",
       paneId: "pane-wt-wt_wosm_idle",
       cwd: rowPath("wt_wosm_idle"),
+      role: "shell",
     });
   });
 
@@ -182,18 +233,26 @@ describe("routeWosmMouse", () => {
       kind: "open-pane",
       paneId: "pane-proj-wosm",
       cwd: projectRoot("wosm"),
+      role: "shell",
     });
   });
 
   it("keeps [+sh] live on a worktree that has a pending agent start", () => {
     const store = makeStore();
     const rowId = "wt_wosm_none";
-    // Starting an agent drops the row out of rowChoices (it gains a pendingStart)
-    // but it still renders a clickable [+sh]. Opening a shell is orthogonal to
-    // agent activation, so the affordance must still resolve against snapshot.rows.
-    routeWosmMouse({ kind: "row", rowId }, "down", store);
+    // Put the row into a pending-start (transient) state via the start-or-focus
+    // slot key: it drops out of rowChoices but still renders a clickable [+sh].
+    // Opening a shell is orthogonal to agent activation, so the affordance must
+    // still resolve against snapshot.rows. (The dashboard *mouse* row-click now
+    // opens the primary agent, so the pending-start is driven by the keyboard.)
+    store.getState().handleKey({ input: slotForRow(store, rowId) });
     const outcome = routeWosmMouse({ kind: "openShellForRow", rowId }, "down", store);
-    expect(outcome).toEqual({ kind: "open-pane", paneId: `pane-wt-${rowId}`, cwd: rowPath(rowId) });
+    expect(outcome).toEqual({
+      kind: "open-pane",
+      paneId: `pane-wt-${rowId}`,
+      cwd: rowPath(rowId),
+      role: "shell",
+    });
   });
 
   it("gates the open-shell affordance to dashboard mode", () => {
