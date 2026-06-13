@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type ObserverPaths, resolveObserverPaths, resolvePath } from "@wosm/config";
+import { loadConfig, type ObserverPaths, resolveObserverPaths, resolvePath } from "@wosm/config";
 import type { ProviderHookReceipt } from "@wosm/contracts";
 import { ProviderHookReceiptSchema, WOSM_SCHEMA_VERSION } from "@wosm/contracts";
 import { systemClock, toIsoTimestamp } from "@wosm/runtime";
@@ -43,7 +43,7 @@ export async function runProviderIngressCommand(
   options: ProviderIngressCommandOptions = {},
   deps: ProviderHookSenderDeps = {},
 ): Promise<ProviderHookReceipt> {
-  const parsed = parseArgs(argv);
+  const parsed = await parseArgs(argv);
   const [provider, event] = parsed.providerArgs;
   if (provider === undefined) {
     throw new Error("Usage: wosm-ingress [options] <provider> [event]");
@@ -166,7 +166,7 @@ export async function runProviderIngressMain(
   }
 }
 
-function parseArgs(argv: string[]): ParsedOptions {
+async function parseArgs(argv: string[]): Promise<ParsedOptions> {
   let stateDir: string | undefined;
   let socketPath: string | undefined;
   let spoolDir: string | undefined;
@@ -230,7 +230,10 @@ function parseArgs(argv: string[]): ParsedOptions {
     }
   }
 
-  const defaults = resolveObserverPaths();
+  const defaults =
+    configPath === undefined
+      ? resolveObserverPaths()
+      : resolveObserverPaths((await loadConfig(configPath)).config);
   const paths = {
     ...defaults,
     ...(stateDir === undefined ? {} : { stateDir }),

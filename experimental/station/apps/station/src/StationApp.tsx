@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { createStationInputRuntime } from "./input/stationInput.js";
 import { selectActivePaneId, selectWosmOverlayVisible } from "./state/selectors.js";
 import type { StationStore } from "./state/store.js";
-import type { PaneId } from "./state/types.js";
+import type { PaneRecord } from "./state/types.js";
 import { TerminalPane } from "./terminal/index.js";
 import { createPtyRegistry } from "./terminal/registry/ptyRegistry.js";
 import type {
@@ -35,21 +35,22 @@ export function createStationAppComposition(options: StationAppCompositionOption
   // synchronously on dispatch, not in React's commit phase, so close/create
   // are deterministic even when unmount work cannot flush before exit.
   const registry = createPtyRegistry({ createTerminal: options.createTerminal });
-  // The store keeps the same `panes` array reference across focus/overlay/dialog
-  // changes (only create/close pane allocate a new one), so gating on identity
-  // keeps this off the hot input path — it runs only on real membership changes.
-  let lastPanes: readonly PaneId[] | undefined;
+  // The store keeps the same `panes` record-array reference across
+  // focus/overlay/dialog changes (only create/close pane allocate a new one),
+  // so gating on identity keeps this off the hot input path.
+  let lastPanes: readonly PaneRecord[] | undefined;
   const reconcilePanes = (): void => {
     const panes = store.getState().workspace.panes;
     if (panes === lastPanes) {
       return;
     }
     lastPanes = panes;
-    for (const paneId of panes) {
+    const paneIds = new Set(panes.map((pane) => pane.id));
+    for (const paneId of paneIds) {
       registry.ensure(paneId);
     }
     for (const entry of registry.entries()) {
-      if (!panes.includes(entry.paneId)) {
+      if (!paneIds.has(entry.paneId)) {
         registry.dispose(entry.paneId);
       }
     }

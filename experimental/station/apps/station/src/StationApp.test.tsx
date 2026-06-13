@@ -72,11 +72,20 @@ describe("Station app composition", () => {
     expect(station.scripted.helpers.isDisposed()).toBe(true);
   });
 
-  it("reconciles the registry to created and closed panes", async () => {
+  it("reconciles the registry to created and closed pane records", async () => {
     const station = await renderComposedStation();
     expect(station.composition.registry.has(MAIN_PANE_ID)).toBe(true);
 
-    station.store.actions.createPane("pane-second");
+    station.store.actions.createPane("pane-second", {
+      split: { anchorPaneId: MAIN_PANE_ID, direction: "right" },
+    });
+    const paneRecord = station.store
+      .getState()
+      .workspace.panes.find((pane) => pane.id === "pane-second");
+    expect(paneRecord).toEqual({
+      id: "pane-second",
+      split: { anchorPaneId: MAIN_PANE_ID, direction: "right" },
+    });
     expect(station.composition.registry.has("pane-second")).toBe(true);
 
     station.store.actions.closePane("pane-second");

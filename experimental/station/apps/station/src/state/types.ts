@@ -20,6 +20,16 @@ export function projectPaneId(projectId: string): PaneId {
   return `pane-proj-${projectId}`;
 }
 
+export type PaneSplitDirection = "right" | "below";
+
+export type PaneRecord = {
+  id: PaneId;
+  split: null | {
+    anchorPaneId: PaneId;
+    direction: PaneSplitDirection;
+  };
+};
+
 export type HeaderRegion = "tabs" | "island" | "title";
 
 /**
@@ -36,7 +46,7 @@ export type FocusTarget =
   | { kind: "dialog"; dialogId: DialogId };
 
 export type WorkspaceSlice = {
-  panes: readonly PaneId[];
+  panes: readonly PaneRecord[];
   activePaneId: PaneId | null;
 };
 

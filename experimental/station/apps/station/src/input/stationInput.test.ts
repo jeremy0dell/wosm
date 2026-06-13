@@ -2,7 +2,13 @@ import { describe, expect, it } from "bun:test";
 import { createTuiStore } from "@wosm/dashboard-core";
 import { selectActivePaneId, selectWosmOverlayVisible } from "../state/selectors.js";
 import { createStationStore } from "../state/store.js";
-import { MAIN_PANE_ID, WOSM_OVERLAY_ID, worktreePaneId, type PaneId } from "../state/types.js";
+import {
+  MAIN_PANE_ID,
+  WOSM_OVERLAY_ID,
+  worktreePaneId,
+  type PaneId,
+  type PaneRecord,
+} from "../state/types.js";
 import { createPtyRegistry, type PtyRegistry } from "../terminal/registry/ptyRegistry.js";
 import { createScriptedTerminal } from "../terminal/testing/scriptedTerminal.js";
 import { manyProjectsSnapshot } from "../wosm/fixtures/scenarios.js";
@@ -194,7 +200,7 @@ describe("createStationInputRuntime open-pane wiring", () => {
     expect(clickRowAffordance()).toBe(true);
 
     expect(calls).toEqual([`ensure:${PANE_ID}:${CWD}`, `createPane:${PANE_ID}`]);
-    expect(store.getState().workspace.panes).toContain(PANE_ID);
+    expect(store.getState().workspace.panes.some((pane) => pane.id === PANE_ID)).toBe(true);
   });
 
   it("reuses the running pane via revealPane without a second ensure", () => {
@@ -210,7 +216,7 @@ describe("createStationInputRuntime open-pane wiring", () => {
       `revealPane:${PANE_ID}`,
     ]);
     // Open-or-focus: exactly one pane record, no second shell.
-    expect(store.getState().workspace.panes.filter((id) => id === PANE_ID)).toHaveLength(1);
+    expect(store.getState().workspace.panes.filter((pane) => pane.id === PANE_ID)).toHaveLength(1);
   });
 
   it("keeps the overlay up by default, queuing the pane as return focus", () => {
@@ -261,18 +267,18 @@ describe("createStationInputRuntime open-pane wiring", () => {
     // Mirror StationApp.reconcilePanes: ensure (NO options) every member, dispose
     // entries no longer in the store. The no-option ensure is the step that must
     // preserve — not clobber — the cwd seeded by openPane.
-    let lastPanes: readonly PaneId[] | undefined;
+    let lastPanes: readonly PaneRecord[] | undefined;
     const reconcile = (): void => {
       const panes = store.getState().workspace.panes;
       if (panes === lastPanes) {
         return;
       }
       lastPanes = panes;
-      for (const paneId of panes) {
-        registry.ensure(paneId);
+      for (const pane of panes) {
+        registry.ensure(pane.id);
       }
       for (const entry of registry.entries()) {
-        if (!panes.includes(entry.paneId)) {
+        if (!panes.some((pane) => pane.id === entry.paneId)) {
           registry.dispose(entry.paneId);
         }
       }

@@ -61,6 +61,56 @@ describe("provider hook ingress command", () => {
     await expect(listHookSpoolFiles(fixture.hookSpoolDir)).resolves.toEqual([]);
   });
 
+  it("resolves observer delivery and spool paths from --config without explicit path flags", async () => {
+    const fixture = await createTempState();
+    const configPath = await writeConfigToml(fixture.root, fixture.config);
+    let observedSocketPath = "";
+    let observedSpoolDir = "";
+
+    const receipt = await runProviderIngressCommand(
+      ["--config", configPath, "--no-auto-start", "worktrunk", "post-create"],
+      {
+        stdin: JSON.stringify({ branch: "feature/config-only" }),
+      },
+      {
+        clock: { now: () => new Date(now) },
+        hookId: () => "hook_worktrunk_config_only",
+        clientFactory: (socketPath) => {
+          observedSocketPath = socketPath;
+          const ingest = async (): Promise<ProviderHookReceipt> => {
+            throw new Error("offline");
+          };
+          return {
+            ingestProviderHookEvent: ingest,
+            ingestHookEvent: ingest,
+          } as never;
+        },
+        writeSpool: async ({ spoolDir, event, error, clock }) => {
+          observedSpoolDir = spoolDir;
+          return {
+            schemaVersion: "0.4.0",
+            hookId: event.hookId ?? "hook_worktrunk_config_only",
+            provider: event.provider,
+            event: event.event,
+            accepted: true,
+            status: "spooled",
+            receivedAt: event.receivedAt,
+            spooledAt: clock === undefined ? now : clock.now().toISOString(),
+            ...(error === undefined ? {} : { error }),
+          };
+        },
+      },
+    );
+
+    expect(receipt).toMatchObject({
+      status: "spooled",
+      provider: "worktrunk",
+      event: "post-create",
+    });
+    expect(observedSocketPath).toBe(fixture.socketPath);
+    expect(observedSpoolDir).toBe(fixture.hookSpoolDir);
+  });
+
   it("delivers compact Codex payloads through observer.harnessEvent.report", async () => {
     const fixture = await createTempState();
     const configPath = await writeConfigToml(fixture.root, fixture.config);

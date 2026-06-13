@@ -2,7 +2,7 @@
 
 Status: active spike plan
 Date: 2026-06-10
-Updated: 2026-06-11
+Updated: 2026-06-13
 
 ## Spike Purpose
 
@@ -82,10 +82,11 @@ input router.
 
 ### Phase 2 - Multi-Pane Layout (Goal 4)
 
-- [ ] pane records in workspace state: `panes`, `activePaneId`, split
-      metadata; no `PaneTree` abstraction yet — `panes`/`activePaneId` plus pure
-      `createPane`/`closePane` reducers landed 2026-06-13
-      (`src/state/{store,types}.ts`); split metadata still pending
+- [x] pane records in workspace state: `panes`, `activePaneId`, split
+      metadata; no `PaneTree` abstraction yet — flat pane records plus
+      `split: null | { anchorPaneId, direction }` metadata landed 2026-06-13
+      (`src/state/{store,types,selectors}.ts`). Visible split-right/below,
+      focus-next, close affordance, and resize reflow remain pending below.
 - [x] `PtyRegistry` generalized from the single-pane POC to pane-id -> process:
       done 2026-06-13 (`src/terminal/registry/ptyRegistry.ts`). One PTY + VT
       screen per pane id, the input-target singleton deleted, input routed by
@@ -175,6 +176,42 @@ Exit bar: a continue-or-pause decision inside the timebox. The spike started
 2026-06-10: target decision by 2026-06-24, hard maximum 2026-07-01.
 
 ## Spike Log
+
+### 2026-06-13 - Pane Records And Split Metadata
+
+The first Phase 2 checkbox is complete as a state/metadata slice only. Station
+workspace panes are now flat records (`{ id, split }`) instead of bare ids,
+with `activePaneId` kept as the scalar focus/render target. Split metadata is
+structural readiness for the next layout slice, not a render tree.
+
+What landed:
+
+- `src/state/types.ts` defines `PaneRecord` and `PaneSplitDirection`; the
+  workspace holds `readonly PaneRecord[]`.
+- `createPane` accepts optional split metadata, silently no-ops on duplicate
+  ids or unknown split anchors, and still makes a newly created pane active
+  and overlay-aware. `closePane` removes the record and clears surviving split
+  metadata that pointed at the removed pane.
+- `selectPaneRecord` and `selectPaneIds` cover non-render lookup needs; React
+  still selects scalar snapshots only.
+- `StationApp` keeps the registry reconciler gated on the pane record-array
+  identity, derives ids from records, and still renders only `activePaneId`.
+  Split metadata does not affect PTY ensure/dispose behavior.
+- The WOSM `[+sh]` open-or-reveal path now checks pane membership by record id
+  while preserving the load-bearing `registry.ensure(paneId, { cwd })` before
+  `createPane(paneId)` order.
+
+UX implication: no visible UI change. The current Station pane open/reveal flow
+should behave exactly as before; the change is test-proven metadata readiness
+for visible split-right/below and pane navigation work.
+
+Validation:
+
+- `npm exec --yes --package=bun@1.3.14 -- bun test src/state/store.test.ts src/StationApp.test.tsx src/input/stationInput.test.ts src/terminal/registry/ptyRegistry.test.ts`
+- `npm exec --yes --package=bun@1.3.14 -- bun run test`
+- `npm exec --yes --package=bun@1.3.14 -- bun run typecheck`
+- `pnpm build`
+- `pnpm test:all`
 
 ### 2026-06-13 - Open A Shell In The Selected Worktree / Project Root
 
