@@ -35,6 +35,8 @@ export type TuiStore = TuiState & {
   start(): () => void;
   handleKey(key: TuiKey): TuiHandleKeyResult;
   setTerminalRows(rows: number): void;
+  /** Surface a client-side toast (e.g. an unresolved-harness notice). */
+  pushToast(toast: TuiToast): void;
   dismissToasts(): void;
   expireToasts(nowMs?: number): void;
   refreshActiveToastExpiry(nowMs?: number): void;
@@ -144,6 +146,9 @@ export function createTuiStore(options: TuiStoreOptions): StoreApi<TuiStore> {
     },
     setTerminalRows: (rows): void => {
       set(clampDashboardStateScroll({ ...get(), terminalRows: rows }));
+    },
+    pushToast: (toast): void => {
+      set(addTuiToast(get(), toast));
     },
     dismissToasts: (): void => {
       set({ toasts: [] });

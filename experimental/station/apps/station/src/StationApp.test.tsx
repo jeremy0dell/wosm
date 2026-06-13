@@ -85,6 +85,7 @@ describe("Station app composition", () => {
     expect(paneRecord).toEqual({
       id: "pane-second",
       split: { anchorPaneId: MAIN_PANE_ID, direction: "right" },
+      role: "shell",
     });
     expect(station.composition.registry.has("pane-second")).toBe(true);
 

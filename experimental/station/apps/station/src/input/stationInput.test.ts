@@ -3,6 +3,7 @@ import { createTuiStore } from "@wosm/dashboard-core";
 import { selectActivePaneId, selectWosmOverlayVisible } from "../state/selectors.js";
 import { createStationStore } from "../state/store.js";
 import {
+  agentWorktreePaneId,
   MAIN_PANE_ID,
   WOSM_OVERLAY_ID,
   worktreePaneId,
@@ -12,6 +13,7 @@ import {
 import { createPtyRegistry, type PtyRegistry } from "../terminal/registry/ptyRegistry.js";
 import { createScriptedTerminal } from "../terminal/testing/scriptedTerminal.js";
 import { manyProjectsSnapshot } from "../wosm/fixtures/scenarios.js";
+import { resolveHarnessCommand } from "../wosm/harnessCommand.js";
 import { FakeTuiObserverService } from "../wosm/test/support/fakeObserverService.js";
 import { FakeStationSource } from "../wosm/test/support/fakeStationSource.js";
 import { createStationInputRuntime, normalizeSequence } from "./stationInput.js";
@@ -299,6 +301,112 @@ describe("createStationInputRuntime open-pane wiring", () => {
 
     expect(typeof expectedCwd).toBe("string");
     expect(spawns.map((spawn) => spawn.paneCwd)).toContain(expectedCwd);
+  });
+});
+
+describe("createStationInputRuntime primary-agent open", () => {
+  // Same fixture row as the shell wiring suite (wt_wosm_idle, branch pty-buffer,
+  // project wosm whose default harness is codex), but the agent lands in the
+  // distinct agent pane id, not the [+sh] shell pane.
+  const ROW_ID = "wt_wosm_idle";
+  const AGENT_PANE_ID = agentWorktreePaneId(ROW_ID);
+  const CWD = "/Users/example/.worktrees/wosm/pty-buffer";
+
+  // Like paneHarness, but records the role on createPane, the command/args on
+  // ensure, and every setPrimaryAgent — so order and arguments are assertable.
+  function agentHarness() {
+    const snapshot = manyProjectsSnapshot();
+    const wosmViewStore = createTuiStore({
+      source: new FakeStationSource(snapshot),
+      service: new FakeTuiObserverService(snapshot),
+      initialSnapshot: snapshot,
+      persistentPopup: true,
+      onDismiss: async () => {},
+      initialState: { terminalRows: 12 },
+    });
+    const scripted = createScriptedTerminal();
+    const base = createPtyRegistry({ createTerminal: () => scripted.terminal });
+    const calls: string[] = [];
+    const registry: PtyRegistry = {
+      ...base,
+      ensure: (paneId, spawnOptions) => {
+        calls.push(
+          `ensure:${paneId}:${spawnOptions?.cwd ?? ""}:${spawnOptions?.command ?? ""}:${(spawnOptions?.args ?? []).join(",")}`,
+        );
+        return base.ensure(paneId, spawnOptions);
+      },
+    };
+    const store = createStationStore();
+    const origCreate = store.actions.createPane;
+    store.actions.createPane = (paneId, options) => {
+      calls.push(`createPane:${paneId}:${options?.role ?? "shell"}`);
+      origCreate(paneId, options);
+    };
+    const origSetPrimary = store.actions.setPrimaryAgent;
+    store.actions.setPrimaryAgent = (worktreeId, paneId) => {
+      calls.push(`setPrimaryAgent:${worktreeId}:${paneId}`);
+      origSetPrimary(worktreeId, paneId);
+    };
+    const runtime = createStationInputRuntime({
+      store,
+      shutdown: () => {},
+      wosmViewStore,
+      registry,
+    });
+    const dispatch = (target: { kind: "row"; rowId: string } | { kind: "openShellForRow"; rowId: string }): boolean =>
+      runtime.dispatchMouse({ kind: "wosm", target, eventKind: "down" }, {});
+    return { store, calls, dispatch };
+  }
+
+  function codexSpawn() {
+    const spawn = resolveHarnessCommand("codex");
+    if (spawn === undefined) {
+      throw new Error("expected codex to resolve to a launch command");
+    }
+    return spawn;
+  }
+
+  it("ensures command+args+cwd before createPane, then records the primary agent", () => {
+    const { store, calls, dispatch } = agentHarness();
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+    const spawn = codexSpawn();
+
+    expect(dispatch({ kind: "row", rowId: ROW_ID })).toBe(true);
+
+    // Order is load-bearing: ensure (with spawn options) → createPane → setPrimaryAgent.
+    expect(calls).toEqual([
+      `ensure:${AGENT_PANE_ID}:${CWD}:${spawn.command}:${spawn.args.join(",")}`,
+      `createPane:${AGENT_PANE_ID}:primary-agent`,
+      `setPrimaryAgent:${ROW_ID}:${AGENT_PANE_ID}`,
+    ]);
+    const { workspace } = store.getState();
+    expect(workspace.panes.find((pane) => pane.id === AGENT_PANE_ID)?.role).toEqual("primary-agent");
+    expect(workspace.primaryAgentPaneByWorktree[ROW_ID]).toEqual(AGENT_PANE_ID);
+  });
+
+  it("brings the user to the agent: opening it closes the overlay onto its pane", () => {
+    const { store, dispatch } = agentHarness();
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+
+    dispatch({ kind: "row", rowId: ROW_ID });
+
+    expect(selectWosmOverlayVisible(store.getState())).toBe(false);
+    expect(store.getState().input.focus).toEqual({ kind: "pane", paneId: AGENT_PANE_ID });
+  });
+
+  it("leaves the [+sh] shell path role-shell with no setPrimaryAgent", () => {
+    const { store, calls, dispatch } = agentHarness();
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+
+    expect(dispatch({ kind: "openShellForRow", rowId: ROW_ID })).toBe(true);
+
+    const shellPaneId = worktreePaneId(ROW_ID);
+    // No command/args seeded (default shell), role shell, and no setPrimaryAgent.
+    expect(calls).toEqual([`ensure:${shellPaneId}:${CWD}::`, `createPane:${shellPaneId}:shell`]);
+    expect(store.getState().workspace.panes.find((pane) => pane.id === shellPaneId)?.role).toEqual(
+      "shell",
+    );
+    expect(store.getState().workspace.primaryAgentPaneByWorktree).toEqual({});
   });
 });
 
