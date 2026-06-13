@@ -137,7 +137,23 @@ Exit bar: split/focus/close feels boring and reliable.
 - [ ] `diff` action opens a real diff tool in a pane: `difftastic`, fallback
       `git diff` (Goal 7)
 - [ ] agent action launches a real agent command in a pane, following Session
-      And Primary Agent Semantics for what is and is not the primary agent
+      And Primary Agent Semantics for what is and is not the primary agent.
+      Decided next-increment shape (2026-06-13): run the harness in a **local
+      Station PTY** (not observer/tmux-mediated) and record the pane as the
+      workspace's *explicit* primary agent — a pane `role`
+      (`primary-agent`/`shell`) + a `primaryAgentPaneId`, kept minimal (no full
+      per-worktree `workSession` container yet). Two entry points, built
+      together: a per-row/header **`[+ag]` affordance** mirroring `[+sh]` (same
+      open-pane-with-cwd rail, additionally setting the spawn `command`/`args`
+      from a provider→command resolver keyed on `project.defaults.harness`), and
+      **seeding the boot pane** (`pane-main`) as the launch-worktree's primary
+      agent when `process.cwd()` matches a snapshot row path (set spawn options
+      before the lazy first-resize spawn; re-root once the first snapshot lands
+      on the async observer path; plain shell when cwd is not a managed
+      worktree). Agent *status* converges via harness hooks even though Station
+      hosts the PTY locally. Deferred: guarded close of the primary agent,
+      zero-pane prompts, adoption/promotion of ad-hoc agent panes, and observer
+      session/terminal-target reconciliation
 - [x] Station command dispatch through `@wosm/client` (client plan PR 4),
       starting with reconcile/refresh plus one focus or create command
       (done 2026-06-12; see the Spike Log entry and the client plan's PR 4
