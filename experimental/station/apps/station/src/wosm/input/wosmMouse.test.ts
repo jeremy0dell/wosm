@@ -7,6 +7,7 @@ import type { StoreApi } from "zustand/vanilla";
 import { selectDashboardViewport } from "@wosm/dashboard-core";
 import { addTuiToast } from "@wosm/dashboard-core";
 import type { TuiStore } from "@wosm/dashboard-core";
+import { manyProjectsSnapshot } from "../fixtures/scenarios.js";
 import { makeWosmTestStore } from "../test/support/makeWosmTestStore.js";
 import { routeWosmMouse } from "./wosmMouse.js";
 

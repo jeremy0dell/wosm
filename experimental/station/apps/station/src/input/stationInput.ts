@@ -2,6 +2,7 @@ import { kittySequenceToLegacy } from "../terminal/index.js";
 import { stripTerminalReplies } from "../terminal/input/terminalReplies.js";
 import type { PtyRegistry } from "../terminal/registry/ptyRegistry.js";
 import type { StoreApi } from "zustand/vanilla";
+import { selectPaneRecord } from "../state/selectors.js";
 import type { StationStore } from "../state/store.js";
 import { WOSM_OVERLAY_ID, type PaneId } from "../state/types.js";
 import { sanitizePastedText } from "../wosm/input/sequenceToTuiKey.js";
@@ -149,7 +150,7 @@ export function createStationInputRuntime(options: StationInputRuntimeOptions): 
     // reconciler's later no-option ensure(paneId) is then an idempotent no-op
     // that preserves the cwd. Reverse the order and the cwd is silently lost.
     openPane: (paneId, cwd) => {
-      if (options.store.getState().workspace.panes.includes(paneId)) {
+      if (selectPaneRecord(options.store.getState(), paneId) !== null) {
         options.store.actions.revealPane(paneId);
       } else {
         registry?.ensure(paneId, { cwd });

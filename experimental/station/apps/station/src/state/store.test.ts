@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { createStationStore } from "./store.js";
-import { MAIN_PANE_ID, WOSM_OVERLAY_ID } from "./types.js";
+import { MAIN_PANE_ID, WOSM_OVERLAY_ID, type PaneRecord } from "./types.js";
 
 function createCountingStore() {
   const store = createStationStore();
@@ -11,11 +11,15 @@ function createCountingStore() {
   return { store, count: () => notifications };
 }
 
+function paneRecord(id: string, split: PaneRecord["split"] = null): PaneRecord {
+  return { id, split };
+}
+
 describe("createStationStore", () => {
   it("boots with the main pane focused and no overlay or dialogs", () => {
     const store = createStationStore();
     const state = store.getState();
-    expect(state.workspace.panes).toEqual([MAIN_PANE_ID]);
+    expect(state.workspace.panes).toEqual([paneRecord(MAIN_PANE_ID)]);
     expect(state.workspace.activePaneId).toEqual(MAIN_PANE_ID);
     expect(state.input.focus).toEqual({ kind: "pane", paneId: MAIN_PANE_ID });
     expect(state.input.activeOverlay).toBeNull();
@@ -50,9 +54,26 @@ describe("createStationStore", () => {
     const store = createStationStore();
     store.actions.createPane("pane-second");
     const state = store.getState();
-    expect(state.workspace.panes).toEqual([MAIN_PANE_ID, "pane-second"]);
+    expect(state.workspace.panes).toEqual([
+      paneRecord(MAIN_PANE_ID),
+      paneRecord("pane-second"),
+    ]);
     expect(state.workspace.activePaneId).toEqual("pane-second");
     expect(state.input.focus).toEqual({ kind: "pane", paneId: "pane-second" });
+  });
+
+  it("createPane records split metadata for a valid anchor", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-right", {
+      split: { anchorPaneId: MAIN_PANE_ID, direction: "right" },
+    });
+    const state = store.getState();
+    expect(state.workspace.panes).toEqual([
+      paneRecord(MAIN_PANE_ID),
+      paneRecord("pane-right", { anchorPaneId: MAIN_PANE_ID, direction: "right" }),
+    ]);
+    expect(state.workspace.activePaneId).toEqual("pane-right");
+    expect(state.input.focus).toEqual({ kind: "pane", paneId: "pane-right" });
   });
 
   it("createPane is a silent no-op for a pane that already exists", () => {
@@ -63,12 +84,43 @@ describe("createStationStore", () => {
     expect(count()).toEqual(0);
   });
 
+  it("createPane is a silent no-op when split metadata points at an unknown anchor", () => {
+    const { store, count } = createCountingStore();
+    const before = store.getState();
+    store.actions.createPane("pane-orphan", {
+      split: { anchorPaneId: "pane-missing", direction: "below" },
+    });
+    expect(store.getState()).toBe(before);
+    expect(count()).toEqual(0);
+  });
+
+  it("createPane keeps the existing record when a duplicate supplies new metadata", () => {
+    const { store, count } = createCountingStore();
+    store.actions.createPane("pane-right", {
+      split: { anchorPaneId: MAIN_PANE_ID, direction: "right" },
+    });
+    const created = store.getState();
+    const baseline = count();
+    store.actions.createPane("pane-right", {
+      split: { anchorPaneId: MAIN_PANE_ID, direction: "below" },
+    });
+    expect(store.getState()).toBe(created);
+    expect(count()).toEqual(baseline);
+    expect(store.getState().workspace.panes).toEqual([
+      paneRecord(MAIN_PANE_ID),
+      paneRecord("pane-right", { anchorPaneId: MAIN_PANE_ID, direction: "right" }),
+    ]);
+  });
+
   it("createPane under an open overlay queues the pane without stealing focus", () => {
     const store = createStationStore();
     store.actions.openOverlay(WOSM_OVERLAY_ID);
     store.actions.createPane("pane-shell");
     const state = store.getState();
-    expect(state.workspace.panes).toEqual([MAIN_PANE_ID, "pane-shell"]);
+    expect(state.workspace.panes).toEqual([
+      paneRecord(MAIN_PANE_ID),
+      paneRecord("pane-shell"),
+    ]);
     expect(state.workspace.activePaneId).toEqual("pane-shell");
     // The overlay keeps focus; the new pane becomes the return target.
     expect(state.input.focus).toEqual({ kind: "overlay", overlayId: WOSM_OVERLAY_ID });
@@ -134,12 +186,25 @@ describe("createStationStore", () => {
     expect(store.getState().input.focus).toEqual({ kind: "pane", paneId: MAIN_PANE_ID });
   });
 
+  it("closePane clears split metadata that pointed at the removed pane", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-anchor");
+    store.actions.createPane("pane-child", {
+      split: { anchorPaneId: "pane-anchor", direction: "below" },
+    });
+    store.actions.closePane("pane-anchor");
+    expect(store.getState().workspace.panes).toEqual([
+      paneRecord(MAIN_PANE_ID),
+      paneRecord("pane-child"),
+    ]);
+  });
+
   it("closePane removes the pane and retargets active + focus to a survivor", () => {
     const store = createStationStore();
     store.actions.createPane("pane-second");
     store.actions.closePane("pane-second");
     const state = store.getState();
-    expect(state.workspace.panes).toEqual([MAIN_PANE_ID]);
+    expect(state.workspace.panes).toEqual([paneRecord(MAIN_PANE_ID)]);
     expect(state.workspace.activePaneId).toEqual(MAIN_PANE_ID);
     expect(state.input.focus).toEqual({ kind: "pane", paneId: MAIN_PANE_ID });
   });
@@ -150,9 +215,23 @@ describe("createStationStore", () => {
     store.actions.focusPane(MAIN_PANE_ID);
     store.actions.closePane("pane-second");
     const state = store.getState();
-    expect(state.workspace.panes).toEqual([MAIN_PANE_ID]);
+    expect(state.workspace.panes).toEqual([paneRecord(MAIN_PANE_ID)]);
     expect(state.workspace.activePaneId).toEqual(MAIN_PANE_ID);
     expect(state.input.focus).toEqual({ kind: "pane", paneId: MAIN_PANE_ID });
+  });
+
+  it("preserves split metadata through focusPane and revealPane", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-right", {
+      split: { anchorPaneId: MAIN_PANE_ID, direction: "right" },
+    });
+    store.actions.focusPane(MAIN_PANE_ID);
+    store.actions.revealPane("pane-right");
+    store.actions.focusPane(MAIN_PANE_ID);
+    expect(store.getState().workspace.panes).toEqual([
+      paneRecord(MAIN_PANE_ID),
+      paneRecord("pane-right", { anchorPaneId: MAIN_PANE_ID, direction: "right" }),
+    ]);
   });
 
   it("closePane of the last pane clears active and falls back off pane focus", () => {

@@ -4,11 +4,20 @@ import {
   type FocusTarget,
   type OverlayId,
   type PaneId,
+  type PaneRecord,
+  type PaneSplitDirection,
   type StationState,
 } from "./types.js";
 
+export type CreatePaneOptions = {
+  split?: {
+    anchorPaneId: PaneId;
+    direction: PaneSplitDirection;
+  };
+};
+
 export type StationStoreActions = {
-  createPane(paneId: PaneId): void;
+  createPane(paneId: PaneId, options?: CreatePaneOptions): void;
   closePane(paneId: PaneId): void;
   /**
    * Make an existing pane the active one, overlay-aware. The reuse half of the
@@ -38,7 +47,7 @@ export type StationStoreOptions = {
 
 function initialState(paneId: PaneId): StationState {
   return {
-    workspace: { panes: [paneId], activePaneId: paneId },
+    workspace: { panes: [{ id: paneId, split: null }], activePaneId: paneId },
     input: {
       focus: { kind: "pane", paneId },
       activeOverlay: null,
@@ -46,6 +55,10 @@ function initialState(paneId: PaneId): StationState {
       dialogStack: [],
     },
   };
+}
+
+function hasPane(panes: readonly PaneRecord[], paneId: PaneId): boolean {
+  return panes.some((pane) => pane.id === paneId);
 }
 
 /** Focus to land on when nothing more specific is recorded. */
@@ -164,13 +177,20 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
       // A pane record is created once; the runtime PtyRegistry owns the live
       // process for the id. Creating a new pane makes it active and focused
       // (or, under an open overlay, the overlay's pending return target).
-      createPane: (paneId) => {
-        if (state.workspace.panes.includes(paneId)) {
+      createPane: (paneId, options) => {
+        if (hasPane(state.workspace.panes, paneId)) {
+          return;
+        }
+        const split = options?.split;
+        if (split !== undefined && !hasPane(state.workspace.panes, split.anchorPaneId)) {
           return;
         }
         const appended: StationState = {
           ...state,
-          workspace: { ...state.workspace, panes: [...state.workspace.panes, paneId] },
+          workspace: {
+            ...state.workspace,
+            panes: [...state.workspace.panes, { id: paneId, split: split ?? null }],
+          },
         };
         setState(withActivePane(appended, paneId));
       },
@@ -178,7 +198,7 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
       // the same helper createPane uses, so revealing under the WOSM overlay
       // queues the pane as the return focus instead of yanking it forward.
       revealPane: (paneId) => {
-        if (!state.workspace.panes.includes(paneId)) {
+        if (!hasPane(state.workspace.panes, paneId)) {
           return;
         }
         setState(withActivePane(state, paneId));
@@ -187,13 +207,17 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
       // pointed at it to a survivor (or the standard fallback when none remain).
       // The registry disposes the live process separately, off this state.
       closePane: (paneId) => {
-        if (!state.workspace.panes.includes(paneId)) {
+        if (!hasPane(state.workspace.panes, paneId)) {
           return;
         }
-        const panes = state.workspace.panes.filter((id) => id !== paneId);
+        const panes = state.workspace.panes
+          .filter((pane) => pane.id !== paneId)
+          .map((pane) =>
+            pane.split?.anchorPaneId === paneId ? { ...pane, split: null } : pane,
+          );
         const activePaneId =
           state.workspace.activePaneId === paneId
-            ? (panes[panes.length - 1] ?? null)
+            ? (panes[panes.length - 1]?.id ?? null)
             : state.workspace.activePaneId;
         const workspace = { panes, activePaneId };
         const focus: FocusTarget =
@@ -214,7 +238,7 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
         setState({ ...state, workspace, input: { ...state.input, focus, overlayReturnFocus } });
       },
       focusPane: (paneId) => {
-        if (!state.workspace.panes.includes(paneId)) {
+        if (!hasPane(state.workspace.panes, paneId)) {
           return;
         }
         const focus = state.input.focus;
