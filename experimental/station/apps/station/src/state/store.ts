@@ -8,6 +8,8 @@ import {
 } from "./types.js";
 
 export type StationStoreActions = {
+  createPane(paneId: PaneId): void;
+  closePane(paneId: PaneId): void;
   focusPane(paneId: PaneId): void;
   openOverlay(overlayId: OverlayId): void;
   closeOverlay(): void;
@@ -113,6 +115,38 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
       };
     },
     actions: {
+      // A pane record is created once; the runtime PtyRegistry owns the live
+      // process for the id. Creating a new pane makes it active and focused.
+      createPane: (paneId) => {
+        if (state.workspace.panes.includes(paneId)) {
+          return;
+        }
+        setState({
+          workspace: { panes: [...state.workspace.panes, paneId], activePaneId: paneId },
+          input: { ...state.input, focus: { kind: "pane", paneId } },
+        });
+      },
+      // Removing a pane record retargets the active pane and any focus that
+      // pointed at it to a survivor (or the standard fallback when none remain).
+      // The registry disposes the live process separately, off this state.
+      closePane: (paneId) => {
+        if (!state.workspace.panes.includes(paneId)) {
+          return;
+        }
+        const panes = state.workspace.panes.filter((id) => id !== paneId);
+        const activePaneId =
+          state.workspace.activePaneId === paneId
+            ? (panes[panes.length - 1] ?? null)
+            : state.workspace.activePaneId;
+        const workspace = { panes, activePaneId };
+        const focus: FocusTarget =
+          state.input.focus.kind === "pane" && state.input.focus.paneId === paneId
+            ? activePaneId !== null
+              ? { kind: "pane", paneId: activePaneId }
+              : fallbackFocus({ ...state, workspace })
+            : state.input.focus;
+        setState({ ...state, workspace, input: { ...state.input, focus } });
+      },
       focusPane: (paneId) => {
         if (!state.workspace.panes.includes(paneId)) {
           return;

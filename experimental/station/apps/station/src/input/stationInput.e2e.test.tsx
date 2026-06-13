@@ -3,7 +3,9 @@ import { spawnSync } from "node:child_process";
 import { testRender } from "@opentui/react/test-utils";
 import { selectWosmOverlayVisible } from "../state/selectors.js";
 import { createStationStore, type StationStore } from "../state/store.js";
+import { MAIN_PANE_ID } from "../state/types.js";
 import { createNodePtyTerminal } from "../terminal/pty/nodePtyTerminal.js";
+import { createPtyRegistry } from "../terminal/registry/ptyRegistry.js";
 import { TerminalPane } from "../terminal/TerminalPane.js";
 import {
   createScriptedTerminal,
@@ -44,15 +46,22 @@ describe("station input end to end", () => {
     createTerminal: (spawn: StationTerminalSpawnOptions) => StationTerminalProcess;
     kittyKeyboard?: boolean;
   }): Promise<Station> {
+    // The pane updates through the registry (an external store) from the first
+    // layout, so disable act-environment checks before rendering.
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
     const store = createStationStore();
     const shutdowns: number[] = [];
+    // The pane and the input runtime share one registry — the explicit wiring
+    // that replaces the old global input-target singleton.
+    const registry = createPtyRegistry({ createTerminal: options.createTerminal });
     const runtime = createStationInputRuntime({
       store,
       shutdown: () => {
         shutdowns.push(1);
       },
+      registry,
     });
-    const setup = await testRender(<TerminalPane createTerminal={options.createTerminal} />, {
+    const setup = await testRender(<TerminalPane registry={registry} paneId={MAIN_PANE_ID} />, {
       ...SURFACE,
       prependInputHandlers: [runtime.handleSequence],
       kittyKeyboard: options.kittyKeyboard ?? false,
@@ -63,10 +72,12 @@ describe("station input end to end", () => {
       runtime.handlePaste(event);
     });
     teardowns.push(() => {
+      // The registry owns the PTY now (the pane no longer disposes on unmount),
+      // so teardown must dispose it — critical for the real-shell lane.
+      registry.disposeAll();
       setup.renderer.destroy();
     });
     await setup.flush();
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
     return { setup, store, shutdowns };
   }
 

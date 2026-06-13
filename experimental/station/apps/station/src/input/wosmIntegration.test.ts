@@ -120,11 +120,11 @@ describe("wosm input through the station runtime", () => {
       store: station,
       shutdown: () => {},
       wosmViewStore: wosm,
-      writeToTerminal: (bytes) => {
+      writeToTerminal: (_paneId, bytes) => {
         written.push(bytes);
         return true;
       },
-      pasteToTerminal: (text) => {
+      pasteToTerminal: (_paneId, text) => {
         pasted.push(text);
         return true;
       },

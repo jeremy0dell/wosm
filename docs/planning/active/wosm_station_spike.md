@@ -83,12 +83,26 @@ input router.
 ### Phase 2 - Multi-Pane Layout (Goal 4)
 
 - [ ] pane records in workspace state: `panes`, `activePaneId`, split
-      metadata; no `PaneTree` abstraction yet
-- [ ] `PtyRegistry` generalized from the single-pane POC to pane-id -> process
+      metadata; no `PaneTree` abstraction yet — `panes`/`activePaneId` plus pure
+      `createPane`/`closePane` reducers landed 2026-06-13
+      (`src/state/{store,types}.ts`); split metadata still pending
+- [x] `PtyRegistry` generalized from the single-pane POC to pane-id -> process:
+      done 2026-06-13 (`src/terminal/registry/ptyRegistry.ts`). One PTY + VT
+      screen per pane id, the input-target singleton deleted, input routed by
+      `outcome.paneId`, and a store-driven reconciler keeping live entries in
+      step with `workspace.panes`. UI still renders the single active pane —
+      the registry holds N, so the split view is now additive. See the Spike
+      Log entry.
 - [ ] split right and split below
-- [ ] focus next pane and click-pane-to-focus
-- [ ] close pane cleanly
-- [ ] terminal window resize reflows panes without corrupting the workspace
+- [ ] focus next pane and click-pane-to-focus — click-to-focus on the lone
+      active pane already routes; multi-pane focus switching pends the split
+      render
+- [ ] close pane cleanly — mechanism landed 2026-06-13 (`closePane` retargets
+      active/focus; the reconciler disposes the entry and its PTY); still needs
+      an affordance to trigger it, the multi-pane render, and the guarded
+      primary-agent close from Session And Primary Agent Semantics
+- [ ] terminal window resize reflows panes without corrupting the workspace —
+      single-pane resize works; multi-pane reflow pends the split layout
 - [x] decide the renderer-debt step: decided and implemented 2026-06-12.
       `TerminalBufferStore` is realized as the per-pane VT screen store
       (`src/terminal/vt/screen.ts`, engine `@xterm/headless`) plus the
@@ -127,6 +141,43 @@ Exit bar: a continue-or-pause decision inside the timebox. The spike started
 2026-06-10: target decision by 2026-06-24, hard maximum 2026-07-01.
 
 ## Spike Log
+
+### 2026-06-13 - PtyRegistry: Multiple PTYs Behind A Single-Pane UI
+
+The single-pane POC is generalized into a `PtyRegistry` (Phase 2's pane-id ->
+process item). Station can now hold many live PTYs internally; the UI still
+renders only the active pane, so the split view becomes additive rather than a
+rewrite. Scope was deliberately **headless infra only** — no split UI yet.
+
+What landed:
+
+- `src/terminal/registry/ptyRegistry.ts` owns `paneId -> { PTY, VT screen }`
+  with the lifecycle that used to live inside the `TerminalPane` component ref:
+  lazy spawn-on-first-resize (no startup SIGWINCH; unrendered panes never spawn
+  a shell), a per-pane resize debounce, a spawn-failure guard that never
+  retries, the query-reply round-trip, and `ensure`/`get`/`write`/`paste`/
+  `resize`/`subscribe`/`dispose`/`disposeAll`.
+- The module-level input-target singleton (`terminal/input/inputTarget.ts`) is
+  deleted. Input routes to the focused pane by `outcome.paneId` — already
+  carried by the router (`router.ts`, `stationBindings.ts`) — through
+  `registry.write/paste`, with no store re-read in the effect (avoids a TOCTOU
+  between the focus the router resolved against and an effect re-read).
+- Pure `createPane`/`closePane` reducers (`src/state/store.ts`) keep
+  `activePaneId` and focus in step; a store-driven reconciler in
+  `createStationAppComposition` ensures/disposes registry entries to match
+  `workspace.panes` (runs synchronously on dispatch, not in React's commit
+  phase, the way the old imperative shutdown teardown had to).
+- `TerminalPane` is now a thin registry-prop view that no longer owns or
+  disposes the PTY — critical so switching the active pane (which unmounts the
+  view) cannot kill a live background PTY.
+
+Tests: a React-free `ptyRegistry.test.ts` for PTY behavior, the
+`stationInput`/`TerminalPane`/`StationApp`/e2e suites migrated onto a shared
+registry, and new `store` reducer cases. Full station suite green (305 tests),
+typecheck clean.
+
+Not done here, by design: split-right/below geometry, focus-next/close UX,
+multi-pane resize reflow, and any pane -> WOSM agent/session mapping (Phase 3).
 
 ### 2026-06-12 - Station Command Dispatch Through The Shared Client (PR 4)
 

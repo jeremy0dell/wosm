@@ -1,12 +1,9 @@
-import {
-  kittySequenceToLegacy,
-  pasteToStationTerminal,
-  writeToStationTerminal,
-} from "../terminal/index.js";
+import { kittySequenceToLegacy } from "../terminal/index.js";
 import { stripTerminalReplies } from "../terminal/input/terminalReplies.js";
+import type { PtyRegistry } from "../terminal/registry/ptyRegistry.js";
 import type { StoreApi } from "zustand/vanilla";
 import type { StationStore } from "../state/store.js";
-import { WOSM_OVERLAY_ID } from "../state/types.js";
+import { WOSM_OVERLAY_ID, type PaneId } from "../state/types.js";
 import { sanitizePastedText } from "../wosm/input/sequenceToTuiKey.js";
 import { dispatchWosmKey } from "../wosm/input/wosmActions.js";
 import type { TuiStore } from "@wosm/dashboard-core";
@@ -50,8 +47,8 @@ export function normalizeSequence(raw: string): NormalizedSequence {
 export type StationInputEffects = {
   store: StationStore;
   runCommand(commandId: StationCommandId): void;
-  writeToTerminal(bytes: string): boolean;
-  pasteToTerminal(text: string): boolean;
+  writeToTerminal(paneId: PaneId, bytes: string): boolean;
+  pasteToTerminal(paneId: PaneId, text: string): boolean;
 };
 
 /**
@@ -66,9 +63,9 @@ export function executeOutcome(outcome: RouteOutcome, effects: StationInputEffec
       effects.runCommand(outcome.commandId);
       return true;
     case "terminal-write":
-      return effects.writeToTerminal(outcome.bytes);
+      return effects.writeToTerminal(outcome.paneId, outcome.bytes);
     case "terminal-paste":
-      return effects.pasteToTerminal(outcome.text);
+      return effects.pasteToTerminal(outcome.paneId, outcome.text);
     case "focus":
       // Only pane focus arrives as a bare focus outcome; overlay and dialog
       // focus changes are expressed as overlay/dialog outcomes and actions.
@@ -107,8 +104,10 @@ export type StationInputRuntimeOptions = {
   wosmViewStore?: StoreApi<TuiStore>;
   keymap?: KeymapStack<RouteOutcome>;
   mouseBindings?: MouseBindings;
-  writeToTerminal?: (bytes: string) => boolean;
-  pasteToTerminal?: (text: string) => boolean;
+  /** Runtime PTY resources; terminal writes/pastes resolve through it. */
+  registry?: PtyRegistry;
+  writeToTerminal?: (paneId: PaneId, bytes: string) => boolean;
+  pasteToTerminal?: (paneId: PaneId, text: string) => boolean;
 };
 
 /**
@@ -122,13 +121,16 @@ export function createStationInputRuntime(options: StationInputRuntimeOptions): 
   const commands: Record<StationCommandId, () => void> = {
     "station.exit": options.shutdown,
   };
+  const registry = options.registry;
   const effects: StationInputEffects = {
     store: options.store,
     runCommand: (commandId) => {
       commands[commandId]();
     },
-    writeToTerminal: options.writeToTerminal ?? writeToStationTerminal,
-    pasteToTerminal: options.pasteToTerminal ?? pasteToStationTerminal,
+    writeToTerminal:
+      options.writeToTerminal ?? ((paneId, bytes) => registry?.write(paneId, bytes) ?? false),
+    pasteToTerminal:
+      options.pasteToTerminal ?? ((paneId, text) => registry?.paste(paneId, text) ?? false),
   };
 
   return {
