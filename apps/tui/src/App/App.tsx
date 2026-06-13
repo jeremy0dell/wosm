@@ -7,6 +7,7 @@ import {
   nextTuiToastExpiry,
   normalizeTuiKey,
   observerHeaderStatusForConnection,
+  quitHintLabel,
   type SnapshotLoadingLine,
   snapshotLoadingLines,
 } from "@wosm/dashboard-core";
@@ -59,7 +60,7 @@ export function App({
   const productLabel = mode === "dev" ? "wosm dev" : "wosm";
   const contentColumns = Math.max(1, columns - 1);
   const quitActionLabel = persistentPopup && onDismiss !== undefined ? "close" : "quit";
-  const quitHint = quitActionLabel === "close" ? "Q/esc:close" : "Q:quit";
+  const quitHint = quitHintLabel(quitActionLabel);
   const store = useTuiAppStore({
     service,
     initialSnapshot,

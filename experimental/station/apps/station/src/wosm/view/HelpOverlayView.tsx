@@ -20,11 +20,11 @@ export function HelpOverlayView({ columns, rows }: { columns: number; rows: numb
       height={layout.height}
       zIndex={10}
       flexDirection="column"
-      backgroundColor="#000000"
+      backgroundColor={WOSM_COLORS.overlayBackdrop}
       {...wosmMouseProps(dispatch, { kind: "sheetBackdrop" })}
     >
       {panelLines.map((line, index) => (
-        <text key={`${index}:${line}`} fg={WOSM_COLORS.foreground} bg="#000000">
+        <text key={`${index}:${line}`} fg={WOSM_COLORS.foreground} bg={WOSM_COLORS.overlayBackdrop}>
           {line}
         </text>
       ))}

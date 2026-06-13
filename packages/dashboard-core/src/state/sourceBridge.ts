@@ -1,6 +1,7 @@
 import type { WosmClientConnectionState } from "@wosm/client";
 import type { WosmSnapshot } from "@wosm/contracts";
 import type { StoreApi } from "zustand/vanilla";
+import { safeErrorEquals } from "../services/errors/errors.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import { replaceSnapshot } from "./screen.js";
 import type { TuiStore } from "./store.js";
@@ -64,13 +65,36 @@ function applyConnectionState(
         state.snapshot === undefined
           ? { state: "reconnecting", since: connection.since, lastError: connection.lastError }
           : { state: "displayOnly", since: connection.since, lastError: connection.lastError };
+      const loading = state.snapshot === undefined ? state.loading : false;
+      // Sources re-notify on every runtime state swap (in-flight flags,
+      // snapshot-only changes), re-deriving an identical failure status each
+      // time; returning the same reference keeps subscribers from re-rendering.
+      if (loading === state.loading && sameFailureStatus(state.observerConnectionStatus, status)) {
+        return state;
+      }
       return {
         ...state,
-        loading: state.snapshot === undefined ? state.loading : false,
+        loading,
         observerConnectionStatus: status,
       };
     }
   }
+}
+
+function sameFailureStatus(
+  previous: TuiObserverConnectionStatus,
+  next: Extract<TuiObserverConnectionStatus, { state: "reconnecting" | "displayOnly" }>,
+): boolean {
+  if (previous.state !== "reconnecting" && previous.state !== "displayOnly") {
+    return false;
+  }
+  // lastError compares by value: a source that re-derives an equal failure may
+  // allocate a fresh error object each notify, and those must still coalesce.
+  return (
+    previous.state === next.state &&
+    previous.since === next.since &&
+    safeErrorEquals(previous.lastError, next.lastError)
+  );
 }
 
 function observerConnectedState(state: TuiState, nowMs: number): TuiState {

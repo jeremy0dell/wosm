@@ -21,34 +21,30 @@ import {
   deriveWosmMode,
   matchWosmBinding,
   WOSM_KEYMAP,
+  type WosmBinding,
   type WosmInputMode,
 } from "./wosmKeymap.js";
 
 const KEY_CONTEXT = { cwd: "/Users/example/Developer/wosm", homeDir: "/Users/example" };
 
-/** Bindings allowed to match keys the machine may ignore, with the reason. */
-const ALLOWED_NOOP_BINDINGS = new Set([
-  // Slot patterns cover the whole 1-9 a-z accelerator space; whether a slot
-  // is assigned is viewport runtime data.
-  "wosm.dashboard.slotActivate",
-  "wosm.collapse.toggleSlot",
-  "wosm.remove.chooseSlot",
-  "wosm.rename.chooseSlot",
-  "wosm.newSessionProject.choose",
-  "wosm.newSessionAgent.choose",
-  // The addProject table is the union over the flow's sub-modes; which keys
-  // apply depends on flow.mode (documented on the table).
-  "wosm.addProject.cancel",
-  "wosm.addProject.confirm",
-  "wosm.addProject.up",
-  "wosm.addProject.down",
-  "wosm.addProject.left",
-  "wosm.addProject.right",
-  "wosm.addProject.backspace",
-  "wosm.addProject.delete",
-  "wosm.addProject.clearLine",
-  "wosm.addProject.type",
-]);
+/** The shared action every addProject union-table entry dispatches. */
+const ADD_PROJECT_KEY_ACTION = "wosm.addProject.key";
+
+/**
+ * Whether a binding may match keys the machine ignores, derived from the
+ * binding data itself: slot patterns cover the whole 1-9 a-z accelerator
+ * space while slot assignment is viewport runtime data, and the addProject
+ * table is the union over the flow's sub-modes (which keys apply depends on
+ * flow.mode, documented on the table). The addProject allowance is scoped to
+ * that union's shared action so a future addProject binding with a distinct
+ * action is still flagged when stale rather than blanket-excused.
+ */
+function allowedNoOpBinding(mode: WosmInputMode, binding: WosmBinding): boolean {
+  if (binding.pattern.kind === "slot") {
+    return true;
+  }
+  return mode === "addProject" && binding.action === ADD_PROJECT_KEY_ACTION;
+}
 
 function probeKeys(): TuiKey[] {
   const keys: TuiKey[] = [];
@@ -68,6 +64,9 @@ function probeKeys(): TuiKey[] {
   keys.push({ input: "", rightArrow: true });
   return keys;
 }
+
+/** Hoisted: the probe space is iterated once per mode in three suites. */
+const PROBE_KEYS: readonly TuiKey[] = probeKeys();
 
 function dashboardState(): TuiState {
   return createInitialTuiState({
@@ -137,7 +136,7 @@ describe("wosm keymap coverage", () => {
   it("documents every machine-handled key with exactly one binding (no omission drift)", () => {
     const failures: string[] = [];
     for (const [mode, state] of Object.entries(states) as Array<[WosmInputMode, TuiState]>) {
-      for (const key of probeKeys()) {
+      for (const key of PROBE_KEYS) {
         const handled = machineHandled(state, key);
         const binding = matchWosmBinding(mode, key);
         if (handled && binding === undefined) {
@@ -151,12 +150,12 @@ describe("wosm keymap coverage", () => {
   it("has no stale bindings outside the declared runtime-data cases", () => {
     const failures: string[] = [];
     for (const [mode, state] of Object.entries(states) as Array<[WosmInputMode, TuiState]>) {
-      for (const key of probeKeys()) {
+      for (const key of PROBE_KEYS) {
         const binding = matchWosmBinding(mode, key);
         if (binding === undefined) {
           continue;
         }
-        if (!machineHandled(state, key) && !ALLOWED_NOOP_BINDINGS.has(binding.id)) {
+        if (!machineHandled(state, key) && !allowedNoOpBinding(mode, binding)) {
           failures.push(`${mode}: ${binding.id} matches ${describeKey(key)} but the machine ignores it`);
         }
       }
@@ -167,7 +166,7 @@ describe("wosm keymap coverage", () => {
   it("declares outcomes that match what dispatching actually produces", () => {
     const failures: string[] = [];
     for (const [mode, state] of Object.entries(states) as Array<[WosmInputMode, TuiState]>) {
-      for (const key of probeKeys()) {
+      for (const key of PROBE_KEYS) {
         const binding = matchWosmBinding(mode, key);
         if (binding === undefined) {
           continue;

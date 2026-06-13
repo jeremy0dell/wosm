@@ -6,9 +6,8 @@ import { testRender } from "@opentui/react/test-utils";
 import type { StoreApi } from "zustand/vanilla";
 import { attentionAndFailuresSnapshot, manyProjectsSnapshot } from "../fixtures/scenarios.js";
 import type { TuiKey } from "@wosm/dashboard-core";
-import { createTuiStore, type TuiStore } from "@wosm/dashboard-core";
-import { FakeStationSource } from "../test/support/fakeStationSource.js";
-import { FakeTuiObserverService } from "../test/support/fakeObserverService.js";
+import type { TuiStore } from "@wosm/dashboard-core";
+import { makeWosmTestStore } from "../test/support/makeWosmTestStore.js";
 import { DashboardRoot } from "./DashboardRoot.js";
 
 const SIZE = { width: 80, height: 24 };
@@ -93,12 +92,8 @@ describe("modal flow golden frames", () => {
   });
 
   function makeStore(snapshot = manyProjectsSnapshot()): StoreApi<TuiStore> {
-    return createTuiStore({
-      source: new FakeStationSource(snapshot),
-      service: new FakeTuiObserverService(snapshot),
-      initialSnapshot: snapshot,
-      persistentPopup: true,
-      onDismiss: async () => {},
+    return makeWosmTestStore({
+      snapshot,
       folderService: {
         cwd: () => "/Users/example/Developer/wosm",
         homeDir: () => "/Users/example",
@@ -107,7 +102,7 @@ describe("modal flow golden frames", () => {
         searchDirectories: async (query) => ({ query, truncated: false, entries: [] }),
         reviewFolder: async (path) => ({ selectedPath: path, id: "p", label: "p" }),
       },
-    });
+    }).store;
   }
 
   for (const modal of CASES) {

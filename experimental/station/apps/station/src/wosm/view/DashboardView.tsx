@@ -25,6 +25,7 @@ import {
   type RowGridLayout,
 } from "@wosm/dashboard-core";
 import {
+  QUIT_HINT_CLOSE,
   selectDashboardViewport,
   type DashboardViewportItem,
 } from "@wosm/dashboard-core";
@@ -33,7 +34,7 @@ import { Segments } from "./segments.js";
 import { WOSM_COLORS } from "./theme.js";
 import { useWosmMouse, wosmMouseProps } from "./wosmMouseContext.js";
 
-const HOVER_BG = "#1f242b";
+const HOVER_BG = WOSM_COLORS.hoverBackground;
 
 export type DashboardViewProps = {
   snapshot: WosmSnapshot;
@@ -44,7 +45,7 @@ export type DashboardViewProps = {
 };
 
 const PRODUCT_LABEL = "wosm";
-const QUIT_HINT = "Q/esc:close";
+const QUIT_HINT = QUIT_HINT_CLOSE;
 
 export function DashboardView({
   snapshot,
