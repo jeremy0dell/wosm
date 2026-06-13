@@ -2,10 +2,15 @@ import type { WosmClientConnectionState } from "@wosm/client";
 import type { SafeError, WosmSnapshot } from "@wosm/contracts";
 import {
   applySnapshotSourceState,
+  attachTuiSnapshotSource,
   createInitialTuiState,
+  type TuiSnapshotSource,
+  type TuiSnapshotSourceState,
   type TuiState,
+  type TuiStore,
 } from "@wosm/dashboard-core";
 import { describe, expect, it } from "vitest";
+import { createStore, type StoreApi } from "zustand/vanilla";
 
 const NOW = 1_750_000_000_000;
 
@@ -67,3 +72,60 @@ describe("applySnapshotSourceState", () => {
     expect(second.observerConnectionStatus).toMatchObject({ since: NOW - 100 });
   });
 });
+
+describe("attachTuiSnapshotSource subscriber churn", () => {
+  it("does not notify store subscribers when the source re-emits an equal failure", () => {
+    const store = makeStore();
+    const source = new ControllableSource({ connection: { state: "loading", since: NOW } });
+    const detach = attachTuiSnapshotSource(store, source);
+
+    let notifications = 0;
+    store.subscribe(() => {
+      notifications += 1;
+    });
+
+    // First failure changes the status: one notification.
+    source.set({ connection: { state: "reconnecting", since: NOW, lastError } });
+    expect(notifications).toBe(1);
+    expect(store.getState().observerConnectionStatus.state).toBe("reconnecting");
+
+    // The runtime-churn shape: a freshly allocated but value-equal error on
+    // every re-notify. Reference compare would re-render here; value compare
+    // coalesces, so the subscriber stays silent.
+    source.set({ connection: { state: "reconnecting", since: NOW, lastError: { ...lastError } } });
+    source.set({ connection: { state: "reconnecting", since: NOW, lastError: { ...lastError } } });
+    expect(notifications).toBe(1);
+
+    detach();
+  });
+});
+
+class ControllableSource implements TuiSnapshotSource {
+  private readonly listeners = new Set<() => void>();
+  constructor(private state: TuiSnapshotSourceState) {}
+  getState(): TuiSnapshotSourceState {
+    return this.state;
+  }
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  set(state: TuiSnapshotSourceState): void {
+    this.state = state;
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+}
+
+function makeStore(): StoreApi<TuiStore> {
+  return createStore<TuiStore>()(() => ({
+    ...createInitialTuiState(),
+    start: () => () => {},
+    handleKey: () => ({ dismissPopup: false }),
+    setTerminalRows: () => {},
+    dismissToasts: () => {},
+    expireToasts: () => {},
+    refreshActiveToastExpiry: () => {},
+  }));
+}

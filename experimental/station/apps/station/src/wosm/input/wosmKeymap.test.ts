@@ -27,15 +27,23 @@ import {
 
 const KEY_CONTEXT = { cwd: "/Users/example/Developer/wosm", homeDir: "/Users/example" };
 
+/** The shared action every addProject union-table entry dispatches. */
+const ADD_PROJECT_KEY_ACTION = "wosm.addProject.key";
+
 /**
  * Whether a binding may match keys the machine ignores, derived from the
  * binding data itself: slot patterns cover the whole 1-9 a-z accelerator
  * space while slot assignment is viewport runtime data, and the addProject
  * table is the union over the flow's sub-modes (which keys apply depends on
- * flow.mode, documented on the table).
+ * flow.mode, documented on the table). The addProject allowance is scoped to
+ * that union's shared action so a future addProject binding with a distinct
+ * action is still flagged when stale rather than blanket-excused.
  */
 function allowedNoOpBinding(mode: WosmInputMode, binding: WosmBinding): boolean {
-  return binding.pattern.kind === "slot" || mode === "addProject";
+  if (binding.pattern.kind === "slot") {
+    return true;
+  }
+  return mode === "addProject" && binding.action === ADD_PROJECT_KEY_ACTION;
 }
 
 function probeKeys(): TuiKey[] {

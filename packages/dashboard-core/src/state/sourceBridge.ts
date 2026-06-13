@@ -1,6 +1,7 @@
 import type { WosmClientConnectionState } from "@wosm/client";
 import type { WosmSnapshot } from "@wosm/contracts";
 import type { StoreApi } from "zustand/vanilla";
+import { safeErrorEquals } from "../services/errors/errors.js";
 import { clampDashboardStateScroll } from "./dashboardScroll.js";
 import { replaceSnapshot } from "./screen.js";
 import type { TuiStore } from "./store.js";
@@ -80,8 +81,6 @@ function applyConnectionState(
   }
 }
 
-// lastError compares by reference: a re-derived status from the same source
-// connection carries the same error object, which is the churn this guards.
 function sameFailureStatus(
   previous: TuiObserverConnectionStatus,
   next: Extract<TuiObserverConnectionStatus, { state: "reconnecting" | "displayOnly" }>,
@@ -89,10 +88,12 @@ function sameFailureStatus(
   if (previous.state !== "reconnecting" && previous.state !== "displayOnly") {
     return false;
   }
+  // lastError compares by value: a source that re-derives an equal failure may
+  // allocate a fresh error object each notify, and those must still coalesce.
   return (
     previous.state === next.state &&
     previous.since === next.since &&
-    previous.lastError === next.lastError
+    safeErrorEquals(previous.lastError, next.lastError)
   );
 }
 
