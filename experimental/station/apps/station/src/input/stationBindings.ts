@@ -107,6 +107,9 @@ export function createStationMouseBindings(wosmViewStore?: StoreApi<TuiStore>): 
       if (outcome.kind === "close-overlay") {
         return { kind: "overlay-close", overlayId: WOSM_OVERLAY_ID };
       }
+      if (outcome.kind === "open-pane") {
+        return { kind: "pane-open", paneId: outcome.paneId, cwd: outcome.cwd };
+      }
       return { kind: "swallowed" };
     },
   };

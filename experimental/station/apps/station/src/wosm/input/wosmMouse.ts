@@ -11,8 +11,11 @@ import {
   dispatchBindingClick,
   dispatchRowSlot,
   dispatchWosmKey,
+  resolveProjectPaneTarget,
+  resolveRowPaneTarget,
   scrollWosmView,
   toggleProjectCollapsed,
+  type OpenPaneTarget,
   type WosmKeyOutcome,
 } from "./wosmActions.js";
 import { deriveWosmMode, WOSM_KEYMAP, type WosmInputMode } from "./wosmKeymap.js";
@@ -20,6 +23,10 @@ import { deriveWosmMode, WOSM_KEYMAP, type WosmInputMode } from "./wosmKeymap.js
 export type WosmMouseTarget =
   | { kind: "row"; rowId: string }
   | { kind: "projectHeader"; projectId: string }
+  /** The `[+sh]` affordance on a worktree row: open a shell in its checkout. */
+  | { kind: "openShellForRow"; rowId: string }
+  /** The `[+sh]` affordance on a project header: open a shell in its root. */
+  | { kind: "openShellForProject"; projectId: string }
   | { kind: "body" }
   | { kind: "scrollIndicator"; direction: "up" | "down" }
   | { kind: "footerHint"; bindingId: string }
@@ -35,7 +42,13 @@ export type WosmMouseOutcome =
   /** Consumed; effect (if any) already dispatched into the view store. */
   | { kind: "handled" }
   /** Consumed; the router should close WOSM mode. */
-  | { kind: "close-overlay" };
+  | { kind: "close-overlay" }
+  /**
+   * Consumed; the router should open-or-focus a pane rooted at `cwd`. Pane
+   * lifecycle is the Station coordination store's job, not the view store's,
+   * so this surfaces as a router outcome the same way close-overlay does.
+   */
+  | { kind: "open-pane"; paneId: string; cwd: string };
 
 const SCROLL_PAGE_ROWS = 5;
 
@@ -69,6 +82,16 @@ export function routeWosmMouse(
       }
       toggleProjectCollapsed(store, target.projectId);
       return { kind: "handled" };
+    case "openShellForRow":
+      if (mode !== "dashboard") {
+        return { kind: "handled" };
+      }
+      return fromPaneTarget(resolveRowPaneTarget(store, target.rowId));
+    case "openShellForProject":
+      if (mode !== "dashboard") {
+        return { kind: "handled" };
+      }
+      return fromPaneTarget(resolveProjectPaneTarget(store, target.projectId));
     case "scrollIndicator":
       if (!ROW_INTERACTIVE_MODES.has(mode)) {
         return { kind: "handled" };
@@ -122,4 +145,12 @@ function bindingById(mode: WosmInputMode, bindingId: string) {
 
 function fromKeyOutcome(outcome: WosmKeyOutcome): WosmMouseOutcome {
   return outcome.kind === "close-overlay" ? { kind: "close-overlay" } : { kind: "handled" };
+}
+
+/** An unresolvable target (stale row, missing project) is an inert click. */
+function fromPaneTarget(target: OpenPaneTarget | undefined): WosmMouseOutcome {
+  if (target === undefined) {
+    return { kind: "handled" };
+  }
+  return { kind: "open-pane", paneId: target.paneId, cwd: target.cwd };
 }

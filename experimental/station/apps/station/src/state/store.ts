@@ -10,6 +10,14 @@ import {
 export type StationStoreActions = {
   createPane(paneId: PaneId): void;
   closePane(paneId: PaneId): void;
+  /**
+   * Make an existing pane the active one, overlay-aware. The reuse half of the
+   * WOSM "open a shell here" affordance: a deterministic pane id that is
+   * already a member re-surfaces its running shell instead of spawning a
+   * second one. Like createPane it leaves focus on an open overlay (queuing
+   * the pane as the return target) rather than stealing it.
+   */
+  revealPane(paneId: PaneId): void;
   focusPane(paneId: PaneId): void;
   openOverlay(overlayId: OverlayId): void;
   closeOverlay(): void;
@@ -81,6 +89,44 @@ function closeOverlayState(state: StationState): StationState {
 }
 
 /**
+ * Make `paneId` the active pane, respecting overlay ownership of focus. With
+ * no overlay open this is the historical create/focus behavior: the pane
+ * becomes active and focused. With an overlay open the overlay keeps focus and
+ * the pane is recorded as `overlayReturnFocus`, so closing the overlay lands on
+ * the freshly opened/revealed shell rather than the pane that was active when
+ * the overlay opened. Returns the same reference when nothing changes so no-op
+ * reveals do not notify.
+ */
+function withActivePane(state: StationState, paneId: PaneId): StationState {
+  const workspace =
+    state.workspace.activePaneId === paneId
+      ? state.workspace
+      : { ...state.workspace, activePaneId: paneId };
+  if (state.input.activeOverlay !== null) {
+    const returnFocus = state.input.overlayReturnFocus;
+    const returnMatches = returnFocus?.kind === "pane" && returnFocus.paneId === paneId;
+    if (workspace === state.workspace && returnMatches) {
+      return state;
+    }
+    return {
+      ...state,
+      workspace,
+      input: { ...state.input, overlayReturnFocus: { kind: "pane", paneId } },
+    };
+  }
+  const focus = state.input.focus;
+  const focusMatches = focus.kind === "pane" && focus.paneId === paneId;
+  if (workspace === state.workspace && focusMatches) {
+    return state;
+  }
+  return {
+    ...state,
+    workspace,
+    input: { ...state.input, focus: { kind: "pane", paneId } },
+  };
+}
+
+/**
  * The hand-rolled vanilla coordination store (subscribe/getState +
  * useSyncExternalStore on the React side). The store owns cross-app
  * coordination state only: never process handles, terminal buffers, or
@@ -116,15 +162,26 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
     },
     actions: {
       // A pane record is created once; the runtime PtyRegistry owns the live
-      // process for the id. Creating a new pane makes it active and focused.
+      // process for the id. Creating a new pane makes it active and focused
+      // (or, under an open overlay, the overlay's pending return target).
       createPane: (paneId) => {
         if (state.workspace.panes.includes(paneId)) {
           return;
         }
-        setState({
-          workspace: { panes: [...state.workspace.panes, paneId], activePaneId: paneId },
-          input: { ...state.input, focus: { kind: "pane", paneId } },
-        });
+        const appended: StationState = {
+          ...state,
+          workspace: { ...state.workspace, panes: [...state.workspace.panes, paneId] },
+        };
+        setState(withActivePane(appended, paneId));
+      },
+      // Open-or-focus reuse: surface an already-created pane. Overlay-aware via
+      // the same helper createPane uses, so revealing under the WOSM overlay
+      // queues the pane as the return focus instead of yanking it forward.
+      revealPane: (paneId) => {
+        if (!state.workspace.panes.includes(paneId)) {
+          return;
+        }
+        setState(withActivePane(state, paneId));
       },
       // Removing a pane record retargets the active pane and any focus that
       // pointed at it to a survivor (or the standard fallback when none remain).
@@ -145,7 +202,16 @@ export function createStationStore(options?: StationStoreOptions): StationStore 
               ? { kind: "pane", paneId: activePaneId }
               : fallbackFocus({ ...state, workspace })
             : state.input.focus;
-        setState({ ...state, workspace, input: { ...state.input, focus } });
+        // A pane queued as the overlay's return target (withActivePane records
+        // this for an under-overlay create/reveal) must not survive the pane's
+        // removal, or closeOverlay would restore focus to a gone pane. Drop it
+        // so closeOverlay falls back to the active pane instead.
+        const overlayReturnFocus: FocusTarget | null =
+          state.input.overlayReturnFocus?.kind === "pane" &&
+          state.input.overlayReturnFocus.paneId === paneId
+            ? null
+            : state.input.overlayReturnFocus;
+        setState({ ...state, workspace, input: { ...state.input, focus, overlayReturnFocus } });
       },
       focusPane: (paneId) => {
         if (!state.workspace.panes.includes(paneId)) {

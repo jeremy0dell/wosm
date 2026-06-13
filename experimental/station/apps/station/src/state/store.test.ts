@@ -63,6 +63,77 @@ describe("createStationStore", () => {
     expect(count()).toEqual(0);
   });
 
+  it("createPane under an open overlay queues the pane without stealing focus", () => {
+    const store = createStationStore();
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+    store.actions.createPane("pane-shell");
+    const state = store.getState();
+    expect(state.workspace.panes).toEqual([MAIN_PANE_ID, "pane-shell"]);
+    expect(state.workspace.activePaneId).toEqual("pane-shell");
+    // The overlay keeps focus; the new pane becomes the return target.
+    expect(state.input.focus).toEqual({ kind: "overlay", overlayId: WOSM_OVERLAY_ID });
+    expect(state.input.overlayReturnFocus).toEqual({ kind: "pane", paneId: "pane-shell" });
+    // Closing the overlay lands on the queued pane, not the original.
+    store.actions.closeOverlay();
+    expect(store.getState().input.focus).toEqual({ kind: "pane", paneId: "pane-shell" });
+  });
+
+  it("revealPane is overlay-aware: queues under an overlay, focuses without one", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-shell");
+    store.actions.focusPane(MAIN_PANE_ID);
+    // No overlay: revealPane focuses + activates like a plain switch.
+    store.actions.revealPane("pane-shell");
+    expect(store.getState().workspace.activePaneId).toEqual("pane-shell");
+    expect(store.getState().input.focus).toEqual({ kind: "pane", paneId: "pane-shell" });
+
+    // Under an overlay: queue the return target, leave focus on the overlay.
+    store.actions.focusPane(MAIN_PANE_ID);
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+    store.actions.revealPane("pane-shell");
+    const state = store.getState();
+    expect(state.workspace.activePaneId).toEqual("pane-shell");
+    expect(state.input.focus).toEqual({ kind: "overlay", overlayId: WOSM_OVERLAY_ID });
+    expect(state.input.overlayReturnFocus).toEqual({ kind: "pane", paneId: "pane-shell" });
+    store.actions.closeOverlay();
+    expect(store.getState().input.focus).toEqual({ kind: "pane", paneId: "pane-shell" });
+  });
+
+  it("revealPane is a silent no-op for unknown panes and for the already-active pane", () => {
+    const { store, count } = createCountingStore();
+    store.actions.revealPane("pane-unknown");
+    expect(count()).toEqual(0);
+    // MAIN is already active and focused with no overlay: nothing changes.
+    const before = store.getState();
+    store.actions.revealPane(MAIN_PANE_ID);
+    expect(store.getState()).toBe(before);
+    expect(count()).toEqual(0);
+  });
+
+  it("revealPane under an overlay is a no-op once the pane is active and already queued", () => {
+    const { store, count } = createCountingStore();
+    store.actions.createPane("pane-shell"); // active + focus pane-shell (no overlay)
+    store.actions.openOverlay(WOSM_OVERLAY_ID); // records overlayReturnFocus = pane-shell
+    // pane-shell is active AND already the queued return target: nothing to do.
+    const before = store.getState();
+    const baseline = count();
+    store.actions.revealPane("pane-shell");
+    expect(store.getState()).toBe(before);
+    expect(count()).toEqual(baseline);
+  });
+
+  it("closePane drops an overlayReturnFocus that points at the removed pane", () => {
+    const store = createStationStore();
+    store.actions.createPane("pane-shell");
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+    expect(store.getState().input.overlayReturnFocus).toEqual({ kind: "pane", paneId: "pane-shell" });
+    store.actions.closePane("pane-shell");
+    expect(store.getState().input.overlayReturnFocus).toBeNull();
+    // closeOverlay must land on a surviving pane, not the removed return target.
+    store.actions.closeOverlay();
+    expect(store.getState().input.focus).toEqual({ kind: "pane", paneId: MAIN_PANE_ID });
+  });
+
   it("closePane removes the pane and retargets active + focus to a survivor", () => {
     const store = createStationStore();
     store.actions.createPane("pane-second");

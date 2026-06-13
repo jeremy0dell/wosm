@@ -161,10 +161,84 @@ describe("routeWosmMouse", () => {
     );
     expect(outcome).toEqual({ kind: "close-overlay" });
   });
+
+  it("opens a shell pane for a row click at the worktree path", () => {
+    const store = makeStore();
+    // Derive cwd from the live snapshot, not a duplicated path literal, so the
+    // assertion proves the resolver reads row.path (not some equivalent format).
+    const outcome = routeWosmMouse({ kind: "openShellForRow", rowId: "wt_wosm_idle" }, "down", store);
+    expect(outcome).toEqual({
+      kind: "open-pane",
+      paneId: "pane-wt-wt_wosm_idle",
+      cwd: rowPath("wt_wosm_idle"),
+    });
+  });
+
+  it("opens a shell pane for a project header click at the project root", () => {
+    const store = makeStore();
+    const outcome = routeWosmMouse({ kind: "openShellForProject", projectId: "wosm" }, "down", store);
+    expect(outcome).toEqual({
+      kind: "open-pane",
+      paneId: "pane-proj-wosm",
+      cwd: projectRoot("wosm"),
+    });
+  });
+
+  it("keeps [+sh] live on a worktree that has a pending agent start", () => {
+    const store = makeStore();
+    const rowId = "wt_wosm_none";
+    // Starting an agent drops the row out of rowChoices (it gains a pendingStart)
+    // but it still renders a clickable [+sh]. Opening a shell is orthogonal to
+    // agent activation, so the affordance must still resolve against snapshot.rows.
+    routeWosmMouse({ kind: "row", rowId }, "down", store);
+    const outcome = routeWosmMouse({ kind: "openShellForRow", rowId }, "down", store);
+    expect(outcome).toEqual({ kind: "open-pane", paneId: `pane-wt-${rowId}`, cwd: rowPath(rowId) });
+  });
+
+  it("gates the open-shell affordance to dashboard mode", () => {
+    const store = makeStore();
+    store.getState().handleKey({ input: "/" }); // enter search (non-dashboard) mode
+
+    expect(routeWosmMouse({ kind: "openShellForRow", rowId: "wt_wosm_idle" }, "down", store)).toEqual({
+      kind: "handled",
+    });
+    expect(
+      routeWosmMouse({ kind: "openShellForProject", projectId: "wosm" }, "down", store),
+    ).toEqual({ kind: "handled" });
+  });
+
+  it("treats an unresolvable row or project as an inert click", () => {
+    const store = makeStore();
+    expect(routeWosmMouse({ kind: "openShellForRow", rowId: "wt_nope" }, "down", store)).toEqual({
+      kind: "handled",
+    });
+    expect(
+      routeWosmMouse({ kind: "openShellForProject", projectId: "ghost" }, "down", store),
+    ).toEqual({ kind: "handled" });
+  });
 });
 
 function pendingStartIds(store: StoreApi<TuiStore>): string[] {
   return store.getState().localRows.pendingStart.map((row) => row.localId);
+}
+
+// The fixture's worktree path / project root, read back from a fresh snapshot
+// (deterministic builder) so tests assert equivalence to the data the resolver
+// reads rather than duplicating the fixture's path format.
+function rowPath(rowId: string): string {
+  const path = manyProjectsSnapshot().rows.find((row) => row.id === rowId)?.path;
+  if (path === undefined) {
+    throw new Error(`no fixture row ${rowId}`);
+  }
+  return path;
+}
+
+function projectRoot(projectId: string): string {
+  const root = manyProjectsSnapshot().projects.find((project) => project.id === projectId)?.root;
+  if (root === undefined) {
+    throw new Error(`no fixture project ${projectId}`);
+  }
+  return root;
 }
 
 function slotForRow(store: StoreApi<TuiStore>, rowId: string): string {

@@ -10,6 +10,7 @@ import { selectDashboardViewport } from "@wosm/dashboard-core";
 import { clampDashboardStateScroll, scrollDashboard } from "@wosm/dashboard-core";
 import type { TuiKey } from "@wosm/dashboard-core";
 import type { TuiHandleKeyResult, TuiStore } from "@wosm/dashboard-core";
+import { projectPaneId, worktreePaneId, type PaneId } from "../../state/types.js";
 import { sequenceToTuiKey } from "./sequenceToTuiKey.js";
 import { matchWosmBinding, deriveWosmMode, type WosmBinding } from "./wosmKeymap.js";
 
@@ -100,6 +101,58 @@ export function dispatchRowSlot(store: StoreApi<TuiStore>, rowId: string): WosmK
     return { kind: "handled" };
   }
   return dispatchWosmKey(store, { input: choice.key });
+}
+
+/**
+ * Where a WOSM "open a shell here" trigger should land: a deterministic pane
+ * id plus the cwd the shell spawns in. Undefined when the row/project can't be
+ * resolved from the current snapshot, which the router maps to an inert
+ * `handled` (no pane churn).
+ */
+export type OpenPaneTarget = { paneId: PaneId; cwd: string };
+
+/**
+ * Resolve a worktree row to its shell pane target; cwd is the worktree's
+ * checkout path. Resolves against the snapshot's worktree rows rather than the
+ * dashboard's `rowChoices`: opening a shell in a worktree is orthogonal to
+ * whether an agent is starting there or the worktree is being removed, and
+ * `rowChoices` filters out exactly those transient-state rows (pending-start /
+ * pending-remove) that still render a clickable `[+sh]`. Reading `snapshot.rows`
+ * keeps `[+sh]` live for any real worktree and mirrors resolveProjectPaneTarget,
+ * which reads `snapshot.projects`. An id with no matching row is inert.
+ */
+export function resolveRowPaneTarget(
+  store: StoreApi<TuiStore>,
+  rowId: string,
+): OpenPaneTarget | undefined {
+  const snapshot = store.getState().snapshot;
+  if (snapshot === undefined) {
+    return undefined;
+  }
+  const row = snapshot.rows.find((candidate) => candidate.id === rowId);
+  if (row === undefined) {
+    return undefined;
+  }
+  return { paneId: worktreePaneId(row.id), cwd: row.path };
+}
+
+/**
+ * Resolve a project header to its shell pane target; cwd is the project root.
+ * Projects come straight off the snapshot (headers are not row choices).
+ */
+export function resolveProjectPaneTarget(
+  store: StoreApi<TuiStore>,
+  projectId: string,
+): OpenPaneTarget | undefined {
+  const snapshot = store.getState().snapshot;
+  if (snapshot === undefined) {
+    return undefined;
+  }
+  const project = snapshot.projects.find((candidate) => candidate.id === projectId);
+  if (project === undefined) {
+    return undefined;
+  }
+  return { paneId: projectPaneId(project.id), cwd: project.root };
 }
 
 /**

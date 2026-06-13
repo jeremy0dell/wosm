@@ -5,6 +5,21 @@ export type DialogId = string;
 export const MAIN_PANE_ID: PaneId = "pane-main";
 export const WOSM_OVERLAY_ID: OverlayId = "wosm";
 
+/**
+ * Deterministic pane ids for the WOSM "open a shell here" affordance. The id
+ * is derived from the worktree/project identity so re-triggering the same
+ * target resolves to the same pane (open-or-focus), not a second shell. The
+ * convention lives here so both the resolver that builds ids and any future
+ * consumer share one source of truth.
+ */
+export function worktreePaneId(worktreeId: string): PaneId {
+  return `pane-wt-${worktreeId}`;
+}
+
+export function projectPaneId(projectId: string): PaneId {
+  return `pane-proj-${projectId}`;
+}
+
 export type HeaderRegion = "tabs" | "island" | "title";
 
 /**

@@ -121,14 +121,19 @@ Exit bar: split/focus/close feels boring and reliable.
 
 ### Phase 3 - WOSM-Aware Actions And Command Dispatch (Goals 6-7)
 
-- [ ] open a shell pane in the current project root or selected worktree from
-      WOSM overlay context — thread the worktree path into the spawn: either
-      grow pane records to carry `cwd`/worktree id (the pane-record metadata
-      this phase describes) or have the overlay action call
-      `registry.ensure(paneId, { cwd: worktree.path })` at create time, then
-      `createPane` (which activates it, so it becomes the visible pane). That
-      yields one-way "open a shell in worktree X"; *jumping between* panes also
-      needs the tabbed-multi-pane pane-switch keybindings (Phase 2)
+- [x] open a shell pane in the current project root or selected worktree from
+      WOSM overlay context (done 2026-06-13; see the Spike Log entry). A mouse
+      `[+sh]` affordance on worktree rows (cwd = `worktree.path`) and project
+      headers (cwd = `project.root`) calls
+      `registry.ensure(paneId, { cwd })` *before* `createPane`, keyed by a
+      deterministic pane id (`pane-wt-<id>` / `pane-proj-<id>`) so the action is
+      open-or-focus: re-triggering the same target reveals the running shell
+      rather than spawning a second. The overlay stays open by default
+      (`WOSM_STATION_SHELL_AUTOCLOSE=1` opts into auto-closing onto the shell);
+      the keyboard prefix-then-slot two-step trigger is deferred. As the doc's
+      own caveat already noted, this is **one-way** "open a shell in worktree
+      X" — *jumping between* different worktree panes still needs the
+      tabbed-multi-pane pane-switch keybindings (Phase 2)
 - [ ] `diff` action opens a real diff tool in a pane: `difftastic`, fallback
       `git diff` (Goal 7)
 - [ ] agent action launches a real agent command in a pane, following Session
@@ -154,6 +159,77 @@ Exit bar: a continue-or-pause decision inside the timebox. The spike started
 2026-06-10: target decision by 2026-06-24, hard maximum 2026-07-01.
 
 ## Spike Log
+
+### 2026-06-13 - Open A Shell In The Selected Worktree / Project Root
+
+The first Phase 3 action landed: turning WOSM project/worktree context into a
+real local Station pane rooted in the right directory (Goal 6's "open shell in
+current project root / selected worktree"). The overlay was read-only plus
+daemon command dispatch; nothing in it created a *local* pane before this.
+
+What landed:
+
+- A cwd-threaded **open-or-focus** action. A new `RouteOutcome`
+  (`{ kind: "pane-open"; paneId; cwd }`) carries "open a pane here" to a
+  `StationInputEffects.openPane(paneId, cwd)` executor. First trigger
+  `registry.ensure(paneId, { cwd })` then `createPane`; re-triggering the same
+  target `revealPane`s the running shell. Pane ids are deterministic
+  (`worktreePaneId`/`projectPaneId` in `state/types.ts`): `pane-wt-<id>` for a
+  worktree (cwd = `worktree.path`), `pane-proj-<id>` for a project header
+  (cwd = `project.root`).
+- **ensure-before-createPane is load-bearing.** `PtyRegistry.ensure` stores
+  `spawnOptions` only when it first creates the entry, and the pane reconciler
+  later calls `registry.ensure(paneId)` with no options on every `createPane`.
+  So the cwd must be seeded *before* `createPane`; the reconciler's no-option
+  ensure is then an idempotent no-op that preserves it. Reverse the order and
+  the cwd is silently lost.
+- **The trigger is a mouse `[+sh]` affordance**, not a keyboard binding.
+  Dashboard-core has no row cursor and all 35 slot keys (1-9 a-z) are taken, so
+  a new single-key row action would mean forking the ported machine (a spike
+  non-goal). The mouse path is the sanctioned machine-bypassing escape hatch
+  Station already uses for per-row actions; `routeWosmMouse` gains
+  `openShellForRow`/`openShellForProject` targets. The cwd resolves against
+  `snapshot.rows` / `snapshot.projects` (not the slot accelerator's
+  `rowChoices`): opening a shell is orthogonal to agent activation, so `[+sh]`
+  stays live even on a row a pending agent-start/remove would drop from
+  `rowChoices`. The `[+sh]` segment is its own trailing `<text>`
+  (stopPropagation fires only the shell action), `flexShrink={0}` so row content
+  is clipped before the affordance, with its width reserved in the row grid +
+  header truncation so it never clips. The keyboard prefix-then-slot two-step is
+  deferred.
+- **Overlay-aware focus.** Opening a pane while the WOSM overlay is up must not
+  steal focus from the overlay. A pure `withActivePane` reducer makes the new
+  pane active and, under an overlay, records it as `overlayReturnFocus` (so
+  closing the overlay lands on the new shell) while leaving focus on the
+  overlay; with no overlay it focuses the pane as before. `createPane` and the
+  new `revealPane` both route through it. The overlay stays open by default;
+  `WOSM_STATION_SHELL_AUTOCLOSE=1` opts into closing it onto the shell.
+
+Tests: `wosmMouse.test.ts` (open-pane outcome for row/project, dashboard-mode
+gating, unresolvable → inert, `[+sh]` live on a pending-start row),
+`store.test.ts` (overlay-aware `createPane`/`revealPane`, return-focus on close,
+`closePane` dropping a stale queued return-focus), `stationInput.test.ts`
+(ensure-before-createPane ordering, reuse via `revealPane` with no second
+ensure, autoclose, and the cwd reaching a spawned shell through a real
+reconciler), plus regenerated dashboard/modal golden frames. Full station suite
+green (321 tests), typecheck clean.
+
+A multi-agent adversarial review of this change ran before merge (21 confirmed
+findings, all risk/nit/plan-gap — no shipped-behavior bugs). Acted on: `[+sh]`
+resolving against `snapshot.rows` so it stays live on pending-start/remove rows
+(was the slot accelerator's `rowChoices`); `flexShrink={0}` on the affordance;
+`closePane` clearing a queued `overlayReturnFocus`; and the cwd-reaches-shell
+regression test above.
+
+Deferred, by design: the keyboard two-step trigger, and an "always new pane"
+multi-shell mode — coherent only once the Phase 2 tabbed-multi-pane switcher
+can reach a background pane (the switch is then a one-line pane-id-strategy
+change). Two review follow-ups ride the same stable-id model: re-clicking
+`[+sh]` after a pane's shell **exits** reveals the dead pane rather than
+respawning (the registry keeps the exited entry; no auto-close path), and reuse
+does **not** re-thread a changed `cwd` for a stable id — both want the Phase 2
+pane lifecycle work. The Goal 7 `diff` action and the agent action are the next
+Phase 3 items and reuse this same open-pane-with-cwd path.
 
 ### 2026-06-13 - PtyRegistry: Multiple PTYs Behind A Single-Pane UI
 
@@ -569,10 +645,12 @@ the workspace feel product-specific.
 
 Minimum actions:
 
-- open shell in current project root
-- open shell in selected worktree
-- open agent command in a pane
-- open diff command in a pane
+- open shell in current project root — **done 2026-06-13** (mouse `[+sh]` on a
+  project header; open-or-focus, cwd = `project.root`)
+- open shell in selected worktree — **done 2026-06-13** (mouse `[+sh]` on a
+  worktree row; open-or-focus, cwd = `worktree.path`)
+- open agent command in a pane — next Phase 3 item; reuses the open-pane-with-cwd path
+- open diff command in a pane — next Phase 3 item (Goal 7); reuses the open-pane-with-cwd path
 - jump/focus selected pane
 - close pane
 

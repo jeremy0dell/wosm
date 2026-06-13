@@ -18,6 +18,12 @@ export type StationAppCompositionOptions = {
   wosmClient: StationWosmClient;
   shutdown(): void;
   createTerminal?: (options: StationTerminalSpawnOptions) => StationTerminalProcess;
+  /**
+   * Opt in to closing the WOSM overlay when a `[+sh]` shell pane opens, so the
+   * shell is revealed immediately. Default (false) keeps the overlay up and
+   * queues the pane as its return focus.
+   */
+  shellAutoCloseOverlay?: boolean;
 };
 
 export function createStationAppComposition(options: StationAppCompositionOptions) {
@@ -76,6 +82,7 @@ export function createStationAppComposition(options: StationAppCompositionOption
     },
     wosmViewStore,
     registry,
+    autoCloseOverlayOnPaneOpen: options.shellAutoCloseOverlay ?? false,
   });
 
   // Named store snapshots: useSyncExternalStore takes getSnapshot and (unused,

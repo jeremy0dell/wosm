@@ -1,9 +1,13 @@
 import { describe, expect, it } from "bun:test";
-import { selectWosmOverlayVisible } from "../state/selectors.js";
+import { createTuiStore } from "@wosm/dashboard-core";
+import { selectActivePaneId, selectWosmOverlayVisible } from "../state/selectors.js";
 import { createStationStore } from "../state/store.js";
-import { MAIN_PANE_ID, WOSM_OVERLAY_ID, type PaneId } from "../state/types.js";
-import { createPtyRegistry } from "../terminal/registry/ptyRegistry.js";
+import { MAIN_PANE_ID, WOSM_OVERLAY_ID, worktreePaneId, type PaneId } from "../state/types.js";
+import { createPtyRegistry, type PtyRegistry } from "../terminal/registry/ptyRegistry.js";
 import { createScriptedTerminal } from "../terminal/testing/scriptedTerminal.js";
+import { manyProjectsSnapshot } from "../wosm/fixtures/scenarios.js";
+import { FakeTuiObserverService } from "../wosm/test/support/fakeObserverService.js";
+import { FakeStationSource } from "../wosm/test/support/fakeStationSource.js";
 import { createStationInputRuntime, normalizeSequence } from "./stationInput.js";
 
 const TMUX_STARTUP_BURST =
@@ -128,6 +132,167 @@ describe("createStationInputRuntime", () => {
       },
     });
     expect(prevented).toBe(0);
+  });
+});
+
+describe("createStationInputRuntime open-pane wiring", () => {
+  // wt_wosm_idle -> branch pty-buffer; the fixture derives both ids and path.
+  const ROW_ID = "wt_wosm_idle";
+  const PANE_ID = worktreePaneId(ROW_ID);
+  const CWD = "/Users/example/.worktrees/wosm/pty-buffer";
+
+  function paneHarness(options?: { autoCloseOverlayOnPaneOpen?: boolean }) {
+    const snapshot = manyProjectsSnapshot();
+    const wosmViewStore = createTuiStore({
+      source: new FakeStationSource(snapshot),
+      service: new FakeTuiObserverService(snapshot),
+      initialSnapshot: snapshot,
+      persistentPopup: true,
+      onDismiss: async () => {},
+      initialState: { terminalRows: 12 },
+    });
+    const scripted = createScriptedTerminal();
+    const base = createPtyRegistry({ createTerminal: () => scripted.terminal });
+    const calls: string[] = [];
+    const registry: PtyRegistry = {
+      ...base,
+      ensure: (paneId, spawnOptions) => {
+        calls.push(`ensure:${paneId}:${spawnOptions?.cwd ?? ""}`);
+        return base.ensure(paneId, spawnOptions);
+      },
+    };
+    const store = createStationStore();
+    const origCreate = store.actions.createPane;
+    store.actions.createPane = (paneId) => {
+      calls.push(`createPane:${paneId}`);
+      origCreate(paneId);
+    };
+    const origReveal = store.actions.revealPane;
+    store.actions.revealPane = (paneId) => {
+      calls.push(`revealPane:${paneId}`);
+      origReveal(paneId);
+    };
+    const runtime = createStationInputRuntime({
+      store,
+      shutdown: () => {},
+      wosmViewStore,
+      registry,
+      autoCloseOverlayOnPaneOpen: options?.autoCloseOverlayOnPaneOpen ?? false,
+    });
+    const clickRowAffordance = (): boolean =>
+      runtime.dispatchMouse(
+        { kind: "wosm", target: { kind: "openShellForRow", rowId: ROW_ID }, eventKind: "down" },
+        {},
+      );
+    return { runtime, store, calls, clickRowAffordance };
+  }
+
+  it("ensures the pane with its cwd before createPane on first open", () => {
+    const { store, calls, clickRowAffordance } = paneHarness();
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+
+    expect(clickRowAffordance()).toBe(true);
+
+    expect(calls).toEqual([`ensure:${PANE_ID}:${CWD}`, `createPane:${PANE_ID}`]);
+    expect(store.getState().workspace.panes).toContain(PANE_ID);
+  });
+
+  it("reuses the running pane via revealPane without a second ensure", () => {
+    const { store, calls, clickRowAffordance } = paneHarness();
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+
+    clickRowAffordance();
+    clickRowAffordance();
+
+    expect(calls).toEqual([
+      `ensure:${PANE_ID}:${CWD}`,
+      `createPane:${PANE_ID}`,
+      `revealPane:${PANE_ID}`,
+    ]);
+    // Open-or-focus: exactly one pane record, no second shell.
+    expect(store.getState().workspace.panes.filter((id) => id === PANE_ID)).toHaveLength(1);
+  });
+
+  it("keeps the overlay up by default, queuing the pane as return focus", () => {
+    const { store, clickRowAffordance } = paneHarness();
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+
+    clickRowAffordance();
+
+    expect(selectWosmOverlayVisible(store.getState())).toBe(true);
+    expect(selectActivePaneId(store.getState())).toBe(PANE_ID);
+    expect(store.getState().input.overlayReturnFocus).toEqual({ kind: "pane", paneId: PANE_ID });
+  });
+
+  it("auto-closes the overlay onto the new shell when opted in", () => {
+    const { store, clickRowAffordance } = paneHarness({ autoCloseOverlayOnPaneOpen: true });
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+
+    clickRowAffordance();
+
+    expect(selectWosmOverlayVisible(store.getState())).toBe(false);
+    expect(store.getState().input.focus).toEqual({ kind: "pane", paneId: PANE_ID });
+  });
+
+  // The load-bearing invariant: the cwd seeded by ensure(paneId,{cwd}) before
+  // createPane must survive the reconciler's later no-option ensure(paneId) and
+  // reach the spawned shell. Exercise it through a real PtyRegistry + a
+  // StationApp-equivalent reconciler, then spawn on first resize and assert the
+  // captured cwd — closing the gap the plan flagged as manual-smoke-only.
+  it("threads the worktree cwd to the spawned shell through the real reconciler", () => {
+    const snapshot = manyProjectsSnapshot();
+    const wosmViewStore = createTuiStore({
+      source: new FakeStationSource(snapshot),
+      service: new FakeTuiObserverService(snapshot),
+      initialSnapshot: snapshot,
+      persistentPopup: true,
+      onDismiss: async () => {},
+      initialState: { terminalRows: 12 },
+    });
+    const scripted = createScriptedTerminal();
+    const spawns: Array<{ paneCwd: string | undefined }> = [];
+    const registry = createPtyRegistry({
+      createTerminal: (options) => {
+        spawns.push({ paneCwd: options.cwd });
+        return scripted.terminal;
+      },
+    });
+    const store = createStationStore();
+    // Mirror StationApp.reconcilePanes: ensure (NO options) every member, dispose
+    // entries no longer in the store. The no-option ensure is the step that must
+    // preserve — not clobber — the cwd seeded by openPane.
+    let lastPanes: readonly PaneId[] | undefined;
+    const reconcile = (): void => {
+      const panes = store.getState().workspace.panes;
+      if (panes === lastPanes) {
+        return;
+      }
+      lastPanes = panes;
+      for (const paneId of panes) {
+        registry.ensure(paneId);
+      }
+      for (const entry of registry.entries()) {
+        if (!panes.includes(entry.paneId)) {
+          registry.dispose(entry.paneId);
+        }
+      }
+    };
+    store.subscribe(reconcile);
+    reconcile();
+    const runtime = createStationInputRuntime({ store, shutdown: () => {}, wosmViewStore, registry });
+    const expectedCwd = snapshot.rows.find((row) => row.id === ROW_ID)?.path;
+
+    store.actions.openOverlay(WOSM_OVERLAY_ID);
+    runtime.dispatchMouse(
+      { kind: "wosm", target: { kind: "openShellForRow", rowId: ROW_ID }, eventKind: "down" },
+      {},
+    );
+    // Lazy spawn-on-first-resize: the shell starts here, at the cwd that must
+    // have survived openPane's ensure -> createPane -> reconciler's no-option ensure.
+    registry.resize(PANE_ID, { cols: 80, rows: 24 });
+
+    expect(typeof expectedCwd).toBe("string");
+    expect(spawns.map((spawn) => spawn.paneCwd)).toContain(expectedCwd);
   });
 });
 
