@@ -49,6 +49,8 @@ export type StationInputEffects = {
   runCommand(commandId: StationCommandId): void;
   writeToTerminal(paneId: PaneId, bytes: string): boolean;
   pasteToTerminal(paneId: PaneId, text: string): boolean;
+  /** Open-or-focus a pane, spawning its shell in `cwd` on first creation. */
+  openPane(paneId: PaneId, cwd: string): void;
 };
 
 /**
@@ -79,6 +81,9 @@ export function executeOutcome(outcome: RouteOutcome, effects: StationInputEffec
     case "overlay-close":
       effects.store.actions.closeOverlay();
       return true;
+    case "pane-open":
+      effects.openPane(outcome.paneId, outcome.cwd);
+      return true;
     case "swallowed":
       return true;
     case "ignored":
@@ -108,6 +113,12 @@ export type StationInputRuntimeOptions = {
   registry?: PtyRegistry;
   writeToTerminal?: (paneId: PaneId, bytes: string) => boolean;
   pasteToTerminal?: (paneId: PaneId, text: string) => boolean;
+  /**
+   * When true, opening a pane from the WOSM overlay closes the overlay so the
+   * new/revealed shell is revealed immediately. Default false: the overlay
+   * stays up and the pane becomes its queued return-focus target.
+   */
+  autoCloseOverlayOnPaneOpen?: boolean;
 };
 
 /**
@@ -122,6 +133,7 @@ export function createStationInputRuntime(options: StationInputRuntimeOptions): 
     "station.exit": options.shutdown,
   };
   const registry = options.registry;
+  const autoCloseOverlay = options.autoCloseOverlayOnPaneOpen ?? false;
   const effects: StationInputEffects = {
     store: options.store,
     runCommand: (commandId) => {
@@ -131,6 +143,22 @@ export function createStationInputRuntime(options: StationInputRuntimeOptions): 
       options.writeToTerminal ?? ((paneId, bytes) => registry?.write(paneId, bytes) ?? false),
     pasteToTerminal:
       options.pasteToTerminal ?? ((paneId, text) => registry?.paste(paneId, text) ?? false),
+    // Open-or-focus a pane with a stable id. On first open, seed the registry
+    // entry with the cwd *before* createPane: PtyRegistry.ensure stores
+    // spawnOptions only when it first creates the entry, and the pane
+    // reconciler's later no-option ensure(paneId) is then an idempotent no-op
+    // that preserves the cwd. Reverse the order and the cwd is silently lost.
+    openPane: (paneId, cwd) => {
+      if (options.store.getState().workspace.panes.includes(paneId)) {
+        options.store.actions.revealPane(paneId);
+      } else {
+        registry?.ensure(paneId, { cwd });
+        options.store.actions.createPane(paneId);
+      }
+      if (autoCloseOverlay) {
+        options.store.actions.closeOverlay();
+      }
+    },
   };
 
   return {

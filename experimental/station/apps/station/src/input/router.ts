@@ -20,6 +20,13 @@ export type RouteOutcome =
   | { kind: "focus"; target: FocusTarget }
   | { kind: "overlay-open"; overlayId: OverlayId }
   | { kind: "overlay-close"; overlayId: OverlayId }
+  /**
+   * Open-or-focus a pane rooted at `cwd` (the WOSM "open a shell here"
+   * affordance). Its own outcome kind rather than a StationCommandId because
+   * commands take no arguments; the executor resolves the cwd into a pane via
+   * the registry + store.
+   */
+  | { kind: "pane-open"; paneId: PaneId; cwd: string }
   | { kind: "swallowed" }
   | { kind: "ignored" };
 

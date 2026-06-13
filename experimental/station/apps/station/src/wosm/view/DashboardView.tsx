@@ -29,11 +29,20 @@ import {
   type DashboardViewportItem,
 } from "@wosm/dashboard-core";
 import type { TuiViewState } from "@wosm/dashboard-core";
+import type { WosmMouseTarget } from "../input/wosmMouse.js";
 import { Segments } from "./segments.js";
 import { WOSM_COLORS } from "./theme.js";
 import { useWosmMouse, wosmMouseProps } from "./wosmMouseContext.js";
 
 const HOVER_BG = "#1f242b";
+
+// The per-row/header "open a shell here" click target. Rendered as its own
+// trailing <text> so wosmMouseProps' stopPropagation fires only this action,
+// never the row-activate / collapse-toggle on the line it sits beside. The
+// reserved width (label + a leading space) is subtracted from the row grid and
+// header truncation so the affordance is never clipped at small viewports.
+const SHELL_AFFORDANCE_LABEL = "[+sh]";
+const SHELL_AFFORDANCE_WIDTH = SHELL_AFFORDANCE_LABEL.length + 1;
 
 export type DashboardViewProps = {
   snapshot: WosmSnapshot;
@@ -161,7 +170,11 @@ function DashboardBody({
     const input = rowGridInputForViewportItem(item, keyByRow);
     return input === undefined ? [] : [input];
   });
-  const rowLayouts = layoutWorktreeRowGrid({ columns, rows: rowInputs });
+  // Lay rows out one affordance-width narrower so every row reserves the same
+  // right-hand column for `[+sh]`; rows keep their alignment whether or not
+  // the trailing affordance renders (worktree rows have it, create rows don't).
+  const gridColumns = Math.max(1, columns - SHELL_AFFORDANCE_WIDTH);
+  const rowLayouts = layoutWorktreeRowGrid({ columns: gridColumns, rows: rowInputs });
   const layoutByItem = new Map(rowLayouts.map((layout) => [layout.id, layout]));
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -211,14 +224,43 @@ function WorktreeRowLine({ rowId, layout }: { rowId: string; layout: RowGridLayo
   const dispatch = useWosmMouse();
   const [hover, setHover] = useState(false);
   return (
+    <box flexDirection="row">
+      <text
+        flexGrow={1}
+        fg={WOSM_COLORS.foreground}
+        {...(hover ? { bg: HOVER_BG } : {})}
+        {...wosmMouseProps(dispatch, { kind: "row", rowId })}
+        onMouseOver={() => setHover(true)}
+        onMouseOut={() => setHover(false)}
+      >
+        <Segments segments={layout.segments} />
+      </text>
+      <ShellAffordance target={{ kind: "openShellForRow", rowId }} />
+    </box>
+  );
+}
+
+/**
+ * The trailing `[+sh]` click target. Its own <text> (not a span) so it carries
+ * its own mouse target and stopPropagation; the leading space keeps it off the
+ * line content. Color-only hover, so golden frames stay layout-stable.
+ */
+function ShellAffordance({ target }: { target: WosmMouseTarget }) {
+  const dispatch = useWosmMouse();
+  const [hover, setHover] = useState(false);
+  return (
+    // flexShrink={0}: never shrink the affordance. The content text grows to
+    // fill (flexGrow={1}, default shrink), so on any width disagreement the row
+    // content is clipped, never the `[+sh]` target — making the plan's
+    // reserve-width intent guaranteed rather than width-budget-dependent.
     <text
-      fg={WOSM_COLORS.foreground}
-      {...(hover ? { bg: HOVER_BG } : {})}
-      {...wosmMouseProps(dispatch, { kind: "row", rowId })}
+      flexShrink={0}
+      fg={hover ? WOSM_COLORS.green : WOSM_COLORS.gray}
+      {...wosmMouseProps(dispatch, target)}
       onMouseOver={() => setHover(true)}
       onMouseOut={() => setHover(false)}
     >
-      <Segments segments={layout.segments} />
+      {` ${SHELL_AFFORDANCE_LABEL}`}
     </text>
   );
 }
@@ -235,15 +277,22 @@ function ProjectHeaderLine({
   const dispatch = useWosmMouse();
   const [hover, setHover] = useState(false);
   return (
-    <text
-      fg={WOSM_COLORS.foreground}
-      attributes={TextAttributes.BOLD}
-      {...(hover ? { bg: HOVER_BG } : {})}
-      {...wosmMouseProps(dispatch, { kind: "projectHeader", projectId: project.id })}
-      onMouseOver={() => setHover(true)}
-      onMouseOut={() => setHover(false)}
-    >
-      {truncateCells(projectHeaderLabel(project, collapsed), columns)}
-    </text>
+    <box flexDirection="row">
+      <text
+        flexGrow={1}
+        fg={WOSM_COLORS.foreground}
+        attributes={TextAttributes.BOLD}
+        {...(hover ? { bg: HOVER_BG } : {})}
+        {...wosmMouseProps(dispatch, { kind: "projectHeader", projectId: project.id })}
+        onMouseOver={() => setHover(true)}
+        onMouseOut={() => setHover(false)}
+      >
+        {truncateCells(
+          projectHeaderLabel(project, collapsed),
+          Math.max(1, columns - SHELL_AFFORDANCE_WIDTH),
+        )}
+      </text>
+      <ShellAffordance target={{ kind: "openShellForProject", projectId: project.id }} />
+    </box>
   );
 }
