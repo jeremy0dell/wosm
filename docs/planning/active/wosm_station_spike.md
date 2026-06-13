@@ -110,12 +110,25 @@ input router.
       generalizes by creating one store per pane id (Secondary Goal B memo:
       [station_vt_engine_decision.md](station_vt_engine_decision.md))
 
+Recommended next increment (smallest visible step on the merged PtyRegistry):
+**tabbed multi-pane** — wire `station.paneCreate`/`paneNext`/`paneClose` command
+ids + keybindings to the existing `createPane`/`focusPane`/`closePane` reducers,
+render the active pane only (optionally a header tab strip), and defer the split
+geometry above. This makes multiple PTYs drivable (`Tab`/click to switch,
+`Ctrl-W` to close) and is the prerequisite for *jumping between* worktree panes.
+
 Exit bar: split/focus/close feels boring and reliable.
 
 ### Phase 3 - WOSM-Aware Actions And Command Dispatch (Goals 6-7)
 
 - [ ] open a shell pane in the current project root or selected worktree from
-      WOSM overlay context
+      WOSM overlay context — thread the worktree path into the spawn: either
+      grow pane records to carry `cwd`/worktree id (the pane-record metadata
+      this phase describes) or have the overlay action call
+      `registry.ensure(paneId, { cwd: worktree.path })` at create time, then
+      `createPane` (which activates it, so it becomes the visible pane). That
+      yields one-way "open a shell in worktree X"; *jumping between* panes also
+      needs the tabbed-multi-pane pane-switch keybindings (Phase 2)
 - [ ] `diff` action opens a real diff tool in a pane: `difftastic`, fallback
       `git diff` (Goal 7)
 - [ ] agent action launches a real agent command in a pane, following Session
